@@ -1,0 +1,14 @@
+.env
+backend/.env
+__pycache__/
+*.pyc
+venv/
+env/
+.venv/
+node_modules/
+dist/
+build/
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
