@@ -46,6 +46,7 @@ jobs:
       - name: 🕷️ Run scraper
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          APP_DEBUG: "false"
         run: |
           cd backend
           python -m scraper.main
