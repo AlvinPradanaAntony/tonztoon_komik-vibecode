@@ -12,3 +12,4 @@ build/
 .packages
 .pub-cache/
 .pub/
+testing/
