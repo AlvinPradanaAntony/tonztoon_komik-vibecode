@@ -1,0 +1,56 @@
+# ================================================
+# Tonztoon Komik — Scraper GitHub Actions Workflow
+# ================================================
+# Trigger:
+#   1. Cron job (terjadwal setiap 6 jam)
+#   2. workflow_dispatch (manual sync via API)
+
+name: "🕷️ Scraper: Comic Data Sync"
+
+on:
+  schedule:
+    # Jalankan setiap 6 jam (00:00, 06:00, 12:00, 18:00 UTC)
+    - cron: "0 */6 * * *"
+
+  workflow_dispatch:
+    inputs:
+      trigger_source:
+        description: "Source that triggered this workflow"
+        required: false
+        default: "manual"
+
+# Force Node.js 24 to avoid deprecation warnings
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  scrape:
+    name: Run Comic Scraper
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v6
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: 📦 Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: 🕷️ Run scraper
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          APP_DEBUG: "false"
+        run: |
+          cd backend
+          python -m scraper.main
+
+      - name: 📝 Log completion
+        if: always()
+        run: echo "Scraper workflow finished at $(date -u)"
