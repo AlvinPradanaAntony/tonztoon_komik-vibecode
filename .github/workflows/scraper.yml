@@ -19,6 +19,10 @@ on:
         required: false
         default: "manual"
 
+# Force Node.js 24 to avoid deprecation warnings
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   scrape:
     name: Run Comic Scraper
@@ -26,10 +30,10 @@ jobs:
 
     steps:
       - name: 📥 Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: 🐍 Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: "pip"
@@ -38,7 +42,7 @@ jobs:
         run: |
           cd backend
           pip install -r requirements.txt
-
+      
       - name: 🌐 Install Scrapling browser dependencies
         run: scrapling install
 
@@ -50,4 +54,5 @@ jobs:
           python -m scraper.main
 
       - name: 📝 Log completion
-        run: echo "Scraper completed at $(date -u)"
+        if: always()
+        run: echo "Scraper workflow finished at $(date -u)"
