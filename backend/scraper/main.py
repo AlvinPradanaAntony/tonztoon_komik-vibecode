@@ -20,7 +20,7 @@ import asyncio
 import logging
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -88,7 +88,7 @@ async def upsert_comic(session, validated: ComicCreate) -> int:
             "synopsis": validated.synopsis,
             "type": validated.type,
             "rating": validated.rating,
-            "updated_at": datetime.utcnow(),
+            "updated_at": datetime.now(timezone.utc),
         },
     )
     await session.execute(stmt)

@@ -21,6 +21,10 @@ engine = create_async_engine(
     echo=settings.APP_DEBUG,  # Log SQL queries saat development
     pool_size=5,
     max_overflow=10,
+    connect_args={
+        "statement_cache_size": 0,
+        "prepared_statement_cache_size": 0,
+    },
 )
 
 # Session factory — setiap request mendapat session independen
