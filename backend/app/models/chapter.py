@@ -14,7 +14,7 @@ Format JSONB `images`:
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, func
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -25,6 +25,9 @@ class Chapter(Base):
     """Tabel chapter — setiap chapter milik satu Comic."""
 
     __tablename__ = "chapters"
+    __table_args__ = (
+        UniqueConstraint("comic_id", "chapter_number", name="uq_comic_chapter"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     comic_id: Mapped[int] = mapped_column(
