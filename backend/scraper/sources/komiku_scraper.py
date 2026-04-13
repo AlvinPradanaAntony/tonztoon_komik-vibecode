@@ -649,3 +649,74 @@ class KomikuScraper(BaseComicScraper):
                     continue
 
         return comics_data
+
+    async def get_comic_list(self, page: int = 1) -> list[dict[str, Any]]:
+        """
+        Ambil daftar komik keseluruhan dari halaman daftar-komik.
+        
+        URL: https://komiku.org/daftar-komik/?halaman={page} (kalau page > 1) 
+        atau https://komiku.org/daftar-komik/
+
+        Hasilnya menggunakan format daftar komik (article.manga-card).
+        """
+        if page > 1:
+            url = f"{self.BASE_URL}/daftar-komik/?halaman={page}"
+        else:
+            url = f"{self.BASE_URL}/daftar-komik/"
+            
+        logger.info(f"Fetching comic list: {url}")
+
+        response = self.fetcher.get(url)
+        comics_data = []
+
+        comic_entries = response.css("article.manga-card")
+        
+        for entry in comic_entries:
+            try:
+                title_el = entry.css("h4 a")
+                if not title_el:
+                    continue
+
+                title = self._clean_text(title_el[0].text)
+                if not title:
+                    continue
+
+                href = title_el[0].attrib.get("href", "")
+                comic_url = urljoin(self.BASE_URL, href)
+
+                img = entry.css("img.lazy")
+                cover_url = None
+                if img:
+                    cover_url = img[0].attrib.get("data-src") or img[0].attrib.get("src")
+                    if cover_url and "lazy.jpg" in cover_url:
+                        cover_url = img[0].attrib.get("data-src")
+
+                # Type and status
+                comic_type = None
+                status = None
+                meta_el = entry.css("p.meta")
+                if meta_el:
+                    meta_text = self._clean_text(meta_el[0].get_all_text())
+                    comic_type = self._extract_type_from_text(meta_text)
+                    if "Ongoing" in meta_text or "ongoing" in meta_text:
+                        status = "ongoing"
+                    elif "Completed" in meta_text or "End" in meta_text or "completed" in meta_text or "end" in meta_text:
+                        status = "completed"
+
+                slug = self._make_slug(title)
+
+                comics_data.append({
+                    "title": title,
+                    "slug": slug,
+                    "cover_image_url": cover_url,
+                    "type": comic_type,
+                    "status": status,
+                    "source_url": comic_url,
+                    "source_name": self.SOURCE_NAME,
+                })
+
+            except Exception as e:
+                logger.warning(f"Error parsing comic list result: {e}")
+                continue
+
+        return comics_data

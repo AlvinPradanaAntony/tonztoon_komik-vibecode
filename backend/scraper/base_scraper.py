@@ -88,3 +88,16 @@ class BaseComicScraper(ABC):
             List of dict berisi data komik hasil pencarian.
         """
         pass
+
+    @abstractmethod
+    async def get_comic_list(self, page: int = 1) -> list[dict[str, Any]]:
+        """
+        Ambil daftar komik keseluruhan (direktori/list).
+
+        Args:
+            page: Nomor halaman.
+
+        Returns:
+            List of dict berisi data komik.
+        """
+        pass

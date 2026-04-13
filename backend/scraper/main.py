@@ -79,7 +79,7 @@ async def upsert_comic(session, validated: ComicCreate) -> int:
         source_name=validated.source_name,
     )
     stmt = stmt.on_conflict_do_update(
-        index_elements=["slug"],
+        constraint="uq_source_slug",
         set_={
             "title": validated.title,
             "cover_image_url": validated.cover_image_url,
@@ -96,7 +96,10 @@ async def upsert_comic(session, validated: ComicCreate) -> int:
 
     # Get comic id
     result = await session.execute(
-        select(Comic.id).where(Comic.slug == validated.slug)
+        select(Comic.id).where(
+            Comic.slug == validated.slug,
+            Comic.source_name == validated.source_name
+        )
     )
     return result.scalar_one()
 

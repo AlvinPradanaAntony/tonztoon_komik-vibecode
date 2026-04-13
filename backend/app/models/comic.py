@@ -15,6 +15,7 @@ from sqlalchemy import (
     String,
     Table,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -56,9 +57,13 @@ class Comic(Base):
 
     __tablename__ = "comics"
 
+    __table_args__ = (
+        UniqueConstraint("source_name", "slug", name="uq_source_slug"),
+    )
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
-    slug: Mapped[str] = mapped_column(String(600), unique=True, nullable=False, index=True)
+    slug: Mapped[str] = mapped_column(String(600), nullable=False, index=True)
     alternative_titles: Mapped[str | None] = mapped_column(Text, nullable=True)
     cover_image_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     author: Mapped[str | None] = mapped_column(String(300), nullable=True)

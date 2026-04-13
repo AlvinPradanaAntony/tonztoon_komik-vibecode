@@ -129,16 +129,17 @@ async def list_comics(
     )
 
 
-@router.get("/{slug}", response_model=ComicResponse)
+@router.get("/{source_name}/{slug}", response_model=ComicResponse)
 async def get_comic_detail(
+    source_name: str,
     slug: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """Ambil detail komik berdasarkan slug."""
+    """Ambil detail komik berdasarkan sumber dan slug."""
     stmt = (
         select(Comic)
         .options(selectinload(Comic.genres), selectinload(Comic.chapters))
-        .where(Comic.slug == slug)
+        .where(Comic.slug == slug, Comic.source_name == source_name)
     )
     result = await db.execute(stmt)
     comic = result.scalars().first()
@@ -153,13 +154,14 @@ async def get_comic_detail(
     )
 
 
-@router.get("/{slug}/chapters")
+@router.get("/{source_name}/{slug}/chapters")
 async def get_comic_chapters(
+    source_name: str,
     slug: str,
     db: AsyncSession = Depends(get_db),
 ):
     """Ambil daftar chapter dari komik tertentu (tanpa images body)."""
-    stmt = select(Comic.id).where(Comic.slug == slug)
+    stmt = select(Comic.id).where(Comic.slug == slug, Comic.source_name == source_name)
     result = await db.execute(stmt)
     comic_id = result.scalar()
 
