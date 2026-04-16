@@ -1,16 +1,16 @@
-# ================================================
-# Tonztoon Komik — Scraper GitHub Actions Workflow
-# ================================================
+# ======================================================
+# Tonztoon Komik — Popular Feed Sync GitHub Actions Workflow
+# ======================================================
 # Trigger:
-#   1. Cron job latest update (terjadwal setiap 4 jam)
-#   2. workflow_dispatch manual untuk latest sync
+#   1. Cron job populer (terjadwal harian)
+#   2. workflow_dispatch manual untuk popular sync
 
-name: "🕷️ Scraper: Latest Sync"
+name: "🔥 Scraper: Popular Sync"
 
 on:
   schedule:
-    # Jalankan setiap 4 jam (00:00, 04:00, 08:00, 12:00, 16:00, 20:00 UTC)
-    - cron: "0 */4 * * *"
+    # Jalankan 1x sehari di jam yang berbeda dari latest cron
+    - cron: "30 1 * * *"
 
   workflow_dispatch:
     inputs:
@@ -18,14 +18,17 @@ on:
         description: "Source that triggered this workflow"
         required: false
         default: "manual"
+      popular_pages:
+        description: "Jumlah halaman popular yang ingin disinkronkan"
+        required: false
+        default: "10"
 
-# Force Node.js 24 to avoid deprecation warnings
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  scrape:
-    name: Run Comic Scraper
+  scrape-popular:
+    name: Run Popular Feed Sync
     runs-on: ubuntu-latest
 
     steps:
@@ -42,17 +45,18 @@ jobs:
         run: |
           cd backend
           pip install -r requirements.txt
-      
+
       - name: 🌐 Install Scrapling browser dependencies
         run: scrapling install
 
-      - name: 🕷️ Run scraper
+      - name: 🔥 Run popular sync
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          POPULAR_PAGES: ${{ github.event.inputs.popular_pages || '10' }}
         run: |
           cd backend
-          python -m scraper.main
+          python -m scraper.main --max-pages 0 --popular-pages ${POPULAR_PAGES}
 
       - name: 📝 Log completion
         if: always()
-        run: echo "Scraper workflow finished at $(date -u)"
+        run: echo "Popular sync workflow finished at $(date -u)"

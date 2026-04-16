@@ -11,6 +11,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Table,
@@ -53,12 +54,36 @@ class Genre(Base):
 
 
 class Comic(Base):
-    """Tabel utama komik — menyimpan metadata dari hasil scraping."""
+    """
+    Tabel utama komik — menyimpan metadata dari hasil scraping.
+
+    Catatan semantics timestamp:
+    - `updated_at` dipakai sebagai jejak teknis kapan row comic terakhir
+      diubah oleh sistem.
+    - `latest_feed_*` dipakai sebagai sinyal domain untuk urutan endpoint
+      `/latest`, karena lebih akurat merepresentasikan comic yang sedang
+      muncul di feed update terbaru dari source.
+    - `popular_feed_*` dipakai sebagai sinyal domain untuk urutan endpoint
+      `/popular`, sehingga endpoint tidak bergantung pada `rating` internal
+      yang belum tentu selaras dengan ranking canonical source.
+    """
 
     __tablename__ = "comics"
 
     __table_args__ = (
         UniqueConstraint("source_name", "slug", name="uq_source_slug"),
+        Index(
+            "ix_comics_latest_feed_order",
+            "latest_feed_batch_at",
+            "latest_feed_page",
+            "latest_feed_position",
+        ),
+        Index(
+            "ix_comics_popular_feed_order",
+            "popular_feed_batch_at",
+            "popular_feed_page",
+            "popular_feed_position",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -81,6 +106,23 @@ class Comic(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+    # Marker posisi comic saat terlihat di canonical latest feed.
+    # Kombinasi ini dipakai untuk mengurutkan endpoint `/latest` dan sengaja
+    # dipisahkan dari `updated_at` agar seeding/full refresh tidak mengacaukan
+    # semantik "komik terbaru".
+    latest_feed_batch_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    latest_feed_page: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    latest_feed_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Marker posisi comic saat terlihat di canonical popular feed.
+    # Dipisahkan dari `rating` karena ranking popular source bisa berubah walau
+    # metadata/rating di DB tidak berubah.
+    popular_feed_batch_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    popular_feed_page: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    popular_feed_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Relationships
     genres: Mapped[list["Genre"]] = relationship(

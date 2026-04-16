@@ -6,23 +6,28 @@ Menggunakan Scrapling Fetcher untuk halaman statis.
 
 DOM Structure (verified April 2026):
 - Homepage (/) latest updates: section#Terbaru > div.ls4w > article.ls4
-  - .ls4v img.lazy → cover (data-src)
-  - .ls4j h3 a → title + link to /manga/{slug}/
-  - .ls4j span.ls4s → "Manga Isekai  19 menit lalu"
-  - .ls4j a.ls24 → latest chapter link + title
+  - Ada di homepage, tapi bukan source of truth yang dipakai scraper.
+  - Sumber canonical untuk sinkronisasi "Terbaru" ada di /pustaka/ yang
+    mengambil data infinite scroll dari endpoint API di bawah.
 
 - Homepage (/) popular/ranking: section#Rekomendasi_Komik article.ls2
-  - .ls2v a img.lazy → cover (data-src)
-  - .ls2j h3 a → title + link
-  - .ls2j span.ls2t → genre + views (e.g. "Fantasi 550rbx")
-  - .ls2j a.ls2l → latest chapter link
+  - Ada di homepage, tapi bukan source of truth yang dipakai scraper.
+  - Sumber canonical untuk sinkronisasi "Populer" ada di /other/hot/ yang
+    mengambil data infinite scroll dari endpoint API canonical.
 
 - Listing page (/daftar-komik/): article.manga-card
   - h4 > a → title + link
   - img.lazy → cover (data-src)
   - p.meta → type & status
 
-- Library page (/pustaka/): same as listing, article.ls4
+- Library page (/pustaka/): div.bge (NOT article.ls4 — different from homepage)
+  Uses HTMX infinite scroll via https://api.komiku.org/manga/page/{N}/
+  - .bgei img → cover (direct src, no lazy)
+  - .kan > a[href] → comic URL
+  - .kan h3 → title
+  - .kan .judul2 → views + update time + color indicator
+  - .kan .new1:first-of-type a → first chapter link + title
+  - .kan .new1:last-of-type a → latest chapter link + title
   
 - Detail page (/manga/{slug}/):
   - #Judul h1 > span > span[itemprop=name] → title
@@ -60,6 +65,8 @@ class KomikuScraper(BaseComicScraper):
 
     SOURCE_NAME = "komiku"
     BASE_URL = "https://komiku.org"
+    LATEST_UPDATES_API_BASE = "https://api.komiku.org/manga"
+    POPULAR_API_BASE = "https://api.komiku.org/other/hot"
 
     # Alternatif mirror
     MIRROR_URL = "https://01.komiku.asia"
@@ -72,10 +79,32 @@ class KomikuScraper(BaseComicScraper):
         return slug.strip("-")
 
     def _parse_chapter_number(self, text: str) -> float:
-        """Extract chapter number dari text seperti 'Chapter 40' atau 'Chapter 10.5'."""
-        match = re.search(r"chapter\s*([\d.]+)", text, re.IGNORECASE)
-        if match:
-            return float(match.group(1))
+        """
+        Extract chapter number dari text seperti:
+        - Chapter 40
+        - Chapter 10.5
+        - Ch. 01.1
+        - Chapter 01-1
+        """
+        if not text:
+            return 0.0
+
+        patterns = [
+            r"(?:chapter|chap|ch)\.?\s*([0-9]+(?:[.\-][0-9]+)?)",
+            r"\b([0-9]+(?:[.\-][0-9]+)?)\b",
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if not match:
+                continue
+
+            raw_number = match.group(1).replace("-", ".")
+            try:
+                return float(raw_number)
+            except ValueError:
+                continue
+
         return 0.0
 
     def _parse_date(self, date_str: str) -> datetime | None:
@@ -99,237 +128,158 @@ class KomikuScraper(BaseComicScraper):
                 return t
         return None
 
+    def _build_latest_updates_url(self, page: int) -> str:
+        """Bangun URL latest update dari endpoint canonical Komiku."""
+        if page <= 1:
+            return f"{self.LATEST_UPDATES_API_BASE}/"
+        return f"{self.LATEST_UPDATES_API_BASE}/page/{page}/"
+
+    def _build_popular_url(self, page: int) -> str:
+        """Bangun URL popular dari endpoint canonical Komiku."""
+        if page <= 1:
+            return f"{self.POPULAR_API_BASE}/"
+        return f"{self.POPULAR_API_BASE}/page/{page}/"
+
     async def get_latest_updates(self, page: int = 1) -> list[dict[str, Any]]:
         """
-        Ambil daftar komik terbaru dari halaman utama Komiku.
+        Ambil daftar komik terbaru dari sumber canonical Komiku.
 
-        Menggunakan section#Terbaru > div.ls4w > article.ls4
+        Source of truth untuk listing "Terbaru" ada di `/pustaka/` yang
+        melakukan infinite scroll ke endpoint:
+          https://api.komiku.org/manga/page/{page}/
+
+        Endpoint ini langsung mengembalikan fragmen `div.bge`, sehingga lebih
+        akurat dan lebih stabil untuk cron dibanding scraping potongan homepage.
         """
-        # Halaman utama hanya punya 1 page terbaru
-        # Untuk pagination, gunakan /pustaka/ (library page)
-        if page > 1:
-            url = f"{self.BASE_URL}/pustaka/page/{page}/"
-        else:
-            url = self.BASE_URL
-        logger.info(f"Fetching latest updates page: {url}")
+        url = self._build_latest_updates_url(page)
+        logger.info(f"Fetching latest updates page {page}: {url}")
 
         response = self.fetcher.get(url)
+        comic_entries = response.css("div.bge")
+        logger.info(f"Found {len(comic_entries)} latest entries from canonical API")
+        return self._parse_library_entries(comic_entries)
+
+    def _parse_library_entries(self, comic_entries: list) -> list[dict[str, Any]]:
+        """
+        Parse daftar `div.bge` dari library page/API Komiku.
+
+        DOM div.bge:
+          .bgei img          → cover image
+          .bgei .tpe1_inf b  → type (Manga/Manhwa/Manhua)
+          .kan > a[href]     → comic URL
+          .kan h3            → title
+          .kan .judul2       → views + relative update time
+          .kan .new1 a       → first/latest chapter links
+        """
         comics_data = []
-
-        if page == 1:
-            # Parse dari homepage section#Terbaru
-            comic_entries = response.css("section#Terbaru article.ls4")
-            logger.info(f"Found {len(comic_entries)} latest entries on homepage")
-
-            for entry in comic_entries:
-                try:
-                    # Judul & link from .ls4j h3 a
-                    title_el = entry.css(".ls4j h3 a")
-                    if not title_el:
-                        continue
-
-                    title = self._clean_text(title_el[0].text)
-                    if not title:
-                        continue
-
-                    # URL komik (link menuju /manga/{slug}/)
-                    href = title_el[0].attrib.get("href", "")
-                    comic_url = urljoin(self.BASE_URL, href)
-
-                    # Cover image (lazy loaded with data-src)
-                    img = entry.css(".ls4v img.lazy")
-                    cover_url = None
-                    if img:
-                        cover_url = img[0].attrib.get("data-src") or img[0].attrib.get("src")
-                        if cover_url and "lazy.jpg" in cover_url:
-                            cover_url = img[0].attrib.get("data-src")
-
-                    # Type & genre from span.ls4s (e.g. "Manga Isekai  19 menit lalu")
-                    comic_type = None
-                    meta_el = entry.css(".ls4j span.ls4s")
-                    if meta_el:
-                        meta_text = self._clean_text(meta_el[0].text)
-                        comic_type = self._extract_type_from_text(meta_text)
-
-                    # Latest chapter info
-                    ch_el = entry.css(".ls4j a.ls24")
-                    latest_chapter = None
-                    if ch_el:
-                        latest_chapter = self._clean_text(ch_el[0].text)
-
-                    slug = self._make_slug(title)
-
-                    comics_data.append({
-                        "title": title,
-                        "slug": slug,
-                        "cover_image_url": cover_url,
-                        "type": comic_type,
-                        "source_url": comic_url,
-                        "source_name": self.SOURCE_NAME,
-                        "latest_chapter": latest_chapter,
-                    })
-
-                except Exception as e:
-                    logger.warning(f"Error parsing latest update entry: {e}")
-                    continue
-        else:
-            # Pagination menggunakan /pustaka/ — sama dengan format ls4
-            comic_entries = response.css("article.ls4")
-            logger.info(f"Found {len(comic_entries)} entries on pustaka page {page}")
-
-            for entry in comic_entries:
-                try:
-                    title_el = entry.css(".ls4j h3 a")
-                    if not title_el:
-                        continue
-
-                    title = self._clean_text(title_el[0].text)
-                    if not title:
-                        continue
-
-                    href = title_el[0].attrib.get("href", "")
-                    comic_url = urljoin(self.BASE_URL, href)
-
-                    img = entry.css(".ls4v img.lazy")
-                    cover_url = None
-                    if img:
-                        cover_url = img[0].attrib.get("data-src") or img[0].attrib.get("src")
-                        if cover_url and "lazy.jpg" in cover_url:
-                            cover_url = img[0].attrib.get("data-src")
-
-                    comic_type = None
-                    meta_el = entry.css(".ls4j span.ls4s")
-                    if meta_el:
-                        meta_text = self._clean_text(meta_el[0].text)
-                        comic_type = self._extract_type_from_text(meta_text)
-
-                    slug = self._make_slug(title)
-
-                    comics_data.append({
-                        "title": title,
-                        "slug": slug,
-                        "cover_image_url": cover_url,
-                        "type": comic_type,
-                        "source_url": comic_url,
-                        "source_name": self.SOURCE_NAME,
-                    })
-
-                except Exception as e:
-                    logger.warning(f"Error parsing pustaka entry: {e}")
+        for entry in comic_entries:
+            try:
+                title_el = entry.css(".kan h3")
+                if not title_el:
                     continue
 
+                title = self._clean_text(title_el[0].text)
+                if not title:
+                    continue
+
+                link_el = entry.css(".kan > a")
+                if not link_el:
+                    link_el = entry.css(".bgei a")
+                if not link_el:
+                    continue
+
+                href = link_el[0].attrib.get("href", "")
+                comic_url = urljoin(self.BASE_URL, href)
+
+                img = entry.css(".bgei img")
+                cover_url = None
+                if img:
+                    cover_url = img[0].attrib.get("src") or img[0].attrib.get("data-src")
+
+                comic_type = None
+                type_el = entry.css(".bgei .tpe1_inf b")
+                if type_el:
+                    comic_type = self._extract_type_from_text(type_el[0].text)
+
+                meta_text = None
+                meta_el = entry.css(".kan .judul2")
+                if meta_el:
+                    meta_text = self._clean_text(meta_el[0].text)
+
+                summary = None
+                summary_el = entry.css(".kan p")
+                if summary_el:
+                    summary = self._clean_text(summary_el[0].text)
+
+                chapter_links = entry.css(".kan .new1 a")
+                first_chapter = None
+                first_chapter_url = None
+                latest_chapter = None
+                latest_chapter_url = None
+                if chapter_links:
+                    first_el = chapter_links[0]
+                    latest_el = chapter_links[-1]
+
+                    first_spans = first_el.css("span")
+                    if len(first_spans) >= 2:
+                        first_chapter = self._clean_text(first_spans[-1].text)
+                    else:
+                        first_chapter = self._clean_text(first_el.text)
+
+                    first_href = first_el.attrib.get("href", "")
+                    if first_href:
+                        first_chapter_url = urljoin(self.BASE_URL, first_href)
+
+                    latest_spans = latest_el.css("span")
+                    if len(latest_spans) >= 2:
+                        latest_chapter = self._clean_text(latest_spans[-1].text)
+                    else:
+                        latest_chapter = self._clean_text(latest_el.text)
+
+                    latest_href = latest_el.attrib.get("href", "")
+                    if latest_href:
+                        latest_chapter_url = urljoin(self.BASE_URL, latest_href)
+
+                slug = self._make_slug(title)
+
+                comics_data.append({
+                    "title": title,
+                    "slug": slug,
+                    "cover_image_url": cover_url,
+                    "type": comic_type,
+                    "source_url": comic_url,
+                    "source_name": self.SOURCE_NAME,
+                    "listing_meta": meta_text,
+                    "summary": summary,
+                    "first_chapter": first_chapter,
+                    "first_chapter_url": first_chapter_url,
+                    "latest_chapter": latest_chapter,
+                    "latest_chapter_url": latest_chapter_url,
+                })
+
+            except Exception as e:
+                logger.warning(f"Error parsing library entry: {e}")
+                continue
         return comics_data
 
     async def get_popular(self, page: int = 1) -> list[dict[str, Any]]:
         """
-        Ambil daftar komik populer.
+        Ambil daftar komik populer dari sumber canonical Komiku.
 
-        Halaman utama: section#Rekomendasi_Komik > article.ls2 (Peringkat)
-        Atau juga section#Komik_Hot_Manga/Manhwa/Manhua > article.ls2
+        Source of truth untuk listing "Populer" ada di `/other/hot/` yang
+        melakukan infinite scroll ke endpoint:
+          https://api.komiku.org/other/hot/page/{page}/
 
-        Untuk pagination: /pustaka/?orderby=meta_value_num
+        Endpoint ini mengembalikan fragmen `div.bge` yang konsisten antar-page,
+        jadi lebih tepat dipakai daripada mencampur homepage dan `/pustaka/`.
         """
-        if page > 1:
-            url = f"{self.BASE_URL}/pustaka/?orderby=meta_value_num&paged={page}"
-        else:
-            url = self.BASE_URL
+        url = self._build_popular_url(page)
         logger.info(f"Fetching popular page: {url}")
 
         response = self.fetcher.get(url)
-        comics_data = []
-
-        if page == 1:
-            # Parse dari homepage — ambil dari semua section populer
-            # Peringkat + Hot Manga + Hot Manhwa + Hot Manhua
-            comic_entries = response.css("article.ls2")
-            logger.info(f"Found {len(comic_entries)} popular entries on homepage")
-
-            seen_slugs = set()
-            for entry in comic_entries:
-                try:
-                    # Judul & link from .ls2j h3 a
-                    title_el = entry.css(".ls2j h3 a")
-                    if not title_el:
-                        continue
-
-                    title = self._clean_text(title_el[0].text)
-                    if not title:
-                        continue
-
-                    # URL komik
-                    href = title_el[0].attrib.get("href", "")
-                    comic_url = urljoin(self.BASE_URL, href)
-
-                    # Cover image
-                    img = entry.css(".ls2v img.lazy")
-                    cover_url = None
-                    if img:
-                        cover_url = img[0].attrib.get("data-src") or img[0].attrib.get("src")
-                        if cover_url and "lazy.jpg" in cover_url:
-                            cover_url = img[0].attrib.get("data-src")
-
-                    # Genre + views from span.ls2t (e.g. "Fantasi 550rbx")
-                    genre_text = None
-                    ls2t_el = entry.css(".ls2j span.ls2t")
-                    if ls2t_el:
-                        genre_text = self._clean_text(ls2t_el[0].text)
-
-                    slug = self._make_slug(title)
-
-                    # Deduplicate (comic may appear in multiple sections)
-                    if slug in seen_slugs:
-                        continue
-                    seen_slugs.add(slug)
-
-                    comics_data.append({
-                        "title": title,
-                        "slug": slug,
-                        "cover_image_url": cover_url,
-                        "source_url": comic_url,
-                        "source_name": self.SOURCE_NAME,
-                    })
-
-                except Exception as e:
-                    logger.warning(f"Error parsing popular entry: {e}")
-                    continue
-        else:
-            # Pagination — gunakan ls4 format dari /pustaka/
-            comic_entries = response.css("article.ls4")
-            for entry in comic_entries:
-                try:
-                    title_el = entry.css(".ls4j h3 a")
-                    if not title_el:
-                        continue
-
-                    title = self._clean_text(title_el[0].text)
-                    if not title:
-                        continue
-
-                    href = title_el[0].attrib.get("href", "")
-                    comic_url = urljoin(self.BASE_URL, href)
-
-                    img = entry.css(".ls4v img.lazy")
-                    cover_url = None
-                    if img:
-                        cover_url = img[0].attrib.get("data-src") or img[0].attrib.get("src")
-                        if cover_url and "lazy.jpg" in cover_url:
-                            cover_url = img[0].attrib.get("data-src")
-
-                    slug = self._make_slug(title)
-
-                    comics_data.append({
-                        "title": title,
-                        "slug": slug,
-                        "cover_image_url": cover_url,
-                        "source_url": comic_url,
-                        "source_name": self.SOURCE_NAME,
-                    })
-
-                except Exception as e:
-                    logger.warning(f"Error parsing popular page entry: {e}")
-                    continue
-
-        return comics_data
+        comic_entries = response.css("div.bge")
+        logger.info(f"Found {len(comic_entries)} popular entries from canonical API")
+        return self._parse_library_entries(comic_entries)
 
     async def get_comic_detail(self, url: str) -> dict[str, Any]:
         """
@@ -354,10 +304,19 @@ class KomikuScraper(BaseComicScraper):
 
         # --- Title ---
         title = ""
-        # Best source: span[itemprop=name] inside #Judul
-        judul_name = response.css('#Judul span[itemprop="name"]')
-        if judul_name:
-            title = self._clean_text(judul_name[0].text)
+        title_selectors = [
+            '#Judul span[itemprop="name"]',
+            "#Judul h1 span",
+            "#Judul h1",
+            "table.inftable tr:first-child td:last-child",
+        ]
+        for selector in title_selectors:
+            title_elements = response.css(selector)
+            if not title_elements:
+                continue
+            title = self._clean_text(title_elements[0].text)
+            if title:
+                break
 
         # Fallback: any span[itemprop=name] that isn't a chapter name
         if not title:
@@ -369,16 +328,24 @@ class KomikuScraper(BaseComicScraper):
                     break
 
         if not title:
-            h1_el = response.css("#Judul h1")
-            if h1_el:
-                raw = self._clean_text(h1_el[0].text)
-                title = re.sub(r"^Komik\s+", "", raw, flags=re.IGNORECASE)
+            head_title_el = response.css("head title") 
+            if head_title_el:
+                head_title = self._clean_text(head_title_el[0].text)
+                title = re.sub(r"\s*-\s*Komiku$", "", head_title, flags=re.IGNORECASE)
+
+        if title:
+            title = re.sub(r"^Komik\s+", "", title, flags=re.IGNORECASE)
 
         # --- Alternative title ---
         alt_title = None
-        alt_el = response.css("#Judul .j2")
-        if alt_el:
-            alt_title = self._clean_text(alt_el[0].text)
+        alt_selectors = ["#Judul .j2", "table.inftable tr:nth-child(2) td:last-child"]
+        for selector in alt_selectors:
+            alt_elements = response.css(selector)
+            if not alt_elements:
+                continue
+            alt_title = self._clean_text(alt_elements[0].text)
+            if alt_title:
+                break
 
         # --- Cover image ---
         cover_url = None
@@ -428,9 +395,15 @@ class KomikuScraper(BaseComicScraper):
                 key = self._clean_text(tds[0].text).lower().rstrip(":")
                 value = self._clean_text(tds[1].text)
 
-                if "author" in key:
+                if "judul komik" in key and not title:
+                    title = value
+                elif "judul indonesia" in key and not alt_title:
+                    alt_title = value
+                elif "author" in key or "pengarang" in key:
                     author = value
                 elif "tipe" in key and not comic_type:
+                    comic_type = value.lower()
+                elif "jenis komik" in key and not comic_type:
                     comic_type = value.lower()
                 elif "status" in key and not status:
                     status = value.lower()
@@ -444,6 +417,12 @@ class KomikuScraper(BaseComicScraper):
             desc_el2 = response.css("p.desc")
             if desc_el2:
                 synopsis = self._clean_text(desc_el2[0].text)
+
+        if not title:
+            logger.warning(
+                "Komiku detail tanpa title. selector utama tidak cocok untuk url=%s",
+                url,
+            )
 
         # --- Chapters ---
         chapters = []
@@ -480,7 +459,11 @@ class KomikuScraper(BaseComicScraper):
                 # Fallback: parse from URL path
                 # e.g. /world-trigger-chapter-253/
                 if ch_number == 0.0 and ch_href:
-                    url_match = re.search(r"chapter-(\d+(?:-\d+)?)", ch_href)
+                    url_match = re.search(
+                        r"(?:chapter|chap|ch)-(\d+(?:[.-]\d+)?)",
+                        ch_href,
+                        re.IGNORECASE,
+                    )
                     if url_match:
                         raw_num = url_match.group(1).replace("-", ".")
                         try:

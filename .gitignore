@@ -13,3 +13,5 @@ build/
 .pub-cache/
 .pub/
 testing/
+backend/logs/
+backend/data

@@ -42,7 +42,6 @@ import random
 import signal
 import sys
 import time
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -59,6 +58,7 @@ from app.schemas import ComicCreate
 from scraper.sources.komiku_scraper import KomikuScraper
 # Reuse upsert methods dari main
 from scraper.main import upsert_comic, upsert_genre
+from scraper.time_utils import now_wib
 
 # ═══════════════════════════════════════════════════════════════════
 # LOGGING SETUP
@@ -464,7 +464,7 @@ def load_checkpoint(mode: str) -> dict:
 def save_checkpoint(checkpoint: dict, checkpoint_file: Path) -> None:
     """Simpan checkpoint ke file JSON."""
     CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
-    checkpoint["updated_at"] = datetime.now().isoformat()
+    checkpoint["updated_at"] = now_wib().isoformat()
     with open(checkpoint_file, "w", encoding="utf-8") as f:
         json.dump(checkpoint, f, indent=2, ensure_ascii=False)
     logger.debug("💾 Checkpoint tersimpan.")
@@ -580,6 +580,7 @@ async def save_chapter_metadata(
             title=ch_data.get("title"),
             source_url=ch_url,
             release_date=ch_data.get("release_date"),
+            created_at=now_wib(),
         )
         stmt = stmt.on_conflict_do_update(
             constraint="uq_comic_chapter",
@@ -806,9 +807,9 @@ async def process_page(
     resume_comic_index: int,
 ) -> bool:
     """Proses satu halaman daftar komik sampai seluruh item selesai."""
-    logger.info(f"\n{'─' * 50}")
+    logger.info(f"{'─' * 60}")
     logger.info(f"📄 Halaman {page}/{end_page}")
-    logger.info(f"{'─' * 50}")
+    logger.info(f"{'─' * 60}")
 
     persist_runtime_checkpoint(
         runtime,
@@ -918,7 +919,7 @@ async def run_sync_full_library(
     global _shutdown_requested
 
     start_time = time.time()
-    started_at = datetime.now()
+    started_at = now_wib()
     checkpoint_file = get_checkpoint_file(mode)
     checkpoint = load_checkpoint(mode)
     completed_slugs = set(checkpoint.get("completed_slugs", []))
@@ -996,7 +997,7 @@ async def run_sync_full_library(
     # RINGKASAN
     # ═══════════════════════════════════════════════════════════════
     elapsed = time.time() - start_time
-    finished_at = datetime.now()
+    finished_at = now_wib()
     final_state = "stopped-by-user" if _shutdown_requested else "finished"
     final_note = "Sync dihentikan oleh user" if _shutdown_requested else "Sync full library selesai"
     progress = persist_runtime_checkpoint(
@@ -1005,7 +1006,7 @@ async def run_sync_full_library(
         note=final_note,
     )
 
-    logger.info("\n" + "═" * 60)
+    logger.info("═" * 60)
     if _shutdown_requested:
         logger.info("🛑 Sync dihentikan oleh user (Ctrl+C).")
     else:
