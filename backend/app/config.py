@@ -14,7 +14,7 @@ class Settings(BaseSettings):
 
     # --- Database ---
     DATABASE_URL: str = Field(
-        default="postgresql+asyncpg://postgres:password@localhost:5432/tonztoon_komik",
+        default="postgresql+asyncpg://postgres:postgres@localhost:5432/tonztoon_komik",
         description="PostgreSQL connection string (async)"
     )
 
