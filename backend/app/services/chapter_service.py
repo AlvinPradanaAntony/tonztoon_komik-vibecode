@@ -73,6 +73,7 @@ ON_DEMAND_TIMEOUT        = 10   # detik — batas waktu lazy load realtime
 PREFETCH_TIMEOUT         = 20   # detik — batas waktu per chapter saat background prefetch
 PREFETCH_WINDOW          = 5    # radius chapter kiri & kanan yang di-prefetch
 PREFETCH_COOLDOWN_SECONDS = 60  # detik — jeda minimum antar-trigger prefetch per komik
+CHAPTER_NUMBER_TOLERANCE = 0.0001
 
 # Delay antar-request images saat prefetch (random untuk anti-bot detection)
 PREFETCH_DELAY_MIN = 1.5
@@ -99,15 +100,14 @@ class ImageFetchError(Exception):
 def _get_scraper_for_source(source_name: str):
     """
     Factory: return scraper instance berdasarkan source_name.
-    Scalable — tinggal tambahkan elif untuk sumber baru.
+    Registry-based agar source baru tidak perlu di-hardcode di banyak tempat.
     """
-    if source_name == "komiku":
-        from scraper.sources.komiku_scraper import KomikuScraper
-        return KomikuScraper()
-    # elif source_name == "komikcast":
-    #     from scraper.sources.komikcast_scraper import KomikcastScraper
-    #     return KomikcastScraper()
-    return None
+    from scraper.sources.registry import create_scraper
+
+    try:
+        return create_scraper(source_name)
+    except ValueError:
+        return None
 
 
 # ── Core Helper: Fetch & Save Images untuk 1 Chapter ────────────────────────
@@ -181,6 +181,93 @@ async def _fetch_and_save_images(
 
 # ── On-Demand Lazy Load ──────────────────────────────────────────────────────
 
+async def get_comic_by_source_and_slug(
+    db: AsyncSession,
+    source_name: str,
+    comic_slug: str,
+) -> Comic | None:
+    """Ambil comic berdasarkan source publik dan slug."""
+    result = await db.execute(
+        select(Comic).where(
+            Comic.source_name == source_name,
+            Comic.slug == comic_slug,
+        )
+    )
+    return result.scalars().first()
+
+
+async def get_chapter_by_source_slug_and_number(
+    db: AsyncSession,
+    source_name: str,
+    comic_slug: str,
+    chapter_number: float,
+) -> Chapter | None:
+    """Ambil chapter berdasarkan identitas publik source/comic/chapter."""
+    lower_bound = chapter_number - CHAPTER_NUMBER_TOLERANCE
+    upper_bound = chapter_number + CHAPTER_NUMBER_TOLERANCE
+
+    result = await db.execute(
+        select(Chapter)
+        .join(Comic, Comic.id == Chapter.comic_id)
+        .where(
+            Comic.source_name == source_name,
+            Comic.slug == comic_slug,
+            Chapter.chapter_number >= lower_bound,
+            Chapter.chapter_number <= upper_bound,
+        )
+    )
+    return result.scalars().first()
+
+
+async def _ensure_chapter_images_loaded(
+    db: AsyncSession,
+    chapter: Chapter,
+    *,
+    source_name: str | None = None,
+) -> Chapter:
+    """Pastikan chapter memiliki daftar gambar, fetch on-demand bila perlu."""
+    if chapter.images:
+        logger.debug(
+            f"Cache hit: Chapter {chapter.id} "
+            f"sudah punya {len(chapter.images)} images"
+        )
+        return chapter
+
+    resolved_source_name = source_name
+    if not resolved_source_name:
+        comic_result = await db.execute(
+            select(Comic.source_name).where(Comic.id == chapter.comic_id)
+        )
+        resolved_source_name = comic_result.scalar()
+
+    if not resolved_source_name:
+        raise ImageFetchError(
+            f"Comic {chapter.comic_id} tidak ditemukan, "
+            f"tidak bisa menentukan scraper."
+        )
+
+    logger.info(
+        f"Lazy loading: Chapter {chapter.id} (Ch {chapter.chapter_number}) "
+        f"belum punya images — on-demand scraping (timeout={ON_DEMAND_TIMEOUT}s)..."
+    )
+
+    ok = await _fetch_and_save_images(
+        chapter=chapter,
+        source_name=resolved_source_name,
+        timeout_seconds=ON_DEMAND_TIMEOUT,
+        db=db,
+    )
+
+    if not ok:
+        raise ImageFetchError(
+            f"Sumber komik tidak merespons dalam {ON_DEMAND_TIMEOUT} detik. "
+            f"Silakan coba lagi beberapa saat."
+        )
+
+    await db.refresh(chapter)
+    return chapter
+
+
 async def get_chapter_with_images(
     db: AsyncSession,
     chapter_id: int,
@@ -209,49 +296,31 @@ async def get_chapter_with_images(
     if not chapter:
         raise LookupError(f"Chapter {chapter_id} tidak ditemukan")
 
-    # 2. Cache hit — images sudah ada
-    if chapter.images:
-        logger.debug(
-            f"Cache hit: Chapter {chapter_id} "
-            f"sudah punya {len(chapter.images)} images"
-        )
-        return chapter
+    return await _ensure_chapter_images_loaded(db, chapter)
 
-    # 3. Cache miss — lazy fetch
-    logger.info(
-        f"Lazy loading: Chapter {chapter_id} (Ch {chapter.chapter_number}) "
-        f"belum punya images — on-demand scraping (timeout={ON_DEMAND_TIMEOUT}s)..."
+
+async def get_chapter_with_images_by_identity(
+    db: AsyncSession,
+    source_name: str,
+    comic_slug: str,
+    chapter_number: float,
+) -> Chapter:
+    """
+    Ambil chapter dari identitas publik source/comic/chapter.
+
+    Jika images masih kosong, lakukan lazy load on-demand.
+    """
+    chapter = await get_chapter_by_source_slug_and_number(
+        db,
+        source_name,
+        comic_slug,
+        chapter_number,
     )
-
-    comic_result = await db.execute(
-        select(Comic.source_name).where(Comic.id == chapter.comic_id)
-    )
-    source_name = comic_result.scalar()
-
-    if not source_name:
-        raise ImageFetchError(
-            f"Comic {chapter.comic_id} tidak ditemukan, "
-            f"tidak bisa menentukan scraper."
+    if not chapter:
+        raise LookupError(
+            f"Chapter {chapter_number} untuk {source_name}/{comic_slug} tidak ditemukan"
         )
-
-    # 4. Fetch dengan timeout ketat (user sedang menunggu)
-    # ImageFetchError atau timeout akan di-raise ke atas → ditangkap di router
-    ok = await _fetch_and_save_images(
-        chapter=chapter,
-        source_name=source_name,
-        timeout_seconds=ON_DEMAND_TIMEOUT,
-        db=db,
-    )
-
-    if not ok:
-        # Timeout atau tidak ada images — beri tahu user dengan jelas
-        raise ImageFetchError(
-            f"Sumber komik tidak merespons dalam {ON_DEMAND_TIMEOUT} detik. "
-            f"Silakan coba lagi beberapa saat."
-        )
-
-    await db.refresh(chapter)
-    return chapter
+    return await _ensure_chapter_images_loaded(db, chapter, source_name=source_name)
 
 
 async def get_chapter_images_only(
@@ -274,6 +343,32 @@ async def get_chapter_images_only(
 
     return {
         "chapter_id": chapter_id,
+        "images": images,
+        "total": len(images),
+    }
+
+
+async def get_chapter_images_only_by_identity(
+    db: AsyncSession,
+    source_name: str,
+    comic_slug: str,
+    chapter_number: float,
+) -> dict:
+    """
+    Ambil hanya images untuk chapter berdasarkan identitas publik.
+    """
+    chapter = await get_chapter_with_images_by_identity(
+        db,
+        source_name,
+        comic_slug,
+        chapter_number,
+    )
+    images = chapter.images or []
+
+    return {
+        "source_name": source_name,
+        "comic_slug": comic_slug,
+        "chapter_number": chapter.chapter_number,
         "images": images,
         "total": len(images),
     }

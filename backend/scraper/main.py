@@ -65,7 +65,8 @@ from app.database import async_session
 from app.models import Comic, Chapter, Genre, comic_genre
 from app.schemas import ComicCreate
 
-from scraper.sources.komiku_scraper import KomikuScraper
+from scraper.base_scraper import BaseComicScraper
+from scraper.sources.registry import create_default_scrapers
 from scraper.time_utils import now_wib
 
 # Setup logging
@@ -433,7 +434,7 @@ async def upsert_chapter_images(session, comic_id: int, ch_data: dict, images: l
     await session.execute(stmt)
 
 
-async def fetch_latest_comics_with_retry(scraper: KomikuScraper, page: int = 1) -> list[dict[str, Any]]:
+async def fetch_latest_comics_with_retry(scraper: BaseComicScraper, page: int = 1) -> list[dict[str, Any]]:
     """
     Ambil listing latest update dari canonical source dengan retry + backoff.
 
@@ -466,7 +467,7 @@ async def fetch_latest_comics_with_retry(scraper: KomikuScraper, page: int = 1) 
     return comics_list
 
 
-async def fetch_popular_comics_with_retry(scraper: KomikuScraper, page: int = 1) -> list[dict[str, Any]]:
+async def fetch_popular_comics_with_retry(scraper: BaseComicScraper, page: int = 1) -> list[dict[str, Any]]:
     """
     Ambil listing popular dari canonical source dengan retry + backoff.
 
@@ -501,7 +502,7 @@ async def fetch_popular_comics_with_retry(scraper: KomikuScraper, page: int = 1)
 async def get_existing_comic_id(
     session,
     *,
-    scraper: KomikuScraper,
+    scraper: BaseComicScraper,
     comic_basic: dict[str, Any],
 ) -> int | None:
     """Cari comic id existing dari slug/source_name, fallback ke source_url."""
@@ -534,7 +535,7 @@ async def get_existing_comic_id(
 async def should_process_comic_update(
     session,
     *,
-    scraper: KomikuScraper,
+    scraper: BaseComicScraper,
     comic_basic: dict[str, Any],
 ) -> tuple[bool, str, int | None]:
     """
@@ -583,7 +584,7 @@ async def should_process_comic_update(
 
 async def prewarm_latest_chapters(
     session,
-    scraper: KomikuScraper,
+    scraper: BaseComicScraper,
     *,
     comic_id: int,
     validated: ComicCreate,
@@ -652,7 +653,7 @@ async def prewarm_latest_chapters(
 
 async def process_comic(
     session,
-    scraper: KomikuScraper,
+    scraper: BaseComicScraper,
     comic_basic: dict[str, Any],
     stats: ScrapeStats,
     *,
@@ -765,7 +766,7 @@ async def process_comic(
 async def process_latest_pages(
     session,
     *,
-    scraper: KomikuScraper,
+    scraper: BaseComicScraper,
     stats: ScrapeStats,
     max_pages: int,
     latest_feed_batch_at,
@@ -895,7 +896,7 @@ async def process_latest_pages(
 async def process_popular_pages(
     session,
     *,
-    scraper: KomikuScraper,
+    scraper: BaseComicScraper,
     stats: ScrapeStats,
     max_pages: int,
     popular_feed_batch_at,
@@ -1057,10 +1058,7 @@ async def run_scraper(
     logger.info(f"   Backoff max   : {BACKOFF_MAX:.0f}s")
     logger.info("═" * 60)
 
-    scrapers = [
-        KomikuScraper(),
-        # TODO: tambahkan scraper lain saat siap
-    ]
+    scrapers = create_default_scrapers()
 
     stats = ScrapeStats()
 

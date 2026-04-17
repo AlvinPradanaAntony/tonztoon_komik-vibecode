@@ -2,7 +2,7 @@
 Tonztoon Komik — Comics API Routes
 
 Endpoints:
-    GET /api/v1/comics           — List komik (paginated)
+    GET /api/v1/comics           — List komik katalog
     GET /api/v1/comics/latest    — Komik terbaru menurut canonical latest feed
     GET /api/v1/comics/popular   — Komik populer menurut canonical popular feed
     GET /api/v1/comics/{source_name}/{slug}          — Detail komik
@@ -161,7 +161,14 @@ async def list_comics(
     status: str | None = Query(None, description="Filter by status: ongoing/completed/hiatus"),
     db: AsyncSession = Depends(get_db),
 ):
-    """List semua komik dengan pagination dan filter opsional."""
+    """
+    List semua komik dengan pagination dan filter opsional.
+
+    Berdasarkan analisis source katalog `/daftar-komik/`, urutan daftar
+    mengikuti katalog alfabetis (berbasis judul), bukan timestamp teknis
+    seperti `updated_at`. Karena itu endpoint ini diurutkan berdasarkan
+    `title` agar lebih konsisten dengan source.
+    """
     base_query = select(Comic)
 
     if type:
@@ -181,7 +188,7 @@ async def list_comics(
             selectinload(Comic.genres),
             noload(Comic.chapters),
         )
-        .order_by(Comic.updated_at.desc())
+        .order_by(Comic.title.asc())
         .offset(offset)
         .limit(page_size)
     )

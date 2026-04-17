@@ -12,26 +12,9 @@ from fastapi import APIRouter, Query, HTTPException
 from fastapi.responses import StreamingResponse
 import httpx
 
+from app.services.image_service import get_proxy_headers
+
 router = APIRouter()
-
-# Referer headers per-source agar tidak terblokir hotlink protection
-SOURCE_REFERERS = {
-    "komiku.org": "https://komiku.org/",
-    "komiku.asia": "https://01.komiku.asia/",
-    "komikcast": "https://v1.komikcast.fit/",
-    "shinigami": "https://e.shinigami.asia/",
-}
-
-
-def _guess_referer(url: str) -> str:
-    """Tebak header Referer yang tepat berdasarkan URL gambar."""
-    for key, referer in SOURCE_REFERERS.items():
-        if key in url:
-            return referer
-    # Fallback: gunakan origin dari URL
-    from urllib.parse import urlparse
-    parsed = urlparse(url)
-    return f"{parsed.scheme}://{parsed.netloc}/"
 
 
 @router.get("/proxy")
@@ -49,16 +32,7 @@ async def proxy_image(
     if not url.startswith("http"):
         raise HTTPException(status_code=400, detail="Invalid image URL")
 
-    referer = _guess_referer(url)
-
-    headers = {
-        "Referer": referer,
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36"
-        ),
-    }
+    headers = get_proxy_headers(url)
 
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:

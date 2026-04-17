@@ -24,6 +24,7 @@ Strategi Anti-Blocking / Anti-Rate-Limit:
 Usage:
     cd backend
     python -m scraper.sync_full_library  # Log default: logs/sync_full_library.log
+    python -m scraper.sync_full_library --source komiku_asia
     python -m scraper.sync_full_library --mode validate
     python -m scraper.sync_full_library --mode refresh
     python -m scraper.sync_full_library --log-file validate.log
@@ -55,7 +56,8 @@ from app.database import async_session
 from app.models import Chapter, Comic, comic_genre
 from app.schemas import ComicCreate
 
-from scraper.sources.komiku_scraper import KomikuScraper
+from scraper.base_scraper import BaseComicScraper
+from scraper.sources.registry import create_scraper, get_supported_source_names
 # Reuse upsert methods dari main
 from scraper.main import upsert_comic, upsert_genre
 from scraper.time_utils import now_wib
@@ -122,6 +124,7 @@ BACKOFF_BASE = 2.0            # Base delay untuk backoff (detik)
 BACKOFF_MAX = 120.0           # Maksimum delay backoff (2 menit)
 MAX_CONSECUTIVE_ERRORS = 5    # Batas error berturut-turut sebelum skip halaman
 SUPPORTED_MODES = {"validate", "refresh"}
+SUPPORTED_SOURCES = tuple(get_supported_source_names())
 
 # -- Checkpoint --
 CHECKPOINT_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -132,19 +135,24 @@ LEGACY_CHECKPOINT_FILE = CHECKPOINT_DIR / "sync_checkpoint.json"
 # ═══════════════════════════════════════════════════════════════════
 
 
-def get_checkpoint_file(mode: str) -> Path:
+def get_checkpoint_file(mode: str, source_name: str) -> Path:
     """Ambil path checkpoint sesuai mode sync."""
     if mode not in SUPPORTED_MODES:
         raise ValueError(
             f"Mode checkpoint tidak valid: {mode}. "
             f"Gunakan salah satu dari {', '.join(sorted(SUPPORTED_MODES))}."
         )
-    return CHECKPOINT_DIR / f"sync_checkpoint_{mode}.json"
+    if source_name not in SUPPORTED_SOURCES:
+        raise ValueError(
+            f"Source tidak valid: {source_name}. "
+            f"Gunakan salah satu dari {', '.join(SUPPORTED_SOURCES)}."
+        )
+    return CHECKPOINT_DIR / f"sync_checkpoint_{source_name}_{mode}.json"
 
 
-def get_checkpoint_scope_label(mode: str) -> str:
+def get_checkpoint_scope_label(mode: str, source_name: str) -> str:
     """Label singkat untuk menjelaskan isolasi checkpoint per mode."""
-    return f"{mode}-only (terpisah dari mode lain)"
+    return f"{source_name}:{mode} (terpisah per source dan mode)"
 
 
 def _default_stats() -> dict:
@@ -411,7 +419,7 @@ async def get_existing_comic_slugs(
 # ═══════════════════════════════════════════════════════════════════
 
 
-def load_checkpoint(mode: str) -> dict:
+def load_checkpoint(mode: str, source_name: str) -> dict:
     """
     Muat checkpoint dari file JSON.
     
@@ -429,7 +437,7 @@ def load_checkpoint(mode: str) -> dict:
             "updated_at": "2026-04-13T..."
         }
     """
-    checkpoint_file = get_checkpoint_file(mode)
+    checkpoint_file = get_checkpoint_file(mode, source_name)
     if checkpoint_file.exists():
         try:
             with open(checkpoint_file, "r", encoding="utf-8") as f:
@@ -470,14 +478,14 @@ def save_checkpoint(checkpoint: dict, checkpoint_file: Path) -> None:
     logger.debug("💾 Checkpoint tersimpan.")
 
 
-def reset_checkpoint(mode: str) -> None:
+def reset_checkpoint(mode: str, source_name: str) -> None:
     """Hapus file checkpoint untuk mode aktif."""
-    checkpoint_file = get_checkpoint_file(mode)
+    checkpoint_file = get_checkpoint_file(mode, source_name)
     if checkpoint_file.exists():
         checkpoint_file.unlink()
-        logger.info(f"🗑️ Checkpoint mode {mode} dihapus: {checkpoint_file}")
+        logger.info(f"🗑️ Checkpoint {source_name}:{mode} dihapus: {checkpoint_file}")
     else:
-        logger.info(f"ℹ️ Tidak ada checkpoint mode {mode} yang perlu dihapus.")
+        logger.info(f"ℹ️ Tidak ada checkpoint {source_name}:{mode} yang perlu dihapus.")
 
     if LEGACY_CHECKPOINT_FILE.exists():
         LEGACY_CHECKPOINT_FILE.unlink()
@@ -601,7 +609,7 @@ async def save_chapter_metadata(
 
 async def process_comic(
     session,
-    scraper: KomikuScraper,
+    scraper: BaseComicScraper,
     runtime: SyncRuntime,
     comic_basic: dict[str, Any],
     *,
@@ -798,7 +806,7 @@ async def process_comic(
 
 async def process_page(
     session,
-    scraper: KomikuScraper,
+    scraper: BaseComicScraper,
     runtime: SyncRuntime,
     *,
     page: int,
@@ -914,14 +922,15 @@ async def run_sync_full_library(
     max_pages: int,
     end_page: int | None = None,
     mode: str = "validate",
+    source: str = "komiku",
 ):
     """Pipeline utama mass-scraping dengan semua strategi anti-blocking."""
     global _shutdown_requested
 
     start_time = time.time()
     started_at = now_wib()
-    checkpoint_file = get_checkpoint_file(mode)
-    checkpoint = load_checkpoint(mode)
+    checkpoint_file = get_checkpoint_file(mode, source)
+    checkpoint = load_checkpoint(mode, source)
     completed_slugs = set(checkpoint.get("completed_slugs", []))
     stats = _default_stats()
     stats.update(checkpoint.get("stats", {}))
@@ -962,12 +971,13 @@ async def run_sync_full_library(
 
     logger.info("═" * 60)
     logger.info(f"🚀 Sync Full Library dimulai — {started_at.isoformat()}")
+    logger.info(f"   Source          : {source}")
     logger.info(f"   Mode          : {mode}")
     logger.info(f"   Target halaman  : {start_page} → {end_page}")
     logger.info(f"   Resume dari     : halaman {resume_page}, komik index > {resume_comic_index}")
     logger.info(f"   Resume reason   : {resume_reason}")
     logger.info(f"   Komik sudah done: {len(completed_slugs)}")
-    logger.info(f"   Checkpoint scope: {get_checkpoint_scope_label(mode)}")
+    logger.info(f"   Checkpoint scope: {get_checkpoint_scope_label(mode, source)}")
     logger.info(f"   Delay komik     : {DELAY_COMIC_MIN}-{DELAY_COMIC_MAX}s (random)")
     logger.info(f"   Delay halaman   : {DELAY_PAGE_MIN}-{DELAY_PAGE_MAX}s (random)")
     logger.info(f"   Cooldown setiap : {COOLDOWN_EVERY_N_COMICS} komik")
@@ -975,7 +985,8 @@ async def run_sync_full_library(
     logger.info("═" * 60)
 
     # Inisialisasi scraper
-    scraper = KomikuScraper()
+    scraper = create_scraper(source)
+    logger.info(f"   Base URL        : {scraper.BASE_URL}")
 
     async with async_session() as session:
         for page in range(resume_page, end_page + 1):
@@ -1035,6 +1046,7 @@ async def run_sync_full_library(
 def parse_args():
     """Parse argumen command-line sederhana (tanpa argparse agar ringan)."""
     args = {
+        "source": "komiku",
         "start": DEFAULT_START_PAGE,
         "max": DEFAULT_MAX_PAGES,
         "end": None,
@@ -1049,6 +1061,9 @@ def parse_args():
     while i < len(argv):
         if argv[i] == "--reset":
             args["reset"] = True
+        elif argv[i] == "--source" and i + 1 < len(argv):
+            args["source"] = argv[i + 1].lower()
+            i += 1
         elif argv[i] == "--start" and i + 1 < len(argv):
             args["start"] = int(argv[i + 1])
             i += 1
@@ -1076,6 +1091,10 @@ def parse_args():
         raise ValueError(
             f"--mode harus salah satu dari: {', '.join(sorted(SUPPORTED_MODES))}"
         )
+    if args["source"] not in SUPPORTED_SOURCES:
+        raise ValueError(
+            f"--source harus salah satu dari: {', '.join(SUPPORTED_SOURCES)}"
+        )
     if "--log-file" in argv and not args["log_file"]:
         raise ValueError("--log-file membutuhkan path file, misalnya --log-file sync.log")
 
@@ -1100,10 +1119,11 @@ def main():
         signal.signal(signal.SIGTERM, _signal_handler)
 
     if args["reset"]:
-        reset_checkpoint(args["mode"])
+        reset_checkpoint(args["mode"], args["source"])
 
     try:
         asyncio.run(run_sync_full_library(
+            source=args["source"],
             start_page=args["start"],
             max_pages=args["max"],
             end_page=args["end"],

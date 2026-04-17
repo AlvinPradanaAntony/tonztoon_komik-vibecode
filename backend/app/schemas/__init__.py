@@ -20,6 +20,11 @@ from app.schemas.chapter import (
     ChapterResponse,
     ChapterImageItem,
 )
+from app.schemas.source import (
+    SourceInfoResponse,
+    SourceChapterListItem,
+    SourceChapterImagesResponse,
+)
 
 __all__ = [
     "ComicBase",
@@ -33,4 +38,7 @@ __all__ = [
     "ChapterCreate",
     "ChapterResponse",
     "ChapterImageItem",
+    "SourceInfoResponse",
+    "SourceChapterListItem",
+    "SourceChapterImagesResponse",
 ]

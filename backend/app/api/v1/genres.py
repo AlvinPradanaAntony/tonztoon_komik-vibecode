@@ -14,6 +14,7 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models import Comic, Genre
 from app.schemas.comic import GenreResponse, ComicResponse
+from app.services.image_service import build_proxy_image_url
 
 router = APIRouter()
 
@@ -58,7 +59,15 @@ async def get_comics_by_genre(
 
     return [
         ComicResponse(
-            **{c: getattr(comic, c) for c in ComicResponse.model_fields if c not in ("genres", "total_chapters")},
+            **{
+                c: (
+                    build_proxy_image_url(getattr(comic, c))
+                    if c == "cover_image_url"
+                    else getattr(comic, c)
+                )
+                for c in ComicResponse.model_fields
+                if c not in ("genres", "total_chapters")
+            },
             genres=[{"id": g.id, "name": g.name, "slug": g.slug} for g in comic.genres],
             total_chapters=len(comic.chapters) if comic.chapters else 0,
         )
