@@ -27,7 +27,7 @@ async def search_comics(
 ):
     """
     Cari komik berdasarkan keyword.
-    Mencari di kolom title, alternative_titles, author, dan artist.
+    Mencari di kolom title dan alternative_titles.
     """
     search_pattern = f"%{q}%"
     offset = (page - 1) * page_size
@@ -39,8 +39,6 @@ async def search_comics(
             or_(
                 Comic.title.ilike(search_pattern),
                 Comic.alternative_titles.ilike(search_pattern),
-                Comic.author.ilike(search_pattern),
-                Comic.artist.ilike(search_pattern),
             )
         )
         .order_by(Comic.title)

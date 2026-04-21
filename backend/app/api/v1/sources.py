@@ -10,11 +10,10 @@ Endpoint publik utama untuk navigasi katalog per source:
     GET /api/v1/sources/{source_name}/comics/{slug}
     GET /api/v1/sources/{source_name}/comics/{slug}/chapters
     GET /api/v1/sources/{source_name}/comics/{slug}/chapters/{chapter_number}
-    GET /api/v1/sources/{source_name}/comics/{slug}/chapters/{chapter_number}/images
     GET /api/v1/sources/{source_name}/search?q=...
 """
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Path, Query, Request
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload, selectinload
@@ -25,9 +24,8 @@ from app.schemas import (
     ComicListResponse,
     ComicResponse,
     GenreResponse,
-    ChapterResponse,
-    SourceChapterImagesResponse,
     SourceChapterListItem,
+    SourceChapterResponse,
     SourceInfoResponse,
 )
 from app.services.chapter_service import (
@@ -41,6 +39,11 @@ from scraper.sources.registry import get_all_source_metadata, get_source_metadat
 
 router = APIRouter()
 
+# ---------------------------------------------------------------------------
+# Helper: correlated subquery untuk menghitung jumlah chapter per komik.
+# Jauh lebih efisien daripada memuat seluruh objek Chapter (termasuk kolom
+# JSONB `images`) hanya untuk di-len().
+# ---------------------------------------------------------------------------
 _chapter_count_subq = (
     select(func.count(Chapter.id))
     .where(Chapter.comic_id == Comic.id)
@@ -48,6 +51,9 @@ _chapter_count_subq = (
     .scalar_subquery()
 )
 
+# Fallback domain signal untuk komik lama yang belum sempat diberi marker
+# posisi feed oleh cron terbaru. Ini tetap lebih tepat daripada `updated_at`
+# karena merepresentasikan kapan chapter terakhir diketahui rilis.
 _latest_chapter_release_subq = (
     select(func.max(Chapter.release_date))
     .where(Chapter.comic_id == Comic.id)
@@ -73,18 +79,31 @@ def _build_comic_response(comic: Comic, total_chapters: int) -> ComicResponse:
     )
 
 
-def _build_chapter_response(chapter: Chapter) -> ChapterResponse:
-    """Bangun response chapter dengan URL gambar yang sudah diproxy."""
-    return ChapterResponse(
-        id=chapter.id,
-        comic_id=chapter.comic_id,
+def _build_source_chapter_response(source_name: str, chapter: Chapter) -> SourceChapterResponse:
+    """Bangun payload chapter reader dengan URL gambar yang sudah diproxy."""
+    images = wrap_chapter_image_urls(chapter.images)
+    return SourceChapterResponse(
+        source_name=source_name,
         chapter_number=chapter.chapter_number,
-        title=chapter.title,
-        source_url=chapter.source_url,
-        release_date=chapter.release_date,
-        images=wrap_chapter_image_urls(chapter.images),
-        created_at=chapter.created_at,
+        images=images,
+        total=len(images),
     )
+
+
+def _format_chapter_number_for_path(chapter_number: float) -> str:
+    """Format chapter number agar angka bulat tidak ditulis dengan suffix `.0`."""
+    return format(chapter_number, "g")
+
+
+def _build_source_chapter_detail_url(source_name: str, slug: str, chapter_number: float) -> str:
+    """Bangun URL API untuk detail chapter source-scoped."""
+    chapter_number_path = _format_chapter_number_for_path(chapter_number)
+    return f"/api/v1/sources/{source_name}/comics/{slug}/chapters/{chapter_number_path}"
+
+
+def _build_absolute_url(request: Request, path: str) -> str:
+    """Gabungkan host aktif request dengan path API absolut."""
+    return f"{str(request.base_url).rstrip('/')}{path}"
 
 
 def _get_source_or_404(source_name: str) -> dict:
@@ -152,7 +171,7 @@ async def list_source_comics(
 
 @router.get("/{source_name}/comics/latest", response_model=list[ComicResponse])
 async def get_source_latest_comics(
-    source_name: str,
+    source_name: str = Path(..., description="Filter by source name (e.g. komiku, shinigami, komicast, komiku_asia)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -181,7 +200,7 @@ async def get_source_latest_comics(
 
 @router.get("/{source_name}/comics/popular", response_model=list[ComicResponse])
 async def get_source_popular_comics(
-    source_name: str,
+    source_name: str = Path(..., description="Filter by source name (e.g. komiku, shinigami, komicast, komiku_asia)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -229,8 +248,6 @@ async def search_source_comics(
             or_(
                 Comic.title.ilike(search_pattern),
                 Comic.alternative_titles.ilike(search_pattern),
-                Comic.author.ilike(search_pattern),
-                Comic.artist.ilike(search_pattern),
             ),
         )
         .order_by(Comic.title.asc())
@@ -269,6 +286,7 @@ async def get_source_comic_detail(
     response_model=list[SourceChapterListItem],
 )
 async def get_source_comic_chapters(
+    request: Request,
     source_name: str,
     slug: str,
     db: AsyncSession = Depends(get_db),
@@ -289,6 +307,14 @@ async def get_source_comic_chapters(
         SourceChapterListItem(
             chapter_number=chapter.chapter_number,
             title=chapter.title,
+            detail_url=_build_absolute_url(
+                request,
+                _build_source_chapter_detail_url(
+                    source["id"],
+                    slug,
+                    chapter.chapter_number,
+                ),
+            ),
             release_date=chapter.release_date,
             created_at=chapter.created_at,
             total_images=len(chapter.images) if chapter.images else 0,
@@ -299,7 +325,7 @@ async def get_source_comic_chapters(
 
 @router.get(
     "/{source_name}/comics/{slug}/chapters/{chapter_number}",
-    response_model=ChapterResponse,
+    response_model=SourceChapterResponse,
 )
 async def get_source_chapter_detail(
     source_name: str,
@@ -308,7 +334,7 @@ async def get_source_chapter_detail(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
-    """Detail chapter source-scoped dengan lazy image loading."""
+    """Payload chapter reader source-scoped dengan lazy image loading."""
     source = _get_source_or_404(source_name)
     try:
         chapter = await get_chapter_with_images_by_identity(
@@ -331,48 +357,4 @@ async def get_source_chapter_detail(
         comic_id=chapter.comic_id,
         current_chapter_number=chapter.chapter_number,
     )
-    return _build_chapter_response(chapter)
-
-
-@router.get(
-    "/{source_name}/comics/{slug}/chapters/{chapter_number}/images",
-    response_model=SourceChapterImagesResponse,
-)
-async def get_source_chapter_images(
-    source_name: str,
-    slug: str,
-    chapter_number: float,
-    background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
-):
-    """Daftar gambar chapter source-scoped dengan lazy image loading."""
-    source = _get_source_or_404(source_name)
-    try:
-        chapter = await get_chapter_with_images_by_identity(
-            db,
-            source["id"],
-            slug,
-            chapter_number,
-        )
-    except LookupError:
-        raise HTTPException(status_code=404, detail="Chapter tidak ditemukan")
-    except ImageFetchError as exc:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Sumber komik sedang tidak dapat diakses. {exc}",
-        ) from exc
-
-    background_tasks.add_task(
-        prefetch_nearby_chapters,
-        chapter_id=chapter.id,
-        comic_id=chapter.comic_id,
-        current_chapter_number=chapter.chapter_number,
-    )
-    images = wrap_chapter_image_urls(chapter.images)
-    return {
-        "source_name": source["id"],
-        "comic_slug": slug,
-        "chapter_number": chapter.chapter_number,
-        "images": images,
-        "total": len(images),
-    }
+    return _build_source_chapter_response(source["id"], chapter)

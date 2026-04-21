@@ -2,7 +2,7 @@
 Tonztoon Komik — Pydantic Schemas
 
 Semua schema di-export dari sini:
-    from app.schemas import ComicResponse, ChapterResponse, ...
+    from app.schemas import ComicResponse, ChapterImageItem, ...
 """
 
 from app.schemas.comic import (
@@ -14,16 +14,11 @@ from app.schemas.comic import (
     GenreCreate,
     GenreResponse,
 )
-from app.schemas.chapter import (
-    ChapterBase,
-    ChapterCreate,
-    ChapterResponse,
-    ChapterImageItem,
-)
+from app.schemas.chapter import ChapterImageItem
 from app.schemas.source import (
     SourceInfoResponse,
     SourceChapterListItem,
-    SourceChapterImagesResponse,
+    SourceChapterResponse,
 )
 
 __all__ = [
@@ -34,11 +29,8 @@ __all__ = [
     "GenreBase",
     "GenreCreate",
     "GenreResponse",
-    "ChapterBase",
-    "ChapterCreate",
-    "ChapterResponse",
     "ChapterImageItem",
     "SourceInfoResponse",
     "SourceChapterListItem",
-    "SourceChapterImagesResponse",
+    "SourceChapterResponse",
 ]
