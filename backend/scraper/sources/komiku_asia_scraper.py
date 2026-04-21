@@ -1,7 +1,7 @@
 """
 Tonztoon Komik — Komiku Asia Scraper
 
-Scraper untuk https://01.komiku.asia/ menggunakan Scrapling `StealthySession`
+Scraper untuk https://01.komiku.asia/ menggunakan Scrapling `AsyncStealthySession`
 karena situs target dilindungi Cloudflare dan akan mengembalikan 403 untuk
 request HTTP biasa.
 
@@ -43,16 +43,17 @@ import logging
 import re
 from datetime import datetime
 from typing import Any
-from urllib.parse import urlencode, urljoin
+from urllib.parse import urlencode
 
-from scrapling.fetchers import StealthySession
+from scrapling.fetchers import AsyncStealthySession
 
 from scraper.base_scraper import BaseComicScraper
+from scraper.sources.common import ScraperCommonMixin
 
 logger = logging.getLogger("scraper.komiku_asia")
 
 
-class KomikuAsiaScraper(BaseComicScraper):
+class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
     """Scraper implementation untuk mirror Komiku Asia yang memakai stealth mode."""
 
     SOURCE_NAME = "komiku_asia"
@@ -73,47 +74,80 @@ class KomikuAsiaScraper(BaseComicScraper):
         "desember": "December",
     }
 
+    _shared_session: AsyncStealthySession | None = None
+    _SESSION_RESET_ERROR_MARKERS = (
+        "cloudflare captcha is still present",
+        "captcha",
+        "turnstile",
+        "timeout",
+        "timed out",
+    )
+    _SESSION_RESET_STATUSES = {403, 429, 500, 502, 503, 504}
+
+    @classmethod
+    async def get_session(cls) -> AsyncStealthySession:
+        if cls._shared_session is None:
+            logger.info("Membuka AsyncStealthySession (Persistent) baru...")
+            cls._shared_session = AsyncStealthySession(
+                headless=False,
+                real_chrome=True,
+                solve_cloudflare=True,
+                google_search=True,
+                extra_flags=["--window-position=-32000,-32000", "--window-size=200,200"],
+            )
+            await cls._shared_session.__aenter__()
+        return cls._shared_session
+
     @classmethod
     async def close_shared_session(cls) -> None:
-        """Kompatibilitas dengan lifecycle app; tidak ada sesi persisten yang ditahan."""
-        return None
+        """Tutup sesi persisten untuk mengosongkan resource browser."""
+        if cls._shared_session is not None:
+            logger.info("Menutup AsyncStealthySession...")
+            session = cls._shared_session
+            cls._shared_session = None
+            try:
+                await session.__aexit__(None, None, None)
+            except Exception as exc:
+                logger.warning("Gagal menutup AsyncStealthySession lama: %s", exc)
 
-    @staticmethod
-    def _fetch_page_sync(
-        url: str,
-        *,
-        wait_selector: str,
-        timeout_ms: int,
-        wait_ms: int,
-    ):
-        """
-        Jalur sinkron yang meniru pola kerja `testing/scraper_counts.py`.
+    @classmethod
+    async def reset_shared_session(cls, reason: str) -> None:
+        """Paksa reset browser/session agar request berikutnya membuka identitas baru."""
+        logger.warning("Reset AsyncStealthySession Komiku Asia: %s", reason)
+        await cls.close_shared_session()
+        logger.warning(
+            "Retry berikutnya akan membuka browser/session baru dengan identitas lebih fresh."
+        )
 
-        Playwright sync API dijalankan di worker thread via `asyncio.to_thread`,
-        sehingga tetap aman dipanggil dari FastAPI async.
-        """
-        with StealthySession(
-            headless=False,
-            real_chrome=True,
-            solve_cloudflare=True,
-            google_search=True,
-            extra_flags=["--window-position=-32000,-32000", "--window-size=200,200"],
-        ) as session:
-            page = session.fetch(
-                url,
-                wait_selector=wait_selector,
-                wait_selector_state="visible",
-                solve_cloudflare=True,
-                network_idle=True,
-                timeout=timeout_ms,
-                wait=wait_ms,
+    @classmethod
+    def _should_reset_session_on_error(cls, exc: Exception) -> bool:
+        """Tentukan apakah error layak memicu browser/session reset."""
+        if isinstance(exc, (TimeoutError, asyncio.TimeoutError)):
+            return True
+
+        message = str(exc).lower()
+        return any(marker in message for marker in cls._SESSION_RESET_ERROR_MARKERS)
+
+    @classmethod
+    async def _raise_for_bad_response(cls, url: str, page) -> None:
+        """Naikkan error dan reset session bila status respons mengindikasikan block/proxy issue."""
+        status = getattr(page, "status", 0)
+        if status == 200:
+            return
+
+        if status in cls._SESSION_RESET_STATUSES:
+            await cls.reset_shared_session(
+                f"status {status} saat fetch {url}"
             )
-            if getattr(page, "status", 0) != 200:
-                raise RuntimeError(
-                    f"Gagal fetch halaman target: {url} "
-                    f"(status={getattr(page, 'status', 'unknown')})"
-                )
-            return page
+
+        raise RuntimeError(
+            f"Gagal fetch halaman target: {url} "
+            f"(status={getattr(page, 'status', 'unknown')})"
+        )
+
+    async def close(self) -> None:
+        """Cleanup hook untuk pipeline utama/sync full library."""
+        await self.close_shared_session()
 
     async def _fetch_page(
         self,
@@ -124,53 +158,33 @@ class KomikuAsiaScraper(BaseComicScraper):
         wait_ms: int = 900,
     ):
         """
-        Ambil halaman via StealthySession agar lolos Cloudflare.
-
-        Konfigurasi disamakan dengan `backend/scraper_counts.py`:
-        `headless=False`, `real_chrome=True`, `solve_cloudflare=True`,
-        `google_search=True`.
+        Ambil halaman via AsyncStealthySession agar lolos Cloudflare.
+        Karena menggunakan session, status cache dan validasi Turnstile
+        akan tetap disimpan di pemanggilan `.fetch(...)` berikutnya.
         """
         logger.info("Stealth fetch: %s", url)
-        return await asyncio.to_thread(
-            self._fetch_page_sync,
-            url,
-            wait_selector=wait_selector,
-            timeout_ms=timeout_ms,
-            wait_ms=wait_ms,
-        )
-
-    def _clean_text(self, text: str | None) -> str:
-        if not text:
-            return ""
-        return re.sub(r"\s+", " ", text).strip()
-
-    def _make_slug(self, title: str) -> str:
-        slug = title.lower().strip()
-        slug = re.sub(r"[^a-z0-9\s-]", "", slug)
-        slug = re.sub(r"[\s-]+", "-", slug)
-        return slug.strip("-")
-
-    def _parse_chapter_number(self, text: str) -> float:
-        if not text:
-            return 0.0
-
-        match = re.search(r"(\d+(?:[.\-]\d+)?)", text, re.IGNORECASE)
-        if not match:
-            return 0.0
-
         try:
-            return float(match.group(1).replace("-", "."))
-        except ValueError:
-            return 0.0
+            session = await self.get_session()
+            page = await session.fetch(
+                url,
+                wait_selector=wait_selector,
+                wait_selector_state="visible",
+                timeout=timeout_ms,
+                wait=wait_ms,
+            )
+        except Exception as exc:
+            if self._should_reset_session_on_error(exc):
+                await self.reset_shared_session(
+                    f"{type(exc).__name__}: {exc}"
+                )
+                logger.warning(
+                    "Fetch gagal untuk %s dan error diteruskan ke caller agar backoff/retry berjalan.",
+                    url,
+                )
+            raise
 
-    def _parse_rating(self, text: str | None) -> float | None:
-        cleaned = self._clean_text(text)
-        if not cleaned:
-            return None
-        try:
-            return float(cleaned)
-        except ValueError:
-            return None
+        await self._raise_for_bad_response(url, page)
+        return page
 
     def _parse_date(self, date_str: str | None) -> datetime | None:
         cleaned = self._clean_text(date_str)
@@ -195,13 +209,7 @@ class KomikuAsiaScraper(BaseComicScraper):
         return None
 
     def _extract_type_from_class(self, element) -> str | None:
-        classes = element.attrib.get("class", "").split()
-        known_types = {"manga", "manhwa", "manhua", "comic"}
-        for class_name in classes:
-            lowered = class_name.lower()
-            if lowered in known_types:
-                return lowered
-        return None
+        return self._parse_type_from_text(" ".join(element.attrib.get("class", "").split()))
 
     def _build_manga_list_url(self, *, page: int = 1, order: str | None = None) -> str:
         query: dict[str, Any] = {}
@@ -213,6 +221,20 @@ class KomikuAsiaScraper(BaseComicScraper):
             return f"{self.BASE_URL}/manga/"
         return f"{self.BASE_URL}/manga/?{urlencode(query)}"
 
+    def _extract_info_table_map(self, response) -> dict[str, str]:
+        """Bangun map metadata dari tabel informasi detail komik."""
+        info_map: dict[str, str] = {}
+        for row in response.css("table.infotable tr"):
+            cells = row.css("td")
+            if len(cells) < 2:
+                continue
+
+            key = self._clean_text(cells[0].text).lower().rstrip(":")
+            value = self._clean_text(cells[1].get_all_text())
+            if key:
+                info_map[key] = value
+        return info_map
+
     def _parse_grid_cards(self, cards: list) -> list[dict[str, Any]]:
         comics_data: list[dict[str, Any]] = []
 
@@ -222,8 +244,7 @@ class KomikuAsiaScraper(BaseComicScraper):
                 if not link_el:
                     continue
 
-                href = link_el[0].attrib.get("href", "")
-                comic_url = urljoin(self.BASE_URL, href)
+                comic_url = self._resolve_url(link_el[0].attrib.get("href"))
 
                 title = ""
                 title_el = card.css(".tt")
@@ -236,22 +257,19 @@ class KomikuAsiaScraper(BaseComicScraper):
                 if not title:
                     continue
 
-                cover_url = None
                 img = card.css("img")
-                if img:
-                    cover_url = img[0].attrib.get("src") or img[0].attrib.get("data-src")
+                cover_url = self._extract_image_url(img[0] if img else None, invalid_substrings=())
 
                 latest_chapter = None
+                latest_chapter_number = None
                 latest_chapter_url = None
                 chapter_el = card.css(".epxs")
                 if chapter_el:
                     latest_chapter = self._clean_text(chapter_el[0].text)
-                    latest_chapter_url = comic_url
+                    latest_chapter_number = self._parse_chapter_number(latest_chapter)
 
-                rating = None
                 rating_el = card.css(".numscore")
-                if rating_el:
-                    rating = self._parse_rating(rating_el[0].text)
+                rating = self._parse_rating(rating_el[0].text if rating_el else None)
 
                 comic_type = None
                 type_el = card.css("span.type")
@@ -264,18 +282,17 @@ class KomikuAsiaScraper(BaseComicScraper):
                     summary = self._clean_text(summary_el[0].get_all_text())
 
                 comics_data.append(
-                    {
-                        "title": title,
-                        "slug": self._make_slug(title),
-                        "cover_image_url": cover_url,
-                        "type": comic_type,
-                        "source_url": comic_url,
-                        "source_name": self.SOURCE_NAME,
-                        "summary": summary,
-                        "rating": rating,
-                        "latest_chapter": latest_chapter,
-                        "latest_chapter_url": latest_chapter_url,
-                    }
+                    self._build_comic_payload(
+                        title=title,
+                        source_url=comic_url,
+                        cover_image_url=cover_url,
+                        type=comic_type,
+                        summary=summary,
+                        rating=rating,
+                        latest_chapter=latest_chapter,
+                        latest_chapter_number=latest_chapter_number,
+                        latest_chapter_url=latest_chapter_url,
+                    )
                 )
             except Exception as exc:
                 logger.warning("Error parsing Komiku Asia grid card: %s", exc)
@@ -293,13 +310,10 @@ class KomikuAsiaScraper(BaseComicScraper):
                     continue
 
                 title = self._clean_text(title_el[0].text)
-                href = title_el[0].attrib.get("href", "")
-                comic_url = urljoin(self.BASE_URL, href)
+                comic_url = self._resolve_url(title_el[0].attrib.get("href"))
 
                 img = card.css(".imgseries img")
-                cover_url = None
-                if img:
-                    cover_url = img[0].attrib.get("src") or img[0].attrib.get("data-src")
+                cover_url = self._extract_image_url(img[0] if img else None, invalid_substrings=())
 
                 genres = [
                     self._clean_text(genre.text)
@@ -307,21 +321,17 @@ class KomikuAsiaScraper(BaseComicScraper):
                     if self._clean_text(genre.text)
                 ]
 
-                rating = None
                 rating_el = card.css(".numscore")
-                if rating_el:
-                    rating = self._parse_rating(rating_el[0].text)
+                rating = self._parse_rating(rating_el[0].text if rating_el else None)
 
                 comics_data.append(
-                    {
-                        "title": title,
-                        "slug": self._make_slug(title),
-                        "cover_image_url": cover_url,
-                        "source_url": comic_url,
-                        "source_name": self.SOURCE_NAME,
-                        "genres": genres,
-                        "rating": rating,
-                    }
+                    self._build_comic_payload(
+                        title=title,
+                        source_url=comic_url,
+                        cover_image_url=cover_url,
+                        genres=genres,
+                        rating=rating,
+                    )
                 )
             except Exception as exc:
                 logger.warning("Error parsing Komiku Asia popular card: %s", exc)
@@ -352,20 +362,10 @@ class KomikuAsiaScraper(BaseComicScraper):
         if synopsis_el:
             synopsis = self._clean_text(synopsis_el[0].text)
 
-        cover_url = None
         cover_el = response.css(".seriestucontl .thumb img")
-        if cover_el:
-            cover_url = cover_el[0].attrib.get("src") or cover_el[0].attrib.get("data-src")
+        cover_url = self._extract_image_url(cover_el[0] if cover_el else None, invalid_substrings=())
 
-        info_map: dict[str, str] = {}
-        for row in response.css("table.infotable tr"):
-            cells = row.css("td")
-            if len(cells) < 2:
-                continue
-            key = self._clean_text(cells[0].text).lower().rstrip(":")
-            value = self._clean_text(cells[1].get_all_text())
-            if key:
-                info_map[key] = value
+        info_map = self._extract_info_table_map(response)
 
         genres = [
             self._clean_text(genre.text)
@@ -385,8 +385,7 @@ class KomikuAsiaScraper(BaseComicScraper):
                 if not link_el:
                     continue
 
-                href = link_el[0].attrib.get("href", "")
-                chapter_url = urljoin(self.BASE_URL, href)
+                chapter_url = self._resolve_url(link_el[0].attrib.get("href"))
 
                 title_node = chapter_item.css(".chapternum")
                 chapter_title = self._clean_text(title_node[0].text) if title_node else ""
@@ -395,40 +394,54 @@ class KomikuAsiaScraper(BaseComicScraper):
                 release_date = self._parse_date(date_node[0].text if date_node else None)
 
                 chapters.append(
-                    {
-                        "chapter_number": self._parse_chapter_number(chapter_title),
-                        "title": chapter_title,
-                        "source_url": chapter_url,
-                        "release_date": release_date,
-                    }
+                    self._build_chapter_payload(
+                        chapter_number=self._parse_chapter_number(chapter_title),
+                        title=chapter_title,
+                        source_url=chapter_url,
+                        release_date=release_date,
+                    )
                 )
             except Exception as exc:
                 logger.warning("Error parsing Komiku Asia chapter row: %s", exc)
                 continue
 
-        return {
-            "title": title,
-            "slug": self._make_slug(title),
-            "alternative_titles": info_map.get("alternative"),
-            "cover_image_url": cover_url,
-            "author": info_map.get("author"),
-            "artist": None,
-            "status": info_map.get("status", "").lower() or None,
-            "type": info_map.get("type", "").lower() or None,
-            "synopsis": synopsis,
-            "rating": rating,
-            "source_url": url,
-            "source_name": self.SOURCE_NAME,
-            "genres": genres,
-            "chapters": chapters,
-        }
+        return self._build_comic_payload(
+            title=title,
+            source_url=url,
+            alternative_titles=info_map.get("alternative"),
+            cover_image_url=cover_url,
+            author=info_map.get("author"),
+            artist=None,
+            status=self._normalize_status(info_map.get("status")),
+            type=self._parse_type_from_text(info_map.get("type")),
+            synopsis=synopsis,
+            rating=rating,
+            genres=genres,
+            chapters=chapters,
+        )
+
+    async def get_comic_metadata_patch(
+        self,
+        url: str,
+        *,
+        fields: set[str] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Refresh metadata Komiku Asia dari detail page tanpa sync chapter penuh.
+
+        Karena source ini tidak menyediakan endpoint metadata ringan yang stabil,
+        patch diambil dari halaman detail stealth yang sama lalu dipersempit ke
+        field yang diminta.
+        """
+        detail = await self.get_comic_detail(url)
+        return self._build_metadata_patch(detail, fields=fields)
 
     async def get_chapter_images(self, chapter_url: str) -> list[dict[str, Any]]:
         response = await self._fetch_page(chapter_url, wait_selector=".ts-main-image")
 
         images: list[dict[str, Any]] = []
         for img in response.css(".ts-main-image"):
-            img_url = img.attrib.get("src") or img.attrib.get("data-src")
+            img_url = self._extract_image_url(img, invalid_substrings=())
             if not img_url:
                 continue
 

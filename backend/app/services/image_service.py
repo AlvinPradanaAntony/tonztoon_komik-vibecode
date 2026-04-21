@@ -15,7 +15,11 @@ REFERER_MAP = {
     "komiku.asia": "https://01.komiku.asia/",
     "cdnkomiku.xyz": "https://01.komiku.asia/",
     "komikcast": "https://v1.komikcast.fit/",
+    "komikcast.to": "https://v1.komikcast.fit/",
+    "imgkc2.my.id": "https://v1.komikcast.fit/",
+    "imgkc.my.id": "https://v1.komikcast.fit/",
     "shinigami": "https://e.shinigami.asia/",
+    "shngm.id": "https://e.shinigami.asia/",
 }
 
 DEFAULT_USER_AGENT = (

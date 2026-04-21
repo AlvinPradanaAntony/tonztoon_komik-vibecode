@@ -7,10 +7,49 @@ File ini adalah entry point utama yang dijalankan oleh:
 
 Usage:
     python -m scraper.main  # Log default: logs/main.log
+    python -m scraper.main --source komiku_asia
     python -m scraper.main --log-file cron.log
     python -m scraper.main --max-pages 5
     python -m scraper.main --popular-pages 3
+    python -m scraper.main --popular-pages 5 --popular-no-early-stop
     python -m scraper.main --max-pages 0 --popular-pages 3
+
+Argumen CLI utama:
+- `--source <source_name>`
+  - Filter satu source saja.
+  - Nilai valid mengikuti registry backend: `komiku`, `komiku_asia`,
+    `komikcast`, `shinigami`.
+  - Jika tidak diisi, script memproses semua source aktif.
+- `--max-pages <N>`
+  - Jumlah halaman latest yang dipindai untuk incremental sync.
+  - `0` berarti latest dimatikan.
+  - Default mengikuti `MAX_LATEST_PAGES`.
+- `--popular-pages <N>`
+  - Jumlah halaman popular yang dipindai.
+  - `0` berarti popular dimatikan.
+  - Default mengikuti `DEFAULT_POPULAR_PAGES`.
+- `--popular-no-early-stop`
+  - Nonaktifkan early-stop untuk popular feed.
+  - Cocok saat onboarding source baru atau saat ingin menyapu ranking lebih
+    dalam tanpa berhenti walau page awal hanya berisi comic lama.
+- `--log-file <path>`
+  - Ubah lokasi file log. Jika relatif, file akan ditulis ke `backend/logs/`.
+
+Contoh use case:
+- Cron harian ringan satu source:
+  `python -m scraper.main --source komiku_asia --max-pages 5`
+- Refresh popular lintas source:
+  `python -m scraper.main --max-pages 0 --popular-pages 5`
+- Sweep popular lebih dalam tanpa early-stop:
+  `python -m scraper.main --source komikcast --popular-pages 8 --popular-no-early-stop`
+- Run semua source aktif dengan log terpisah:
+  `python -m scraper.main --log-file latest_sync.log`
+
+Panduan pemakaian singkat:
+- Gunakan script ini untuk sync incremental / operasional rutin.
+- Gunakan `sync_full_library.py` untuk seeding katalog besar atau validasi
+  range halaman direktori.
+- Gunakan `sync_chapter_images.py` untuk backlog images chapter, bukan script ini.
 
 Flow:
     1. Inisialisasi koneksi database (async)
@@ -50,12 +89,13 @@ import asyncio
 from dataclasses import dataclass
 import logging
 import random
+import re
 import sys
 import time
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 # Tambahkan parent directory ke path agar bisa import app.*
@@ -66,7 +106,11 @@ from app.models import Comic, Chapter, Genre, comic_genre
 from app.schemas import ComicCreate
 
 from scraper.base_scraper import BaseComicScraper
-from scraper.sources.registry import create_default_scrapers
+from scraper.sources.registry import (
+    create_default_scrapers,
+    create_scraper,
+    get_supported_source_names,
+)
 from scraper.time_utils import now_wib
 
 # Setup logging
@@ -296,6 +340,7 @@ async def upsert_comic_with_feed_markers(
         type=validated.type,
         synopsis=validated.synopsis,
         rating=validated.rating,
+        total_view=validated.total_view,
         source_url=validated.source_url,
         source_name=validated.source_name,
         created_at=current_time,
@@ -309,12 +354,16 @@ async def upsert_comic_with_feed_markers(
     )
     update_values = {
         "title": validated.title,
+        "alternative_titles": validated.alternative_titles,
         "cover_image_url": validated.cover_image_url,
         "author": validated.author,
+        "artist": validated.artist,
         "status": validated.status,
         "synopsis": validated.synopsis,
         "type": validated.type,
         "rating": validated.rating,
+        "total_view": validated.total_view,
+        "source_url": validated.source_url,
         "updated_at": current_time,
     }
     if latest_feed_batch_at is not None:
@@ -543,8 +592,9 @@ async def should_process_comic_update(
 
     Rules:
     - comic belum ada di DB → proses
-    - latest_chapter_url tidak tersedia → proses (safe fallback)
-    - latest_chapter_url belum ada di chapter DB → proses
+    - latest_chapter_url valid dan belum ada di chapter DB → proses
+    - jika listing hanya punya nomor chapter, bandingkan dengan chapter DB tertinggi
+    - jika sinyal listing tidak cukup andal → proses (safe fallback)
     - selain itu → skip sebagai unchanged
 
     Intinya, validasi di sini adalah gate sebelum fetch detail:
@@ -566,20 +616,64 @@ async def should_process_comic_update(
         return True, "comic baru", None
 
     latest_chapter_url = comic_basic.get("latest_chapter_url")
-    if not latest_chapter_url:
-        return True, "listing tidak punya latest_chapter_url", comic_id
+    latest_chapter_number = _extract_listing_chapter_number(scraper, comic_basic)
 
-    result = await session.execute(
-        select(Chapter.id).where(
-            Chapter.comic_id == comic_id,
-            Chapter.source_url == latest_chapter_url,
+    if latest_chapter_url and latest_chapter_url != detail_url:
+        result = await session.execute(
+            select(Chapter.id).where(
+                Chapter.comic_id == comic_id,
+                Chapter.source_url == latest_chapter_url,
+            )
         )
-    )
-    chapter_id = result.scalar_one_or_none()
-    if chapter_id is None:
-        return True, "Latest chapter baru", comic_id
+        chapter_id = result.scalar_one_or_none()
+        if chapter_id is None:
+            return True, "Latest chapter baru (berdasarkan URL)", comic_id
+        return False, "Latest chapter sudah ada (berdasarkan URL)", comic_id
 
-    return False, "Latest chapter sudah ada", comic_id
+    if latest_chapter_number > 0:
+        result = await session.execute(
+            select(func.max(Chapter.chapter_number)).where(Chapter.comic_id == comic_id)
+        )
+        db_latest_chapter_number = result.scalar_one_or_none() or 0.0
+        if db_latest_chapter_number + 0.0001 < latest_chapter_number:
+            return True, "Latest chapter baru (berdasarkan nomor)", comic_id
+        return False, "Latest chapter sudah ada (berdasarkan nomor)", comic_id
+
+    return True, "listing tidak punya sinyal update yang andal", comic_id
+
+
+def _extract_listing_chapter_number(
+    scraper: BaseComicScraper,
+    comic_basic: dict[str, Any],
+) -> float:
+    """Ambil nomor chapter dari payload listing, fallback ke parsing teks."""
+    latest_chapter_number = comic_basic.get("latest_chapter_number")
+    if isinstance(latest_chapter_number, int | float):
+        return float(latest_chapter_number)
+
+    latest_chapter_text = comic_basic.get("latest_chapter")
+    if not latest_chapter_text:
+        return 0.0
+
+    parse_chapter_number = getattr(scraper, "_parse_chapter_number", None)
+    if callable(parse_chapter_number):
+        parsed_number = parse_chapter_number(latest_chapter_text)
+        if isinstance(parsed_number, int | float):
+            return float(parsed_number)
+
+    match = re.search(
+        r"(?:chapter|chap|ch)\.?\s*([0-9]+(?:[.\-][0-9]+)?)|\b([0-9]+(?:[.\-][0-9]+)?)\b",
+        str(latest_chapter_text),
+        re.IGNORECASE,
+    )
+    if not match:
+        return 0.0
+
+    raw_number = match.group(1) or match.group(2)
+    try:
+        return float(raw_number.replace("-", "."))
+    except ValueError:
+        return 0.0
 
 
 async def prewarm_latest_chapters(
@@ -700,6 +794,7 @@ async def process_comic(
         type=comic_detail.get("type"),
         synopsis=comic_detail.get("synopsis"),
         rating=comic_detail.get("rating"),
+        total_view=comic_detail.get("total_view"),
         source_url=comic_detail["source_url"],
         source_name=comic_detail["source_name"],
         genres=comic_detail.get("genres", []),
@@ -756,7 +851,7 @@ async def process_comic(
     if stats.comics_since_cooldown >= COOLDOWN_EVERY_N_COMICS:
         stats.comics_since_cooldown = 0
         logger.info(
-            f"\n  🧊 Cooldown berkala ({COOLDOWN_EVERY_N_COMICS} komik tercapai)..."
+            f" 🧊 Cooldown berkala ({COOLDOWN_EVERY_N_COMICS} komik tercapai)..."
         )
         await random_delay(COOLDOWN_MIN, COOLDOWN_MAX, "cooldown berkala")
 
@@ -900,6 +995,7 @@ async def process_popular_pages(
     stats: ScrapeStats,
     max_pages: int,
     popular_feed_batch_at,
+    allow_early_stop: bool = True,
 ) -> None:
     """
     Scan beberapa halaman popular secara incremental.
@@ -909,6 +1005,7 @@ async def process_popular_pages(
     - comic existing cukup ditandai marker `popular_feed_*`
     - detail hanya di-fetch untuk comic yang belum ada di DB
     - early-stop jika satu halaman penuh tidak menghasilkan comic baru
+      kecuali mode popular no-early-stop diaktifkan
     """
     consecutive_errors = 0
     unchanged_pages = 0
@@ -1007,7 +1104,7 @@ async def process_popular_pages(
                 f"  🛑 Popular page {page} tidak menghasilkan comic baru "
                 f"({unchanged_pages}/{STOP_AFTER_UNCHANGED_PAGES} unchanged pages)"
             )
-            if unchanged_pages >= STOP_AFTER_UNCHANGED_PAGES:
+            if allow_early_stop and unchanged_pages >= STOP_AFTER_UNCHANGED_PAGES:
                 logger.info("  🧠 Early stop popular: halaman berikutnya diperkirakan ranking lama.")
                 break
         else:
@@ -1019,6 +1116,8 @@ async def process_popular_pages(
 async def run_scraper(
     max_pages: int = MAX_LATEST_PAGES,
     popular_pages: int = DEFAULT_POPULAR_PAGES,
+    source_name: str | None = None,
+    popular_allow_early_stop: bool = True,
 ):
     """
     Main scraping pipeline untuk cron updater incremental.
@@ -1045,10 +1144,16 @@ async def run_scraper(
     else:
         logger.info("   Target        : latest disabled")
     if popular_pages > 0:
-        logger.info(
-            f"   Popular target: canonical popular source page 1..{popular_pages} "
-            f"(early stop after {STOP_AFTER_UNCHANGED_PAGES} unchanged page)"
-        )
+        if popular_allow_early_stop:
+            logger.info(
+                f"   Popular target: canonical popular source page 1..{popular_pages} "
+                f"(early stop after {STOP_AFTER_UNCHANGED_PAGES} unchanged page)"
+            )
+        else:
+            logger.info(
+                f"   Popular target: canonical popular source page 1..{popular_pages} "
+                "(early stop disabled)"
+            )
     else:
         logger.info("   Popular target: disabled")
     logger.info(f"   Delay detail  : {DELAY_DETAIL_MIN}-{DELAY_DETAIL_MAX}s (random)")
@@ -1056,9 +1161,10 @@ async def run_scraper(
     logger.info(f"   Delay comic   : {DELAY_COMIC_MIN}-{DELAY_COMIC_MAX}s (random)")
     logger.info(f"   Cooldown      : setiap {COOLDOWN_EVERY_N_COMICS} komik")
     logger.info(f"   Backoff max   : {BACKOFF_MAX:.0f}s")
+    logger.info(f"   Source filter : {source_name or 'all active sources'}")
     logger.info("═" * 60)
 
-    scrapers = create_default_scrapers()
+    scrapers = [create_scraper(source_name)] if source_name else create_default_scrapers()
 
     stats = ScrapeStats()
 
@@ -1091,6 +1197,7 @@ async def run_scraper(
                         stats=stats,
                         max_pages=popular_pages,
                         popular_feed_batch_at=popular_feed_batch_at,
+                        allow_early_stop=popular_allow_early_stop,
                     )
 
                 logger.info(
@@ -1111,6 +1218,13 @@ async def run_scraper(
                 logger.error(f"  ✗ Scraper {scraper.SOURCE_NAME} failed: {e}")
                 await session.rollback()
                 continue
+            finally:
+                try:
+                    await scraper.close()
+                except Exception as close_error:
+                    logger.warning(
+                        f"  ⚠️ Gagal menutup resource scraper {scraper.SOURCE_NAME}: {close_error}"
+                    )
 
     elapsed = time.time() - start_time
     finished_at = now_wib()
@@ -1131,19 +1245,25 @@ async def run_scraper(
     logger.info("═" * 60)
 
 
-def parse_args() -> dict[str, str | int]:
+def parse_args() -> dict[str, str | int | bool]:
     """Parse argumen command-line sederhana untuk logging dan scan depth."""
     args = {
         "log_file": str(DEFAULT_LOG_FILE),
         "max_pages": MAX_LATEST_PAGES,
         "popular_pages": DEFAULT_POPULAR_PAGES,
+        "popular_allow_early_stop": True,
+        "source": "",
     }
+    supported_sources = get_supported_source_names()
 
     argv = sys.argv[1:]
     i = 0
     while i < len(argv):
         if argv[i] == "--log-file" and i + 1 < len(argv):
             args["log_file"] = argv[i + 1]
+            i += 1
+        elif argv[i] == "--source" and i + 1 < len(argv):
+            args["source"] = argv[i + 1].lower()
             i += 1
         elif argv[i] == "--max-pages" and i + 1 < len(argv):
             try:
@@ -1157,6 +1277,8 @@ def parse_args() -> dict[str, str | int]:
             except ValueError as e:
                 raise ValueError("--popular-pages harus berupa integer >= 0") from e
             i += 1
+        elif argv[i] == "--popular-no-early-stop":
+            args["popular_allow_early_stop"] = False
         elif argv[i] == "--help":
             print(__doc__)
             sys.exit(0)
@@ -1164,6 +1286,10 @@ def parse_args() -> dict[str, str | int]:
 
     if "--log-file" in argv and not args["log_file"]:
         raise ValueError("--log-file membutuhkan path file (ex: --log-file sync.log)")
+    if args["source"] and args["source"] not in supported_sources:
+        raise ValueError(
+            f"--source harus salah satu dari: {', '.join(supported_sources)}"
+        )
 
     return args
 
@@ -1181,6 +1307,8 @@ def main():
         run_scraper(
             max_pages=int(args["max_pages"]),
             popular_pages=int(args["popular_pages"]),
+            source_name=str(args["source"]) or None,
+            popular_allow_early_stop=bool(args["popular_allow_early_stop"]),
         )
     )
 

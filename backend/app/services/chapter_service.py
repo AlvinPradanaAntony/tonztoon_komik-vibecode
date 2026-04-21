@@ -95,6 +95,31 @@ class ImageFetchError(Exception):
     pass
 
 
+def chapter_images_are_ready(images: list | None) -> bool:
+    """
+    Validasi ringan apakah payload images chapter sudah layak dipakai sebagai cache.
+
+    Syarat minimum:
+    - bertipe list
+    - tidak kosong
+    - setiap item berupa dict
+    - setiap item punya `page` dan `url`
+    - `url` berupa string non-kosong
+    """
+    if not isinstance(images, list) or not images:
+        return False
+
+    for item in images:
+        if not isinstance(item, dict):
+            return False
+        if "page" not in item or "url" not in item:
+            return False
+        if not isinstance(item.get("url"), str) or not item["url"].strip():
+            return False
+
+    return True
+
+
 # ── Factory Scraper ──────────────────────────────────────────────────────────
 
 def _get_scraper_for_source(source_name: str):
@@ -112,7 +137,7 @@ def _get_scraper_for_source(source_name: str):
 
 # ── Core Helper: Fetch & Save Images untuk 1 Chapter ────────────────────────
 
-async def _fetch_and_save_images(
+async def fetch_and_save_chapter_images(
     chapter: Chapter,
     source_name: str,
     timeout_seconds: float,
@@ -226,7 +251,7 @@ async def _ensure_chapter_images_loaded(
     source_name: str | None = None,
 ) -> Chapter:
     """Pastikan chapter memiliki daftar gambar, fetch on-demand bila perlu."""
-    if chapter.images:
+    if chapter_images_are_ready(chapter.images):
         logger.debug(
             f"Cache hit: Chapter {chapter.id} "
             f"sudah punya {len(chapter.images)} images"
@@ -251,7 +276,7 @@ async def _ensure_chapter_images_loaded(
         f"belum punya images — on-demand scraping (timeout={ON_DEMAND_TIMEOUT}s)..."
     )
 
-    ok = await _fetch_and_save_images(
+    ok = await fetch_and_save_chapter_images(
         chapter=chapter,
         source_name=resolved_source_name,
         timeout_seconds=ON_DEMAND_TIMEOUT,
@@ -466,7 +491,7 @@ async def prefetch_nearby_chapters(
             for ch in nearby:
                 logger.info(f"[Prefetch] Fetching Ch {ch.chapter_number} (id={ch.id})...")
                 try:
-                    ok = await _fetch_and_save_images(
+                    ok = await fetch_and_save_chapter_images(
                         chapter=ch,
                         source_name=source_name,
                         timeout_seconds=PREFETCH_TIMEOUT,

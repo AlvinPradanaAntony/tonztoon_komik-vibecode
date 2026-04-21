@@ -1,0 +1,146 @@
+# ============================================================
+# Tonztoon Komik — Chapter Images Backfill GitHub Actions
+# ============================================================
+# Trigger:
+#   1. Cron job backfill images terjadwal
+#   2. workflow_dispatch manual untuk backfill images
+#
+# Strategi:
+#   - Preflight check backlog dulu
+#   - Jika pending=0, workflow selesai cepat (no-op)
+#   - Jika masih ada backlog, jalankan batch backfill sekali jalan
+
+name: "🖼️ Scraper: Chapter Images Backfill"
+
+on:
+  schedule:
+    # Jalankan tiap 30 menit untuk menyapu backlog images yang baru muncul.
+    - cron: "*/30 * * * *"
+
+  workflow_dispatch:
+    inputs:
+      trigger_source:
+        description: "Source that triggered this workflow"
+        required: false
+        default: "manual"
+      source:
+        description: "Source filter (optional: komiku, komiku_asia, komikcast, shinigami)"
+        required: false
+        default: ""
+      selection:
+        description: "Selection strategy: ordered or random"
+        required: false
+        default: "random"
+      batch_size:
+        description: "Batch size per run"
+        required: false
+        default: "10"
+      limit:
+        description: "Max chapters to process in one run"
+        required: false
+        default: "20"
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  preflight:
+    name: Check Pending Chapter Images
+    runs-on: ubuntu-latest
+    outputs:
+      has_pending: ${{ steps.pending.outputs.has_pending }}
+      pending_count: ${{ steps.pending.outputs.pending_count }}
+      pending_by_source: ${{ steps.pending.outputs.pending_by_source }}
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v6
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: 📦 Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: 🔎 Check pending chapter images
+        id: pending
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SOURCE_FILTER: ${{ github.event.inputs.source || '' }}
+        run: |
+          cd backend
+          if [ -n "${SOURCE_FILTER}" ]; then
+            python -m scraper.check_pending_chapter_images --source "${SOURCE_FILTER}" --github-output "${GITHUB_OUTPUT}"
+          else
+            python -m scraper.check_pending_chapter_images --github-output "${GITHUB_OUTPUT}"
+          fi
+
+      - name: 📝 Log preflight summary
+        run: |
+          echo "has_pending=${{ steps.pending.outputs.has_pending }}"
+          echo "pending_count=${{ steps.pending.outputs.pending_count }}"
+          echo "pending_by_source=${{ steps.pending.outputs.pending_by_source }}"
+
+  backfill:
+    name: Run Chapter Images Backfill
+    needs: preflight
+    if: needs.preflight.outputs.has_pending == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v6
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: 📦 Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: 🌐 Install Scrapling browser dependencies
+        run: scrapling install
+
+      - name: 🖼️ Run chapter images backfill
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SOURCE_FILTER: ${{ github.event.inputs.source || '' }}
+          SELECTION_MODE: ${{ github.event.inputs.selection || 'random' }}
+          BATCH_SIZE: ${{ github.event.inputs.batch_size || '10' }}
+          LIMIT_COUNT: ${{ github.event.inputs.limit || '20' }}
+        run: |
+          cd backend
+          CMD="python -m scraper.sync_chapter_images --selection ${SELECTION_MODE} --batch-size ${BATCH_SIZE} --limit ${LIMIT_COUNT}"
+          if [ -n "${SOURCE_FILTER}" ]; then
+            CMD="${CMD} --source ${SOURCE_FILTER}"
+          fi
+          echo "Running: ${CMD}"
+          eval "${CMD}"
+
+      - name: 📝 Log completion
+        if: always()
+        run: |
+          echo "Chapter images backfill finished at $(date -u)"
+          echo "Initial pending_count=${{ needs.preflight.outputs.pending_count }}"
+
+  no-op:
+    name: No Pending Images
+    needs: preflight
+    if: needs.preflight.outputs.has_pending != 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 💤 Skip backfill
+        run: |
+          echo "No pending chapter images found."
+          echo "pending_count=${{ needs.preflight.outputs.pending_count }}"
+          echo "pending_by_source=${{ needs.preflight.outputs.pending_by_source }}"

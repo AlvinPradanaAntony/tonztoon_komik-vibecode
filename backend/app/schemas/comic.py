@@ -7,8 +7,9 @@ Digunakan oleh:
 """
 
 from datetime import datetime
+from typing import ClassVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 
 # ==================== Genre ====================
@@ -45,8 +46,75 @@ class ComicBase(BaseModel):
     type: str | None = Field(default=None, max_length=50, examples=["manhwa"])
     synopsis: str | None = Field(default=None)
     rating: float | None = Field(default=None, ge=0, le=10)
+    total_view: int | None = Field(default=None, ge=0, examples=[238500])
     source_url: str = Field(...)
     source_name: str = Field(..., max_length=100, examples=["komiku"])
+
+    _BOUNDED_TEXT_LIMITS: ClassVar[dict[str, int]] = {
+        "title": 500,
+        "slug": 600,
+        "author": 300,
+        "artist": 300,
+        "status": 50,
+        "type": 50,
+        "source_name": 100,
+    }
+    _OPTIONAL_TEXT_FIELDS: ClassVar[set[str]] = {"author", "artist", "status", "type"}
+
+    @field_validator(
+        "title",
+        "slug",
+        "author",
+        "artist",
+        "status",
+        "type",
+        "source_name",
+        mode="before",
+    )
+    @classmethod
+    def _normalize_bounded_text(cls, value: str | None, info: ValidationInfo) -> str | None:
+        """Rapikan whitespace dan potong aman sebelum validasi max_length dijalankan."""
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            return value
+
+        cleaned = " ".join(value.split()).strip()
+        if not cleaned:
+            if info.field_name in cls._OPTIONAL_TEXT_FIELDS:
+                return None
+            return cleaned
+
+        limit = cls._BOUNDED_TEXT_LIMITS[info.field_name]
+        if len(cleaned) <= limit:
+            return cleaned
+        return cleaned[:limit].rstrip(" ,;/|-")
+
+    @field_validator("rating", mode="before")
+    @classmethod
+    def _normalize_rating(cls, value: float | str | None) -> float | None:
+        """Normalisasi rating source ke skala 0-10 sebelum validasi ge/le."""
+        if value is None:
+            return None
+
+        if isinstance(value, str):
+            cleaned = " ".join(value.split()).strip()
+            if not cleaned:
+                return None
+            try:
+                numeric_value = float(cleaned)
+            except ValueError:
+                return None
+        else:
+            numeric_value = float(value)
+
+        if numeric_value < 0:
+            return None
+        if numeric_value <= 10:
+            return round(numeric_value, 2)
+        if numeric_value <= 100:
+            return round(numeric_value / 10, 2)
+        return None
 
 
 class ComicCreate(ComicBase):

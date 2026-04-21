@@ -9,7 +9,7 @@ dan `app.schemas` untuk validasi data hasil scraping.
 from abc import ABC, abstractmethod
 from typing import Any
 
-from scrapling.fetchers import Fetcher, StealthyFetcher, DynamicFetcher
+from scrapling.fetchers import DynamicFetcher, DynamicSession, Fetcher, StealthyFetcher
 
 
 class BaseComicScraper(ABC):
@@ -28,6 +28,30 @@ class BaseComicScraper(ABC):
         self.fetcher = Fetcher
         self.stealthy_fetcher = StealthyFetcher
         self.dynamic_fetcher = DynamicFetcher
+        self.dynamic_session_factory = DynamicSession
+
+    async def close(self) -> None:
+        """
+        Hook cleanup opsional untuk scraper yang memakai browser/session persisten.
+
+        Default: no-op.
+        """
+        return None
+
+    async def get_comic_metadata_patch(
+        self,
+        url: str,
+        *,
+        fields: set[str] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Ambil patch metadata ringan untuk comic existing tanpa full detail sync.
+
+        Default: return kosong. Source yang punya endpoint API/detail ringan
+        bisa override method ini agar pipeline dapat meng-update kolom tertentu
+        seperti `total_view`, `rating`, atau `status` tanpa ikut sync chapter.
+        """
+        return {}
 
     @abstractmethod
     async def get_latest_updates(self, page: int = 1) -> list[dict[str, Any]]:

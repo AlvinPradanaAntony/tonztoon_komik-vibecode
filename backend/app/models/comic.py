@@ -97,6 +97,7 @@ class Comic(Base):
     type: Mapped[str | None] = mapped_column(String(50), nullable=True)    # manga / manhwa / manhua
     synopsis: Mapped[str | None] = mapped_column(Text, nullable=True)
     rating: Mapped[float | None] = mapped_column(Float, nullable=True)
+    total_view: Mapped[int | None] = mapped_column(Integer, nullable=True)
     source_url: Mapped[str] = mapped_column(String(1000), nullable=False)
     source_name: Mapped[str] = mapped_column(String(100), nullable=False)  # komiku / komikcast / shinigami
 

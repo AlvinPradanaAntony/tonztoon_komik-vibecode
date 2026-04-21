@@ -51,16 +51,14 @@ import logging
 import re
 from datetime import datetime
 from typing import Any
-from urllib.parse import urljoin
-
-from scrapling.fetchers import Fetcher
 
 from scraper.base_scraper import BaseComicScraper
+from scraper.sources.common import ScraperCommonMixin
 
 logger = logging.getLogger("scraper.komiku")
 
 
-class KomikuScraper(BaseComicScraper):
+class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
     """Scraper implementation untuk Komiku.org."""
 
     SOURCE_NAME = "komiku"
@@ -71,41 +69,10 @@ class KomikuScraper(BaseComicScraper):
     # Alternatif mirror
     MIRROR_URL = "https://01.komiku.asia"
 
-    def _make_slug(self, title: str) -> str:
-        """Generate slug dari judul komik."""
-        slug = title.lower().strip()
-        slug = re.sub(r"[^a-z0-9\s-]", "", slug)
-        slug = re.sub(r"[\s-]+", "-", slug)
-        return slug.strip("-")
-
-    def _parse_chapter_number(self, text: str) -> float:
-        """
-        Extract chapter number dari text seperti:
-        - Chapter 40
-        - Chapter 10.5
-        - Ch. 01.1
-        - Chapter 01-1
-        """
-        if not text:
-            return 0.0
-
-        patterns = [
-            r"(?:chapter|chap|ch)\.?\s*([0-9]+(?:[.\-][0-9]+)?)",
-            r"\b([0-9]+(?:[.\-][0-9]+)?)\b",
-        ]
-
-        for pattern in patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if not match:
-                continue
-
-            raw_number = match.group(1).replace("-", ".")
-            try:
-                return float(raw_number)
-            except ValueError:
-                continue
-
-        return 0.0
+    def _fetch_page(self, url: str):
+        """Ambil halaman statis Komiku dengan Fetcher standar."""
+        logger.info("Fetch page: %s", url)
+        return self.fetcher.get(url)
 
     def _parse_date(self, date_str: str) -> datetime | None:
         """Parse tanggal dari format DD/MM/YYYY."""
@@ -113,20 +80,6 @@ class KomikuScraper(BaseComicScraper):
             return datetime.strptime(date_str.strip(), "%d/%m/%Y")
         except (ValueError, AttributeError):
             return None
-
-    def _clean_text(self, text: str | None) -> str:
-        """Bersihkan whitespace berlebih dari text."""
-        if not text:
-            return ""
-        return re.sub(r"\s+", " ", text).strip()
-
-    def _extract_type_from_text(self, text: str) -> str | None:
-        """Extract tipe komik (manga/manhwa/manhua) dari text."""
-        text_lower = text.lower()
-        for t in ["manhwa", "manhua", "manga"]:
-            if t in text_lower:
-                return t
-        return None
 
     def _build_latest_updates_url(self, page: int) -> str:
         """Bangun URL latest update dari endpoint canonical Komiku."""
@@ -152,12 +105,24 @@ class KomikuScraper(BaseComicScraper):
         akurat dan lebih stabil untuk cron dibanding scraping potongan homepage.
         """
         url = self._build_latest_updates_url(page)
-        logger.info(f"Fetching latest updates page {page}: {url}")
-
-        response = self.fetcher.get(url)
+        response = self._fetch_page(url)
         comic_entries = response.css("div.bge")
-        logger.info(f"Found {len(comic_entries)} latest entries from canonical API")
+        logger.info("Found %s latest entries from canonical API", len(comic_entries))
         return self._parse_library_entries(comic_entries)
+
+    def _extract_chapter_link_data(self, chapter_link) -> tuple[str | None, str | None]:
+        """Ambil judul dan URL chapter dari node anchor listing."""
+        if chapter_link is None:
+            return None, None
+
+        spans = chapter_link.css("span")
+        chapter_title = (
+            self._clean_text(spans[-1].text)
+            if len(spans) >= 2
+            else self._clean_text(chapter_link.text)
+        )
+        chapter_url = self._resolve_url(chapter_link.attrib.get("href"))
+        return chapter_title or None, chapter_url or None
 
     def _parse_library_entries(self, comic_entries: list) -> list[dict[str, Any]]:
         """
@@ -188,18 +153,15 @@ class KomikuScraper(BaseComicScraper):
                 if not link_el:
                     continue
 
-                href = link_el[0].attrib.get("href", "")
-                comic_url = urljoin(self.BASE_URL, href)
+                comic_url = self._resolve_url(link_el[0].attrib.get("href"))
 
                 img = entry.css(".bgei img")
-                cover_url = None
-                if img:
-                    cover_url = img[0].attrib.get("src") or img[0].attrib.get("data-src")
+                cover_url = self._extract_image_url(img[0] if img else None)
 
                 comic_type = None
                 type_el = entry.css(".bgei .tpe1_inf b")
                 if type_el:
-                    comic_type = self._extract_type_from_text(type_el[0].text)
+                    comic_type = self._parse_type_from_text(type_el[0].text)
 
                 meta_text = None
                 meta_el = entry.css(".kan .judul2")
@@ -217,45 +179,23 @@ class KomikuScraper(BaseComicScraper):
                 latest_chapter = None
                 latest_chapter_url = None
                 if chapter_links:
-                    first_el = chapter_links[0]
-                    latest_el = chapter_links[-1]
+                    first_chapter, first_chapter_url = self._extract_chapter_link_data(chapter_links[0])
+                    latest_chapter, latest_chapter_url = self._extract_chapter_link_data(chapter_links[-1])
 
-                    first_spans = first_el.css("span")
-                    if len(first_spans) >= 2:
-                        first_chapter = self._clean_text(first_spans[-1].text)
-                    else:
-                        first_chapter = self._clean_text(first_el.text)
-
-                    first_href = first_el.attrib.get("href", "")
-                    if first_href:
-                        first_chapter_url = urljoin(self.BASE_URL, first_href)
-
-                    latest_spans = latest_el.css("span")
-                    if len(latest_spans) >= 2:
-                        latest_chapter = self._clean_text(latest_spans[-1].text)
-                    else:
-                        latest_chapter = self._clean_text(latest_el.text)
-
-                    latest_href = latest_el.attrib.get("href", "")
-                    if latest_href:
-                        latest_chapter_url = urljoin(self.BASE_URL, latest_href)
-
-                slug = self._make_slug(title)
-
-                comics_data.append({
-                    "title": title,
-                    "slug": slug,
-                    "cover_image_url": cover_url,
-                    "type": comic_type,
-                    "source_url": comic_url,
-                    "source_name": self.SOURCE_NAME,
-                    "listing_meta": meta_text,
-                    "summary": summary,
-                    "first_chapter": first_chapter,
-                    "first_chapter_url": first_chapter_url,
-                    "latest_chapter": latest_chapter,
-                    "latest_chapter_url": latest_chapter_url,
-                })
+                comics_data.append(
+                    self._build_comic_payload(
+                        title=title,
+                        source_url=comic_url,
+                        cover_image_url=cover_url,
+                        type=comic_type,
+                        listing_meta=meta_text,
+                        summary=summary,
+                        first_chapter=first_chapter,
+                        first_chapter_url=first_chapter_url,
+                        latest_chapter=latest_chapter,
+                        latest_chapter_url=latest_chapter_url,
+                    )
+                )
 
             except Exception as e:
                 logger.warning(f"Error parsing library entry: {e}")
@@ -274,12 +214,24 @@ class KomikuScraper(BaseComicScraper):
         jadi lebih tepat dipakai daripada mencampur homepage dan `/pustaka/`.
         """
         url = self._build_popular_url(page)
-        logger.info(f"Fetching popular page: {url}")
-
-        response = self.fetcher.get(url)
+        response = self._fetch_page(url)
         comic_entries = response.css("div.bge")
-        logger.info(f"Found {len(comic_entries)} popular entries from canonical API")
+        logger.info("Found %s popular entries from canonical API", len(comic_entries))
         return self._parse_library_entries(comic_entries)
+
+    def _extract_info_table_map(self, response) -> dict[str, str]:
+        """Bangun map metadata dari tabel informasi detail komik."""
+        info_map: dict[str, str] = {}
+        for row in response.css("table.inftable tr"):
+            cells = row.css("td")
+            if len(cells) < 2:
+                continue
+
+            key = self._clean_text(cells[0].text).lower().rstrip(":")
+            value = self._clean_text(cells[1].get_all_text())
+            if key:
+                info_map[key] = value
+        return info_map
 
     async def get_comic_detail(self, url: str) -> dict[str, Any]:
         """
@@ -299,8 +251,7 @@ class KomikuScraper(BaseComicScraper):
           - span[itemprop="name"] → chapter name
           - td.tanggalseries → release date (DD/MM/YYYY)
         """
-        logger.info(f"Fetching comic detail: {url}")
-        response = self.fetcher.get(url)
+        response = self._fetch_page(url)
 
         # --- Title ---
         title = ""
@@ -336,9 +287,11 @@ class KomikuScraper(BaseComicScraper):
         if title:
             title = re.sub(r"^Komik\s+", "", title, flags=re.IGNORECASE)
 
+        info_map = self._extract_info_table_map(response)
+
         # --- Alternative title ---
         alt_title = None
-        alt_selectors = ["#Judul .j2", "table.inftable tr:nth-child(2) td:last-child"]
+        alt_selectors = ["#Judul .j2"]
         for selector in alt_selectors:
             alt_elements = response.css(selector)
             if not alt_elements:
@@ -346,28 +299,27 @@ class KomikuScraper(BaseComicScraper):
             alt_title = self._clean_text(alt_elements[0].text)
             if alt_title:
                 break
+        if not alt_title:
+            alt_title = info_map.get("judul indonesia")
 
         # --- Cover image ---
-        cover_url = None
         cover_img = response.css(".ims img")
-        if cover_img:
-            cover_url = cover_img[0].attrib.get("src")
+        cover_url = self._extract_image_url(cover_img[0] if cover_img else None, invalid_substrings=())
         if not cover_url:
             cover_img2 = response.css('img[itemprop="image"]')
-            if cover_img2:
-                cover_url = cover_img2[0].attrib.get("src")
+            cover_url = self._extract_image_url(cover_img2[0] if cover_img2 else None, invalid_substrings=())
 
         # --- Type from meta ---
         comic_type = None
         type_meta = response.css('meta[itemprop="additionalType"]')
         if type_meta:
-            comic_type = type_meta[0].attrib.get("content", "").lower()
+            comic_type = self._parse_type_from_text(type_meta[0].attrib.get("content", ""))
 
         # --- Status from meta ---
         status = None
         status_meta = response.css('meta[itemprop="creativeWorkStatus"]')
         if status_meta:
-            status = status_meta[0].attrib.get("content", "").lower()
+            status = self._normalize_status(status_meta[0].attrib.get("content"))
 
         # --- Genres from meta ---
         genres = []
@@ -388,25 +340,15 @@ class KomikuScraper(BaseComicScraper):
         # --- Author ---
         author = None
         # Try info table first (more reliable than meta)
-        info_rows = response.css("table.inftable tr")
-        for row in info_rows:
-            tds = row.css("td")
-            if len(tds) >= 2:
-                key = self._clean_text(tds[0].text).lower().rstrip(":")
-                value = self._clean_text(tds[1].text)
-
-                if "judul komik" in key and not title:
-                    title = value
-                elif "judul indonesia" in key and not alt_title:
-                    alt_title = value
-                elif "author" in key or "pengarang" in key:
-                    author = value
-                elif "tipe" in key and not comic_type:
-                    comic_type = value.lower()
-                elif "jenis komik" in key and not comic_type:
-                    comic_type = value.lower()
-                elif "status" in key and not status:
-                    status = value.lower()
+        if not title:
+            title = info_map.get("judul komik", "")
+        author = info_map.get("author") or info_map.get("pengarang")
+        if not comic_type:
+            comic_type = self._parse_type_from_text(
+                info_map.get("tipe") or info_map.get("jenis komik")
+            )
+        if not status:
+            status = self._normalize_status(info_map.get("status"))
 
         # --- Synopsis ---
         synopsis = None
@@ -434,7 +376,7 @@ class KomikuScraper(BaseComicScraper):
                     continue
 
                 ch_href = ch_link[0].attrib.get("href", "")
-                ch_url = urljoin(self.BASE_URL, ch_href)
+                ch_url = self._resolve_url(ch_href)
 
                 ch_name_el = ch_row.css("span[itemprop='name']")
                 ch_title = ""
@@ -477,35 +419,49 @@ class KomikuScraper(BaseComicScraper):
                 if date_td:
                     release_date = self._parse_date(date_td[0].text)
 
-                chapters.append({
-                    "chapter_number": ch_number,
-                    "title": ch_title,
-                    "source_url": ch_url,
-                    "release_date": release_date,
-                })
+                chapters.append(
+                    self._build_chapter_payload(
+                        chapter_number=ch_number,
+                        title=ch_title,
+                        source_url=ch_url,
+                        release_date=release_date,
+                    )
+                )
 
             except Exception as e:
                 logger.warning(f"Error parsing chapter row: {e}")
                 continue
 
-        slug = self._make_slug(title)
+        return self._build_comic_payload(
+            title=title,
+            source_url=url,
+            alternative_titles=alt_title,
+            cover_image_url=cover_url,
+            author=author,
+            artist=None,  # Komiku doesn't separate artist
+            status=status,
+            type=comic_type,
+            synopsis=synopsis,
+            rating=None,  # Komiku doesn't expose a numeric rating
+            genres=genres,
+            chapters=chapters,
+        )
 
-        return {
-            "title": title,
-            "slug": slug,
-            "alternative_titles": alt_title,
-            "cover_image_url": cover_url,
-            "author": author,
-            "artist": None,  # Komiku doesn't separate artist
-            "status": status,
-            "type": comic_type,
-            "synopsis": synopsis,
-            "rating": None,  # Komiku doesn't expose a numeric rating
-            "source_url": url,
-            "source_name": self.SOURCE_NAME,
-            "genres": genres,
-            "chapters": chapters,
-        }
+    async def get_comic_metadata_patch(
+        self,
+        url: str,
+        *,
+        fields: set[str] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Refresh metadata Komiku dari detail page tanpa ikut memproses chapter.
+
+        Komiku belum punya endpoint metadata ringan yang terpisah, jadi patch
+        dibangun dari halaman detail yang sama, lalu pipeline hanya meng-update
+        kolom yang diminta.
+        """
+        detail = await self.get_comic_detail(url)
+        return self._build_metadata_patch(detail, fields=fields)
 
     async def get_chapter_images(self, chapter_url: str) -> list[dict[str, Any]]:
         """
@@ -518,17 +474,13 @@ class KomikuScraper(BaseComicScraper):
           ...
         </div>
         """
-        logger.info(f"Fetching chapter images: {chapter_url}")
-        response = self.fetcher.get(chapter_url)
+        response = self._fetch_page(chapter_url)
 
         images = []
         img_elements = response.css("#Baca_Komik img")
 
         for i, img in enumerate(img_elements, start=1):
-            img_url = img.attrib.get("src", "")
-            if not img_url or "lazy" in img_url:
-                # Fallback ke data-src jika src adalah placeholder
-                img_url = img.attrib.get("data-src", "")
+            img_url = self._extract_image_url(img, invalid_substrings=("lazy", "lazy.jpg"))
 
             if img_url:
                 images.append({
@@ -536,8 +488,89 @@ class KomikuScraper(BaseComicScraper):
                     "url": img_url,
                 })
 
-        logger.info(f"Found {len(images)} images in chapter")
+        logger.info("Found %s images in chapter", len(images))
         return images
+
+    def _parse_manga_card_entries(
+        self,
+        comic_entries: list,
+        *,
+        include_meta: bool,
+    ) -> list[dict[str, Any]]:
+        """Parse format `article.manga-card` yang dipakai list dan search."""
+        comics_data: list[dict[str, Any]] = []
+
+        for entry in comic_entries:
+            try:
+                title_el = entry.css("h4 a")
+                if not title_el:
+                    continue
+
+                title = self._clean_text(title_el[0].text)
+                if not title:
+                    continue
+
+                comic_url = self._resolve_url(title_el[0].attrib.get("href"))
+                img = entry.css("img.lazy")
+                cover_url = self._extract_image_url(img[0] if img else None)
+
+                payload: dict[str, Any] = {
+                    "cover_image_url": cover_url,
+                }
+                if include_meta:
+                    meta_el = entry.css("p.meta")
+                    meta_text = self._clean_text(meta_el[0].get_all_text()) if meta_el else ""
+                    payload["type"] = self._parse_type_from_text(meta_text)
+                    if "ongoing" in meta_text.lower():
+                        payload["status"] = self._normalize_status(meta_text)
+                    elif any(keyword in meta_text.lower() for keyword in ("completed", "end")):
+                        payload["status"] = self._normalize_status(meta_text)
+
+                comics_data.append(
+                    self._build_comic_payload(
+                        title=title,
+                        source_url=comic_url,
+                        **payload,
+                    )
+                )
+
+            except Exception as e:
+                logger.warning("Error parsing manga-card entry: %s", e)
+                continue
+
+        return comics_data
+
+    def _parse_ls4_search_entries(self, comic_entries: list) -> list[dict[str, Any]]:
+        """Parse fallback format `article.ls4` untuk halaman search."""
+        comics_data: list[dict[str, Any]] = []
+
+        for entry in comic_entries:
+            try:
+                title_el = entry.css(".ls4j h3 a")
+                if not title_el:
+                    continue
+
+                title = self._clean_text(title_el[0].text)
+                if not title:
+                    continue
+
+                comic_url = self._resolve_url(title_el[0].attrib.get("href"))
+                img = entry.css(".ls4v img.lazy")
+                cover_url = self._extract_image_url(img[0] if img else None)
+
+                comics_data.append(
+                    self._build_comic_payload(
+                        title=title,
+                        source_url=comic_url,
+                        cover_image_url=cover_url,
+                    )
+                )
+
+            except Exception as e:
+                logger.warning("Error parsing ls4 search result: %s", e)
+                continue
+
+        return comics_data
 
     async def search(self, query: str) -> list[dict[str, Any]]:
         """
@@ -549,89 +582,15 @@ class KomikuScraper(BaseComicScraper):
         Hasilnya menggunakan format daftar komik (article.manga-card atau article.ls4).
         """
         url = f"{self.BASE_URL}/?post_type=manga&s={query}"
-        logger.info(f"Searching comics: {url}")
-
-        response = self.fetcher.get(url)
-        comics_data = []
+        response = self._fetch_page(url)
 
         # Search results bisa pakai format manga-card atau ls4
         # Coba manga-card dulu
         comic_entries = response.css("article.manga-card")
+        if comic_entries:
+            return self._parse_manga_card_entries(comic_entries, include_meta=False)
 
-        if not comic_entries:
-            # Fallback ke format ls4
-            comic_entries = response.css("article.ls4")
-
-            for entry in comic_entries:
-                try:
-                    title_el = entry.css(".ls4j h3 a")
-                    if not title_el:
-                        continue
-
-                    title = self._clean_text(title_el[0].text)
-                    if not title:
-                        continue
-
-                    href = title_el[0].attrib.get("href", "")
-                    comic_url = urljoin(self.BASE_URL, href)
-
-                    img = entry.css(".ls4v img.lazy")
-                    cover_url = None
-                    if img:
-                        cover_url = img[0].attrib.get("data-src") or img[0].attrib.get("src")
-                        if cover_url and "lazy.jpg" in cover_url:
-                            cover_url = img[0].attrib.get("data-src")
-
-                    slug = self._make_slug(title)
-
-                    comics_data.append({
-                        "title": title,
-                        "slug": slug,
-                        "cover_image_url": cover_url,
-                        "source_url": comic_url,
-                        "source_name": self.SOURCE_NAME,
-                    })
-
-                except Exception as e:
-                    logger.warning(f"Error parsing search result (ls4): {e}")
-                    continue
-        else:
-            # manga-card format
-            for entry in comic_entries:
-                try:
-                    title_el = entry.css("h4 a")
-                    if not title_el:
-                        continue
-
-                    title = self._clean_text(title_el[0].text)
-                    if not title:
-                        continue
-
-                    href = title_el[0].attrib.get("href", "")
-                    comic_url = urljoin(self.BASE_URL, href)
-
-                    img = entry.css("img.lazy")
-                    cover_url = None
-                    if img:
-                        cover_url = img[0].attrib.get("data-src") or img[0].attrib.get("src")
-                        if cover_url and "lazy.jpg" in cover_url:
-                            cover_url = img[0].attrib.get("data-src")
-
-                    slug = self._make_slug(title)
-
-                    comics_data.append({
-                        "title": title,
-                        "slug": slug,
-                        "cover_image_url": cover_url,
-                        "source_url": comic_url,
-                        "source_name": self.SOURCE_NAME,
-                    })
-
-                except Exception as e:
-                    logger.warning(f"Error parsing search result (manga-card): {e}")
-                    continue
-
-        return comics_data
+        return self._parse_ls4_search_entries(response.css("article.ls4"))
 
     async def get_comic_list(self, page: int = 1) -> list[dict[str, Any]]:
         """
@@ -647,59 +606,6 @@ class KomikuScraper(BaseComicScraper):
         else:
             url = f"{self.BASE_URL}/daftar-komik/"
             
-        logger.info(f"Fetching comic list: {url}")
-
-        response = self.fetcher.get(url)
-        comics_data = []
-
+        response = self._fetch_page(url)
         comic_entries = response.css("article.manga-card")
-        
-        for entry in comic_entries:
-            try:
-                title_el = entry.css("h4 a")
-                if not title_el:
-                    continue
-
-                title = self._clean_text(title_el[0].text)
-                if not title:
-                    continue
-
-                href = title_el[0].attrib.get("href", "")
-                comic_url = urljoin(self.BASE_URL, href)
-
-                img = entry.css("img.lazy")
-                cover_url = None
-                if img:
-                    cover_url = img[0].attrib.get("data-src") or img[0].attrib.get("src")
-                    if cover_url and "lazy.jpg" in cover_url:
-                        cover_url = img[0].attrib.get("data-src")
-
-                # Type and status
-                comic_type = None
-                status = None
-                meta_el = entry.css("p.meta")
-                if meta_el:
-                    meta_text = self._clean_text(meta_el[0].get_all_text())
-                    comic_type = self._extract_type_from_text(meta_text)
-                    if "Ongoing" in meta_text or "ongoing" in meta_text:
-                        status = "ongoing"
-                    elif "Completed" in meta_text or "End" in meta_text or "completed" in meta_text or "end" in meta_text:
-                        status = "completed"
-
-                slug = self._make_slug(title)
-
-                comics_data.append({
-                    "title": title,
-                    "slug": slug,
-                    "cover_image_url": cover_url,
-                    "type": comic_type,
-                    "status": status,
-                    "source_url": comic_url,
-                    "source_name": self.SOURCE_NAME,
-                })
-
-            except Exception as e:
-                logger.warning(f"Error parsing comic list result: {e}")
-                continue
-
-        return comics_data
+        return self._parse_manga_card_entries(comic_entries, include_meta=True)

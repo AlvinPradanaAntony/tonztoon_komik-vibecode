@@ -5,17 +5,23 @@ Registry scraper sources yang tersedia di backend.
 from typing import Any
 
 from scraper.base_scraper import BaseComicScraper
+from scraper.sources.komikcast_scraper import KomikcastScraper
 from scraper.sources.komiku_asia_scraper import KomikuAsiaScraper
 from scraper.sources.komiku_scraper import KomikuScraper
+from scraper.sources.shinigami_scraper import ShinigamiScraper
 
 SCRAPER_FACTORIES: dict[str, type[BaseComicScraper]] = {
     "komiku": KomikuScraper,
     "komiku_asia": KomikuAsiaScraper,
+    "komikcast": KomikcastScraper,
+    "shinigami": ShinigamiScraper,
 }
 
 SOURCE_LABELS: dict[str, str] = {
     "komiku": "Komiku",
     "komiku_asia": "Komiku Asia",
+    "komikcast": "Komikcast",
+    "shinigami": "Shinigami",
 }
 
 
