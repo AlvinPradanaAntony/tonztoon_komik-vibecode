@@ -587,13 +587,6 @@ class ShinigamiScraper(ScraperCommonMixin, BaseComicScraper):
 
         return images
 
-    async def search(self, query: str) -> list[dict[str, Any]]:
-        cleaned_query = self._clean_text(query)
-        if not cleaned_query:
-            return []
-
-        return await self._fetch_search_page(page=1, query=cleaned_query)
-
     async def get_comic_list(self, page: int = 1) -> list[dict[str, Any]]:
         return await self._fetch_search_page(page=page)
 

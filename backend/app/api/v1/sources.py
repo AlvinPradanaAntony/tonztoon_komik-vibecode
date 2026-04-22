@@ -20,9 +20,10 @@ from sqlalchemy.orm import noload, selectinload
 from app.database import get_db
 from app.models import Chapter, Comic
 from app.schemas import (
-    ComicListResponse,
     ComicResponse,
     GenreResponse,
+    SourceComicListItem,
+    SourceComicListResponse,
     SourceChapterListItem,
     SourceChapterResponse,
     SourceInfoResponse,
@@ -46,6 +47,13 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 _chapter_count_subq = (
     select(func.count(Chapter.id))
+    .where(Chapter.comic_id == Comic.id)
+    .correlate(Comic)
+    .scalar_subquery()
+)
+
+_latest_chapter_number_subq = (
+    select(func.max(Chapter.chapter_number))
     .where(Chapter.comic_id == Comic.id)
     .correlate(Comic)
     .scalar_subquery()
@@ -101,9 +109,38 @@ def _build_source_chapter_detail_url(source_name: str, slug: str, chapter_number
     return f"/api/v1/sources/{source_name}/comics/{slug}/chapters/{chapter_number_path}"
 
 
+def _build_source_comic_detail_url(source_name: str, slug: str) -> str:
+    """Bangun URL API untuk detail komik source-scoped."""
+    return f"/api/v1/sources/{source_name}/comics/{slug}"
+
+
 def _build_absolute_url(request: Request, path: str) -> str:
     """Gabungkan host aktif request dengan path API absolut."""
     return f"{str(request.base_url).rstrip('/')}{path}"
+
+
+def _build_source_comic_list_item(
+    request: Request,
+    source_name: str,
+    comic: Comic,
+    latest_chapter_number: float | None,
+) -> SourceComicListItem:
+    """Bangun item response katalog komik source-scoped."""
+    return SourceComicListItem(
+        title=comic.title,
+        slug=comic.slug,
+        source_name=source_name,
+        cover_image_url=build_proxy_image_url(comic.cover_image_url),
+        status=comic.status,
+        type=comic.type,
+        rating=comic.rating,
+        total_view=comic.total_view,
+        latest_chapter_number=latest_chapter_number,
+        detail_url=_build_absolute_url(
+            request,
+            _build_source_comic_detail_url(source_name, comic.slug),
+        ),
+    )
 
 
 def _get_source_or_404(source_name: str) -> dict:
@@ -153,8 +190,9 @@ async def list_sources(db: AsyncSession = Depends(get_db)):
     ]
 
 
-@router.get("/{source_name}/comics", response_model=ComicListResponse)
+@router.get("/{source_name}/comics", response_model=SourceComicListResponse)
 async def list_source_comics(
+    request: Request,
     source_name: str,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -177,8 +215,8 @@ async def list_source_comics(
     offset = (page - 1) * page_size
     stmt = (
         base_query
-        .add_columns(_chapter_count_subq.label("total_chapters"))
-        .options(selectinload(Comic.genres), noload(Comic.chapters))
+        .add_columns(_latest_chapter_number_subq.label("latest_chapter_number"))
+        .options(noload(Comic.genres), noload(Comic.chapters))
         .order_by(Comic.title.asc())
         .offset(offset)
         .limit(page_size)
@@ -187,8 +225,11 @@ async def list_source_comics(
     rows = result.unique().all()
 
     total_pages = (total + page_size - 1) // page_size
-    return ComicListResponse(
-        items=[_build_comic_response(comic, count) for comic, count in rows],
+    return SourceComicListResponse(
+        items=[
+            _build_source_comic_list_item(request, source["id"], comic, latest_chapter_number)
+            for comic, latest_chapter_number in rows
+        ],
         total=total,
         page=page,
         page_size=page_size,
@@ -196,8 +237,9 @@ async def list_source_comics(
     )
 
 
-@router.get("/{source_name}/comics/latest", response_model=list[ComicResponse])
+@router.get("/{source_name}/comics/latest", response_model=list[SourceComicListItem])
 async def get_source_latest_comics(
+    request: Request,
     source_name: str = Path(..., description="Filter by source name (e.g. komiku, shinigami, komicast, komiku_asia)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -207,8 +249,8 @@ async def get_source_latest_comics(
     source = _get_source_or_404(source_name)
     offset = (page - 1) * page_size
     stmt = (
-        select(Comic, _chapter_count_subq.label("total_chapters"))
-        .options(selectinload(Comic.genres), noload(Comic.chapters))
+        select(Comic, _latest_chapter_number_subq.label("latest_chapter_number"))
+        .options(noload(Comic.genres), noload(Comic.chapters))
         .where(Comic.source_name == source["id"])
         .order_by(
             Comic.latest_feed_batch_at.desc().nullslast(),
@@ -222,11 +264,15 @@ async def get_source_latest_comics(
     )
     result = await db.execute(stmt)
     rows = result.unique().all()
-    return [_build_comic_response(comic, count) for comic, count in rows]
+    return [
+        _build_source_comic_list_item(request, source["id"], comic, latest_chapter_number)
+        for comic, latest_chapter_number in rows
+    ]
 
 
-@router.get("/{source_name}/comics/popular", response_model=list[ComicResponse])
+@router.get("/{source_name}/comics/popular", response_model=list[SourceComicListItem])
 async def get_source_popular_comics(
+    request: Request,
     source_name: str = Path(..., description="Filter by source name (e.g. komiku, shinigami, komicast, komiku_asia)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -236,8 +282,8 @@ async def get_source_popular_comics(
     source = _get_source_or_404(source_name)
     offset = (page - 1) * page_size
     stmt = (
-        select(Comic, _chapter_count_subq.label("total_chapters"))
-        .options(selectinload(Comic.genres), noload(Comic.chapters))
+        select(Comic, _latest_chapter_number_subq.label("latest_chapter_number"))
+        .options(noload(Comic.genres), noload(Comic.chapters))
         .where(Comic.source_name == source["id"])
         .order_by(
             Comic.popular_feed_batch_at.desc().nullslast(),
@@ -251,11 +297,15 @@ async def get_source_popular_comics(
     )
     result = await db.execute(stmt)
     rows = result.unique().all()
-    return [_build_comic_response(comic, count) for comic, count in rows]
+    return [
+        _build_source_comic_list_item(request, source["id"], comic, latest_chapter_number)
+        for comic, latest_chapter_number in rows
+    ]
 
 
-@router.get("/{source_name}/search", response_model=list[ComicResponse])
+@router.get("/{source_name}/search", response_model=list[SourceComicListItem])
 async def search_source_comics(
+    request: Request,
     source_name: str,
     q: str = Query(..., min_length=1, max_length=200, description="Search query"),
     page: int = Query(1, ge=1),
@@ -268,8 +318,8 @@ async def search_source_comics(
     offset = (page - 1) * page_size
 
     stmt = (
-        select(Comic, _chapter_count_subq.label("total_chapters"))
-        .options(selectinload(Comic.genres), noload(Comic.chapters))
+        select(Comic, _latest_chapter_number_subq.label("latest_chapter_number"))
+        .options(noload(Comic.genres), noload(Comic.chapters))
         .where(
             Comic.source_name == source["id"],
             or_(
@@ -283,7 +333,10 @@ async def search_source_comics(
     )
     result = await db.execute(stmt)
     rows = result.unique().all()
-    return [_build_comic_response(comic, count) for comic, count in rows]
+    return [
+        _build_source_comic_list_item(request, source["id"], comic, latest_chapter_number)
+        for comic, latest_chapter_number in rows
+    ]
 
 
 @router.get("/{source_name}/comics/{slug}", response_model=ComicResponse)

@@ -16,6 +16,8 @@ from app.schemas.comic import (
 )
 from app.schemas.chapter import ChapterImageItem
 from app.schemas.source import (
+    SourceComicListItem,
+    SourceComicListResponse,
     SourceInfoResponse,
     SourceChapterListItem,
     SourceChapterResponse,
@@ -30,6 +32,8 @@ __all__ = [
     "GenreCreate",
     "GenreResponse",
     "ChapterImageItem",
+    "SourceComicListItem",
+    "SourceComicListResponse",
     "SourceInfoResponse",
     "SourceChapterListItem",
     "SourceChapterResponse",

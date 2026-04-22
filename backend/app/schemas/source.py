@@ -62,6 +62,34 @@ class SourceChapterListItem(BaseModel):
     total_images: int = Field(default=0, ge=0)
 
 
+class SourceComicListItem(BaseModel):
+    """Ringkasan komik untuk endpoint katalog source-scoped."""
+
+    title: str = Field(..., max_length=500, examples=["Solo Leveling"])
+    slug: str = Field(..., max_length=600, examples=["solo-leveling"])
+    source_name: str = Field(..., max_length=100, examples=["komiku_asia"])
+    cover_image_url: str | None = Field(default=None)
+    status: str | None = Field(default=None, max_length=50, examples=["ongoing"])
+    type: str | None = Field(default=None, max_length=50, examples=["manhwa"])
+    rating: float | None = Field(default=None, ge=0, le=10)
+    total_view: int | None = Field(default=None, ge=0, examples=[238500])
+    latest_chapter_number: float | None = Field(default=None, ge=0, examples=[201.0])
+    detail_url: str = Field(
+        ...,
+        examples=["http://127.0.0.1:8000/api/v1/sources/komiku_asia/comics/solo-leveling"],
+    )
+
+
+class SourceComicListResponse(BaseModel):
+    """Schema response list komik source-scoped dengan pagination."""
+
+    items: list[SourceComicListItem]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
 class SourceChapterResponse(BaseModel):
     """Payload chapter reader source-scoped."""
 

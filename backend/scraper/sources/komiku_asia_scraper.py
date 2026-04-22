@@ -459,11 +459,6 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
 
         return images
 
-    async def search(self, query: str) -> list[dict[str, Any]]:
-        url = f"{self.BASE_URL}/?{urlencode({'s': query})}"
-        response = await self._fetch_page(url, wait_selector=".listupd .bsx, .bixbox")
-        return self._parse_grid_cards(response.css(".listupd .bsx"))
-
     async def get_comic_list(self, page: int = 1) -> list[dict[str, Any]]:
         url = self._build_manga_list_url(page=page)
         response = await self._fetch_page(url, wait_selector=".listupd .bsx, .pagination")

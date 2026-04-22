@@ -110,19 +110,6 @@ class BaseComicScraper(ABC):
         pass
 
     @abstractmethod
-    async def search(self, query: str) -> list[dict[str, Any]]:
-        """
-        Cari komik berdasarkan keyword.
-
-        Args:
-            query: Keyword pencarian.
-
-        Returns:
-            List of dict berisi data komik hasil pencarian.
-        """
-        pass
-
-    @abstractmethod
     async def get_comic_list(self, page: int = 1) -> list[dict[str, Any]]:
         """
         Ambil daftar komik keseluruhan (direktori/list).

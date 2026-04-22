@@ -5,21 +5,39 @@ Endpoints:
     GET /api/v1/search?q={query} — Pencarian komik
 """
 
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, or_
+from fastapi import APIRouter, Depends, Query, Request
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import noload
 
 from app.database import get_db
-from app.models import Comic
-from app.schemas.comic import ComicResponse
+from app.models import Chapter, Comic
+from app.schemas import SourceComicListItem
 from app.services.image_service import build_proxy_image_url
 
 router = APIRouter()
 
+_latest_chapter_number_subq = (
+    select(func.max(Chapter.chapter_number))
+    .where(Chapter.comic_id == Comic.id)
+    .correlate(Comic)
+    .scalar_subquery()
+)
 
-@router.get("", response_model=list[ComicResponse])
+
+def _build_absolute_url(request: Request, path: str) -> str:
+    """Gabungkan host aktif request dengan path API absolut."""
+    return f"{str(request.base_url).rstrip('/')}{path}"
+
+
+def _build_source_comic_detail_url(source_name: str, slug: str) -> str:
+    """Bangun URL API untuk detail komik source-scoped."""
+    return f"/api/v1/sources/{source_name}/comics/{slug}"
+
+
+@router.get("", response_model=list[SourceComicListItem])
 async def search_comics(
+    request: Request,
     q: str = Query(..., min_length=1, max_length=200, description="Search query"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=50),
@@ -33,8 +51,8 @@ async def search_comics(
     offset = (page - 1) * page_size
 
     stmt = (
-        select(Comic)
-        .options(selectinload(Comic.genres))
+        select(Comic, _latest_chapter_number_subq.label("latest_chapter_number"))
+        .options(noload(Comic.genres), noload(Comic.chapters))
         .where(
             or_(
                 Comic.title.ilike(search_pattern),
@@ -46,21 +64,23 @@ async def search_comics(
         .limit(page_size)
     )
     result = await db.execute(stmt)
-    comics = result.scalars().unique().all()
+    rows = result.unique().all()
 
     return [
-        ComicResponse(
-            **{
-                c: (
-                    build_proxy_image_url(getattr(comic, c))
-                    if c == "cover_image_url"
-                    else getattr(comic, c)
-                )
-                for c in ComicResponse.model_fields
-                if c not in ("genres", "total_chapters")
-            },
-            genres=[{"id": g.id, "name": g.name, "slug": g.slug} for g in comic.genres],
-            total_chapters=len(comic.chapters) if comic.chapters else 0,
+        SourceComicListItem(
+            title=comic.title,
+            slug=comic.slug,
+            source_name=comic.source_name,
+            cover_image_url=build_proxy_image_url(comic.cover_image_url),
+            status=comic.status,
+            type=comic.type,
+            rating=comic.rating,
+            total_view=comic.total_view,
+            latest_chapter_number=latest_chapter_number,
+            detail_url=_build_absolute_url(
+                request,
+                _build_source_comic_detail_url(comic.source_name, comic.slug),
+            ),
         )
-        for comic in comics
+        for comic, latest_chapter_number in rows
     ]

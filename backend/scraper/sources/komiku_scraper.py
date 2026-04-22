@@ -497,7 +497,7 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
         *,
         include_meta: bool,
     ) -> list[dict[str, Any]]:
-        """Parse format `article.manga-card` yang dipakai list dan search."""
+        """Parse format `article.manga-card` yang dipakai katalog publik Komiku."""
         comics_data: list[dict[str, Any]] = []
 
         for entry in comic_entries:
@@ -539,58 +539,6 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
                 continue
 
         return comics_data
-
-    def _parse_ls4_search_entries(self, comic_entries: list) -> list[dict[str, Any]]:
-        """Parse fallback format `article.ls4` untuk halaman search."""
-        comics_data: list[dict[str, Any]] = []
-
-        for entry in comic_entries:
-            try:
-                title_el = entry.css(".ls4j h3 a")
-                if not title_el:
-                    continue
-
-                title = self._clean_text(title_el[0].text)
-                if not title:
-                    continue
-
-                comic_url = self._resolve_url(title_el[0].attrib.get("href"))
-                img = entry.css(".ls4v img.lazy")
-                cover_url = self._extract_image_url(img[0] if img else None)
-
-                comics_data.append(
-                    self._build_comic_payload(
-                        title=title,
-                        source_url=comic_url,
-                        cover_image_url=cover_url,
-                    )
-                )
-
-            except Exception as e:
-                logger.warning("Error parsing ls4 search result: %s", e)
-                continue
-
-        return comics_data
-
-    async def search(self, query: str) -> list[dict[str, Any]]:
-        """
-        Cari komik berdasarkan keyword.
-
-        Komiku search result menggunakan format yang sama dengan listing page.
-        URL: https://komiku.org/?post_type=manga&s={query}
-
-        Hasilnya menggunakan format daftar komik (article.manga-card atau article.ls4).
-        """
-        url = f"{self.BASE_URL}/?post_type=manga&s={query}"
-        response = self._fetch_page(url)
-
-        # Search results bisa pakai format manga-card atau ls4
-        # Coba manga-card dulu
-        comic_entries = response.css("article.manga-card")
-        if comic_entries:
-            return self._parse_manga_card_entries(comic_entries, include_meta=False)
-
-        return self._parse_ls4_search_entries(response.css("article.ls4"))
 
     async def get_comic_list(self, page: int = 1) -> list[dict[str, Any]]:
         """
