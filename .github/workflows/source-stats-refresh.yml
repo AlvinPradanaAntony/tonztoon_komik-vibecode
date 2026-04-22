@@ -1,0 +1,62 @@
+# ======================================================
+# Tonztoon Komik — Source Stats Refresh GitHub Workflow
+# ======================================================
+
+name: "📊 Source Stats Refresh"
+
+on:
+  schedule:
+    - cron: "0 */4 * * *"
+
+  workflow_dispatch:
+    inputs:
+      trigger_source:
+        description: "Source that triggered this workflow"
+        required: false
+        default: "manual"
+      source:
+        description: "Optional source filter (e.g. komiku_asia)"
+        required: false
+        default: ""
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  refresh-source-stats:
+    name: Refresh Source Stats
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v6
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: 📦 Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: 🌐 Install Scrapling browser dependencies
+        run: scrapling install
+
+      - name: 📊 Refresh source stats
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SOURCE_FILTER: ${{ github.event.inputs.source || '' }}
+        run: |
+          cd backend
+          if [ -n "$SOURCE_FILTER" ]; then
+            python -m scraper.refresh_source_stats --source "$SOURCE_FILTER"
+          else
+            python -m scraper.refresh_source_stats
+          fi
+
+      - name: 📝 Log completion
+        if: always()
+        run: echo "Source stats workflow finished at $(date -u)"

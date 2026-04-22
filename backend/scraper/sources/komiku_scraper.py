@@ -609,3 +609,32 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
         response = self._fetch_page(url)
         comic_entries = response.css("article.manga-card")
         return self._parse_manga_card_entries(comic_entries, include_meta=True)
+
+    def _extract_total_comics_from_listing(self, response) -> int | None:
+        """Ambil total komik langsung dari elemen `.page-info` halaman katalog."""
+        for node in response.css(".page-info"):
+            text = self._clean_text(node.get_all_text())
+            if not text:
+                continue
+
+            match = re.search(r"\(([\d.,]+)\s+komik\)", text, flags=re.IGNORECASE)
+            if not match:
+                continue
+
+            try:
+                return int(match.group(1).replace(".", "").replace(",", ""))
+            except ValueError:
+                continue
+
+        return None
+
+    async def get_source_comic_count(self) -> int | None:
+        """Ambil total komik Komiku dari metadata `.page-info` katalog publik."""
+        first_page_url = f"{self.BASE_URL}/daftar-komik/"
+        first_response = self._fetch_page(first_page_url)
+        total_comics = self._extract_total_comics_from_listing(first_response)
+        if total_comics is not None:
+            return total_comics
+
+        # Fallback minimal jika metadata total tidak tersedia.
+        return len(first_response.css("article.manga-card"))

@@ -3,7 +3,6 @@ Tonztoon Komik — Source-Scoped API Routes
 
 Endpoint publik utama untuk navigasi katalog per source:
     GET /api/v1/sources
-    GET /api/v1/sources/{source_name}
     GET /api/v1/sources/{source_name}/comics
     GET /api/v1/sources/{source_name}/comics/latest
     GET /api/v1/sources/{source_name}/comics/popular
@@ -35,6 +34,7 @@ from app.services.chapter_service import (
     prefetch_nearby_chapters,
 )
 from app.services.image_service import build_proxy_image_url, wrap_chapter_image_urls
+from app.services.source_service import get_source_stats_map
 from scraper.sources.registry import get_all_source_metadata, get_source_metadata
 
 router = APIRouter()
@@ -114,16 +114,43 @@ def _get_source_or_404(source_name: str) -> dict:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+async def _get_db_comic_counts_by_source(db: AsyncSession) -> dict[str, int]:
+    """Ambil total komik di DB lokal, dikelompokkan per source."""
+    result = await db.execute(
+        select(Comic.source_name, func.count(Comic.id))
+        .group_by(Comic.source_name)
+    )
+    return {
+        source_name: total
+        for source_name, total in result.all()
+        if source_name
+    }
+
+
 @router.get("", response_model=list[SourceInfoResponse])
-async def list_sources():
-    """Daftar source aktif yang tersedia di backend."""
-    return get_all_source_metadata()
-
-
-@router.get("/{source_name}", response_model=SourceInfoResponse)
-async def get_source_detail(source_name: str):
-    """Metadata dasar satu source aktif."""
-    return _get_source_or_404(source_name)
+async def list_sources(db: AsyncSession = Depends(get_db)):
+    """Daftar source aktif beserta ringkasan jumlah komik yang tersimpan."""
+    source_metadata_list = get_all_source_metadata()
+    source_names = [source_metadata["id"] for source_metadata in source_metadata_list]
+    db_counts = await _get_db_comic_counts_by_source(db)
+    source_stats_map = await get_source_stats_map(db, source_names)
+    return [
+        SourceInfoResponse(
+            **source_metadata,
+            source_comic_count=(
+                source_stats_map[source_metadata["id"]].source_comic_count
+                if source_metadata["id"] in source_stats_map
+                else None
+            ),
+            source_comic_count_last_refreshed_at=(
+                source_stats_map[source_metadata["id"]].last_refreshed_at
+                if source_metadata["id"] in source_stats_map
+                else None
+            ),
+            db_comic_count=db_counts.get(source_metadata["id"], 0),
+        )
+        for source_metadata in source_metadata_list
+    ]
 
 
 @router.get("/{source_name}/comics", response_model=ComicListResponse)

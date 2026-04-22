@@ -468,3 +468,25 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
         url = self._build_manga_list_url(page=page)
         response = await self._fetch_page(url, wait_selector=".listupd .bsx, .pagination")
         return self._parse_grid_cards(response.css(".listupd .bsx"))
+
+    async def _get_list_mode_series_urls(self) -> set[str]:
+        """Ambil seluruh URL komik dari halaman alfabet list-mode."""
+        response = await self._fetch_page(
+            f"{self.BASE_URL}/manga/list-mode/",
+            wait_selector=".soralist",
+        )
+        return {
+            href
+            for anchor in response.css(".soralist a.series.tip")
+            if (href := self._resolve_url(anchor.attrib.get("href")))
+        }
+
+    async def get_source_comic_count(self) -> int | None:
+        """
+        Hitung total komik Komiku Asia dari halaman `list-mode`.
+
+        Halaman ini menampilkan daftar alfabet lengkap dalam satu dokumen,
+        sehingga jauh lebih murah dan stabil dibanding probing pagination
+        katalog image-mode yang diproteksi Cloudflare.
+        """
+        return len(await self._get_list_mode_series_urls())

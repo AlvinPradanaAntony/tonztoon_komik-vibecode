@@ -53,6 +53,15 @@ class BaseComicScraper(ABC):
         """
         return {}
 
+    async def get_source_comic_count(self) -> int | None:
+        """
+        Ambil total komik yang tersedia langsung pada source asal.
+
+        Default: tidak tersedia. Source individual boleh override dengan
+        implementasi yang memakai API/pagination mereka masing-masing.
+        """
+        return None
+
     @abstractmethod
     async def get_latest_updates(self, page: int = 1) -> list[dict[str, Any]]:
         """

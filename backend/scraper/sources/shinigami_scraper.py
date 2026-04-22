@@ -596,3 +596,19 @@ class ShinigamiScraper(ScraperCommonMixin, BaseComicScraper):
 
     async def get_comic_list(self, page: int = 1) -> list[dict[str, Any]]:
         return await self._fetch_search_page(page=page)
+
+    async def get_source_comic_count(self) -> int | None:
+        """Ambil total komik Shinigami dari metadata endpoint manga/list."""
+        payload = await self._fetch_api_json(
+            build_shinigami_manga_list_url(page=1),
+            referer_url=self._build_search_url(None),
+        )
+        meta = payload.get("meta") or {}
+        total = meta.get("total_record")
+        if total is None:
+            return None
+
+        try:
+            return max(int(total), 0)
+        except (TypeError, ValueError):
+            return None

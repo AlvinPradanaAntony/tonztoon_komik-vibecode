@@ -709,3 +709,16 @@ class KomikcastScraper(ScraperCommonMixin, BaseComicScraper):
     async def get_comic_list(self, page: int = 1) -> list[dict[str, Any]]:
         payload = await self._fetch_series_index(page=page)
         return self._parse_series_index_items(payload.get("data") or [])
+
+    async def get_source_comic_count(self) -> int | None:
+        """Ambil total komik Komikcast dari metadata endpoint katalog resmi."""
+        payload = await self._fetch_series_index(page=1)
+        meta = payload.get("meta") or {}
+        total = meta.get("total")
+        if total is None:
+            return None
+
+        try:
+            return max(int(total), 0)
+        except (TypeError, ValueError):
+            return None
