@@ -104,8 +104,6 @@ Panduan pemakaian singkat:
 import asyncio
 import json
 import logging
-import random
-import signal
 import sys
 import time
 from dataclasses import dataclass
@@ -126,8 +124,15 @@ from app.services.chapter_service import (
 )
 from scraper.sources.registry import get_supported_source_names
 from scraper.time_utils import now_wib
+from scraper.utils import (
+    GracefulShutdown,
+    backoff_delay,
+    configure_logging as _configure_logging_base,
+    format_elapsed_duration,
+    random_delay,
+    resolve_log_path as _resolve_log_path_base,
+)
 
-DEFAULT_LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
 DEFAULT_LOG_FILE = Path("sync_chapter_images.log")
 CHECKPOINT_DIR = Path(__file__).resolve().parent.parent / "data"
 
@@ -139,7 +144,6 @@ DELAY_CHAPTER_MAX = 5.0
 COOLDOWN_EVERY_N_CHAPTERS = 10
 COOLDOWN_MIN = 10.0
 COOLDOWN_MAX = 20.0
-BACKOFF_BASE = 2.0
 BACKOFF_MAX = 120.0
 MAX_CONSECUTIVE_ERRORS = 5
 IMAGE_FETCH_TIMEOUT = 25.0
@@ -149,7 +153,8 @@ INVALID_IMAGES_JSONPATH = cast(
     JSONPATH,
 )
 
-_shutdown_requested = False
+_shutdown = GracefulShutdown()
+_shutdown.install()
 
 
 def _build_default_log_filename(*, source_name: str | None) -> Path:
@@ -163,10 +168,8 @@ def resolve_log_path(
     *,
     source_name: str | None = None,
 ) -> Path:
-    log_path = Path(log_file or _build_default_log_filename(source_name=source_name)).expanduser()
-    if not log_path.is_absolute():
-        log_path = DEFAULT_LOG_DIR / log_path
-    return log_path
+    filename = log_file or str(_build_default_log_filename(source_name=source_name))
+    return _resolve_log_path_base(filename)
 
 
 def configure_logging(
@@ -174,32 +177,10 @@ def configure_logging(
     *,
     source_name: str | None = None,
 ) -> None:
-    handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
-    log_path = resolve_log_path(log_file, source_name=source_name)
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    handlers.append(logging.FileHandler(log_path, mode="w", encoding="utf-8"))
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-        handlers=handlers,
-        force=True,
-    )
+    filename = log_file or str(_build_default_log_filename(source_name=source_name))
+    _configure_logging_base(filename, default_filename=str(DEFAULT_LOG_FILE))
 
 logger = logging.getLogger("sync-chapter-images")
-
-
-def _signal_handler(signum, frame):
-    global _shutdown_requested
-    if _shutdown_requested:
-        logger.warning("⛔ Paksa berhenti!")
-        sys.exit(1)
-    _shutdown_requested = True
-    logger.warning("\n🛑 Shutdown diminta. Menyimpan checkpoint lalu berhenti aman...")
-
-
-signal.signal(signal.SIGINT, _signal_handler)
-signal.signal(signal.SIGTERM, _signal_handler)
 
 
 def get_checkpoint_file(source_name: str | None) -> Path:
@@ -356,35 +337,7 @@ def reset_checkpoint(source_name: str | None) -> None:
         logger.info("🗑️ Checkpoint dihapus: %s", checkpoint_file)
 
 
-async def random_delay(min_sec: float, max_sec: float, label: str = "") -> None:
-    delay = random.uniform(min_sec, max_sec)
-    if label:
-        logger.info("  ⏳ %s: menunggu %.1fs...", label, delay)
-    await asyncio.sleep(delay)
-
-
-async def backoff_delay(attempt: int, label: str = "") -> None:
-    delay = min(BACKOFF_BASE * (2 ** attempt), BACKOFF_MAX)
-    jitter = delay * random.uniform(-0.25, 0.25)
-    delay = max(1.0, delay + jitter)
-    logger.warning("  ⏳ Backoff (%s): %s — %.1fs", attempt + 1, label, delay)
-    await asyncio.sleep(delay)
-
-
-def _format_elapsed_duration(elapsed_seconds: float) -> str:
-    total_seconds = max(0, int(round(elapsed_seconds)))
-    minutes, seconds = divmod(total_seconds, 60)
-    hours, minutes = divmod(minutes, 60)
-
-    parts = []
-    if hours:
-        parts.append(f"{hours} jam")
-    if minutes:
-        parts.append(f"{minutes} menit")
-    if seconds or not parts:
-        parts.append(f"{seconds} detik")
-
-    return f"{' '.join(parts)} ({total_seconds} detik)"
+# random_delay, backoff_delay, format_elapsed_duration telah dipindahkan ke scraper.utils
 
 
 @dataclass
@@ -548,7 +501,7 @@ async def process_pending_images_batch(
     skipped_in_batch = 0
     errors_in_batch = 0
     for idx, (chapter, row_source_name, comic_title) in enumerate(rows, start=1):
-        if _shutdown_requested:
+        if _shutdown.requested:
             break
 
         stats.total_scanned += 1
@@ -753,7 +706,7 @@ async def run_image_backfill(
     end_state = "complete"
     end_note = "Sync chapter images selesai"
 
-    while not _shutdown_requested:
+    while not _shutdown.requested:
         pending_total = await _count_pending(source_name=source_name)
         logger.info("📊 Pending chapter images: %s", pending_total)
         if pending_total == 0:
@@ -817,20 +770,20 @@ async def run_image_backfill(
     }
     update_progress(
         checkpoint,
-        state="stopped-by-user" if _shutdown_requested else end_state,
-        note="Sync dihentikan oleh user" if _shutdown_requested else end_note,
+        state="stopped-by-user" if _shutdown.requested else end_state,
+        note="Sync dihentikan oleh user" if _shutdown.requested else end_note,
     )
     save_checkpoint(source_name, checkpoint)
     finished_at = now_wib()
     elapsed = time.time() - start_time
     logger.info("═" * 60)
-    if _shutdown_requested:
+    if _shutdown.requested:
         logger.info("🛑 Sync Chapter Images dihentikan oleh user.")
     else:
         logger.info("🏁 Sync Chapter Images selesai!")
     logger.info("   Mulai       : %s", started_at.strftime("%Y-%m-%d %H:%M:%S"))
     logger.info("   Selesai     : %s", finished_at.strftime("%Y-%m-%d %H:%M:%S"))
-    logger.info("   Waktu       : %s", _format_elapsed_duration(elapsed))
+    logger.info("   Waktu       : %s", format_elapsed_duration(elapsed))
     logger.info("   Batches     : %s", stats.total_batches)
     logger.info(
         "   Scanned     : %s",

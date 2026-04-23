@@ -15,6 +15,7 @@ from typing import Any
 
 from scraper.base_scraper import BaseComicScraper
 from scraper.sources.common import ScraperCommonMixin
+from scraper.utils import clean_text
 from scraper.sources.komikcast_api import (
     KOMIKCAST_API_BASE_URL,
     KOMIKCAST_BASE_URL,
@@ -76,7 +77,7 @@ class KomikcastScraper(ScraperCommonMixin, BaseComicScraper):
             if chapter_index is None:
                 continue
 
-            raw_title = self._clean_text(chapter_data.get("title"))
+            raw_title = clean_text(chapter_data.get("title"))
             chapter_title = raw_title or f"Chapter {chapter_index}"
             chapters.append(
                     self._build_chapter_payload(
@@ -98,8 +99,8 @@ class KomikcastScraper(ScraperCommonMixin, BaseComicScraper):
                 data = item.get("data") or {}
                 metadata = item.get("metadata") or {}
                 data_metadata = item.get("dataMetadata") or {}
-                slug = self._clean_text(data.get("slug"))
-                title = self._clean_text(data.get("title"))
+                slug = clean_text(data.get("slug"))
+                title = clean_text(data.get("title"))
                 if not slug or not title:
                     continue
 
@@ -107,12 +108,12 @@ class KomikcastScraper(ScraperCommonMixin, BaseComicScraper):
                     self._build_comic_payload(
                         title=title,
                         source_url=f"{self.BASE_URL}/series/{slug}",
-                        cover_image_url=self._clean_text(data.get("coverImage")) or None,
-                        alternative_titles=self._clean_text(data.get("nativeTitle")) or None,
-                        author=self._clean_text(data.get("author")) or None,
+                        cover_image_url=clean_text(data.get("coverImage")) or None,
+                        alternative_titles=clean_text(data.get("nativeTitle")) or None,
+                        author=clean_text(data.get("author")) or None,
                         status=self._normalize_status(data.get("status")),
-                        type=self._clean_text(data.get("format")) or None,
-                        synopsis=self._clean_text(data.get("synopsis")) or None,
+                        type=clean_text(data.get("format")) or None,
+                        synopsis=clean_text(data.get("synopsis")) or None,
                         rating=self._parse_rating(
                             str(data.get("rating")) if data.get("rating") is not None else None
                         ),
@@ -122,9 +123,9 @@ class KomikcastScraper(ScraperCommonMixin, BaseComicScraper):
                             item_data_metadata=data_metadata,
                         ),
                         genres=[
-                            self._clean_text(genre.get("data", {}).get("name"))
+                            clean_text(genre.get("data", {}).get("name"))
                             for genre in data.get("genres") or []
-                            if self._clean_text(genre.get("data", {}).get("name"))
+                            if clean_text(genre.get("data", {}).get("name"))
                         ],
                     )
                 )
@@ -152,8 +153,8 @@ class KomikcastScraper(ScraperCommonMixin, BaseComicScraper):
         for item in items:
             try:
                 data = item.get("data") or {}
-                slug = self._clean_text(data.get("slug"))
-                title = self._clean_text(data.get("title"))
+                slug = clean_text(data.get("slug"))
+                title = clean_text(data.get("title"))
                 if not slug or not title:
                     continue
 
@@ -167,21 +168,21 @@ class KomikcastScraper(ScraperCommonMixin, BaseComicScraper):
                         latest_chapter = f"Chapter {chapter_index}"
 
                 genres = [
-                    self._clean_text(genre.get("data", {}).get("name"))
+                    clean_text(genre.get("data", {}).get("name"))
                     for genre in data.get("genres") or []
-                    if self._clean_text(genre.get("data", {}).get("name"))
+                    if clean_text(genre.get("data", {}).get("name"))
                 ]
 
                 comics_data.append(
                     self._build_comic_payload(
                         title=title,
                         source_url=f"{self.BASE_URL}/series/{slug}",
-                        cover_image_url=self._clean_text(data.get("coverImage")) or None,
-                        alternative_titles=self._clean_text(data.get("nativeTitle")) or None,
-                        author=self._clean_text(data.get("author")) or None,
+                        cover_image_url=clean_text(data.get("coverImage")) or None,
+                        alternative_titles=clean_text(data.get("nativeTitle")) or None,
+                        author=clean_text(data.get("author")) or None,
                         status=self._normalize_status(data.get("status")),
-                        type=self._clean_text(data.get("format")) or None,
-                        synopsis=self._clean_text(data.get("synopsis")) or None,
+                        type=clean_text(data.get("format")) or None,
+                        synopsis=clean_text(data.get("synopsis")) or None,
                         rating=self._parse_rating(
                             str(data.get("rating")) if data.get("rating") is not None else None
                         ),
@@ -244,22 +245,22 @@ class KomikcastScraper(ScraperCommonMixin, BaseComicScraper):
             )
 
         return self._build_comic_payload(
-            title=self._clean_text(series_data.get("title")),
+            title=clean_text(series_data.get("title")),
             source_url=url,
-            alternative_titles=self._clean_text(series_data.get("nativeTitle")) or None,
-            cover_image_url=self._clean_text(series_data.get("coverImage")) or None,
-            author=self._clean_text(series_data.get("author")) or None,
+            alternative_titles=clean_text(series_data.get("nativeTitle")) or None,
+            cover_image_url=clean_text(series_data.get("coverImage")) or None,
+            author=clean_text(series_data.get("author")) or None,
             status=self._normalize_status(series_data.get("status")),
             type=self._parse_type_from_text(series_data.get("format")),
-            synopsis=self._clean_text(series_data.get("synopsis")) or None,
+            synopsis=clean_text(series_data.get("synopsis")) or None,
             rating=self._parse_rating(
                 str(series_data.get("rating")) if series_data.get("rating") is not None else None
             ),
             total_view=total_view,
             genres=[
-                self._clean_text(genre.get("data", {}).get("name"))
+                clean_text(genre.get("data", {}).get("name"))
                 for genre in series_data.get("genres") or []
-                if self._clean_text(genre.get("data", {}).get("name"))
+                if clean_text(genre.get("data", {}).get("name"))
             ],
             chapters=chapters,
         )
@@ -295,15 +296,15 @@ class KomikcastScraper(ScraperCommonMixin, BaseComicScraper):
                 item_data_metadata=detail.get("dataMetadata") or {},
             )
         detail_patch = self._build_comic_payload(
-            title=self._clean_text(series_data.get("title")) or "",
+            title=clean_text(series_data.get("title")) or "",
             source_url=url,
-            alternative_titles=self._clean_text(series_data.get("nativeTitle")) or None,
-            cover_image_url=self._clean_text(series_data.get("coverImage")) or None,
-            author=self._clean_text(series_data.get("author")) or None,
+            alternative_titles=clean_text(series_data.get("nativeTitle")) or None,
+            cover_image_url=clean_text(series_data.get("coverImage")) or None,
+            author=clean_text(series_data.get("author")) or None,
             artist=None,
             status=self._normalize_status(series_data.get("status")),
             type=self._parse_type_from_text(series_data.get("format")),
-            synopsis=self._clean_text(series_data.get("synopsis")) or None,
+            synopsis=clean_text(series_data.get("synopsis")) or None,
             rating=self._parse_rating(
                 str(series_data.get("rating")) if series_data.get("rating") is not None else None
             ),
@@ -320,7 +321,7 @@ class KomikcastScraper(ScraperCommonMixin, BaseComicScraper):
 
         images: list[dict[str, Any]] = []
         for page_number, image_url in enumerate(chapter_data.get("images") or [], start=1):
-            cleaned_url = self._clean_text(image_url)
+            cleaned_url = clean_text(image_url)
             if not cleaned_url:
                 continue
             images.append({"page": page_number, "url": cleaned_url})

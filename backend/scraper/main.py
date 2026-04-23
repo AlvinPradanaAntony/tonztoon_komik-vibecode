@@ -88,59 +88,59 @@ Anti-Blocking:
 import asyncio
 from dataclasses import dataclass
 import logging
-import random
 import re
 import sys
 import time
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import delete, func, select, update
-from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy import func, select
 
 # Tambahkan parent directory ke path agar bisa import app.*
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 
 from app.database import async_session
-from app.models import Comic, Chapter, Genre, comic_genre
+from app.models import Comic, Chapter
 from app.schemas import ComicCreate
 
 from scraper.base_scraper import BaseComicScraper
+from scraper.db_ops import (
+    mark_comic_seen_in_latest_feed,
+    mark_comic_seen_in_popular_feed,
+    sync_comic_genres,
+    upsert_chapter_images,
+    upsert_chapter_metadata,
+    upsert_comic_with_feed_markers,
+)
 from scraper.sources.registry import (
     create_default_scrapers,
     create_scraper,
     get_supported_source_names,
 )
 from scraper.time_utils import now_wib
+from scraper.utils import (
+    CliLiveProgress,
+    RealtimeConsoleHandler,
+    backoff_delay,
+    configure_external_loggers,
+    configure_logging as _configure_logging_base,
+    format_elapsed_duration,
+    random_delay,
+    resolve_log_path,
+)
 
 # Setup logging
-DEFAULT_LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
 DEFAULT_LOG_FILE = Path("main.log")
 
 
-def resolve_log_path(log_file: str | None) -> Path:
-    """Resolve path log ke folder backend/logs kecuali path absolut."""
-    log_path = Path(log_file or DEFAULT_LOG_FILE).expanduser()
-    if not log_path.is_absolute():
-        log_path = DEFAULT_LOG_DIR / log_path
-    return log_path
-
-
 def configure_logging(log_file: str | None = None) -> None:
-    """Konfigurasi logger root ke stdout dan file UTF-8 di backend/logs."""
-    handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
-
-    log_path = resolve_log_path(log_file)
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    handlers.append(logging.FileHandler(log_path, mode="w", encoding="utf-8"))
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-        handlers=handlers,
-        force=True,
+    """Konfigurasi logger `main.py` agar konsisten dengan sync_full_library."""
+    _configure_logging_base(
+        log_file,
+        default_filename=str(DEFAULT_LOG_FILE),
+        stdout_handler=RealtimeConsoleHandler(sys.stdout),
     )
+    configure_external_loggers()
 
 
 configure_logging()
@@ -181,39 +181,29 @@ MAX_CONSECUTIVE_ERRORS = 3
 
 
 # ── Utility ───────────────────────────────────────────────────────────────────
-
-async def random_delay(min_sec: float, max_sec: float, label: str = "") -> None:
-    """Jeda acak antara min_sec dan max_sec detik."""
-    delay = random.uniform(min_sec, max_sec)
-    if label:
-        logger.info(f"  ⏳ {label}: menunggu {delay:.1f}s...")
-    await asyncio.sleep(delay)
+# random_delay, backoff_delay, format_elapsed_duration telah dipindahkan
+# ke scraper.utils untuk menghindari duplikasi lintas CLI scripts.
 
 
-async def backoff_delay(attempt: int, label: str = "") -> None:
-    """Exponential backoff dengan jitter kecil agar request tidak kaku."""
-    delay = min(BACKOFF_BASE * (2 ** attempt), BACKOFF_MAX)
-    jitter = delay * random.uniform(-0.25, 0.25)
-    delay = max(1.0, delay + jitter)
-    logger.warning(f"  ⏳ Backoff (attempt {attempt + 1}): {label} — menunggu {delay:.1f}s...")
-    await asyncio.sleep(delay)
+async def _backoff_delay(attempt: int, label: str) -> None:
+    """Gunakan profil backoff legacy milik scraper incremental ini."""
+    await backoff_delay(
+        attempt,
+        label,
+        base=BACKOFF_BASE,
+        maximum=BACKOFF_MAX,
+    )
 
 
-def _format_elapsed_duration(elapsed_seconds: float) -> str:
-    """Format durasi menjadi bentuk natural + total detik."""
-    total_seconds = max(0, int(elapsed_seconds))
-    hours, remainder = divmod(total_seconds, 3600)
-    minutes, seconds = divmod(remainder, 60)
+def _comic_progress_label(comic_position: int, page_total: int) -> str:
+    """Label posisi komik di halaman aktif."""
+    return f"[{comic_position}/{page_total}]"
 
-    parts: list[str] = []
-    if hours:
-        parts.append(f"{hours} jam")
-    if minutes:
-        parts.append(f"{minutes} menit")
-    if seconds or not parts:
-        parts.append(f"{seconds} detik")
 
-    return f"{' '.join(parts)} ({total_seconds} detik)"
+async def _stop_progress(progress: CliLiveProgress | None) -> None:
+    """Stop progress jika ada, aman dipanggil berulang."""
+    if progress is not None:
+        await progress.stop()
 
 
 @dataclass
@@ -233,254 +223,10 @@ class ScrapeStats:
 
 
 # ── Database Helpers ──────────────────────────────────────────────────────────
-
-async def upsert_genre(session, genre_name: str) -> int:
-    """Insert genre jika belum ada, return genre id."""
-    slug = genre_name.lower().replace(" ", "-")
-    stmt = pg_insert(Genre).values(name=genre_name, slug=slug)
-    stmt = stmt.on_conflict_do_nothing(index_elements=["slug"])
-    await session.execute(stmt)
-    await session.flush()
-
-    result = await session.execute(
-        select(Genre.id).where(Genre.slug == slug)
-    )
-    return result.scalar_one()
-
-
-async def sync_comic_genres(session, comic_id: int, genre_names: list[str]) -> None:
-    """
-    Sinkronkan relasi genre komik secara penuh.
-
-    - Tambahkan genre baru yang belum terhubung.
-    - Hapus relasi genre lama yang sudah tidak ada di source detail.
-    """
-    target_genre_ids: list[int] = []
-    seen_genre_ids: set[int] = set()
-
-    for genre_name in genre_names:
-        genre_id = await upsert_genre(session, genre_name)
-        if genre_id in seen_genre_ids:
-            continue
-        seen_genre_ids.add(genre_id)
-        target_genre_ids.append(genre_id)
-
-    current_ids_result = await session.execute(
-        select(comic_genre.c.genre_id).where(comic_genre.c.comic_id == comic_id)
-    )
-    current_genre_ids = set(current_ids_result.scalars().all())
-    target_genre_ids_set = set(target_genre_ids)
-
-    stale_genre_ids = current_genre_ids - target_genre_ids_set
-    if stale_genre_ids:
-        await session.execute(
-            delete(comic_genre).where(
-                comic_genre.c.comic_id == comic_id,
-                comic_genre.c.genre_id.in_(stale_genre_ids),
-            )
-        )
-
-    missing_genre_ids = target_genre_ids_set - current_genre_ids
-    for genre_id in missing_genre_ids:
-        genre_link = pg_insert(comic_genre).values(
-            comic_id=comic_id,
-            genre_id=genre_id,
-        )
-        genre_link = genre_link.on_conflict_do_nothing()
-        await session.execute(genre_link)
-
-
-async def upsert_comic(session, validated: ComicCreate) -> int:
-    """
-    Upsert comic ke database tanpa mengubah marker urutan feed apa pun.
-
-    Helper ini dipakai oleh alur lain yang hanya ingin menyimpan metadata
-    comic. Untuk cron feed-based (`/latest` dan `/popular`), gunakan helper
-    yang menerima marker feed agar urutan endpoint ikut diperbarui.
-    """
-    return await upsert_comic_with_feed_markers(
-        session,
-        validated,
-        latest_feed_batch_at=None,
-        latest_feed_page=None,
-        latest_feed_position=None,
-        popular_feed_batch_at=None,
-        popular_feed_page=None,
-        popular_feed_position=None,
-    )
-
-
-async def upsert_comic_with_feed_markers(
-    session,
-    validated: ComicCreate,
-    *,
-    latest_feed_batch_at,
-    latest_feed_page: int | None,
-    latest_feed_position: int | None,
-    popular_feed_batch_at,
-    popular_feed_page: int | None,
-    popular_feed_position: int | None,
-) -> int:
-    """
-    Upsert comic ke database dengan metadata posisi canonical feed opsional.
-
-    `updated_at` tetap di-update sebagai jejak teknis perubahan row, tetapi
-    urutan business-level untuk endpoint `/latest` dan `/popular` disimpan
-    terpisah di marker `latest_feed_*` dan `popular_feed_*`.
-    """
-    current_time = now_wib()
-    stmt = pg_insert(Comic).values(
-        title=validated.title,
-        slug=validated.slug,
-        alternative_titles=validated.alternative_titles,
-        cover_image_url=validated.cover_image_url,
-        author=validated.author,
-        artist=validated.artist,
-        status=validated.status,
-        type=validated.type,
-        synopsis=validated.synopsis,
-        rating=validated.rating,
-        total_view=validated.total_view,
-        source_url=validated.source_url,
-        source_name=validated.source_name,
-        created_at=current_time,
-        updated_at=current_time,
-        latest_feed_batch_at=latest_feed_batch_at,
-        latest_feed_page=latest_feed_page,
-        latest_feed_position=latest_feed_position,
-        popular_feed_batch_at=popular_feed_batch_at,
-        popular_feed_page=popular_feed_page,
-        popular_feed_position=popular_feed_position,
-    )
-    update_values = {
-        "title": validated.title,
-        "alternative_titles": validated.alternative_titles,
-        "cover_image_url": validated.cover_image_url,
-        "author": validated.author,
-        "artist": validated.artist,
-        "status": validated.status,
-        "synopsis": validated.synopsis,
-        "type": validated.type,
-        "rating": validated.rating,
-        "total_view": validated.total_view,
-        "source_url": validated.source_url,
-        "updated_at": current_time,
-    }
-    if latest_feed_batch_at is not None:
-        update_values["latest_feed_batch_at"] = latest_feed_batch_at
-        update_values["latest_feed_page"] = latest_feed_page
-        update_values["latest_feed_position"] = latest_feed_position
-    if popular_feed_batch_at is not None:
-        update_values["popular_feed_batch_at"] = popular_feed_batch_at
-        update_values["popular_feed_page"] = popular_feed_page
-        update_values["popular_feed_position"] = popular_feed_position
-
-    stmt = stmt.on_conflict_do_update(
-        constraint="uq_source_slug",
-        set_=update_values,
-    )
-    await session.execute(stmt)
-    await session.flush()
-
-    result = await session.execute(
-        select(Comic.id).where(
-            Comic.slug == validated.slug,
-            Comic.source_name == validated.source_name
-        )
-    )
-    return result.scalar_one()
-
-
-async def mark_comic_seen_in_latest_feed(
-    session,
-    *,
-    comic_id: int,
-    latest_feed_batch_at,
-    latest_feed_page: int,
-    latest_feed_position: int,
-) -> None:
-    """
-    Simpan posisi comic saat terlihat di canonical latest feed.
-
-    Fungsi ini dipakai juga untuk item yang dianggap `unchanged`, karena comic
-    tersebut tetap muncul di feed terbaru meskipun kita tidak perlu fetch
-    detail ulang. Dengan begitu urutan `/latest` tetap mengikuti source.
-    """
-    await session.execute(
-        update(Comic)
-        .where(Comic.id == comic_id)
-        .values(
-            latest_feed_batch_at=latest_feed_batch_at,
-            latest_feed_page=latest_feed_page,
-            latest_feed_position=latest_feed_position,
-        )
-    )
-
-
-async def mark_comic_seen_in_popular_feed(
-    session,
-    *,
-    comic_id: int,
-    popular_feed_batch_at,
-    popular_feed_page: int,
-    popular_feed_position: int,
-) -> None:
-    """
-    Simpan posisi comic saat terlihat di canonical popular feed.
-
-    Bahkan jika comic tidak perlu di-fetch ulang, ranking canonical source
-    tetap perlu disalin ke DB agar endpoint `/popular` mengikuti source of
-    truth dan tidak fallback ke `rating`.
-    """
-    await session.execute(
-        update(Comic)
-        .where(Comic.id == comic_id)
-        .values(
-            popular_feed_batch_at=popular_feed_batch_at,
-            popular_feed_page=popular_feed_page,
-            popular_feed_position=popular_feed_position,
-        )
-    )
-
-
-async def upsert_chapter_metadata(session, comic_id: int, ch_data: dict) -> None:
-    """Upsert metadata chapter ke database (tanpa images)."""
-    stmt = pg_insert(Chapter).values(
-        comic_id=comic_id,
-        chapter_number=ch_data["chapter_number"],
-        title=ch_data.get("title"),
-        source_url=ch_data["source_url"],
-        release_date=ch_data.get("release_date"),
-        created_at=now_wib(),
-    )
-    stmt = stmt.on_conflict_do_update(
-        constraint="uq_comic_chapter",
-        set_={
-            "title": ch_data.get("title"),
-            "source_url": ch_data["source_url"],
-            "release_date": ch_data.get("release_date"),
-        },
-    )
-    await session.execute(stmt)
-
-
-async def upsert_chapter_images(session, comic_id: int, ch_data: dict, images: list[dict]) -> None:
-    """Update kolom images chapter yang sudah ada di database."""
-    images_json = [{"page": img["page"], "url": img["url"]} for img in images]
-    stmt = pg_insert(Chapter).values(
-        comic_id=comic_id,
-        chapter_number=ch_data["chapter_number"],
-        title=ch_data.get("title"),
-        source_url=ch_data["source_url"],
-        release_date=ch_data.get("release_date"),
-        images=images_json,
-        created_at=now_wib(),
-    )
-    stmt = stmt.on_conflict_do_update(
-        constraint="uq_comic_chapter",
-        set_={"images": images_json},
-    )
-    await session.execute(stmt)
+# Semua DB operations (upsert_comic, upsert_genre, sync_comic_genres,
+# upsert_chapter_metadata, upsert_chapter_images, mark_comic_seen_*)
+# telah diekstrak ke scraper.db_ops untuk SoC dan menghindari
+# cross-import antar CLI scripts.
 
 
 async def fetch_latest_comics_with_retry(scraper: BaseComicScraper, page: int = 1) -> list[dict[str, Any]]:
@@ -504,7 +250,7 @@ async def fetch_latest_comics_with_retry(scraper: BaseComicScraper, page: int = 
                 f"(attempt {attempt + 1}/3)."
             )
             if attempt < 2:
-                await backoff_delay(attempt, f"retry empty listing {scraper.SOURCE_NAME}")
+                await _backoff_delay(attempt, f"retry empty listing {scraper.SOURCE_NAME}")
                 continue
             break
         except Exception as e:
@@ -512,7 +258,7 @@ async def fetch_latest_comics_with_retry(scraper: BaseComicScraper, page: int = 
                 f"  ✗ Gagal fetch listing {scraper.SOURCE_NAME} page {page} "
                 f"(attempt {attempt + 1}): {e}"
             )
-            await backoff_delay(attempt, f"retry listing {scraper.SOURCE_NAME}")
+            await _backoff_delay(attempt, f"retry listing {scraper.SOURCE_NAME}")
     return comics_list
 
 
@@ -536,7 +282,7 @@ async def fetch_popular_comics_with_retry(scraper: BaseComicScraper, page: int =
                 f"(attempt {attempt + 1}/3)."
             )
             if attempt < 2:
-                await backoff_delay(attempt, f"retry empty popular {scraper.SOURCE_NAME}")
+                await _backoff_delay(attempt, f"retry empty popular {scraper.SOURCE_NAME}")
                 continue
             break
         except Exception as e:
@@ -544,7 +290,7 @@ async def fetch_popular_comics_with_retry(scraper: BaseComicScraper, page: int =
                 f"  ✗ Gagal fetch popular {scraper.SOURCE_NAME} page {page} "
                 f"(attempt {attempt + 1}): {e}"
             )
-            await backoff_delay(attempt, f"retry popular {scraper.SOURCE_NAME}")
+            await _backoff_delay(attempt, f"retry popular {scraper.SOURCE_NAME}")
     return comics_list
 
 
@@ -684,20 +430,38 @@ async def prewarm_latest_chapters(
     validated: ComicCreate,
     chapters_sorted: list[dict[str, Any]],
     stats: ScrapeStats,
+    comic_position: int,
+    page_total: int,
 ) -> tuple[int, int]:
     """Pre-warm images untuk chapter terbaru, metadata sisanya tetap lengkap."""
+    comic_label = _comic_progress_label(comic_position, page_total)
     chapters_to_warm = chapters_sorted[:MAX_CHAPTERS_PER_COMIC]
     chapters_rest = chapters_sorted[MAX_CHAPTERS_PER_COMIC:]
     ch_images_count = 0
+    image_progress: CliLiveProgress | None = None
 
     logger.info(
-        f"  🔥 Pre-warming {len(chapters_to_warm)} chapter terbaru "
+        f"  🔥 {comic_label} Pre-warming {len(chapters_to_warm)} chapter terbaru "
         f"(dari total {len(chapters_sorted)}) untuk {validated.title}..."
     )
+
+    if chapters_to_warm:
+        image_progress = CliLiveProgress(
+            label=f"{comic_label} prewarm chapter",
+            total_steps=len(chapters_to_warm),
+        )
+        image_progress.start()
+        image_progress.set_detail(
+            f"menyiapkan {len(chapters_to_warm)} chapter terbaru"
+        )
 
     for ch_data in chapters_to_warm:
         ch_url = ch_data.get("source_url", "")
         if not ch_url:
+            if image_progress is not None:
+                image_progress.advance(
+                    f"skip ch {ch_data.get('chapter_number', '?')}: tidak ada source_url"
+                )
             continue
 
         existing = await session.execute(
@@ -709,12 +473,20 @@ async def prewarm_latest_chapters(
         row = existing.first()
         if row and row.images:
             logger.info(
-                f"    ⏭️ Ch {ch_data['chapter_number']} sudah punya images, skip."
+                f"    ⏭️ {comic_label} Ch {ch_data['chapter_number']} sudah punya images, skip."
             )
             stats.total_skipped += 1
+            if image_progress is not None:
+                image_progress.advance(
+                    f"ch {ch_data['chapter_number']}: sudah punya images"
+                )
             continue
 
         try:
+            if image_progress is not None:
+                image_progress.set_detail(
+                    f"fetch images ch {ch_data.get('chapter_number', '?')}"
+                )
             images = await scraper.get_chapter_images(ch_url)
 
             if images:
@@ -722,19 +494,31 @@ async def prewarm_latest_chapters(
                 ch_images_count += 1
                 stats.total_chapters_images += 1
                 logger.info(
-                    f"    ✅ Ch {ch_data['chapter_number']}: {len(images)} images"
+                    f"    ✅ {comic_label} Ch {ch_data['chapter_number']}: {len(images)} images"
                 )
+                if image_progress is not None:
+                    image_progress.advance(
+                        f"ch {ch_data['chapter_number']}: {len(images)} images"
+                    )
             else:
                 stats.total_errors += 1
                 logger.warning(
-                    f"    ⚠️ Ch {ch_data['chapter_number']}: tidak ada images ditemukan"
+                    f"    ⚠️ {comic_label} Ch {ch_data['chapter_number']}: tidak ada images ditemukan"
                 )
+                if image_progress is not None:
+                    image_progress.advance(
+                        f"ch {ch_data['chapter_number']}: tidak ada images"
+                    )
 
         except Exception as e:
             stats.total_errors += 1
             logger.error(
-                f"    ✗ Gagal fetch images Ch {ch_data.get('chapter_number')}: {e}"
+                f"    ✗ {comic_label} Gagal fetch images Ch {ch_data.get('chapter_number')}: {e}"
             )
+            if image_progress is not None:
+                image_progress.advance(
+                    f"ch {ch_data.get('chapter_number', '?')}: error fetch images"
+                )
         finally:
             await random_delay(
                 DELAY_CHAPTER_MIN,
@@ -742,7 +526,89 @@ async def prewarm_latest_chapters(
                 f"post-chapter {ch_data.get('chapter_number')}",
             )
 
+    await _stop_progress(image_progress)
     return ch_images_count, len(chapters_rest)
+
+
+async def save_chapter_metadata(
+    session,
+    *,
+    comic_id: int,
+    chapters_data: list[dict[str, Any]],
+    comic_position: int,
+    page_total: int,
+) -> int:
+    """Simpan metadata chapter sambil melaporkan progres per chapter."""
+    comic_label = _comic_progress_label(comic_position, page_total)
+    saved_count = 0
+    progress: CliLiveProgress | None = None
+    valid_chapter_total = sum(1 for chapter in chapters_data if chapter.get("source_url", ""))
+
+    if chapters_data:
+        total_steps = len(chapters_data) + (1 if valid_chapter_total else 0)
+        logger.info(
+            f"  📚 {comic_label} Upsert chapter metadata: "
+            f"{len(chapters_data)} chapter"
+            + (" + 1 flush" if valid_chapter_total else "")
+        )
+        progress = CliLiveProgress(
+            label=f"{comic_label} chapter metadata",
+            total_steps=total_steps,
+        )
+        progress.start()
+        progress.set_detail(
+            f"menyiapkan {len(chapters_data)} chapter"
+            + (" + flush final" if valid_chapter_total else "")
+        )
+    else:
+        logger.info(f"  📚 {comic_label} Tidak ada chapter metadata.")
+
+    try:
+        total_chapters = len(chapters_data)
+        total_progress_steps = total_chapters + (1 if valid_chapter_total else 0)
+        for chapter_index, ch_data in enumerate(chapters_data, start=1):
+            ch_num = ch_data.get("chapter_number", 0)
+            if not ch_data.get("source_url"):
+                if progress is not None:
+                    progress.advance(
+                        "chapter "
+                        f"{chapter_index}/{total_chapters} | "
+                        f"langkah {chapter_index}/{total_progress_steps}: "
+                        f"skip ch {ch_num} (no source_url)"
+                    )
+                continue
+
+            if progress is not None:
+                progress.set_detail(
+                    "chapter "
+                    f"{chapter_index}/{total_chapters} | "
+                    f"langkah {chapter_index}/{total_progress_steps}: "
+                    f"upsert ch {ch_num}"
+                )
+            await upsert_chapter_metadata(session, comic_id, ch_data)
+            saved_count += 1
+            if progress is not None:
+                progress.advance(
+                    "chapter "
+                    f"{chapter_index}/{total_chapters} | "
+                    f"langkah {chapter_index}/{total_progress_steps}: "
+                    f"tersimpan ch {ch_num}"
+                )
+
+        if valid_chapter_total and progress is not None:
+            progress.set_detail(
+                f"flush final | langkah {total_progress_steps}/{total_progress_steps}"
+            )
+            await session.flush()
+            progress.advance(
+                f"flush final selesai | langkah {total_progress_steps}/{total_progress_steps}"
+            )
+        elif valid_chapter_total:
+            await session.flush()
+    finally:
+        await _stop_progress(progress)
+
+    return saved_count
 
 
 async def process_comic(
@@ -757,6 +623,8 @@ async def process_comic(
     popular_feed_batch_at,
     popular_feed_page: int | None,
     popular_feed_position: int | None,
+    comic_position: int,
+    page_total: int,
 ) -> None:
     """
     Proses satu komik penuh: detail, upsert, metadata chapter, lalu pre-warm.
@@ -767,95 +635,141 @@ async def process_comic(
     """
     detail_url = comic_basic.get("source_url", "")
     title = comic_basic.get("title", "???")
+    comic_label = _comic_progress_label(comic_position, page_total)
+    fetch_progress: CliLiveProgress | None = None
+    upsert_progress: CliLiveProgress | None = None
 
     if not detail_url:
         stats.total_skipped += 1
-        logger.warning(f"  ⏭️ Skip (no URL): {title}")
+        logger.warning(f"  ⏭️ {comic_label} Skip (no URL): {title}")
         return
 
     await random_delay(DELAY_DETAIL_MIN, DELAY_DETAIL_MAX, f"pre-detail {title}")
 
-    logger.info(f"  📖 Mengambil detail: {title}")
-    comic_detail = await scraper.get_comic_detail(detail_url)
-
-    if not comic_detail.get("title"):
-        stats.total_errors += 1
-        logger.warning(f"  ⚠️ Tidak ada title di detail, skip: {detail_url}")
-        return
-
-    validated = ComicCreate(
-        title=comic_detail["title"],
-        slug=comic_detail["slug"],
-        alternative_titles=comic_detail.get("alternative_titles"),
-        cover_image_url=comic_detail.get("cover_image_url"),
-        author=comic_detail.get("author"),
-        artist=comic_detail.get("artist"),
-        status=comic_detail.get("status"),
-        type=comic_detail.get("type"),
-        synopsis=comic_detail.get("synopsis"),
-        rating=comic_detail.get("rating"),
-        total_view=comic_detail.get("total_view"),
-        source_url=comic_detail["source_url"],
-        source_name=comic_detail["source_name"],
-        genres=comic_detail.get("genres", []),
-    )
-
-    comic_id = await upsert_comic_with_feed_markers(
-        session,
-        validated,
-        latest_feed_batch_at=latest_feed_batch_at,
-        latest_feed_page=latest_feed_page,
-        latest_feed_position=latest_feed_position,
-        popular_feed_batch_at=popular_feed_batch_at,
-        popular_feed_page=popular_feed_page,
-        popular_feed_position=popular_feed_position,
-    )
-    stats.total_comics += 1
-    stats.comics_since_cooldown += 1
-
-    await sync_comic_genres(session, comic_id, validated.genres)
-
-    chapters_data = comic_detail.get("chapters", [])
-    chapters_sorted = sorted(
-        chapters_data,
-        key=lambda c: c.get("chapter_number", 0),
-        reverse=True,
-    )
-
-    for ch_data in chapters_sorted:
-        if not ch_data.get("source_url"):
-            continue
-        await upsert_chapter_metadata(session, comic_id, ch_data)
-        stats.total_chapters_meta += 1
-
-    await session.flush()
-
-    ch_images_count, chapters_rest_count = await prewarm_latest_chapters(
-        session,
-        scraper,
-        comic_id=comic_id,
-        validated=validated,
-        chapters_sorted=chapters_sorted,
-        stats=stats,
-    )
-
-    logger.info(
-        f"  ✅ Done: {validated.title} — "
-        f"{len(chapters_sorted)} chapters metadata, "
-        f"{ch_images_count} images pre-warmed, "
-        f"{chapters_rest_count} chapter lama → lazy load"
-    )
-
-    await session.commit()
-
-    if stats.comics_since_cooldown >= COOLDOWN_EVERY_N_COMICS:
-        stats.comics_since_cooldown = 0
-        logger.info(
-            f" 🧊 Cooldown berkala ({COOLDOWN_EVERY_N_COMICS} komik tercapai)..."
+    try:
+        logger.info(f"  📖 {comic_label} Mengambil detail: {title}")
+        fetch_progress = CliLiveProgress(
+            label=f"{comic_label} fetch detail",
+            total_steps=1,
         )
-        await random_delay(COOLDOWN_MIN, COOLDOWN_MAX, "cooldown berkala")
+        fetch_progress.start()
+        fetch_progress.set_detail("langkah 1/1: menunggu response detail komik")
+        comic_detail = await scraper.get_comic_detail(detail_url)
+        fetch_progress.advance("langkah 1/1 selesai: detail komik diterima")
+        await _stop_progress(fetch_progress)
+        fetch_progress = None
 
-    await random_delay(DELAY_COMIC_MIN, DELAY_COMIC_MAX, "antar-komik")
+        if not comic_detail.get("title"):
+            stats.total_errors += 1
+            logger.warning(f"  ⚠️ {comic_label} Tidak ada title di detail, skip: {detail_url}")
+            return
+
+        validated = ComicCreate(
+            title=comic_detail["title"],
+            slug=comic_detail["slug"],
+            alternative_titles=comic_detail.get("alternative_titles"),
+            cover_image_url=comic_detail.get("cover_image_url"),
+            author=comic_detail.get("author"),
+            artist=comic_detail.get("artist"),
+            status=comic_detail.get("status"),
+            type=comic_detail.get("type"),
+            synopsis=comic_detail.get("synopsis"),
+            rating=comic_detail.get("rating"),
+            total_view=comic_detail.get("total_view"),
+            source_url=comic_detail["source_url"],
+            source_name=comic_detail["source_name"],
+            genres=comic_detail.get("genres", []),
+        )
+
+        genre_total = len(validated.genres)
+        upsert_total_steps = 2
+        logger.info(
+            f"  💾 {comic_label} Upsert komik: {validated.title} "
+            f"(metadata + sinkron genre)"
+        )
+        upsert_progress = CliLiveProgress(
+            label=f"{comic_label} upsert DB",
+            total_steps=upsert_total_steps,
+        )
+        upsert_progress.start()
+        upsert_progress.set_detail("langkah 1/2: menyimpan metadata komik")
+        comic_id = await upsert_comic_with_feed_markers(
+            session,
+            validated,
+            latest_feed_batch_at=latest_feed_batch_at,
+            latest_feed_page=latest_feed_page,
+            latest_feed_position=latest_feed_position,
+            popular_feed_batch_at=popular_feed_batch_at,
+            popular_feed_page=popular_feed_page,
+            popular_feed_position=popular_feed_position,
+        )
+        upsert_progress.advance("langkah 1/2 selesai: metadata komik tersimpan")
+        upsert_progress.set_detail(
+            f"langkah 2/2: sinkron genre ({genre_total} genre)"
+        )
+        await sync_comic_genres(session, comic_id, validated.genres)
+        upsert_progress.advance("langkah 2/2 selesai: genre tersinkron")
+        await _stop_progress(upsert_progress)
+        upsert_progress = None
+
+        stats.total_comics += 1
+        stats.comics_since_cooldown += 1
+        logger.info(
+            f"    💾 {comic_label} Upsert selesai: {validated.title} "
+            f"({genre_total} genre) [Total komik: {stats.total_comics}]"
+        )
+
+        chapters_data = comic_detail.get("chapters", [])
+        chapters_sorted = sorted(
+            chapters_data,
+            key=lambda c: c.get("chapter_number", 0),
+            reverse=True,
+        )
+        chapter_saved_count = await save_chapter_metadata(
+            session,
+            comic_id=comic_id,
+            chapters_data=chapters_sorted,
+            comic_position=comic_position,
+            page_total=page_total,
+        )
+        stats.total_chapters_meta += chapter_saved_count
+        if chapter_saved_count:
+            logger.info(
+                f"    📚 {comic_label} {chapter_saved_count} chapter metadata tersimpan "
+                f"[Total chapter metadata: {stats.total_chapters_meta}]"
+            )
+
+        ch_images_count, chapters_rest_count = await prewarm_latest_chapters(
+            session,
+            scraper,
+            comic_id=comic_id,
+            validated=validated,
+            chapters_sorted=chapters_sorted,
+            stats=stats,
+            comic_position=comic_position,
+            page_total=page_total,
+        )
+
+        logger.info(
+            f"  ✅ {comic_label} Done: {validated.title} — "
+            f"{len(chapters_sorted)} chapters metadata, "
+            f"{ch_images_count} images pre-warmed, "
+            f"{chapters_rest_count} chapter lama → lazy load"
+        )
+
+        await session.commit()
+
+        if stats.comics_since_cooldown >= COOLDOWN_EVERY_N_COMICS:
+            stats.comics_since_cooldown = 0
+            logger.info(
+                f" 🧊 Cooldown berkala ({COOLDOWN_EVERY_N_COMICS} komik tercapai)..."
+            )
+            await random_delay(COOLDOWN_MIN, COOLDOWN_MAX, "cooldown berkala")
+
+        await random_delay(DELAY_COMIC_MIN, DELAY_COMIC_MAX, "antar-komik")
+    finally:
+        await _stop_progress(fetch_progress)
+        await _stop_progress(upsert_progress)
 
 
 async def process_latest_pages(
@@ -909,7 +823,10 @@ async def process_latest_pages(
             if not should_process:
                 if reason == "no detail url":
                     stats.total_skipped += 1
-                    logger.warning(f"  ⏭️ Skip invalid listing: {title} ({reason})")
+                    logger.warning(
+                        f"  ⏭️ {_comic_progress_label(position, len(comics_list))} "
+                        f"Skip invalid listing: {title} ({reason})"
+                    )
                 else:
                     if comic_id is not None:
                         await mark_comic_seen_in_latest_feed(
@@ -922,12 +839,18 @@ async def process_latest_pages(
                         await session.commit()
                     page_unchanged += 1
                     stats.total_unchanged_listing += 1
-                    logger.info(f"  ⏭️ Skip unchanged: {title} ({reason})")
+                    logger.info(
+                        f"  ⏭️ {_comic_progress_label(position, len(comics_list))} "
+                        f"Skip unchanged: {title} ({reason})"
+                    )
                 continue
 
             page_candidates += 1
             stats.total_candidates += 1
-            logger.info(f"  🆕 Kandidat update: {title} ({reason})")
+            logger.info(
+                f"  🆕 {_comic_progress_label(position, len(comics_list))} "
+                f"Kandidat update: {title} ({reason})"
+            )
 
             try:
                 await process_comic(
@@ -941,6 +864,8 @@ async def process_latest_pages(
                     popular_feed_batch_at=None,
                     popular_feed_page=None,
                     popular_feed_position=None,
+                    comic_position=position,
+                    page_total=len(comics_list),
                 )
                 consecutive_errors = 0
 
@@ -960,7 +885,7 @@ async def process_latest_pages(
                     )
                     return
 
-                await backoff_delay(
+                await _backoff_delay(
                     consecutive_errors,
                     f"error comic pada scraper {scraper.SOURCE_NAME}",
                 )
@@ -1046,12 +971,18 @@ async def process_popular_pages(
                 await session.commit()
                 page_unchanged += 1
                 stats.total_unchanged_listing += 1
-                logger.info(f"  ⏭️ Mark popular: {title} (sudah ada di DB)")
+                logger.info(
+                    f"  ⏭️ {_comic_progress_label(position, len(comics_list))} "
+                    f"Mark popular: {title} (sudah ada di DB)"
+                )
                 continue
 
             page_candidates += 1
             stats.total_candidates += 1
-            logger.info(f"  🆕 Kandidat popular baru: {title} (comic baru di ranking)")
+            logger.info(
+                f"  🆕 {_comic_progress_label(position, len(comics_list))} "
+                f"Kandidat popular baru: {title} (comic baru di ranking)"
+            )
 
             try:
                 await process_comic(
@@ -1065,6 +996,8 @@ async def process_popular_pages(
                     popular_feed_batch_at=popular_feed_batch_at,
                     popular_feed_page=page,
                     popular_feed_position=position,
+                    comic_position=position,
+                    page_total=len(comics_list),
                 )
                 consecutive_errors = 0
             except Exception as e:
@@ -1083,7 +1016,7 @@ async def process_popular_pages(
                     )
                     return
 
-                await backoff_delay(
+                await _backoff_delay(
                     consecutive_errors,
                     f"error popular comic pada scraper {scraper.SOURCE_NAME}",
                 )
@@ -1232,7 +1165,7 @@ async def run_scraper(
     logger.info("🏁 One-off Scraper selesai!")
     logger.info(f"   Mulai       : {started_at.strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"   Selesai     : {finished_at.strftime('%Y-%m-%d %H:%M:%S')}")
-    logger.info(f"   Waktu       : {_format_elapsed_duration(elapsed)}")
+    logger.info(f"   Waktu       : {format_elapsed_duration(elapsed)}")
     logger.info(f"   Pages       : {stats.total_pages_scanned}")
     logger.info(f"   Listing     : {stats.total_listing_items}")
     logger.info(f"   Candidates  : {stats.total_candidates}")
@@ -1248,7 +1181,7 @@ async def run_scraper(
 def parse_args() -> dict[str, str | int | bool]:
     """Parse argumen command-line sederhana untuk logging dan scan depth."""
     args = {
-        "log_file": str(DEFAULT_LOG_FILE),
+        "log_file": "",
         "max_pages": MAX_LATEST_PAGES,
         "popular_pages": DEFAULT_POPULAR_PAGES,
         "popular_allow_early_stop": True,
@@ -1302,7 +1235,8 @@ def main():
         print(f"Error argumen: {e}")
         sys.exit(1)
 
-    configure_logging(str(args["log_file"]))
+    log_file = resolve_log_path(str(args["log_file"]) if args["log_file"] else "main.log")
+    configure_logging(str(log_file))
     asyncio.run(
         run_scraper(
             max_pages=int(args["max_pages"]),

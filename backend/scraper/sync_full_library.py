@@ -88,13 +88,10 @@ Panduan pemakaian singkat:
 """
 
 import asyncio
-from contextlib import suppress
 from dataclasses import dataclass
 import json
 import logging
 import random
-import shutil
-import signal
 import sys
 import time
 from pathlib import Path
@@ -111,160 +108,25 @@ from app.models import Chapter, Comic, comic_genre
 from app.schemas import ComicCreate
 
 from scraper.base_scraper import BaseComicScraper
+from scraper.db_ops import upsert_comic, upsert_genre
 from scraper.sources.registry import create_scraper, get_supported_source_names
-# Reuse upsert methods dari main
-from scraper.main import upsert_comic, upsert_genre
 from scraper.time_utils import now_wib
-
-# ═══════════════════════════════════════════════════════════════════
-# LIVE PROGRESS BAR
-# ═══════════════════════════════════════════════════════════════════
-
-LIVE_PROGRESS_BAR_WIDTH = 24
-LIVE_PROGRESS_FRAMES = ("|", "/", "-", "\\")
-LIVE_PROGRESS_REFRESH_SEC = 0.15
-_active_live_progress = None
-SCRAPLING_NOISY_MESSAGE_MARKERS = (
-    "no cloudflare challenge found.",
-    "looks like cloudflare captcha is still present, solving again",
+from scraper.utils import (
+    CliLiveProgress,
+    GracefulShutdown,
+    RealtimeConsoleHandler,
+    backoff_delay,
+    configure_logging as _configure_logging_base,
+    configure_external_loggers as _configure_external_loggers_base,
+    format_elapsed_duration,
+    random_delay,
+    resolve_log_path as _resolve_log_path_base,
 )
-
-
-def _supports_live_progress(stream) -> bool:
-    """Aktifkan live progress hanya pada terminal interaktif."""
-    return bool(stream) and hasattr(stream, "isatty") and stream.isatty()
-
-
-class RealtimeConsoleHandler(logging.StreamHandler):
-    """Handler stdout yang bisa hidup berdampingan dengan live progress bar."""
-
-    def emit(self, record: logging.LogRecord) -> None:
-        if self._should_skip_console_record(record):
-            return
-        progress = _active_live_progress
-        if progress is not None:
-            progress.clear_line()
-        super().emit(record)
-        if progress is not None:
-            progress.render()
-
-    @staticmethod
-    def _should_skip_console_record(record: logging.LogRecord) -> bool:
-        """Sembunyikan noise yang tidak menambah sinyal di CLI realtime."""
-        message = record.getMessage().lower()
-        if record.name == "scraper.komiku_asia" and message.startswith("stealth fetch:"):
-            return _active_live_progress is not None
-        if record.name.startswith("scrapling"):
-            return any(marker in message for marker in SCRAPLING_NOISY_MESSAGE_MARKERS)
-        return False
-
-
-class CliLiveProgress:
-    """Progress bar satu baris untuk fase yang berpotensi terlihat freeze di CLI."""
-
-    def __init__(
-        self,
-        *,
-        label: str,
-        total_steps: int,
-        stream=None,
-    ) -> None:
-        self.stream = stream or sys.stdout
-        self.label = label
-        self.total_steps = max(total_steps, 1)
-        self.current_step = 0
-        self.detail = "menyiapkan"
-        self.started_at = time.monotonic()
-        self.frame_index = 0
-        self.running = False
-        self.enabled = _supports_live_progress(self.stream)
-        self._task: asyncio.Task | None = None
-        self._last_line_length = 0
-
-    def start(self) -> None:
-        """Mulai animasi progress bar realtime."""
-        global _active_live_progress
-        if not self.enabled:
-            return
-        self.running = True
-        _active_live_progress = self
-        self.render()
-        self._task = asyncio.create_task(self._animate())
-
-    def set_detail(self, detail: str) -> None:
-        """Perbarui detail aktif tanpa menaikkan progress."""
-        self.detail = detail
-        self.render()
-
-    def advance(self, detail: str) -> None:
-        """Naikkan progress satu langkah dan render ulang."""
-        self.current_step = min(self.current_step + 1, self.total_steps)
-        self.detail = detail
-        self.render()
-
-    def clear_line(self) -> None:
-        """Hapus baris progress aktif dari terminal."""
-        if not self.enabled or self._last_line_length == 0:
-            return
-        self.stream.write("\r" + (" " * self._last_line_length) + "\r")
-        self.stream.flush()
-
-    def render(self) -> None:
-        """Render progress bar ke satu baris terminal."""
-        if not self.enabled or not self.running:
-            return
-
-        progress_ratio = self.current_step / self.total_steps
-        filled = int(progress_ratio * LIVE_PROGRESS_BAR_WIDTH)
-        bar = "#" * filled + "-" * (LIVE_PROGRESS_BAR_WIDTH - filled)
-        elapsed = time.monotonic() - self.started_at
-        frame = LIVE_PROGRESS_FRAMES[self.frame_index % len(LIVE_PROGRESS_FRAMES)]
-        text = (
-            f"  {frame} [{bar}] {self.current_step}/{self.total_steps} "
-            f"{self.label} | {self.detail} | {elapsed:5.1f}s"
-        )
-        terminal_width = shutil.get_terminal_size((120, 20)).columns
-        if len(text) > terminal_width - 1:
-            text = text[: max(terminal_width - 4, 1)] + "..."
-
-        padded = text
-        if len(text) < self._last_line_length:
-            padded += " " * (self._last_line_length - len(text))
-
-        self.stream.write("\r" + padded)
-        self.stream.flush()
-        self._last_line_length = len(padded)
-
-    async def stop(self) -> None:
-        """Hentikan animasi dan bersihkan baris progress."""
-        global _active_live_progress
-        if not self.enabled:
-            return
-
-        self.running = False
-        if self._task is not None:
-            self._task.cancel()
-            with suppress(asyncio.CancelledError):
-                await self._task
-            self._task = None
-
-        self.clear_line()
-        self._last_line_length = 0
-        if _active_live_progress is self:
-            _active_live_progress = None
-
-    async def _animate(self) -> None:
-        """Animasi spinner kecil agar fase lambat tetap terlihat hidup."""
-        while self.running:
-            self.frame_index = (self.frame_index + 1) % len(LIVE_PROGRESS_FRAMES)
-            self.render()
-            await asyncio.sleep(LIVE_PROGRESS_REFRESH_SEC)
 
 # ═══════════════════════════════════════════════════════════════════
 # LOGGING SETUP
 # ═══════════════════════════════════════════════════════════════════
 
-DEFAULT_LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
 DEFAULT_LOG_FILE = Path("sync_full_library.log")
 
 
@@ -280,10 +142,8 @@ def resolve_log_path(
     mode: str = "validate",
 ) -> Path:
     """Resolve path log ke folder backend/logs kecuali path absolut."""
-    log_path = Path(log_file or _build_default_log_filename(source=source, mode=mode)).expanduser()
-    if not log_path.is_absolute():
-        log_path = DEFAULT_LOG_DIR / log_path
-    return log_path
+    filename = log_file or str(_build_default_log_filename(source=source, mode=mode))
+    return _resolve_log_path_base(filename)
 
 
 def configure_logging(
@@ -293,28 +153,18 @@ def configure_logging(
     mode: str = "validate",
 ) -> None:
     """Konfigurasi logger root ke stdout dan file UTF-8 di backend/logs."""
-    handlers: list[logging.Handler] = [RealtimeConsoleHandler(sys.stdout)]
-
-    log_path = resolve_log_path(log_file, source=source, mode=mode)
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    handlers.append(logging.FileHandler(log_path, mode="w", encoding="utf-8"))
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-        handlers=handlers,
-        force=True,
+    filename = log_file or str(_build_default_log_filename(source=source, mode=mode))
+    _configure_logging_base(
+        filename,
+        default_filename=str(DEFAULT_LOG_FILE),
+        stdout_handler=RealtimeConsoleHandler(sys.stdout),
     )
     _configure_external_loggers()
 
 
 def _configure_external_loggers() -> None:
     """Rapikan logger library eksternal agar tidak berebut terminal dengan progress bar."""
-    scrapling_logger = logging.getLogger("scrapling")
-    if scrapling_logger.handlers:
-        scrapling_logger.handlers.clear()
-    scrapling_logger.propagate = True
+    _configure_external_loggers_base()
 
 logger = logging.getLogger("sync-full-library")
 
@@ -340,7 +190,6 @@ COOLDOWN_MIN = 10.0           # Cooldown minimum (detik)
 COOLDOWN_MAX = 20.0           # Cooldown maksimum (detik)
 
 # -- Exponential Backoff --
-BACKOFF_BASE = 2.0            # Base delay untuk backoff (detik)
 BACKOFF_MAX = 120.0           # Maksimum delay backoff (2 menit)
 MAX_CONSECUTIVE_ERRORS = 5    # Batas error berturut-turut sebelum skip halaman
 SUPPORTED_MODES = {"validate", "refresh"}
@@ -610,21 +459,7 @@ def _format_comic_progress(progress: dict) -> str:
     return "-"
 
 
-def _format_elapsed_duration(elapsed_seconds: float) -> str:
-    """Format durasi menjadi bentuk yang lebih natural."""
-    total_seconds = max(0, int(round(elapsed_seconds)))
-    minutes, seconds = divmod(total_seconds, 60)
-    hours, minutes = divmod(minutes, 60)
 
-    parts = []
-    if hours:
-        parts.append(f"{hours} jam")
-    if minutes:
-        parts.append(f"{minutes} menit")
-    if seconds or not parts:
-        parts.append(f"{seconds} detik")
-
-    return f"{' '.join(parts)} ({total_seconds} detik)"
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -728,50 +563,13 @@ def reset_checkpoint(mode: str, source_name: str) -> None:
         logger.info(f"🧹 Checkpoint legacy juga dihapus: {LEGACY_CHECKPOINT_FILE}")
 
 
-# ═══════════════════════════════════════════════════════════════════
-# DELAY & BACKOFF HELPERS
-# ═══════════════════════════════════════════════════════════════════
-
-
-async def random_delay(min_sec: float, max_sec: float, label: str = "") -> None:
-    """Jeda acak antara min_sec dan max_sec detik."""
-    delay = random.uniform(min_sec, max_sec)
-    if label:
-        logger.info(f"  ⏳ {label}: menunggu {delay:.1f}s...")
-    await asyncio.sleep(delay)
-
-
-async def backoff_delay(attempt: int, label: str = "") -> None:
-    """
-    Exponential backoff: delay = base * 2^attempt, dengan jitter.
-    Contoh: 2s → 4s → 8s → 16s → ... (maks BACKOFF_MAX).
-    """
-    delay = min(BACKOFF_BASE * (2 ** attempt), BACKOFF_MAX)
-    # Tambahkan jitter ±25% agar tidak persis sama
-    jitter = delay * random.uniform(-0.25, 0.25)
-    delay = max(1.0, delay + jitter)
-    logger.warning(f"  ⏳ Backoff (attempt {attempt + 1}): {label} — menunggu {delay:.1f}s...")
-    await asyncio.sleep(delay)
-
+# random_delay, backoff_delay telah dipindahkan ke scraper.utils
 
 # ═══════════════════════════════════════════════════════════════════
 # GRACEFUL SHUTDOWN
 # ═══════════════════════════════════════════════════════════════════
 
-_shutdown_requested = False
-
-
-def _signal_handler(signum, frame):
-    """Handle Ctrl+C dengan menyimpan checkpoint terlebih dahulu."""
-    global _shutdown_requested
-    if _shutdown_requested:
-        logger.warning("⛔ Paksa berhenti!")
-        sys.exit(1)
-    _shutdown_requested = True
-    logger.warning(
-        " 🛑 Shutdown diminta (Ctrl+C). "
-        "Menyelesaikan komik saat ini dan menyimpan checkpoint..."
-    )
+_shutdown = GracefulShutdown()
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1375,7 +1173,7 @@ async def process_page(
 
     consecutive_errors = 0
     for idx, comic_basic in enumerate(comics_list):
-        if _shutdown_requested:
+        if _shutdown.requested:
             break
 
         consecutive_errors, stop_page = await process_comic(
@@ -1394,7 +1192,7 @@ async def process_page(
         if stop_page:
             break
 
-    if not _shutdown_requested:
+    if not _shutdown.requested:
         logger.info(f"\n  ✅ Halaman {page} selesai.")
         persist_runtime_checkpoint(
             runtime,
@@ -1422,7 +1220,6 @@ async def run_sync_full_library(
     refresh_fields: frozenset[str] = frozenset(),
 ):
     """Pipeline utama mass-scraping dengan semua strategi anti-blocking."""
-    global _shutdown_requested
 
     start_time = time.time()
     started_at = now_wib()
@@ -1493,7 +1290,7 @@ async def run_sync_full_library(
     try:
         async with async_session() as session:
             for page in range(resume_page, end_page + 1):
-                if _shutdown_requested:
+                if _shutdown.requested:
                     break
                 should_continue = await process_page(
                     session,
@@ -1519,8 +1316,8 @@ async def run_sync_full_library(
     # ═══════════════════════════════════════════════════════════════
     elapsed = time.time() - start_time
     finished_at = now_wib()
-    final_state = "stopped-by-user" if _shutdown_requested else "finished"
-    final_note = "Sync dihentikan oleh user" if _shutdown_requested else "Sync full library selesai"
+    final_state = "stopped-by-user" if _shutdown.requested else "finished"
+    final_note = "Sync dihentikan oleh user" if _shutdown.requested else "Sync full library selesai"
     progress = persist_runtime_checkpoint(
         runtime,
         state=final_state,
@@ -1528,13 +1325,13 @@ async def run_sync_full_library(
     )
 
     logger.info("═" * 60)
-    if _shutdown_requested:
+    if _shutdown.requested:
         logger.info("🛑 Sync dihentikan oleh user (Ctrl+C).")
     else:
         logger.info("🏁 Sync Full Library selesai!")
     logger.info(f"   Mulai       : {started_at.strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"   Selesai     : {finished_at.strftime('%Y-%m-%d %H:%M:%S')}")
-    logger.info(f"   Waktu       : {_format_elapsed_duration(elapsed)}")
+    logger.info(f"   Waktu       : {format_elapsed_duration(elapsed)}")
     logger.info(f"   Mode        : {mode}")
     logger.info(f"   Upserted    : {runtime.stats['total_upserted']} komik")
     logger.info(f"   Refreshed   : {runtime.stats['total_refreshed']} komik")
@@ -1647,10 +1444,7 @@ def main():
     )
 
     # Daftarkan signal handler untuk graceful shutdown
-    signal.signal(signal.SIGINT, _signal_handler)
-    # SIGTERM biasanya tidak tersedia di Windows, tapi kita coba
-    if hasattr(signal, "SIGTERM"):
-        signal.signal(signal.SIGTERM, _signal_handler)
+    _shutdown.install()
 
     if args["reset"]:
         reset_checkpoint(args["mode"], args["source"])

@@ -1,17 +1,30 @@
-"""Quick data verification script."""
+"""
+Quick data verification script.
+
+Menampilkan ringkasan data di database: comics, chapters, dan genres.
+Connection string dibaca dari .env via app.config sehingga tidak hardcode.
+
+Usage (dari folder backend/):
+    python -m scripts.check_db
+"""
+
 import asyncio
 import sys
 import io
+from pathlib import Path
+
+# Pastikan backend/ ada di sys.path agar bisa import app.*
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from app.config import settings
+
 
 async def check():
-    engine = create_async_engine(
-        "postgresql+asyncpg://postgres:postgres@localhost:5432/tonztoon_komik"
-    )
+    engine = create_async_engine(settings.DATABASE_URL)
     async with engine.begin() as conn:
         # Comics
         print("=" * 60)
@@ -47,4 +60,5 @@ async def check():
     await engine.dispose()
 
 
-asyncio.run(check())
+if __name__ == "__main__":
+    asyncio.run(check())

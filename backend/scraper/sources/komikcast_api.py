@@ -12,15 +12,14 @@ from typing import Any
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from scraper.utils import clean_text
+
 KOMIKCAST_BASE_URL = "https://v1.komikcast.fit"
 KOMIKCAST_API_BASE_URL = "https://be.komikcast.cc"
 DEFAULT_SERIES_INDEX_TAKE = 12
 DEFAULT_SERIES_INDEX_TAKE_CHAPTER = 2
 DEFAULT_POPULAR_TAKE = 20
 
-
-def _clean_text(value: str | None) -> str:
-    return re.sub(r"\s+", " ", value or "").strip()
 
 
 def build_komikcast_api_headers() -> dict[str, str]:
@@ -60,7 +59,7 @@ def extract_komikcast_chapter_identity(chapter_url: str) -> tuple[str, str]:
 
 
 def parse_komikcast_iso_datetime(value: str | None) -> datetime | None:
-    cleaned = _clean_text(value)
+    cleaned = clean_text(value)
     if not cleaned:
         return None
 
@@ -127,7 +126,7 @@ def build_komikcast_series_index_params(
         "page": max(page, 1),
     }
 
-    cleaned_query = _clean_text(query)
+    cleaned_query = clean_text(query)
     if cleaned_query:
         params["filter"] = f'title=like="{cleaned_query}",nativeTitle=like="{cleaned_query}"'
 

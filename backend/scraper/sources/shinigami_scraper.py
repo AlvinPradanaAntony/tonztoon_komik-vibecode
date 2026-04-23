@@ -19,6 +19,7 @@ import httpx
 
 from scraper.base_scraper import BaseComicScraper
 from scraper.sources.common import ScraperCommonMixin
+from scraper.utils import clean_text
 from scraper.sources.shinigami_api import (
     DEFAULT_CHAPTER_LIST_PAGE_SIZE,
     SHINIGAMI_API_BASE_URL,
@@ -78,7 +79,7 @@ class ShinigamiScraper(ScraperCommonMixin, BaseComicScraper):
         return parse_shinigami_iso_datetime(value)
 
     def _build_chapter_title(self, chapter_number: float | int | None, chapter_title: str | None) -> str:
-        title = self._clean_text(chapter_title)
+        title = clean_text(chapter_title)
         if title:
             return title
 
@@ -119,7 +120,7 @@ class ShinigamiScraper(ScraperCommonMixin, BaseComicScraper):
 
             for item in payload.get("data") or []:
                 chapter_number = item.get("chapter_number")
-                chapter_id = self._clean_text(item.get("chapter_id"))
+                chapter_id = clean_text(item.get("chapter_id"))
                 if chapter_number is None or not chapter_id:
                     continue
 
@@ -229,20 +230,20 @@ class ShinigamiScraper(ScraperCommonMixin, BaseComicScraper):
 
         chapters = await self._fetch_all_chapter_pages(manga_id, url)
 
-        title = self._clean_text(detail.get("title"))
+        title = clean_text(detail.get("title"))
         if not title:
             raise RuntimeError(f"Tidak menemukan title pada payload detail Shinigami: {url}")
 
         return self._build_comic_payload(
             title=title,
             source_url=url,
-            alternative_titles=self._clean_text(detail.get("alternative_title")) or None,
-            cover_image_url=self._clean_text(detail.get("cover_image_url")) or None,
+            alternative_titles=clean_text(detail.get("alternative_title")) or None,
+            cover_image_url=clean_text(detail.get("cover_image_url")) or None,
             author=", ".join(author_values) if author_values else None,
             artist=", ".join(artist_values) if artist_values else None,
             status=self._map_status_value(detail.get("status")),
             type=comic_type,
-            synopsis=self._clean_text(detail.get("description")) or None,
+            synopsis=clean_text(detail.get("description")) or None,
             rating=self._parse_rating(str(detail.get("user_rate")) if detail.get("user_rate") is not None else None),
             total_view=int(detail["view_count"]) if detail.get("view_count") is not None else None,
             genres=genres,
@@ -277,15 +278,15 @@ class ShinigamiScraper(ScraperCommonMixin, BaseComicScraper):
         if comic_type is None and type_values:
             comic_type = self._parse_type_from_text(type_values[0])
         detail_patch = self._build_comic_payload(
-            title=self._clean_text(detail.get("title")) or "",
+            title=clean_text(detail.get("title")) or "",
             source_url=url,
-            alternative_titles=self._clean_text(detail.get("alternative_title")) or None,
-            cover_image_url=self._clean_text(detail.get("cover_image_url")) or None,
+            alternative_titles=clean_text(detail.get("alternative_title")) or None,
+            cover_image_url=clean_text(detail.get("cover_image_url")) or None,
             author=", ".join(author_values) if author_values else None,
             artist=", ".join(artist_values) if artist_values else None,
             status=self._map_status_value(detail.get("status")),
             type=comic_type,
-            synopsis=self._clean_text(detail.get("description")) or None,
+            synopsis=clean_text(detail.get("description")) or None,
             rating=self._parse_rating(
                 str(detail.get("user_rate")) if detail.get("user_rate") is not None else None
             ),
@@ -301,15 +302,15 @@ class ShinigamiScraper(ScraperCommonMixin, BaseComicScraper):
         )
         detail = payload.get("data") or {}
         chapter = detail.get("chapter") or {}
-        base_url = self._clean_text(detail.get("base_url")) or self._clean_text(detail.get("base_url_low"))
-        chapter_path = self._clean_text(chapter.get("path"))
+        base_url = clean_text(detail.get("base_url")) or clean_text(detail.get("base_url_low"))
+        chapter_path = clean_text(chapter.get("path"))
         filenames = chapter.get("data") or []
         if not base_url or not chapter_path or not isinstance(filenames, list):
             return []
 
         images: list[dict[str, Any]] = []
         for filename in filenames:
-            cleaned_filename = self._clean_text(str(filename))
+            cleaned_filename = clean_text(str(filename))
             if not cleaned_filename:
                 continue
 

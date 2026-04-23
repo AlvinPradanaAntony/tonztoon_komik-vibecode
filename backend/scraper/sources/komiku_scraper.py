@@ -54,6 +54,7 @@ from typing import Any
 
 from scraper.base_scraper import BaseComicScraper
 from scraper.sources.common import ScraperCommonMixin
+from scraper.utils import clean_text
 
 logger = logging.getLogger("scraper.komiku")
 
@@ -117,9 +118,9 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
 
         spans = chapter_link.css("span")
         chapter_title = (
-            self._clean_text(spans[-1].text)
+            clean_text(spans[-1].text)
             if len(spans) >= 2
-            else self._clean_text(chapter_link.text)
+            else clean_text(chapter_link.text)
         )
         chapter_url = self._resolve_url(chapter_link.attrib.get("href"))
         return chapter_title or None, chapter_url or None
@@ -143,7 +144,7 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
                 if not title_el:
                     continue
 
-                title = self._clean_text(title_el[0].text)
+                title = clean_text(title_el[0].text)
                 if not title:
                     continue
 
@@ -166,12 +167,12 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
                 meta_text = None
                 meta_el = entry.css(".kan .judul2")
                 if meta_el:
-                    meta_text = self._clean_text(meta_el[0].text)
+                    meta_text = clean_text(meta_el[0].text)
 
                 summary = None
                 summary_el = entry.css(".kan p")
                 if summary_el:
-                    summary = self._clean_text(summary_el[0].text)
+                    summary = clean_text(summary_el[0].text)
 
                 chapter_links = entry.css(".kan .new1 a")
                 first_chapter = None
@@ -227,8 +228,8 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
             if len(cells) < 2:
                 continue
 
-            key = self._clean_text(cells[0].text).lower().rstrip(":")
-            value = self._clean_text(cells[1].get_all_text())
+            key = clean_text(cells[0].text).lower().rstrip(":")
+            value = clean_text(cells[1].get_all_text())
             if key:
                 info_map[key] = value
         return info_map
@@ -265,7 +266,7 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
             title_elements = response.css(selector)
             if not title_elements:
                 continue
-            title = self._clean_text(title_elements[0].text)
+            title = clean_text(title_elements[0].text)
             if title:
                 break
 
@@ -273,7 +274,7 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
         if not title:
             name_els = response.css('span[itemprop="name"]')
             for el in name_els:
-                text = self._clean_text(el.text)
+                text = clean_text(el.text)
                 if text and text != "Komiku" and "chapter" not in text.lower():
                     title = text
                     break
@@ -281,7 +282,7 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
         if not title:
             head_title_el = response.css("head title") 
             if head_title_el:
-                head_title = self._clean_text(head_title_el[0].text)
+                head_title = clean_text(head_title_el[0].text)
                 title = re.sub(r"\s*-\s*Komiku$", "", head_title, flags=re.IGNORECASE)
 
         if title:
@@ -296,7 +297,7 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
             alt_elements = response.css(selector)
             if not alt_elements:
                 continue
-            alt_title = self._clean_text(alt_elements[0].text)
+            alt_title = clean_text(alt_elements[0].text)
             if alt_title:
                 break
         if not alt_title:
@@ -333,7 +334,7 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
         if not genres:
             genre_list = response.css("table.inftable ul.genre li.genre a span")
             for gl in genre_list:
-                g = self._clean_text(gl.text)
+                g = clean_text(gl.text)
                 if g and g not in genres:
                     genres.append(g)
 
@@ -354,11 +355,11 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
         synopsis = None
         desc_el = response.css('p.desc[itemprop="description"]')
         if desc_el:
-            synopsis = self._clean_text(desc_el[0].text)
+            synopsis = clean_text(desc_el[0].text)
         if not synopsis:
             desc_el2 = response.css("p.desc")
             if desc_el2:
-                synopsis = self._clean_text(desc_el2[0].text)
+                synopsis = clean_text(desc_el2[0].text)
 
         if not title:
             logger.warning(
@@ -384,9 +385,9 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
                     # The title text is inside a <b> tag within the span
                     b_el = ch_name_el[0].css("b")
                     if b_el:
-                        ch_title = self._clean_text(b_el[0].text)
+                        ch_title = clean_text(b_el[0].text)
                     if not ch_title:
-                        ch_title = self._clean_text(ch_name_el[0].text)
+                        ch_title = clean_text(ch_name_el[0].text)
 
                 ch_number = self._parse_chapter_number(ch_title)
 
@@ -506,7 +507,7 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
                 if not title_el:
                     continue
 
-                title = self._clean_text(title_el[0].text)
+                title = clean_text(title_el[0].text)
                 if not title:
                     continue
 
@@ -519,7 +520,7 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
                 }
                 if include_meta:
                     meta_el = entry.css("p.meta")
-                    meta_text = self._clean_text(meta_el[0].get_all_text()) if meta_el else ""
+                    meta_text = clean_text(meta_el[0].get_all_text()) if meta_el else ""
                     payload["type"] = self._parse_type_from_text(meta_text)
                     if "ongoing" in meta_text.lower():
                         payload["status"] = self._normalize_status(meta_text)
@@ -561,7 +562,7 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
     def _extract_total_comics_from_listing(self, response) -> int | None:
         """Ambil total komik langsung dari elemen `.page-info` halaman katalog."""
         for node in response.css(".page-info"):
-            text = self._clean_text(node.get_all_text())
+            text = clean_text(node.get_all_text())
             if not text:
                 continue
 

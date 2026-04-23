@@ -7,6 +7,8 @@ import re
 from typing import Any
 from urllib.parse import urljoin
 
+from scraper.utils import clean_text
+
 
 logger = logging.getLogger("scraper.common")
 
@@ -34,12 +36,6 @@ class ScraperCommonMixin:
     BASE_URL = ""
     SOURCE_NAME = ""
 
-    def _clean_text(self, text: str | None) -> str:
-        """Rapikan whitespace berlebih dari text HTML."""
-        if not text:
-            return ""
-        return re.sub(r"\s+", " ", text).strip()
-
     def _make_slug(self, title: str) -> str:
         """Bangun slug stabil dari judul komik."""
         slug = title.lower().strip()
@@ -49,7 +45,7 @@ class ScraperCommonMixin:
 
     def _parse_chapter_number(self, text: str | None) -> float:
         """Extract nomor chapter dari berbagai format judul chapter."""
-        cleaned = self._clean_text(text)
+        cleaned = clean_text(text)
         if not cleaned:
             return 0.0
 
@@ -67,7 +63,7 @@ class ScraperCommonMixin:
 
     def _parse_rating(self, text: str | None) -> float | None:
         """Parse nilai rating numerik jika tersedia."""
-        cleaned = self._clean_text(text)
+        cleaned = clean_text(text)
         if not cleaned:
             return None
 
@@ -95,7 +91,7 @@ class ScraperCommonMixin:
 
     def _parse_compact_number(self, text: str | None) -> int | None:
         """Parse angka singkat seperti `238.5k` menjadi integer penuh."""
-        cleaned = self._clean_text(text).lower().replace(",", "")
+        cleaned = clean_text(text).lower().replace(",", "")
         if not cleaned:
             return None
 
@@ -114,7 +110,7 @@ class ScraperCommonMixin:
 
     def _parse_type_from_text(self, text: str | None) -> str | None:
         """Deteksi tipe komik dari text atau daftar class."""
-        cleaned = self._clean_text(text).lower()
+        cleaned = clean_text(text).lower()
         for comic_type in self._KNOWN_TYPES:
             if comic_type in cleaned:
                 return comic_type
@@ -122,7 +118,7 @@ class ScraperCommonMixin:
 
     def _normalize_status(self, text: str | None) -> str | None:
         """Normalisasi status komik lintas source ke nilai yang lebih konsisten."""
-        cleaned = self._clean_text(text).lower()
+        cleaned = clean_text(text).lower()
         if not cleaned:
             return None
 
@@ -173,7 +169,7 @@ class ScraperCommonMixin:
         title: str,
     ) -> str | None:
         """Rapikan text dan potong aman sesuai limit field DB/schema."""
-        cleaned = self._clean_text(value)
+        cleaned = clean_text(value)
         if not cleaned:
             return None
 
@@ -195,7 +191,7 @@ class ScraperCommonMixin:
         Deteksi heuristik ketika field `author` sebenarnya berisi daftar
         judul alternatif dari source yang salah label.
         """
-        cleaned = self._clean_text(value)
+        cleaned = clean_text(value)
         if not cleaned:
             return False
 
@@ -215,8 +211,8 @@ class ScraperCommonMixin:
         """Normalisasi payload komik agar aman divalidasi dan di-upsert."""
         normalized = dict(extra_fields)
 
-        alternative_titles = self._clean_text(normalized.get("alternative_titles")) or None
-        author = self._clean_text(normalized.get("author")) or None
+        alternative_titles = clean_text(normalized.get("alternative_titles")) or None
+        author = clean_text(normalized.get("author")) or None
 
         if author and not alternative_titles and self._looks_like_title_list(author):
             logger.warning(

@@ -10,15 +10,13 @@ from typing import Any
 from urllib.parse import quote, urlencode
 
 from scraper.time_utils import now_wib
+from scraper.utils import clean_text
 
 SHINIGAMI_BASE_URL = "https://e.shinigami.asia"
 SHINIGAMI_API_BASE_URL = "https://api.shngm.io/v1"
 DEFAULT_MANGA_LIST_PAGE_SIZE = 24
 DEFAULT_CHAPTER_LIST_PAGE_SIZE = 100
 
-
-def _clean_text(value: str | None) -> str:
-    return re.sub(r"\s+", " ", value or "").strip()
 
 
 def build_shinigami_api_headers(referer_url: str | None = None) -> dict[str, str]:
@@ -36,14 +34,14 @@ def build_shinigami_api_headers(referer_url: str | None = None) -> dict[str, str
 
 
 def build_shinigami_search_url(query: str | None = None) -> str:
-    cleaned_query = _clean_text(query)
+    cleaned_query = clean_text(query)
     if not cleaned_query:
         return f"{SHINIGAMI_BASE_URL}/search"
     return f"{SHINIGAMI_BASE_URL}/search?q={quote(cleaned_query)}"
 
 
 def build_shinigami_chapter_url(chapter_id: str | None) -> str | None:
-    cleaned_id = _clean_text(chapter_id)
+    cleaned_id = clean_text(chapter_id)
     if not cleaned_id:
         return None
     return f"{SHINIGAMI_BASE_URL}/chapter/{cleaned_id}"
@@ -66,7 +64,7 @@ def build_shinigami_manga_list_params(
         "sort_order": sort_order,
     }
 
-    cleaned_query = _clean_text(query)
+    cleaned_query = clean_text(query)
     if cleaned_query:
         params["q"] = cleaned_query
 
@@ -113,21 +111,21 @@ def build_shinigami_chapter_detail_url(chapter_id: str) -> str:
 
 
 def build_shinigami_series_url(manga_id: str | None) -> str | None:
-    cleaned_id = _clean_text(manga_id)
+    cleaned_id = clean_text(manga_id)
     if not cleaned_id:
         return None
     return f"{SHINIGAMI_BASE_URL}/series/{cleaned_id}/"
 
 
 def clean_shinigami_series_title(raw_title: str | None) -> str:
-    title = _clean_text(raw_title)
+    title = clean_text(raw_title)
     title = re.sub(r"\s+Chara Image$", "", title, flags=re.IGNORECASE)
     title = re.sub(r"^\s*UP\s+", "", title, flags=re.IGNORECASE)
     return title
 
 
 def parse_shinigami_iso_datetime(value: str | None) -> datetime | None:
-    cleaned = _clean_text(value)
+    cleaned = clean_text(value)
     if not cleaned:
         return None
 

@@ -49,6 +49,7 @@ from scrapling.fetchers import AsyncStealthySession
 
 from scraper.base_scraper import BaseComicScraper
 from scraper.sources.common import ScraperCommonMixin
+from scraper.utils import clean_text
 
 logger = logging.getLogger("scraper.komiku_asia")
 
@@ -187,7 +188,7 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
         return page
 
     def _parse_date(self, date_str: str | None) -> datetime | None:
-        cleaned = self._clean_text(date_str)
+        cleaned = clean_text(date_str)
         if not cleaned:
             return None
 
@@ -229,8 +230,8 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
             if len(cells) < 2:
                 continue
 
-            key = self._clean_text(cells[0].text).lower().rstrip(":")
-            value = self._clean_text(cells[1].get_all_text())
+            key = clean_text(cells[0].text).lower().rstrip(":")
+            value = clean_text(cells[1].get_all_text())
             if key:
                 info_map[key] = value
         return info_map
@@ -249,11 +250,11 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
                 title = ""
                 title_el = card.css(".tt")
                 if title_el:
-                    title = self._clean_text(title_el[0].text)
+                    title = clean_text(title_el[0].text)
                 if not title:
                     img = card.css("img")
                     if img:
-                        title = self._clean_text(img[0].attrib.get("alt"))
+                        title = clean_text(img[0].attrib.get("alt"))
                 if not title:
                     continue
 
@@ -265,7 +266,7 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
                 latest_chapter_url = None
                 chapter_el = card.css(".epxs")
                 if chapter_el:
-                    latest_chapter = self._clean_text(chapter_el[0].text)
+                    latest_chapter = clean_text(chapter_el[0].text)
                     latest_chapter_number = self._parse_chapter_number(latest_chapter)
 
                 rating_el = card.css(".numscore")
@@ -279,7 +280,7 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
                 summary = None
                 summary_el = card.css(".bigor .adds")
                 if summary_el:
-                    summary = self._clean_text(summary_el[0].get_all_text())
+                    summary = clean_text(summary_el[0].get_all_text())
 
                 comics_data.append(
                     self._build_comic_payload(
@@ -309,16 +310,16 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
                 if not title_el:
                     continue
 
-                title = self._clean_text(title_el[0].text)
+                title = clean_text(title_el[0].text)
                 comic_url = self._resolve_url(title_el[0].attrib.get("href"))
 
                 img = card.css(".imgseries img")
                 cover_url = self._extract_image_url(img[0] if img else None, invalid_substrings=())
 
                 genres = [
-                    self._clean_text(genre.text)
+                    clean_text(genre.text)
                     for genre in card.css(".leftseries span a")
-                    if self._clean_text(genre.text)
+                    if clean_text(genre.text)
                 ]
 
                 rating_el = card.css(".numscore")
@@ -355,12 +356,12 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
         title = ""
         title_el = response.css("h1.entry-title")
         if title_el:
-            title = self._clean_text(title_el[0].text)
+            title = clean_text(title_el[0].text)
 
         synopsis = None
         synopsis_el = response.css(".entry-content-single[itemprop='description'] p")
         if synopsis_el:
-            synopsis = self._clean_text(synopsis_el[0].text)
+            synopsis = clean_text(synopsis_el[0].text)
 
         cover_el = response.css(".seriestucontl .thumb img")
         cover_url = self._extract_image_url(cover_el[0] if cover_el else None, invalid_substrings=())
@@ -368,9 +369,9 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
         info_map = self._extract_info_table_map(response)
 
         genres = [
-            self._clean_text(genre.text)
+            clean_text(genre.text)
             for genre in response.css(".seriestugenre a")
-            if self._clean_text(genre.text)
+            if clean_text(genre.text)
         ]
 
         rating = None
@@ -388,7 +389,7 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
                 chapter_url = self._resolve_url(link_el[0].attrib.get("href"))
 
                 title_node = chapter_item.css(".chapternum")
-                chapter_title = self._clean_text(title_node[0].text) if title_node else ""
+                chapter_title = clean_text(title_node[0].text) if title_node else ""
 
                 date_node = chapter_item.css(".chapterdate")
                 release_date = self._parse_date(date_node[0].text if date_node else None)
