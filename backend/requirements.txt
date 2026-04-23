@@ -10,6 +10,10 @@ alembic>=1.13.0
 # Validation & Settings
 pydantic>=2.0.0
 pydantic-settings>=2.0.0
+email-validator>=2.0.0
+
+# Supabase Auth / JWT validation
+PyJWT[crypto]>=2.8.0
 
 # Scraping
 scrapling[all]>=0.3.0

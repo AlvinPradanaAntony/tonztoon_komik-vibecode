@@ -24,7 +24,22 @@ from app.config import settings
 from app.database import Base
 
 # Import semua model agar Alembic mendeteksi table definitions
-from app.models import Comic, Chapter, Genre, SourceStat, comic_genre  # noqa: F401
+from app.models import (  # noqa: F401
+    Chapter,
+    Comic,
+    Genre,
+    Profile,
+    ReaderPreference,
+    SourceStat,
+    UserBookmark,
+    UserCollection,
+    UserCollectionComic,
+    UserDownloadEntry,
+    UserFavoriteScene,
+    UserHistoryEntry,
+    UserProgress,
+    comic_genre,
+)
 
 # this is the Alembic Config object
 config = context.config
