@@ -42,6 +42,13 @@ def build_shinigami_search_url(query: str | None = None) -> str:
     return f"{SHINIGAMI_BASE_URL}/search?q={quote(cleaned_query)}"
 
 
+def build_shinigami_chapter_url(chapter_id: str | None) -> str | None:
+    cleaned_id = _clean_text(chapter_id)
+    if not cleaned_id:
+        return None
+    return f"{SHINIGAMI_BASE_URL}/chapter/{cleaned_id}"
+
+
 def build_shinigami_manga_list_params(
     *,
     page: int = 1,
@@ -82,6 +89,27 @@ def build_shinigami_manga_list_url(
         sort_order=sort_order,
     )
     return f"{SHINIGAMI_API_BASE_URL}/manga/list?{urlencode(params)}"
+
+
+def build_shinigami_chapter_list_url(
+    manga_id: str,
+    *,
+    page: int = 1,
+    page_size: int = DEFAULT_CHAPTER_LIST_PAGE_SIZE,
+    sort_by: str = "chapter_number",
+    sort_order: str = "desc",
+) -> str:
+    params = {
+        "page": page,
+        "page_size": page_size,
+        "sort_by": sort_by,
+        "sort_order": sort_order,
+    }
+    return f"{SHINIGAMI_API_BASE_URL}/chapter/{manga_id}/list?{urlencode(params)}"
+
+
+def build_shinigami_chapter_detail_url(chapter_id: str) -> str:
+    return f"{SHINIGAMI_API_BASE_URL}/chapter/detail/{chapter_id}"
 
 
 def build_shinigami_series_url(manga_id: str | None) -> str | None:

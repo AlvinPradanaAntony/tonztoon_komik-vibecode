@@ -14,4 +14,4 @@ build/
 .pub/
 testing/
 backend/logs/
-backend/data
+backend/checkpoints

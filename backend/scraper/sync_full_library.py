@@ -362,7 +362,7 @@ SUPPORTED_REFRESH_FIELDS = frozenset(
 )
 
 # -- Checkpoint --
-CHECKPOINT_DIR = Path(__file__).resolve().parent.parent / "data"
+CHECKPOINT_DIR = Path(__file__).resolve().parent.parent / "checkpoints"
 LEGACY_CHECKPOINT_FILE = CHECKPOINT_DIR / "sync_checkpoint.json"
 
 # ═══════════════════════════════════════════════════════════════════
