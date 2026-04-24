@@ -4,10 +4,11 @@ Supabase Auth API routes.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import APIRouter, Depends, status
+from fastapi.security import HTTPAuthorizationCredentials
 
 from app.api.deps import bearer_scheme, get_current_auth_user
+from app.api.errors import raise_api_error
 from app.database import get_db
 from app.schemas import (
     AuthenticatedUser,
@@ -38,6 +39,10 @@ from app.services.profile_service import (
 router = APIRouter()
 
 
+def _raise_auth_service_error(exc: AuthRequestError) -> None:
+    raise_api_error(exc.status_code, exc.message, code=exc.code)
+
+
 @router.post("/register", response_model=AuthSessionResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     payload: AuthRegisterRequest,
@@ -54,9 +59,9 @@ async def register(
             )
         return response
     except AuthConfigurationError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise_api_error(status.HTTP_500_INTERNAL_SERVER_ERROR, str(exc))
     except AuthRequestError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _raise_auth_service_error(exc)
 
 
 @router.post("/login", response_model=AuthSessionResponse)
@@ -75,9 +80,9 @@ async def login(
             )
         return response
     except AuthConfigurationError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise_api_error(status.HTTP_500_INTERNAL_SERVER_ERROR, str(exc))
     except AuthRequestError as exc:
-        raise HTTPException(status_code=401, detail=str(exc)) from exc
+        _raise_auth_service_error(exc)
 
 
 @router.post("/refresh", response_model=AuthSessionResponse)
@@ -96,9 +101,9 @@ async def refresh(
             )
         return response
     except AuthConfigurationError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise_api_error(status.HTTP_500_INTERNAL_SERVER_ERROR, str(exc))
     except AuthRequestError as exc:
-        raise HTTPException(status_code=401, detail=str(exc)) from exc
+        _raise_auth_service_error(exc)
 
 
 @router.post("/logout", response_model=AuthLogoutResponse)
@@ -107,17 +112,14 @@ async def logout(
 ):
     """Revoke current Supabase session refresh token chain."""
     if credentials is None or credentials.scheme.lower() != "bearer":
-        raise HTTPException(
-            status_code=401,
-            detail="Bearer token required.",
-        )
+        raise_api_error(status.HTTP_401_UNAUTHORIZED, "Bearer token required.")
 
     try:
         await logout_auth_session(credentials.credentials)
     except AuthConfigurationError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise_api_error(status.HTTP_500_INTERNAL_SERVER_ERROR, str(exc))
     except AuthRequestError as exc:
-        raise HTTPException(status_code=401, detail=str(exc)) from exc
+        _raise_auth_service_error(exc)
 
     return AuthLogoutResponse()
 
@@ -152,5 +154,5 @@ async def patch_profile_me(
     try:
         profile = await update_profile(db, auth_user.user_id, payload)
     except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise_api_error(status.HTTP_409_CONFLICT, str(exc))
     return build_profile_response(profile)

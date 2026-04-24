@@ -7,9 +7,17 @@ Menjalankan:
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.api.errors import (
+    build_error_payload,
+    build_unhandled_error_payload,
+    get_fallback_error_message,
+)
 from app.config import settings
 from app.api.router import api_router
 
@@ -42,6 +50,43 @@ app.add_middleware(
 
 # Include all API routes
 app.include_router(api_router, prefix="/api")
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(_: Request, exc: StarletteHTTPException) -> JSONResponse:
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=build_error_payload(
+            exc.detail,
+            fallback_message=get_fallback_error_message(exc.status_code),
+        ),
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_exception_handler(
+    _: Request,
+    exc: RequestValidationError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=422,
+        content={
+            "message": get_fallback_error_message(422),
+            "errors": exc.errors(),
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(_: Request, exc: Exception) -> JSONResponse:
+    return JSONResponse(
+        status_code=500,
+        content=build_unhandled_error_payload(
+            exc,
+            fallback_message=get_fallback_error_message(500),
+            include_debug_detail=settings.APP_DEBUG,
+        ),
+    )
 
 
 @app.get("/", tags=["Health"])

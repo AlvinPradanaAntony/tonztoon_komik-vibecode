@@ -6,9 +6,10 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import Header, HTTPException, status, Depends
+from fastapi import Header, status, Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from app.api.errors import raise_api_error
 from app.config import settings
 from app.schemas import AuthenticatedUser
 from app.services.auth_service import AuthValidationError, validate_supabase_jwt
@@ -30,18 +31,12 @@ async def get_current_auth_user(
         try:
             return await validate_supabase_jwt(credentials.credentials)
         except AuthValidationError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=str(exc),
-            ) from exc
+            raise_api_error(status.HTTP_401_UNAUTHORIZED, str(exc))
 
     if settings.ALLOW_DEV_USER_HEADER and x_user_id is not None:
         return AuthenticatedUser(user_id=x_user_id)
 
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Bearer token required.",
-    )
+    raise_api_error(status.HTTP_401_UNAUTHORIZED, "Bearer token required.")
 
 
 async def get_current_user_id(

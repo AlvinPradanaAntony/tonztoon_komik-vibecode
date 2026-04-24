@@ -40,6 +40,18 @@ class AuthValidationError(RuntimeError):
 class AuthRequestError(RuntimeError):
     """Raised when Supabase Auth API call fails."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int,
+        code: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.message = message
+        self.status_code = status_code
+        self.code = code
+
 
 @dataclass(slots=True)
 class RemoteAuthUser:
@@ -166,7 +178,7 @@ async def register_with_email_password(
         )
 
     if response.status_code >= 400:
-        raise AuthRequestError(_extract_auth_error_message(response))
+        raise _build_register_auth_error(response)
 
     return _normalize_session(response.json())
 
@@ -191,7 +203,7 @@ async def login_with_email_password(
         )
 
     if response.status_code >= 400:
-        raise AuthRequestError(_extract_auth_error_message(response))
+        raise _build_login_auth_error(response)
 
     return _normalize_session(response.json())
 
@@ -215,7 +227,7 @@ async def refresh_auth_session(
         )
 
     if response.status_code >= 400:
-        raise AuthRequestError(_extract_auth_error_message(response))
+        raise _build_refresh_auth_error(response)
 
     return _normalize_session(response.json())
 
@@ -238,22 +250,107 @@ async def logout_auth_session(access_token: str) -> None:
         )
 
     if response.status_code not in {200, 204}:
-        raise AuthRequestError(_extract_auth_error_message(response))
+        raise _build_logout_auth_error(response)
 
 
-def _extract_auth_error_message(response: httpx.Response) -> str:
+def _extract_auth_error_payload(response: httpx.Response) -> tuple[str, str | None]:
     try:
         payload = response.json()
     except ValueError:
         payload = {}
 
-    return (
+    message = (
         payload.get("msg")
         or payload.get("error_description")
         or payload.get("error")
         or payload.get("message")
         or f"Supabase Auth request failed with status {response.status_code}."
     )
+    code = payload.get("code") or payload.get("error_code")
+    return message, code
+
+
+def _normalize_error_text(*values: str | None) -> str:
+    return " ".join(
+        value.strip().lower()
+        for value in values
+        if isinstance(value, str) and value.strip()
+    )
+
+
+def _build_register_auth_error(response: httpx.Response) -> AuthRequestError:
+    message, code = _extract_auth_error_payload(response)
+    normalized = _normalize_error_text(message, code)
+
+    if "already registered" in normalized or "user_already_exists" in normalized:
+        return AuthRequestError(
+            "Email sudah terdaftar.",
+            status_code=409,
+            code="email_already_registered",
+        )
+
+    return AuthRequestError(message, status_code=400, code=code)
+
+
+def _build_login_auth_error(response: httpx.Response) -> AuthRequestError:
+    message, code = _extract_auth_error_payload(response)
+    normalized = _normalize_error_text(message, code)
+
+    if (
+        "invalid login credentials" in normalized
+        or "invalid_credentials" in normalized
+        or "email or password" in normalized
+    ):
+        return AuthRequestError(
+            "Email atau kata sandi salah.",
+            status_code=401,
+            code="invalid_credentials",
+        )
+
+    if "email not confirmed" in normalized or "email_not_confirmed" in normalized:
+        return AuthRequestError(
+            "Email belum dikonfirmasi. Silakan cek inbox Anda terlebih dahulu.",
+            status_code=403,
+            code="email_not_confirmed",
+        )
+
+    return AuthRequestError(message, status_code=401, code=code)
+
+
+def _build_refresh_auth_error(response: httpx.Response) -> AuthRequestError:
+    message, code = _extract_auth_error_payload(response)
+    normalized = _normalize_error_text(message, code)
+
+    if (
+        "refresh token" in normalized
+        and (
+            "invalid" in normalized
+            or "expired" in normalized
+            or "not found" in normalized
+            or "already used" in normalized
+        )
+    ) or "refresh_token" in normalized:
+        return AuthRequestError(
+            "Sesi login sudah tidak valid. Silakan login ulang.",
+            status_code=401,
+            code="invalid_refresh_token",
+        )
+
+    return AuthRequestError(message, status_code=401, code=code)
+
+
+def _build_logout_auth_error(response: httpx.Response) -> AuthRequestError:
+    message, code = _extract_auth_error_payload(response)
+    normalized = _normalize_error_text(message, code)
+
+    if "jwt" in normalized or "token" in normalized or "session" in normalized:
+        return AuthRequestError(
+            "Access token tidak valid atau sudah kedaluwarsa.",
+            status_code=401,
+            code="invalid_access_token",
+        )
+
+    return AuthRequestError(message, status_code=401, code=code)
 
 
 def _decode_unverified_claims(token: str) -> dict[str, Any]:
@@ -329,7 +426,7 @@ async def _verify_token_remotely(token: str) -> RemoteAuthUser:
         )
 
     if response.status_code >= 400:
-        raise AuthValidationError(_extract_auth_error_message(response))
+        raise AuthValidationError(_extract_auth_error_payload(response)[0])
 
     user_payload = response.json()
     app_metadata = user_payload.get("app_metadata") or {}
