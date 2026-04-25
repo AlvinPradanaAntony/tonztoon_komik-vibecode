@@ -70,12 +70,21 @@ _latest_chapter_release_subq = (
 )
 
 
-def _build_comic_response(comic: Comic, total_chapters: int) -> ComicResponse:
+def _get_request_base_url(request: Request) -> str:
+    return str(request.base_url).rstrip("/")
+
+
+def _build_comic_response(
+    request: Request,
+    comic: Comic,
+    total_chapters: int,
+) -> ComicResponse:
     """Bangun response komik tanpa memuat body chapter images."""
+    base_url = _get_request_base_url(request)
     return ComicResponse(
         **{
             field_name: (
-                build_proxy_image_url(getattr(comic, field_name))
+                build_proxy_image_url(getattr(comic, field_name), base_url=base_url)
                 if field_name == "cover_image_url"
                 else getattr(comic, field_name)
             )
@@ -87,9 +96,13 @@ def _build_comic_response(comic: Comic, total_chapters: int) -> ComicResponse:
     )
 
 
-def _build_source_chapter_response(source_name: str, chapter: Chapter) -> SourceChapterResponse:
+def _build_source_chapter_response(
+    request: Request,
+    source_name: str,
+    chapter: Chapter,
+) -> SourceChapterResponse:
     """Bangun payload chapter reader dengan URL gambar yang sudah diproxy."""
-    images = wrap_chapter_image_urls(chapter.images)
+    images = wrap_chapter_image_urls(chapter.images, base_url=_get_request_base_url(request))
     return SourceChapterResponse(
         source_name=source_name,
         chapter_number=chapter.chapter_number,
@@ -116,7 +129,7 @@ def _build_source_comic_detail_url(source_name: str, slug: str) -> str:
 
 def _build_absolute_url(request: Request, path: str) -> str:
     """Gabungkan host aktif request dengan path API absolut."""
-    return f"{str(request.base_url).rstrip('/')}{path}"
+    return f"{_get_request_base_url(request)}{path}"
 
 
 def _build_source_comic_list_item(
@@ -126,11 +139,12 @@ def _build_source_comic_list_item(
     latest_chapter_number: float | None,
 ) -> SourceComicListItem:
     """Bangun item response katalog komik source-scoped."""
+    base_url = _get_request_base_url(request)
     return SourceComicListItem(
         title=comic.title,
         slug=comic.slug,
         source_name=source_name,
-        cover_image_url=build_proxy_image_url(comic.cover_image_url),
+        cover_image_url=build_proxy_image_url(comic.cover_image_url, base_url=base_url),
         status=comic.status,
         type=comic.type,
         rating=comic.rating,
@@ -341,6 +355,7 @@ async def search_source_comics(
 
 @router.get("/{source_name}/comics/{slug}", response_model=ComicResponse)
 async def get_source_comic_detail(
+    request: Request,
     source_name: str,
     slug: str,
     db: AsyncSession = Depends(get_db),
@@ -358,7 +373,7 @@ async def get_source_comic_detail(
         raise HTTPException(status_code=404, detail="Comic not found")
 
     comic, total_chapters = row
-    return _build_comic_response(comic, total_chapters)
+    return _build_comic_response(request, comic, total_chapters)
 
 
 @router.get(
@@ -408,6 +423,7 @@ async def get_source_comic_chapters(
     response_model=SourceChapterResponse,
 )
 async def get_source_chapter_detail(
+    request: Request,
     source_name: str,
     slug: str,
     chapter_number: float,
@@ -437,4 +453,4 @@ async def get_source_chapter_detail(
         comic_id=chapter.comic_id,
         current_chapter_number=chapter.chapter_number,
     )
-    return _build_source_chapter_response(source["id"], chapter)
+    return _build_source_chapter_response(request, source["id"], chapter)

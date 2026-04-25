@@ -186,20 +186,20 @@ async def fetch_and_save_chapter_images(
         await db.commit()
 
         logger.info(
-            f"✓ Images tersimpan: Ch {chapter.chapter_number} "
-            f"→ {len(images_json)} gambar"
+            f"✅ Images tersimpan: Ch {chapter.chapter_number} "
+            f"➡️  {len(images_json)} gambar"
         )
         return True
 
     except asyncio.TimeoutError:
         logger.warning(
-            f"⏱ Timeout ({timeout_seconds}s) saat fetch Ch {chapter.chapter_number}"
+            f"⏳ Timeout ({timeout_seconds}s) saat fetch Ch {chapter.chapter_number}"
         )
         await db.rollback()
         return False
 
     except Exception as e:
-        logger.error(f"✗ Error fetch Ch {chapter.chapter_number}: {e}")
+        logger.error(f"❌ Error fetch Ch {chapter.chapter_number}: {e}")
         await db.rollback()
         raise ImageFetchError(str(e)) from e
 

@@ -72,7 +72,7 @@ class Settings(BaseSettings):
 
     # --- App ---
     APP_ENV: str = Field(default="development")
-    APP_DEBUG: bool = Field(default=True)
+    APP_DEBUG: bool = Field(default=False)
 
     model_config = {
         "env_file": ".env",

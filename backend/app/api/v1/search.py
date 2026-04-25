@@ -65,13 +65,14 @@ async def search_comics(
     )
     result = await db.execute(stmt)
     rows = result.unique().all()
+    base_url = str(request.base_url).rstrip("/")
 
     return [
         SourceComicListItem(
             title=comic.title,
             slug=comic.slug,
             source_name=comic.source_name,
-            cover_image_url=build_proxy_image_url(comic.cover_image_url),
+            cover_image_url=build_proxy_image_url(comic.cover_image_url, base_url=base_url),
             status=comic.status,
             type=comic.type,
             rating=comic.rating,

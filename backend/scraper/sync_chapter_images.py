@@ -127,6 +127,7 @@ from scraper.time_utils import now_wib
 from scraper.utils import (
     GracefulShutdown,
     backoff_delay,
+    configure_external_loggers as _configure_external_loggers_base,
     configure_logging as _configure_logging_base,
     format_elapsed_duration,
     random_delay,
@@ -179,6 +180,7 @@ def configure_logging(
 ) -> None:
     filename = log_file or str(_build_default_log_filename(source_name=source_name))
     _configure_logging_base(filename, default_filename=str(DEFAULT_LOG_FILE))
+    _configure_external_loggers_base()
 
 logger = logging.getLogger("sync-chapter-images")
 

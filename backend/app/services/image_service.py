@@ -31,7 +31,25 @@ DEFAULT_USER_AGENT = (
 PROXY_IMAGE_PATH = "/api/v1/images/proxy"
 
 
-def build_proxy_image_url(image_url: str | None) -> str | None:
+def build_absolute_url(base_url: str | None, path: str | None) -> str | None:
+    """Ubah path API relatif menjadi URL absolut memakai host request."""
+    if not path:
+        return path
+
+    parsed = urlparse(path)
+    if parsed.scheme and parsed.netloc:
+        return path
+
+    if not base_url:
+        return path
+
+    return f"{base_url.rstrip('/')}/{path.lstrip('/')}"
+
+
+def build_proxy_image_url(
+    image_url: str | None,
+    base_url: str | None = None,
+) -> str | None:
     """
     Bungkus URL gambar asli ke endpoint proxy global FastAPI.
 
@@ -41,23 +59,30 @@ def build_proxy_image_url(image_url: str | None) -> str | None:
         return image_url
 
     parsed = urlparse(image_url)
-    if image_url.startswith(PROXY_IMAGE_PATH) or parsed.path.endswith(PROXY_IMAGE_PATH):
+    if image_url.startswith(PROXY_IMAGE_PATH):
+        return build_absolute_url(base_url, image_url)
+
+    if parsed.path.endswith(PROXY_IMAGE_PATH):
         return image_url
 
     if not parsed.scheme or not parsed.netloc:
         return image_url
 
-    return f"{PROXY_IMAGE_PATH}?{urlencode({'url': image_url})}"
+    proxy_path = f"{PROXY_IMAGE_PATH}?{urlencode({'url': image_url})}"
+    return build_absolute_url(base_url, proxy_path)
 
 
-def wrap_chapter_image_urls(images: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+def wrap_chapter_image_urls(
+    images: list[dict[str, Any]] | None,
+    base_url: str | None = None,
+) -> list[dict[str, Any]]:
     """
     Bungkus semua field `url` di array gambar chapter ke URL proxy global.
     """
     wrapped_images: list[dict[str, Any]] = []
     for image in images or []:
         wrapped_image = dict(image)
-        wrapped_image["url"] = build_proxy_image_url(image.get("url"))
+        wrapped_image["url"] = build_proxy_image_url(image.get("url"), base_url=base_url)
         wrapped_images.append(wrapped_image)
     return wrapped_images
 

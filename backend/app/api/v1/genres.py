@@ -6,7 +6,7 @@ Endpoints:
     GET /api/v1/genres/{slug}/comics — Komik per genre
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -30,6 +30,7 @@ async def list_genres(db: AsyncSession = Depends(get_db)):
 
 @router.get("/{slug}/comics", response_model=list[ComicResponse])
 async def get_comics_by_genre(
+    request: Request,
     slug: str,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=50),
@@ -56,12 +57,13 @@ async def get_comics_by_genre(
     )
     result = await db.execute(stmt)
     comics = result.scalars().unique().all()
+    base_url = str(request.base_url).rstrip("/")
 
     return [
         ComicResponse(
             **{
                 c: (
-                    build_proxy_image_url(getattr(comic, c))
+                    build_proxy_image_url(getattr(comic, c), base_url=base_url)
                     if c == "cover_image_url"
                     else getattr(comic, c)
                 )

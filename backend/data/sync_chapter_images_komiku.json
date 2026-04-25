@@ -1,0 +1,29 @@
+{
+  "last_processed_chapter_id": 3795,
+  "updated_at": "2026-04-24T15:00:37.280808+07:00",
+  "stats": {
+    "total_batches": 4,
+    "total_scanned": 214,
+    "total_fetched": 214,
+    "total_skipped": 0,
+    "total_errors": 0
+  },
+  "progress": {
+    "source": "komiku",
+    "selection": "ordered",
+    "batch_size": 50,
+    "limit": 0,
+    "current_pending_total": 360303,
+    "current_batch_number": 4,
+    "current_batch_size": 50,
+    "current_chapter_id": 3795,
+    "current_chapter_position": 16,
+    "current_chapter_total": 50,
+    "current_source_name": "komiku",
+    "current_comic_title": "A Demonic Heart",
+    "current_chapter_number": 59.0,
+    "current_chapter_url": "https://komiku.org/a-demonic-heart-chapter-59/",
+    "state": "stopped-by-user",
+    "note": "Sync dihentikan oleh user"
+  }
+}

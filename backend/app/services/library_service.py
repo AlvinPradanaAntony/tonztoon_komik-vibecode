@@ -61,14 +61,17 @@ def normalize_collection_name(name: str) -> str:
     return " ".join(name.split()).strip().casefold()
 
 
-def build_comic_ref(comic: Comic) -> LibraryComicRef:
+def build_comic_ref(
+    comic: Comic,
+    base_url: str | None = None,
+) -> LibraryComicRef:
     """Bangun snapshot ringan komik untuk response library."""
     return LibraryComicRef(
         comic_id=comic.id,
         source_name=comic.source_name,
         slug=comic.slug,
         title=comic.title,
-        cover_image_url=build_proxy_image_url(comic.cover_image_url),
+        cover_image_url=build_proxy_image_url(comic.cover_image_url, base_url=base_url),
         author=comic.author,
         status=comic.status,
         type=comic.type,
@@ -100,11 +103,14 @@ def build_reader_preferences_response(preference: ReaderPreference) -> ReaderPre
     )
 
 
-def build_progress_response(progress: UserProgress) -> ProgressResponse:
+def build_progress_response(
+    progress: UserProgress,
+    base_url: str | None = None,
+) -> ProgressResponse:
     """Serialisasi progress ORM -> schema."""
     return ProgressResponse(
         id=progress.id,
-        comic=build_comic_ref(progress.comic),
+        comic=build_comic_ref(progress.comic, base_url=base_url),
         chapter=build_chapter_ref(progress.chapter),
         reading_mode=progress.reading_mode,
         scroll_offset=progress.scroll_offset,
@@ -117,11 +123,14 @@ def build_progress_response(progress: UserProgress) -> ProgressResponse:
     )
 
 
-def build_history_response(entry: UserHistoryEntry) -> HistoryItemResponse:
+def build_history_response(
+    entry: UserHistoryEntry,
+    base_url: str | None = None,
+) -> HistoryItemResponse:
     """Serialisasi history ORM -> schema."""
     return HistoryItemResponse(
         id=entry.id,
-        comic=build_comic_ref(entry.comic),
+        comic=build_comic_ref(entry.comic, base_url=base_url),
         chapter=build_chapter_ref(entry.chapter),
         reading_mode=entry.reading_mode,
         scroll_offset=entry.scroll_offset,
@@ -133,11 +142,14 @@ def build_history_response(entry: UserHistoryEntry) -> HistoryItemResponse:
     )
 
 
-def build_bookmark_response(bookmark: UserBookmark) -> BookmarkResponse:
+def build_bookmark_response(
+    bookmark: UserBookmark,
+    base_url: str | None = None,
+) -> BookmarkResponse:
     """Serialisasi bookmark ORM -> schema."""
     return BookmarkResponse(
         id=bookmark.id,
-        comic=build_comic_ref(bookmark.comic),
+        comic=build_comic_ref(bookmark.comic, base_url=base_url),
         created_at=bookmark.created_at,
         updated_at=bookmark.updated_at,
     )
@@ -154,9 +166,12 @@ def build_collection_summary_response(collection: UserCollection) -> CollectionS
     )
 
 
-def build_collection_response(collection: UserCollection) -> CollectionResponse:
+def build_collection_response(
+    collection: UserCollection,
+    base_url: str | None = None,
+) -> CollectionResponse:
     """Detail collection dengan daftar komik."""
-    items = [build_comic_ref(item.comic) for item in collection.items]
+    items = [build_comic_ref(item.comic, base_url=base_url) for item in collection.items]
     return CollectionResponse(
         id=collection.id,
         name=collection.name,
@@ -167,25 +182,31 @@ def build_collection_response(collection: UserCollection) -> CollectionResponse:
     )
 
 
-def build_favorite_scene_response(scene: UserFavoriteScene) -> FavoriteSceneResponse:
+def build_favorite_scene_response(
+    scene: UserFavoriteScene,
+    base_url: str | None = None,
+) -> FavoriteSceneResponse:
     """Serialisasi favorite scene ORM -> schema."""
     return FavoriteSceneResponse(
         id=scene.id,
-        comic=build_comic_ref(scene.comic),
+        comic=build_comic_ref(scene.comic, base_url=base_url),
         chapter=build_chapter_ref(scene.chapter),
         page_item_index=scene.page_item_index,
-        image_url=build_proxy_image_url(scene.image_url),
+        image_url=build_proxy_image_url(scene.image_url, base_url=base_url),
         note=scene.note,
         created_at=scene.created_at,
         updated_at=scene.updated_at,
     )
 
 
-def build_download_response(entry: UserDownloadEntry) -> DownloadEntryResponse:
+def build_download_response(
+    entry: UserDownloadEntry,
+    base_url: str | None = None,
+) -> DownloadEntryResponse:
     """Serialisasi download intent ORM -> schema."""
     return DownloadEntryResponse(
         id=entry.id,
-        comic=build_comic_ref(entry.comic),
+        comic=build_comic_ref(entry.comic, base_url=base_url),
         chapter=build_chapter_ref(entry.chapter),
         status=entry.status,
         source_device_id=entry.source_device_id,
@@ -820,6 +841,7 @@ async def enqueue_download_batch(
     db: AsyncSession,
     user_id: uuid.UUID,
     payload: DownloadBatchRequest,
+    base_url: str | None = None,
 ) -> DownloadBatchResponse:
     """Enqueue download intent untuk banyak chapter sekaligus."""
     comic = await resolve_comic_or_raise(db, payload.source_name, payload.comic_slug)
@@ -875,7 +897,7 @@ async def enqueue_download_batch(
 
     await db.commit()
     return DownloadBatchResponse(
-        comic=build_comic_ref(comic),
+        comic=build_comic_ref(comic, base_url=base_url),
         requested_total=len(filtered),
         created_total=created_total,
         updated_total=updated_total,
@@ -886,6 +908,7 @@ async def enqueue_download_batch(
 async def get_library_summary(
     db: AsyncSession,
     user_id: uuid.UUID,
+    base_url: str | None = None,
 ) -> LibrarySummaryResponse:
     """Ringkasan utama library untuk home/library screen."""
     bookmark_count = (
@@ -933,8 +956,14 @@ async def get_library_summary(
             downloads=download_count or 0,
             continue_reading=progress_count or 0,
         ),
-        continue_reading=[build_progress_response(item) for item in continue_reading],
-        recent_history=[build_history_response(item) for item in history],
+        continue_reading=[
+            build_progress_response(item, base_url=base_url)
+            for item in continue_reading
+        ],
+        recent_history=[
+            build_history_response(item, base_url=base_url)
+            for item in history
+        ],
         collections=[build_collection_summary_response(item) for item in collections],
         reader_preferences=(
             build_reader_preferences_response(preferences)
@@ -949,6 +978,7 @@ async def get_library_state_for_comic(
     user_id: uuid.UUID,
     source_name: str,
     comic_slug: str,
+    base_url: str | None = None,
 ) -> LibraryComicStateResponse:
     """State terpadu satu komik untuk CTA detail page."""
     comic = await resolve_comic_or_raise(db, source_name, comic_slug)
@@ -1010,14 +1040,25 @@ async def get_library_state_for_comic(
     download_status_counts = dict(Counter(entry.status for entry in download_entries))
 
     return LibraryComicStateResponse(
-        comic=build_comic_ref(comic),
+        comic=build_comic_ref(comic, base_url=base_url),
         bookmarked=bookmark is not None,
         collections=[build_collection_summary_response(item) for item in collections],
-        progress=build_progress_response(progress) if progress is not None else None,
-        history=build_history_response(history) if history is not None else None,
+        progress=(
+            build_progress_response(progress, base_url=base_url)
+            if progress is not None
+            else None
+        ),
+        history=(
+            build_history_response(history, base_url=base_url)
+            if history is not None
+            else None
+        ),
         favorite_scene_count=favorite_scene_count or 0,
         download_status_counts=download_status_counts,
-        download_entries=[build_download_response(entry) for entry in download_entries],
+        download_entries=[
+            build_download_response(entry, base_url=base_url)
+            for entry in download_entries
+        ],
     )
 
 
