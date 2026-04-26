@@ -6,10 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/reader_image_cache.dart';
 import '../../models/comic.dart';
 import '../../models/progress.dart';
 import '../../repositories/providers.dart';
-import '../../widgets/app_async_view.dart';
 
 class ReaderScreen extends ConsumerStatefulWidget {
   const ReaderScreen({
@@ -32,9 +32,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   final _scrollController = ScrollController();
   Timer? _saveTimer;
   Timer? _overlayTimer;
+  Timer? _prefetchTimer;
   bool _overlayVisible = true;
   bool _restored = false;
   double _lastOffset = 0;
+  String? _initialPreloadKey;
+  Future<void>? _initialPreloadFuture;
+  final Set<int> _requestedPrefetchIndexes = <int>{};
 
   ComicRequest get _comicRequest =>
       ComicRequest(widget.sourceName, widget.slug);
@@ -58,6 +62,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
         oldWidget.slug != widget.slug) {
       _restored = false;
       _lastOffset = 0;
+      _initialPreloadKey = null;
+      _initialPreloadFuture = null;
+      _requestedPrefetchIndexes.clear();
       if (_scrollController.hasClients) {
         _scrollController.jumpTo(0);
       }
@@ -69,6 +76,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     WidgetsBinding.instance.removeObserver(this);
     _saveTimer?.cancel();
     _overlayTimer?.cancel();
+    _prefetchTimer?.cancel();
     _saveProgress();
     _scrollController.dispose();
     super.dispose();
@@ -93,60 +101,76 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
 
     return Scaffold(
       backgroundColor: Colors.black,
-      body: AppAsyncView(
-        value: chapter,
-        onRetry: () => ref.invalidate(chapterProvider(_chapterRequest)),
-        builder: (payload) => GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: _toggleOverlay,
-          child: Stack(
-            children: [
-              NotificationListener<UserScrollNotification>(
-                onNotification: (_) {
-                  if (_overlayVisible) {
-                    setState(() => _overlayVisible = false);
-                  }
-                  return false;
-                },
-                child: ListView.builder(
-                  controller: _scrollController,
-                  padding: EdgeInsets.zero,
-                  itemCount: payload.images.length,
-                  itemBuilder: (context, index) {
-                    final image = payload.images[index];
-                    return _ReaderImage(
-                      imageUrl: image.url,
-                      pageNumber: index + 1,
-                    );
-                  },
-                ),
+      body: chapter.when(
+        loading: () => const _PreparingChapterView(),
+        error: (error, stackTrace) => _ReaderErrorView(
+          message: error.toString(),
+          onRetry: () => ref.invalidate(chapterProvider(_chapterRequest)),
+        ),
+        data: (payload) => FutureBuilder<void>(
+          future: _ensureInitialPreload(payload),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const _PreparingChapterView();
+            }
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _prefetchFromCurrentPosition(payload);
+            });
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _toggleOverlay,
+              child: Stack(
+                children: [
+                  NotificationListener<UserScrollNotification>(
+                    onNotification: (_) {
+                      if (_overlayVisible) {
+                        setState(() => _overlayVisible = false);
+                      }
+                      return false;
+                    },
+                    child: ListView.builder(
+                      controller: _scrollController,
+                      padding: EdgeInsets.zero,
+                      cacheExtent: MediaQuery.sizeOf(context).height * 3,
+                      itemCount: payload.images.length,
+                      itemBuilder: (context, index) {
+                        final image = payload.images[index];
+                        return _ReaderImage(
+                          imageUrl: image.url,
+                          pageNumber: index + 1,
+                        );
+                      },
+                    ),
+                  ),
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 180),
+                    top: _overlayVisible ? 0 : -96,
+                    left: 0,
+                    right: 0,
+                    child: _ReaderTopBar(
+                      title: detail.asData?.value.title ?? 'Chapter',
+                      chapterNumber: widget.chapterNumber,
+                      onBack: () => context.pop(),
+                    ),
+                  ),
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 180),
+                    bottom: _overlayVisible ? 0 : -120,
+                    left: 0,
+                    right: 0,
+                    child: _ReaderBottomBar(
+                      currentIndex: _pageIndex(payload.total),
+                      total: payload.total,
+                      onPrevious: () =>
+                          _goRelativeChapter(chapters.asData?.value, 1),
+                      onNext: () =>
+                          _goRelativeChapter(chapters.asData?.value, -1),
+                    ),
+                  ),
+                ],
               ),
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 180),
-                top: _overlayVisible ? 0 : -96,
-                left: 0,
-                right: 0,
-                child: _ReaderTopBar(
-                  title: detail.asData?.value.title ?? 'Chapter',
-                  chapterNumber: widget.chapterNumber,
-                  onBack: () => context.pop(),
-                ),
-              ),
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 180),
-                bottom: _overlayVisible ? 0 : -120,
-                left: 0,
-                right: 0,
-                child: _ReaderBottomBar(
-                  currentIndex: _pageIndex(payload.total),
-                  total: payload.total,
-                  onPrevious: () =>
-                      _goRelativeChapter(chapters.asData?.value, 1),
-                  onNext: () => _goRelativeChapter(chapters.asData?.value, -1),
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
@@ -156,6 +180,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     _lastOffset = _scrollController.offset;
     _saveTimer?.cancel();
     _saveTimer = Timer(const Duration(milliseconds: 800), _saveProgress);
+    _prefetchTimer?.cancel();
+    _prefetchTimer = Timer(const Duration(milliseconds: 160), () {
+      final payload = ref.read(chapterProvider(_chapterRequest)).asData?.value;
+      if (payload != null) {
+        _prefetchFromCurrentPosition(payload);
+      }
+    });
   }
 
   void _toggleOverlay() {
@@ -190,6 +221,54 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   int _pageIndex(int total) {
     if (total <= 0) return 0;
     return math.min(total - 1, (_lastOffset / 800).floor());
+  }
+
+  Future<void> _ensureInitialPreload(ChapterPayload payload) {
+    final key =
+        '${payload.sourceName}|${payload.chapterNumber}|${payload.images.length}';
+    if (_initialPreloadKey == key && _initialPreloadFuture != null) {
+      return _initialPreloadFuture!;
+    }
+    _initialPreloadKey = key;
+    _initialPreloadFuture = _preloadIndexes(
+      payload,
+      Iterable<int>.generate(math.min(3, payload.images.length)),
+    );
+    return _initialPreloadFuture!;
+  }
+
+  void _prefetchFromCurrentPosition(ChapterPayload payload) {
+    if (!mounted || payload.images.isEmpty) return;
+    final current = _pageIndex(payload.images.length);
+    final indexes = <int>[];
+    for (var index = current + 1; index <= current + 5; index++) {
+      if (index < payload.images.length) {
+        indexes.add(index);
+      }
+    }
+    unawaited(_preloadIndexes(payload, indexes));
+  }
+
+  Future<void> _preloadIndexes(
+    ChapterPayload payload,
+    Iterable<int> indexes,
+  ) async {
+    final providers = <ImageProvider>[];
+    for (final index in indexes) {
+      if (index < 0 || index >= payload.images.length) continue;
+      if (!_requestedPrefetchIndexes.add(index)) continue;
+      providers.add(
+        CachedNetworkImageProvider(
+          payload.images[index].url,
+          cacheManager: ReaderImageCacheManager.instance,
+        ),
+      );
+    }
+    await Future.wait(
+      providers.map(
+        (provider) => precacheImage(provider, context).catchError((_) {}),
+      ),
+    );
   }
 
   Future<void> _saveProgress() async {
@@ -254,12 +333,12 @@ class _ReaderImageState extends State<_ReaderImage> {
     return CachedNetworkImage(
       key: ValueKey('${widget.imageUrl}#$_retry'),
       imageUrl: widget.imageUrl,
+      cacheManager: ReaderImageCacheManager.instance,
       fit: BoxFit.fitWidth,
       width: double.infinity,
-      placeholder: (context, url) => const SizedBox(
-        height: 360,
-        child: Center(child: CircularProgressIndicator()),
-      ),
+      fadeInDuration: Duration.zero,
+      fadeOutDuration: Duration.zero,
+      placeholder: (context, url) => const _ImageSkeleton(),
       errorWidget: (context, url, error) => SizedBox(
         height: 260,
         child: Center(
@@ -271,6 +350,105 @@ class _ReaderImageState extends State<_ReaderImage> {
         ),
       ),
     );
+  }
+}
+
+class _PreparingChapterView extends StatefulWidget {
+  const _PreparingChapterView();
+
+  @override
+  State<_PreparingChapterView> createState() => _PreparingChapterViewState();
+}
+
+class _PreparingChapterViewState extends State<_PreparingChapterView> {
+  bool _showMessage = false;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer(const Duration(milliseconds: 450), () {
+      if (mounted) setState(() => _showMessage = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Colors.black,
+      child: SafeArea(
+        child: Center(
+          child: AnimatedOpacity(
+            opacity: _showMessage ? 1 : 0,
+            duration: const Duration(milliseconds: 180),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 180,
+                  child: LinearProgressIndicator(minHeight: 2),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Preparing chapter...',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReaderErrorView extends StatelessWidget {
+  const _ReaderErrorView({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Colors.black,
+      child: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.cloud_off, size: 40),
+                const SizedBox(height: 12),
+                Text(message, textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ImageSkeleton extends StatelessWidget {
+  const _ImageSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(height: 360, color: const Color(0xFF090A0D));
   }
 }
 

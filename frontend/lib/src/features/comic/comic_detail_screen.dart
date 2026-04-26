@@ -169,6 +169,13 @@ class ComicDetailScreen extends ConsumerWidget {
                   final progressItem = progress.asData?.value;
                   final isLastRead =
                       progressItem?.chapterNumber == chapter.chapterNumber;
+                  final subtitleParts = [
+                    if (chapter.totalImages > 0) '${chapter.totalImages} pages',
+                    if (isLastRead &&
+                        progressItem?.lastReadPageItemIndex != null &&
+                        progressItem?.totalPageItems != null)
+                      '${progressItem!.lastReadPageItemIndex! + 1}/${progressItem.totalPageItems}',
+                  ];
                   return ListTile(
                     selected: isLastRead,
                     leading: CircleAvatar(
@@ -179,15 +186,9 @@ class ComicDetailScreen extends ConsumerWidget {
                           ? chapter.title!
                           : 'Chapter ${formatChapterNumber(chapter.chapterNumber)}',
                     ),
-                    subtitle: Text(
-                      [
-                        '${chapter.totalImages} pages',
-                        if (isLastRead &&
-                            progressItem?.lastReadPageItemIndex != null &&
-                            progressItem?.totalPageItems != null)
-                          '${progressItem!.lastReadPageItemIndex! + 1}/${progressItem.totalPageItems}',
-                      ].join(' • '),
-                    ),
+                    subtitle: subtitleParts.isEmpty
+                        ? null
+                        : Text(subtitleParts.join(' • ')),
                     trailing: isLastRead ? const Icon(Icons.history) : null,
                     onTap: () => context.push(
                       '/reader/$sourceName/$slug/${formatChapterNumber(chapter.chapterNumber)}',

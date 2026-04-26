@@ -16,7 +16,7 @@ Flow lengkap saat user membuka chapter:
          → Ya  : abaikan, prefetch sebelumnya masih berjalan
          → Tidak: catat timestamp, lanjutkan prefetch
        → Cari chapter dalam radius ±PREFETCH_WINDOW dari chapter yang dibuka
-       → Filter: hanya yang images-nya masih NULL
+       → Filter: hanya chapter dengan images NULL / [] / invalid
        → Fetch & simpan images diam-diam, 1 per 1 dengan delay random
 
 Catatan arsitektur — mencegah Thundering Herd:
@@ -60,8 +60,10 @@ import logging
 import random
 import time
 
-from sqlalchemy import select, update
+from sqlalchemy import case, func, or_, select, update
+from sqlalchemy.dialects.postgresql import JSONPATH
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import cast
 
 from app.database import async_session
 from app.models import Chapter, Comic
@@ -74,6 +76,10 @@ PREFETCH_TIMEOUT         = 20   # detik — batas waktu per chapter saat backgro
 PREFETCH_WINDOW          = 5    # radius chapter kiri & kanan yang di-prefetch
 PREFETCH_COOLDOWN_SECONDS = 60  # detik — jeda minimum antar-trigger prefetch per komik
 CHAPTER_NUMBER_TOLERANCE = 0.0001
+INVALID_IMAGES_JSONPATH = cast(
+    '$[*] ? (!exists(@.page) || !exists(@.url) || @.url == "")',
+    JSONPATH,
+)
 
 # Delay antar-request images saat prefetch (random untuk anti-bot detection)
 PREFETCH_DELAY_MIN = 1.5
@@ -118,6 +124,18 @@ def chapter_images_are_ready(images: list | None) -> bool:
             return False
 
     return True
+
+
+def chapter_images_are_invalid_expression():
+    """SQL expression: chapter images belum layak dipakai reader."""
+    return case(
+        (Chapter.images.is_(None), True),
+        (func.jsonb_typeof(Chapter.images) != "array", True),
+        else_=or_(
+            func.jsonb_array_length(Chapter.images) == 0,
+            func.jsonb_path_exists(Chapter.images, INVALID_IMAGES_JSONPATH),
+        ),
+    )
 
 
 # ── Factory Scraper ──────────────────────────────────────────────────────────
@@ -466,7 +484,7 @@ async def prefetch_nearby_chapters(
                     Chapter.chapter_number >= lower,
                     Chapter.chapter_number <= upper,
                     Chapter.chapter_number != current_chapter_number,
-                    Chapter.images.is_(None),
+                    chapter_images_are_invalid_expression(),
                 )
                 # Prioritaskan chapter yang paling dekat dengan yang sedang dibaca
                 # (chapter berikutnya lebih penting dari chapter sebelumnya)
