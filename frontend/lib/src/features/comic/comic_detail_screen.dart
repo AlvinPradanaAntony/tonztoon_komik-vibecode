@@ -111,9 +111,7 @@ class ComicDetailScreen extends ConsumerWidget {
                               item?.chapterNumber ??
                               _firstReadableChapter(chapters.asData?.value);
                           if (chapter == null) return;
-                          context.push(
-                            '/reader/$sourceName/$slug/${formatChapterNumber(chapter)}',
-                          );
+                          _openReader(context, ref, request, chapter);
                         },
                         icon: Icon(
                           item == null
@@ -129,9 +127,7 @@ class ComicDetailScreen extends ConsumerWidget {
                             chapters.asData?.value,
                           );
                           if (chapter == null) return;
-                          context.push(
-                            '/reader/$sourceName/$slug/${formatChapterNumber(chapter)}',
-                          );
+                          _openReader(context, ref, request, chapter);
                         },
                         icon: const Icon(Icons.play_arrow),
                         label: const Text('Read'),
@@ -190,8 +186,11 @@ class ComicDetailScreen extends ConsumerWidget {
                         ? null
                         : Text(subtitleParts.join(' • ')),
                     trailing: isLastRead ? const Icon(Icons.history) : null,
-                    onTap: () => context.push(
-                      '/reader/$sourceName/$slug/${formatChapterNumber(chapter.chapterNumber)}',
+                    onTap: () => _openReader(
+                      context,
+                      ref,
+                      request,
+                      chapter.chapterNumber,
                     ),
                   );
                 },
@@ -219,5 +218,32 @@ class ComicDetailScreen extends ConsumerWidget {
   double? _firstReadableChapter(List<ChapterListItem>? chapters) {
     if (chapters == null || chapters.isEmpty) return null;
     return chapters.last.chapterNumber;
+  }
+
+  Future<void> _openReader(
+    BuildContext context,
+    WidgetRef ref,
+    ComicRequest request,
+    double chapterNumber,
+  ) async {
+    await context.push(
+      '/reader/$sourceName/$slug/${formatChapterNumber(chapterNumber)}',
+    );
+    if (!context.mounted) return;
+    _refreshChapterState(ref, request);
+
+    // Nearby prefetch berjalan di backend secara background dan bisa selesai
+    // beberapa detik setelah user kembali dari reader.
+    Future<void>.delayed(const Duration(seconds: 3), () {
+      if (context.mounted) _refreshChapterState(ref, request);
+    });
+    Future<void>.delayed(const Duration(seconds: 8), () {
+      if (context.mounted) _refreshChapterState(ref, request);
+    });
+  }
+
+  void _refreshChapterState(WidgetRef ref, ComicRequest request) {
+    ref.invalidate(chaptersProvider(request));
+    ref.invalidate(progressProvider(request));
   }
 }

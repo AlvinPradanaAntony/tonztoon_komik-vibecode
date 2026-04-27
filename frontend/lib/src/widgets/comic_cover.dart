@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:shimmer/shimmer.dart';
 
 class ComicCover extends StatelessWidget {
   const ComicCover({
@@ -17,10 +18,11 @@ class ComicCover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final placeholder = Container(
+    final fallback = Container(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: const Center(child: Icon(Icons.menu_book_outlined)),
     );
+    const shimmer = _CoverShimmer();
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
@@ -28,14 +30,30 @@ class ComicCover extends StatelessWidget {
         width: width,
         height: height,
         child: imageUrl == null || imageUrl!.isEmpty
-            ? placeholder
+            ? fallback
             : CachedNetworkImage(
                 imageUrl: imageUrl!,
                 fit: BoxFit.cover,
-                placeholder: (context, url) => placeholder,
-                errorWidget: (context, url, error) => placeholder,
+                placeholder: (context, url) => shimmer,
+                errorWidget: (context, url, error) => fallback,
               ),
       ),
+    );
+  }
+}
+
+class _CoverShimmer extends StatelessWidget {
+  const _CoverShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    final baseColor = Theme.of(context).colorScheme.surfaceContainerHighest;
+    final highlightColor = Theme.of(context).colorScheme.surfaceContainerLow;
+
+    return Shimmer.fromColors(
+      baseColor: baseColor,
+      highlightColor: highlightColor,
+      child: Container(color: baseColor),
     );
   }
 }

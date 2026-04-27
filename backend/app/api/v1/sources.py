@@ -12,7 +12,10 @@ Endpoint publik utama untuk navigasi katalog per source:
     GET /api/v1/sources/{source_name}/search?q=...
 """
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Path, Query, Request
+import asyncio
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload, selectinload
@@ -39,6 +42,7 @@ from app.services.source_service import get_source_stats_map
 from scraper.sources.registry import get_all_source_metadata, get_source_metadata
 
 router = APIRouter()
+logger = logging.getLogger("api.sources")
 
 # ---------------------------------------------------------------------------
 # Helper: correlated subquery untuk menghitung jumlah chapter per komik.
@@ -130,6 +134,37 @@ def _build_source_comic_detail_url(source_name: str, slug: str) -> str:
 def _build_absolute_url(request: Request, path: str) -> str:
     """Gabungkan host aktif request dengan path API absolut."""
     return f"{_get_request_base_url(request)}{path}"
+
+
+def _schedule_nearby_prefetch(
+    *,
+    chapter_id: int,
+    comic_id: int,
+    current_chapter_number: float,
+) -> None:
+    """Jalankan nearby prefetch sebagai task terlepas dan log error task."""
+    task = asyncio.create_task(
+        prefetch_nearby_chapters(
+            chapter_id=chapter_id,
+            comic_id=comic_id,
+            current_chapter_number=current_chapter_number,
+        ),
+        name=f"nearby-prefetch-comic-{comic_id}-ch-{current_chapter_number:g}",
+    )
+
+    def _log_task_error(done_task: asyncio.Task) -> None:
+        try:
+            done_task.result()
+        except Exception:
+            logger.exception(
+                "Nearby prefetch task failed "
+                "(comic_id=%s, chapter_id=%s, chapter=%s)",
+                comic_id,
+                chapter_id,
+                current_chapter_number,
+            )
+
+    task.add_done_callback(_log_task_error)
 
 
 def _build_source_comic_list_item(
@@ -427,7 +462,6 @@ async def get_source_chapter_detail(
     source_name: str,
     slug: str,
     chapter_number: float,
-    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     """Payload chapter reader source-scoped dengan lazy image loading."""
@@ -447,8 +481,7 @@ async def get_source_chapter_detail(
             detail=f"Sumber komik sedang tidak dapat diakses. {exc}",
         ) from exc
 
-    background_tasks.add_task(
-        prefetch_nearby_chapters,
+    _schedule_nearby_prefetch(
         chapter_id=chapter.id,
         comic_id=chapter.comic_id,
         current_chapter_number=chapter.chapter_number,

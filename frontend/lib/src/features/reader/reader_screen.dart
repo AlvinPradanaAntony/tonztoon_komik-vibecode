@@ -29,16 +29,25 @@ class ReaderScreen extends ConsumerStatefulWidget {
 
 class _ReaderScreenState extends ConsumerState<ReaderScreen>
     with WidgetsBindingObserver {
+  static const _nearbyChapterWindow = 5.0;
+  static const _nearbyStatusPollInterval = Duration(seconds: 4);
+  static const _nearbyStatusMaxPolls = 8;
+
   final _scrollController = ScrollController();
   Timer? _saveTimer;
   Timer? _overlayTimer;
   Timer? _prefetchTimer;
+  Timer? _nearbyReadyTimer;
   bool _overlayVisible = true;
   bool _restored = false;
+  bool _nearbyWatcherStarted = false;
   double _lastOffset = 0;
+  int _nearbyReadyPolls = 0;
   String? _initialPreloadKey;
   Future<void>? _initialPreloadFuture;
   final Set<int> _requestedPrefetchIndexes = <int>{};
+  final Set<double> _announcedNearbyReadyChapters = <double>{};
+  final Map<double, int> _knownNearbyPageCounts = <double, int>{};
 
   ComicRequest get _comicRequest =>
       ComicRequest(widget.sourceName, widget.slug);
@@ -65,6 +74,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       _initialPreloadKey = null;
       _initialPreloadFuture = null;
       _requestedPrefetchIndexes.clear();
+      _nearbyWatcherStarted = false;
+      _nearbyReadyPolls = 0;
+      _announcedNearbyReadyChapters.clear();
+      _knownNearbyPageCounts.clear();
+      _nearbyReadyTimer?.cancel();
       if (_scrollController.hasClients) {
         _scrollController.jumpTo(0);
       }
@@ -77,6 +91,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     _saveTimer?.cancel();
     _overlayTimer?.cancel();
     _prefetchTimer?.cancel();
+    _nearbyReadyTimer?.cancel();
     _saveProgress();
     _scrollController.dispose();
     super.dispose();
@@ -98,6 +113,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     final progress = ref.watch(progressProvider(_comicRequest));
 
     _restorePosition(progress.asData?.value);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ensureNearbyReadinessWatcher(chapters.asData?.value);
+    });
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -269,6 +287,98 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
         (provider) => precacheImage(provider, context).catchError((_) {}),
       ),
     );
+  }
+
+  void _ensureNearbyReadinessWatcher(List<ChapterListItem>? chapters) {
+    if (!mounted || _nearbyWatcherStarted || chapters == null) return;
+    _nearbyWatcherStarted = true;
+    _syncNearbyBaseline(chapters);
+
+    _nearbyReadyTimer?.cancel();
+    _nearbyReadyTimer = Timer.periodic(_nearbyStatusPollInterval, (timer) {
+      _nearbyReadyPolls += 1;
+      if (_nearbyReadyPolls > _nearbyStatusMaxPolls || !mounted) {
+        timer.cancel();
+        return;
+      }
+      unawaited(_pollNearbyReadiness());
+    });
+  }
+
+  void _syncNearbyBaseline(List<ChapterListItem> chapters) {
+    for (final chapter in _nearbyChapters(chapters)) {
+      _knownNearbyPageCounts[chapter.chapterNumber] = chapter.totalImages;
+    }
+  }
+
+  Future<void> _pollNearbyReadiness() async {
+    try {
+      final chapters = await ref
+          .read(catalogRepositoryProvider)
+          .getChapters(widget.sourceName, widget.slug);
+      final newlyReady = <ChapterListItem>[];
+
+      for (final chapter in _nearbyChapters(chapters)) {
+        final oldCount = _knownNearbyPageCounts[chapter.chapterNumber];
+        _knownNearbyPageCounts[chapter.chapterNumber] = chapter.totalImages;
+        if (oldCount != null &&
+            oldCount <= 0 &&
+            chapter.totalImages > 0 &&
+            _announcedNearbyReadyChapters.add(chapter.chapterNumber)) {
+          newlyReady.add(chapter);
+        }
+      }
+
+      if (newlyReady.isNotEmpty && mounted) {
+        ref.invalidate(chaptersProvider(_comicRequest));
+        _showNearbyReadyToast(newlyReady);
+      }
+
+      final stillPending = _nearbyChapters(
+        chapters,
+      ).any((chapter) => chapter.totalImages <= 0);
+      if (!stillPending) {
+        _nearbyReadyTimer?.cancel();
+      }
+    } catch (_) {
+      // Keep this watcher quiet; reader UX should not be interrupted by polling.
+    }
+  }
+
+  Iterable<ChapterListItem> _nearbyChapters(List<ChapterListItem> chapters) {
+    final lower = widget.chapterNumber - _nearbyChapterWindow;
+    final upper = widget.chapterNumber + _nearbyChapterWindow;
+    return chapters.where((chapter) {
+      return chapter.chapterNumber >= lower &&
+          chapter.chapterNumber <= upper &&
+          chapter.chapterNumber != widget.chapterNumber;
+    });
+  }
+
+  void _showNearbyReadyToast(List<ChapterListItem> chapters) {
+    final sorted = [...chapters]
+      ..sort(
+        (a, b) => (a.chapterNumber - widget.chapterNumber).abs().compareTo(
+          (b.chapterNumber - widget.chapterNumber).abs(),
+        ),
+      );
+    final shown = sorted
+        .take(3)
+        .map((chapter) => 'Ch ${formatChapterNumber(chapter.chapterNumber)}');
+    final extra = sorted.length - shown.length;
+    final message = extra > 0
+        ? '${shown.join(', ')} +$extra siap dibaca'
+        : '${shown.join(', ')} siap dibaca';
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
+      );
   }
 
   Future<void> _saveProgress() async {

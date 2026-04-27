@@ -44,6 +44,7 @@ dependencies:
   path_provider: ^2.1.5
   intl: ^0.20.2
   flutter_cache_manager: ^3.4.1
+  shimmer: ^3.0.0
 
 dev_dependencies:
   flutter_test:
@@ -55,6 +56,8 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.7
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -66,6 +69,27 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - lib/src/assets/logo_app_250px.png
+    - lib/src/assets/logo_app_lg_250px.png
+    - lib/src/assets/logo_app_sm_500px.png
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "lib/src/assets/logo_app_250px.png"
+  min_sdk_android: 23
+  remove_alpha_ios: true
+
+flutter_native_splash:
+  color: "#060708"
+  image: "lib/src/assets/logo_app_sm_500px.png"
+  android: true
+  ios: true
+  android_12:
+    color: "#060708"
+    image: "lib/src/assets/logo_app_sm_500px.png"
 
   # To add assets to your application, add an assets section, like this:
   # assets:

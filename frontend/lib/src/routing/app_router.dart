@@ -4,14 +4,24 @@ import 'package:go_router/go_router.dart';
 import '../features/auth/auth_screen.dart';
 import '../features/comic/comic_detail_screen.dart';
 import '../features/home/home_screen.dart';
+import '../features/onboarding/onboarding_screen.dart';
 import '../features/placeholder/placeholder_screen.dart';
 import '../features/reader/reader_screen.dart';
 import '../features/shell/main_shell.dart';
+import '../features/splash/splash_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
-    initialLocation: '/',
+    initialLocation: '/splash',
     routes: [
+      GoRoute(
+        path: '/splash',
+        builder: (context, state) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: '/onboarding',
+        builder: (context, state) => const OnboardingScreen(),
+      ),
       ShellRoute(
         builder: (context, state, child) =>
             MainShell(location: state.uri.path, child: child),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/app_assets.dart';
 import '../../models/comic.dart';
 import '../../models/progress.dart';
 import '../../repositories/providers.dart';
@@ -37,7 +38,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('TonzToon'),
+        title: Image.asset(
+          AppAssets.logoAppLarge,
+          height: 38,
+          fit: BoxFit.contain,
+        ),
         actions: [
           IconButton(
             tooltip: auth.isAuthenticated ? 'Account' : 'Login',
