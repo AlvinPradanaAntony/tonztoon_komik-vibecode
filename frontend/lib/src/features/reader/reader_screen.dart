@@ -48,12 +48,19 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   final Set<int> _requestedPrefetchIndexes = <int>{};
   final Set<double> _announcedNearbyReadyChapters = <double>{};
   final Map<double, int> _knownNearbyPageCounts = <double, int>{};
+  late ProviderContainer _container;
 
   ComicRequest get _comicRequest =>
       ComicRequest(widget.sourceName, widget.slug);
 
   ChapterRequest get _chapterRequest =>
       ChapterRequest(widget.sourceName, widget.slug, widget.chapterNumber);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _container = ProviderScope.containerOf(context);
+  }
 
   @override
   void initState() {
@@ -134,6 +141,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
             WidgetsBinding.instance.addPostFrameCallback((_) {
               _prefetchFromCurrentPosition(payload);
             });
+            final chapterList = chapters.asData?.value;
+            final previousChapter = _relativeChapterTarget(chapterList, 1);
+            final nextChapter = _relativeChapterTarget(chapterList, -1);
             return GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: _toggleOverlay,
@@ -168,7 +178,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
                     child: _ReaderTopBar(
                       title: detail.asData?.value.title ?? 'Chapter',
                       chapterNumber: widget.chapterNumber,
-                      onBack: () => context.pop(),
+                      onBack: _handleBack,
+                      onOpenDetail: _openComicDetail,
                     ),
                   ),
                   AnimatedPositioned(
@@ -179,10 +190,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
                     child: _ReaderBottomBar(
                       currentIndex: _pageIndex(payload.total),
                       total: payload.total,
-                      onPrevious: () =>
-                          _goRelativeChapter(chapters.asData?.value, 1),
-                      onNext: () =>
-                          _goRelativeChapter(chapters.asData?.value, -1),
+                      onPrevious: previousChapter == null
+                          ? null
+                          : () => _goRelativeChapter(chapterList, 1),
+                      onNext: nextChapter == null
+                          ? null
+                          : () => _goRelativeChapter(chapterList, -1),
                     ),
                   ),
                 ],
@@ -200,7 +213,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     _saveTimer = Timer(const Duration(milliseconds: 800), _saveProgress);
     _prefetchTimer?.cancel();
     _prefetchTimer = Timer(const Duration(milliseconds: 160), () {
-      final payload = ref.read(chapterProvider(_chapterRequest)).asData?.value;
+      final payload = _container
+          .read(chapterProvider(_chapterRequest))
+          .asData
+          ?.value;
       if (payload != null) {
         _prefetchFromCurrentPosition(payload);
       }
@@ -313,7 +329,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
 
   Future<void> _pollNearbyReadiness() async {
     try {
-      final chapters = await ref
+      final chapters = await _container
           .read(catalogRepositoryProvider)
           .getChapters(widget.sourceName, widget.slug);
       final newlyReady = <ChapterListItem>[];
@@ -330,7 +346,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       }
 
       if (newlyReady.isNotEmpty && mounted) {
-        ref.invalidate(chaptersProvider(_comicRequest));
+        _container.invalidate(chaptersProvider(_comicRequest));
         _showNearbyReadyToast(newlyReady);
       }
 
@@ -382,8 +398,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   }
 
   Future<void> _saveProgress() async {
-    final detail = ref.read(comicDetailProvider(_comicRequest)).asData?.value;
-    final chapter = ref.read(chapterProvider(_chapterRequest)).asData?.value;
+    final detail = _container
+        .read(comicDetailProvider(_comicRequest))
+        .asData
+        ?.value;
+    final chapter = _container
+        .read(chapterProvider(_chapterRequest))
+        .asData
+        ?.value;
     if (detail == null || chapter == null) return;
 
     final total = chapter.total == 0 ? chapter.images.length : chapter.total;
@@ -397,10 +419,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     );
 
     try {
-      await ref.read(progressRepositoryProvider).saveProgress(progress);
-      ref.invalidate(progressProvider(_comicRequest));
-      ref.invalidate(continueReadingProvider);
-      ref.invalidate(homeDataProvider);
+      await _container.read(progressRepositoryProvider).saveProgress(progress);
+      _container.invalidate(progressProvider(_comicRequest));
+      _container.invalidate(continueReadingProvider);
+      _container.invalidate(homeDataProvider);
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -410,18 +432,45 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   }
 
   void _goRelativeChapter(List<ChapterListItem>? chapters, int delta) {
-    if (chapters == null || chapters.isEmpty) return;
+    final target = _relativeChapterTarget(chapters, delta);
+    if (target == null) return;
+    _saveProgress();
+    context.pushReplacement(
+      '/reader/${widget.sourceName}/${widget.slug}/${formatChapterNumber(target.chapterNumber)}',
+    );
+  }
+
+  ChapterListItem? _relativeChapterTarget(
+    List<ChapterListItem>? chapters,
+    int delta,
+  ) {
+    if (chapters == null || chapters.isEmpty) return null;
     final currentIndex = chapters.indexWhere(
       (chapter) => chapter.chapterNumber == widget.chapterNumber,
     );
-    if (currentIndex < 0) return;
+    if (currentIndex < 0) return null;
     final targetIndex = currentIndex + delta;
-    if (targetIndex < 0 || targetIndex >= chapters.length) return;
+    if (targetIndex < 0 || targetIndex >= chapters.length) return null;
+    return chapters[targetIndex];
+  }
+
+  void _handleBack() {
     _saveProgress();
-    final target = chapters[targetIndex];
-    context.go(
-      '/reader/${widget.sourceName}/${widget.slug}/${formatChapterNumber(target.chapterNumber)}',
-    );
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+    _goToComicDetailFallback();
+  }
+
+  void _openComicDetail() {
+    _saveProgress();
+    context.push('/comic/${widget.sourceName}/${widget.slug}');
+  }
+
+  void _goToComicDetailFallback() {
+    _saveProgress();
+    context.go('/comic/${widget.sourceName}/${widget.slug}');
   }
 }
 
@@ -567,11 +616,13 @@ class _ReaderTopBar extends StatelessWidget {
     required this.title,
     required this.chapterNumber,
     required this.onBack,
+    required this.onOpenDetail,
   });
 
   final String title;
   final double chapterNumber;
   final VoidCallback onBack;
+  final VoidCallback onOpenDetail;
 
   @override
   Widget build(BuildContext context) {
@@ -584,7 +635,14 @@ class _ReaderTopBar extends StatelessWidget {
             onPressed: onBack,
             icon: const Icon(Icons.arrow_back),
           ),
-          title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+          title: InkWell(
+            borderRadius: BorderRadius.circular(6),
+            onTap: onOpenDetail,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+          ),
           subtitle: Text('Chapter ${formatChapterNumber(chapterNumber)}'),
         ),
       ),
@@ -602,8 +660,8 @@ class _ReaderBottomBar extends StatelessWidget {
 
   final int currentIndex;
   final int total;
-  final VoidCallback onPrevious;
-  final VoidCallback onNext;
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNext;
 
   @override
   Widget build(BuildContext context) {
@@ -615,11 +673,14 @@ class _ReaderBottomBar extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
           child: Row(
             children: [
-              IconButton.filledTonal(
-                onPressed: onPrevious,
-                icon: const Icon(Icons.skip_previous),
-                tooltip: 'Previous chapter',
-              ),
+              if (onPrevious != null)
+                IconButton.filledTonal(
+                  onPressed: onPrevious,
+                  icon: const Icon(Icons.skip_previous),
+                  tooltip: 'Previous chapter',
+                )
+              else
+                const SizedBox(width: 48),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -634,11 +695,14 @@ class _ReaderBottomBar extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              IconButton.filledTonal(
-                onPressed: onNext,
-                icon: const Icon(Icons.skip_next),
-                tooltip: 'Next chapter',
-              ),
+              if (onNext != null)
+                IconButton.filledTonal(
+                  onPressed: onNext,
+                  icon: const Icon(Icons.skip_next),
+                  tooltip: 'Next chapter',
+                )
+              else
+                const SizedBox(width: 48),
             ],
           ),
         ),

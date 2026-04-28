@@ -69,11 +69,15 @@ class ComicDetailScreen extends ConsumerWidget {
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        if (comic.type != null) Chip(label: Text(comic.type!)),
+                        if (comic.type != null)
+                          Chip(label: Text(_toSentenceCase(comic.type!))),
                         if (comic.status != null)
-                          Chip(label: Text(comic.status!)),
+                          Chip(label: Text(_toSentenceCase(comic.status!))),
                         if (comic.rating != null)
-                          Chip(label: Text('Rating ${comic.rating}')),
+                          Chip(
+                            avatar: const Icon(Icons.star, size: 18),
+                            label: Text(_formatRating(comic.rating!)),
+                          ),
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -218,6 +222,19 @@ class ComicDetailScreen extends ConsumerWidget {
   double? _firstReadableChapter(List<ChapterListItem>? chapters) {
     if (chapters == null || chapters.isEmpty) return null;
     return chapters.last.chapterNumber;
+  }
+
+  String _formatRating(double rating) {
+    return rating == rating.roundToDouble()
+        ? rating.toStringAsFixed(0)
+        : rating.toString();
+  }
+
+  String _toSentenceCase(String value) {
+    final normalized = value.trim().replaceAll(RegExp(r'[_-]+'), ' ');
+    if (normalized.isEmpty) return normalized;
+    final lower = normalized.toLowerCase();
+    return lower[0].toUpperCase() + lower.substring(1);
   }
 
   Future<void> _openReader(

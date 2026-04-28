@@ -186,11 +186,13 @@ class _ProgressCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final chapterText =
+        'Chapter ${formatChapterNumber(progress.chapterNumber)}';
     final pageText =
         progress.lastReadPageItemIndex == null ||
             progress.totalPageItems == null
-        ? 'Chapter ${formatChapterNumber(progress.chapterNumber)}'
-        : '${progress.lastReadPageItemIndex! + 1}/${progress.totalPageItems}';
+        ? null
+        : 'Page ${progress.lastReadPageItemIndex! + 1}/${progress.totalPageItems}';
     return InkWell(
       borderRadius: BorderRadius.circular(8),
       onTap: () => context.push(
@@ -218,7 +220,14 @@ class _ProgressCard extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 6),
-                  Text(pageText),
+                  Text(chapterText),
+                  if (pageText != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      pageText,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                   const SizedBox(height: 10),
                   LinearProgressIndicator(
                     value:

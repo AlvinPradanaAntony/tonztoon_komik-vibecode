@@ -12,7 +12,11 @@ from fastapi import APIRouter, Query, HTTPException
 from fastapi.responses import StreamingResponse
 import httpx
 
-from app.services.image_service import get_proxy_headers
+from app.services.image_service import (
+    get_proxy_headers,
+    is_komiku_asia_cover_url,
+    resolve_komiku_asia_cover_fallback,
+)
 
 router = APIRouter()
 
@@ -20,6 +24,10 @@ router = APIRouter()
 @router.get("/proxy")
 async def proxy_image(
     url: str = Query(..., description="URL gambar asli dari server komik"),
+    source_url: str | None = Query(
+        default=None,
+        description="URL halaman komik asal untuk fallback cover source tertentu",
+    ),
 ):
     """
     Proxy gambar komik menggunakan StreamingResponse.
@@ -37,6 +45,17 @@ async def proxy_image(
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
             response = await client.get(url, headers=headers)
+            if response.status_code != 200 and is_komiku_asia_cover_url(url):
+                fallback_url = await resolve_komiku_asia_cover_fallback(
+                    url,
+                    source_url,
+                    client=client,
+                )
+                if fallback_url and fallback_url != url:
+                    response = await client.get(
+                        fallback_url,
+                        headers=get_proxy_headers(fallback_url),
+                    )
 
             if response.status_code != 200:
                 raise HTTPException(

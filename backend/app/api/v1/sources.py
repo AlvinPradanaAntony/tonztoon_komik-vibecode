@@ -88,7 +88,11 @@ def _build_comic_response(
     return ComicResponse(
         **{
             field_name: (
-                build_proxy_image_url(getattr(comic, field_name), base_url=base_url)
+                build_proxy_image_url(
+                    getattr(comic, field_name),
+                    base_url=base_url,
+                    source_url=comic.source_url,
+                )
                 if field_name == "cover_image_url"
                 else getattr(comic, field_name)
             )
@@ -106,7 +110,11 @@ def _build_source_chapter_response(
     chapter: Chapter,
 ) -> SourceChapterResponse:
     """Bangun payload chapter reader dengan URL gambar yang sudah diproxy."""
-    images = wrap_chapter_image_urls(chapter.images, base_url=_get_request_base_url(request))
+    images = wrap_chapter_image_urls(
+        chapter.images,
+        base_url=_get_request_base_url(request),
+        source_url=chapter.source_url,
+    )
     return SourceChapterResponse(
         source_name=source_name,
         chapter_number=chapter.chapter_number,
@@ -179,7 +187,11 @@ def _build_source_comic_list_item(
         title=comic.title,
         slug=comic.slug,
         source_name=source_name,
-        cover_image_url=build_proxy_image_url(comic.cover_image_url, base_url=base_url),
+        cover_image_url=build_proxy_image_url(
+            comic.cover_image_url,
+            base_url=base_url,
+            source_url=comic.source_url,
+        ),
         status=comic.status,
         type=comic.type,
         rating=comic.rating,

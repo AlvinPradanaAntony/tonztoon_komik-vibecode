@@ -63,7 +63,11 @@ async def get_comics_by_genre(
         ComicResponse(
             **{
                 c: (
-                    build_proxy_image_url(getattr(comic, c), base_url=base_url)
+                    build_proxy_image_url(
+                        getattr(comic, c),
+                        base_url=base_url,
+                        source_url=comic.source_url,
+                    )
                     if c == "cover_image_url"
                     else getattr(comic, c)
                 )

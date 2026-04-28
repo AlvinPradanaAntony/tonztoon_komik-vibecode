@@ -72,7 +72,11 @@ async def search_comics(
             title=comic.title,
             slug=comic.slug,
             source_name=comic.source_name,
-            cover_image_url=build_proxy_image_url(comic.cover_image_url, base_url=base_url),
+            cover_image_url=build_proxy_image_url(
+                comic.cover_image_url,
+                base_url=base_url,
+                source_url=comic.source_url,
+            ),
             status=comic.status,
             type=comic.type,
             rating=comic.rating,
