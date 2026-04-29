@@ -13,6 +13,8 @@ from urllib.parse import urlencode, urljoin, urlparse
 import httpx
 from scrapling.parser import Adaptor
 
+from app.config import settings
+
 
 logger = logging.getLogger("app.services.image_service")
 
@@ -56,6 +58,17 @@ def build_absolute_url(base_url: str | None, path: str | None) -> str | None:
     return f"{base_url.rstrip('/')}/{path.lstrip('/')}"
 
 
+def is_public_supabase_storage_url(image_url: str) -> bool:
+    """Cek apakah URL gambar sudah berupa URL public Supabase Storage."""
+    if not settings.SUPABASE_URL:
+        return False
+
+    storage_public_prefix = (
+        f"{settings.SUPABASE_URL.rstrip('/')}/storage/v1/object/public/"
+    )
+    return image_url.startswith(storage_public_prefix)
+
+
 def build_proxy_image_url(
     image_url: str | None,
     base_url: str | None = None,
@@ -77,6 +90,9 @@ def build_proxy_image_url(
         return image_url
 
     if not parsed.scheme or not parsed.netloc:
+        return image_url
+
+    if is_public_supabase_storage_url(image_url):
         return image_url
 
     query_params = {"url": image_url}

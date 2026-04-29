@@ -5,8 +5,14 @@ Menggunakan Pydantic Settings untuk mengelola environment variables
 dengan validasi otomatis dan type safety.
 """
 
+from pathlib import Path
+
 from pydantic_settings import BaseSettings
 from pydantic import Field
+
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+ENV_FILE = BACKEND_DIR / ".env"
 
 
 class Settings(BaseSettings):
@@ -30,6 +36,10 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_ROLE_KEY: str = Field(
         default="",
         description="Supabase service role key for privileged server-side operations",
+    )
+    SUPABASE_COVER_BUCKET: str = Field(
+        default="",
+        description="Supabase Storage bucket for cached comic cover images",
     )
     SUPABASE_JWT_SECRET: str = Field(
         default="",
@@ -75,7 +85,7 @@ class Settings(BaseSettings):
     APP_DEBUG: bool = Field(default=False)
 
     model_config = {
-        "env_file": ".env",
+        "env_file": ENV_FILE,
         "env_file_encoding": "utf-8",
         "extra": "ignore",
     }
