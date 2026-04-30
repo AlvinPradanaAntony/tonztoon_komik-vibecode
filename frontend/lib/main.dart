@@ -13,6 +13,7 @@ Future<void> main() async {
     Hive.openBox<dynamic>(HiveBoxes.settings),
     Hive.openBox<dynamic>(HiveBoxes.auth),
     Hive.openBox<dynamic>(HiveBoxes.progress),
+    Hive.openBox<dynamic>(HiveBoxes.library),
     Hive.openBox<dynamic>(HiveBoxes.cache),
   ]);
 

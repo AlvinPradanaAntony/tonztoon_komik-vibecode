@@ -53,17 +53,17 @@ Panduan pemakaian singkat:
 
 Flow:
     1. Inisialisasi koneksi database (async)
-    2. Ambil listing chapter terbaru dari canonical source Komiku
-       (`api.komiku.org/manga`) secara bertahap per-page
+    2. Ambil listing chapter terbaru dari feed source aktif secara bertahap
+       per-page
     3. Validasi setiap item listing terhadap data di database
        untuk menentukan apakah komik/chapter terbaru sudah known atau belum
     4. Fetch detail HANYA untuk komik baru / komik dengan chapter terbaru baru
     5. Validasi data via Pydantic schemas
     6. Upsert comic ke PostgreSQL
-       + simpan marker posisi item di canonical latest/popular feed
+       + simpan marker posisi item di latest/popular feed source aktif
     7. Simpan metadata SEMUA chapter (agar katalog selalu lengkap & update)
     8. Fetch images HANYA untuk MAX_CHAPTERS_PER_COMIC chapter terbaru
-    9. Opsional: sinkronisasi marker popular dari canonical popular feed
+    9. Opsional: sinkronisasi marker popular dari popular feed source aktif
    10. Early-stop jika satu halaman penuh tidak menghasilkan kandidat baru
    11. Tutup koneksi dan exit
 
@@ -153,7 +153,7 @@ logger = logging.getLogger("scraper")
 MAX_CHAPTERS_PER_COMIC = 3
 
 # Mode incremental sync untuk cron:
-# - Scan beberapa halaman latest canonical source
+# - Scan beberapa halaman latest source feed
 # - Stop lebih cepat jika satu halaman penuh sudah known/tidak berubah
 MAX_LATEST_PAGES = 10
 # Popular berubah lebih lambat daripada latest, jadi default cron utama tidak
@@ -231,7 +231,7 @@ class ScrapeStats:
 
 async def fetch_latest_comics_with_retry(scraper: BaseComicScraper, page: int = 1) -> list[dict[str, Any]]:
     """
-    Ambil listing latest update dari canonical source dengan retry + backoff.
+    Ambil listing latest update dari source feed dengan retry + backoff.
 
     Catatan:
     - Data listing ini dipakai sebagai sinyal awal update terbaru.
@@ -264,7 +264,7 @@ async def fetch_latest_comics_with_retry(scraper: BaseComicScraper, page: int = 
 
 async def fetch_popular_comics_with_retry(scraper: BaseComicScraper, page: int = 1) -> list[dict[str, Any]]:
     """
-    Ambil listing popular dari canonical source dengan retry + backoff.
+    Ambil listing popular dari source feed dengan retry + backoff.
 
     Data listing ini dipakai sebagai source of truth ranking `/popular`.
     Listing tidak langsung di-upsert; comic baru tetap divalidasi/fetch detail
@@ -631,7 +631,7 @@ async def process_comic(
 
     Karena fungsi ini dipanggil dari incremental feed sync, upsert comic juga
     ikut memperbarui marker `latest_feed_*` dan/atau `popular_feed_*` supaya
-    endpoint feed-based merepresentasikan urutan canonical source.
+    endpoint feed-based merepresentasikan urutan source feed.
     """
     detail_url = comic_basic.get("source_url", "")
     title = comic_basic.get("title", "???")
@@ -784,7 +784,7 @@ async def process_latest_pages(
     Scan beberapa halaman latest updates secara incremental.
 
     Strategy:
-    - fetch listing terbaru per-page dari canonical source
+    - fetch listing terbaru per-page dari source feed
     - validasi kandidat update terhadap DB
     - fetch detail hanya untuk comic baru / comic dengan latest chapter baru
     - upsert + prewarm dijalankan hanya untuk kandidat yang lolos validasi
@@ -807,7 +807,7 @@ async def process_latest_pages(
 
         stats.total_pages_scanned += 1
         stats.total_listing_items += len(comics_list)
-        logger.info(f"  📋 Page {page}: {len(comics_list)} komik dari listing canonical source")
+        logger.info(f"  📋 Page {page}: {len(comics_list)} komik dari source feed")
 
         page_candidates = 0
         page_unchanged = 0
@@ -926,7 +926,7 @@ async def process_popular_pages(
     Scan beberapa halaman popular secara incremental.
 
     Strategy:
-    - fetch ranking popular per-page dari canonical source
+    - fetch ranking popular per-page dari source feed
     - comic existing cukup ditandai marker `popular_feed_*`
     - detail hanya di-fetch untuk comic yang belum ada di DB
     - early-stop jika satu halaman penuh tidak menghasilkan comic baru
@@ -947,7 +947,7 @@ async def process_popular_pages(
 
         stats.total_pages_scanned += 1
         stats.total_listing_items += len(comics_list)
-        logger.info(f"  📋 Popular page {page}: {len(comics_list)} komik dari ranking canonical source")
+        logger.info(f"  📋 Popular page {page}: {len(comics_list)} komik dari ranking source feed")
 
         page_candidates = 0
         page_unchanged = 0
@@ -1071,7 +1071,7 @@ async def run_scraper(
     logger.info(f"🚀 One-off Scraper dimulai — {started_at.isoformat()}")
     if max_pages > 0:
         logger.info(
-            f"   Target        : latest updates canonical source page 1..{max_pages} "
+            f"   Target        : latest updates source feed page 1..{max_pages} "
             f"(early stop after {STOP_AFTER_UNCHANGED_PAGES} unchanged page)"
         )
     else:
@@ -1079,12 +1079,12 @@ async def run_scraper(
     if popular_pages > 0:
         if popular_allow_early_stop:
             logger.info(
-                f"   Popular target: canonical popular source page 1..{popular_pages} "
+                f"   Popular target: popular source feed page 1..{popular_pages} "
                 f"(early stop after {STOP_AFTER_UNCHANGED_PAGES} unchanged page)"
             )
         else:
             logger.info(
-                f"   Popular target: canonical popular source page 1..{popular_pages} "
+                f"   Popular target: popular source feed page 1..{popular_pages} "
                 "(early stop disabled)"
             )
     else:

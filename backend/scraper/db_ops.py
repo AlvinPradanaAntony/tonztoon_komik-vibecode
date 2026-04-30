@@ -10,10 +10,11 @@ dan Genre. Diekstrak dari main.py agar:
 3. Mudah diuji secara independen
 """
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import case, delete, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.models import Chapter, Comic, Genre, comic_genre
 from app.schemas import ComicCreate
 from scraper.time_utils import now_wib
@@ -91,6 +92,33 @@ async def sync_comic_genres(
 # ═══════════════════════════════════════════════════════════════════
 
 
+def _public_storage_prefix() -> str | None:
+    if not settings.SUPABASE_URL:
+        return None
+    return f"{settings.SUPABASE_URL.rstrip('/')}/storage/v1/object/public/"
+
+
+def _preserve_storage_cover_value(scraped_cover_url: str | None):
+    """
+    Jangan timpa cover yang sudah dimigrasi ke Supabase Storage.
+
+    Scraper tetap menyimpan cover source untuk komik baru. Untuk comic existing
+    yang sudah punya URL storage, metadata sync berikutnya tidak boleh
+    mengembalikannya ke URL source/canonical.
+    """
+    storage_prefix = _public_storage_prefix()
+    if not storage_prefix:
+        return scraped_cover_url
+
+    return case(
+        (
+            Comic.cover_image_url.like(f"{storage_prefix}%"),
+            Comic.cover_image_url,
+        ),
+        else_=scraped_cover_url,
+    )
+
+
 async def upsert_comic(session: AsyncSession, validated: ComicCreate) -> int:
     """
     Upsert comic ke database tanpa mengubah marker urutan feed apa pun.
@@ -156,7 +184,7 @@ async def upsert_comic_with_feed_markers(
     update_values = {
         "title": validated.title,
         "alternative_titles": validated.alternative_titles,
-        "cover_image_url": validated.cover_image_url,
+        "cover_image_url": _preserve_storage_cover_value(validated.cover_image_url),
         "author": validated.author,
         "artist": validated.artist,
         "status": validated.status,

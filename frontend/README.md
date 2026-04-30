@@ -28,3 +28,18 @@ flutter run --dart-define=API_BASE_URL=http://127.0.0.1:8000/api/v1
   token.
 - Email/password auth through backend; Google OAuth is intentionally disabled
   for this slice.
+- Search screen backed by `GET /search`.
+- Library tabs for bookmarks, collections, favorite scenes, history, and
+  download wishlist.
+- Comic Detail CTAs for bookmark, collection picker/create collection, and
+  queueing download wishlist.
+- Reader settings for default mode, LTR/RTL, auto-next preference, and cache
+  clearing.
+- Reader vertical/paged toggle and long-press favorite scene saving.
+
+## Still Pending
+
+- Actual offline file download/storage and retry management.
+- Google OAuth activation.
+- Full collection detail management actions such as rename/delete.
+- Migration dialog for guest data after login.

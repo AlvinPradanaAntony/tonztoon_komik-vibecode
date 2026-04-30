@@ -34,6 +34,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   static const _nearbyStatusMaxPolls = 8;
 
   final _scrollController = ScrollController();
+  final _pageController = PageController();
   Timer? _saveTimer;
   Timer? _overlayTimer;
   Timer? _prefetchTimer;
@@ -42,6 +43,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   bool _restored = false;
   bool _nearbyWatcherStarted = false;
   double _lastOffset = 0;
+  int _pagedIndex = 0;
+  String? _readingMode;
   int _nearbyReadyPolls = 0;
   String? _initialPreloadKey;
   Future<void>? _initialPreloadFuture;
@@ -78,6 +81,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
         oldWidget.slug != widget.slug) {
       _restored = false;
       _lastOffset = 0;
+      _pagedIndex = 0;
+      _readingMode = null;
       _initialPreloadKey = null;
       _initialPreloadFuture = null;
       _requestedPrefetchIndexes.clear();
@@ -101,6 +106,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     _nearbyReadyTimer?.cancel();
     _saveProgress();
     _scrollController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -118,6 +124,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     final detail = ref.watch(comicDetailProvider(_comicRequest));
     final chapters = ref.watch(chaptersProvider(_comicRequest));
     final progress = ref.watch(progressProvider(_comicRequest));
+    final preferences = ref.watch(readerPreferencesProvider).asData?.value;
+    _readingMode ??= preferences?.defaultReadingMode ?? 'vertical';
 
     _restorePosition(progress.asData?.value);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -144,32 +152,54 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
             final chapterList = chapters.asData?.value;
             final previousChapter = _relativeChapterTarget(chapterList, 1);
             final nextChapter = _relativeChapterTarget(chapterList, -1);
+            final isPaged = _readingMode == 'paged';
             return GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: _toggleOverlay,
               child: Stack(
                 children: [
-                  NotificationListener<UserScrollNotification>(
-                    onNotification: (_) {
-                      if (_overlayVisible) {
-                        setState(() => _overlayVisible = false);
-                      }
-                      return false;
-                    },
-                    child: ListView.builder(
-                      controller: _scrollController,
-                      padding: EdgeInsets.zero,
-                      cacheExtent: MediaQuery.sizeOf(context).height * 3,
-                      itemCount: payload.images.length,
-                      itemBuilder: (context, index) {
-                        final image = payload.images[index];
-                        return _ReaderImage(
-                          imageUrl: image.url,
-                          pageNumber: index + 1,
-                        );
-                      },
-                    ),
-                  ),
+                  isPaged
+                      ? _PagedReader(
+                          controller: _pageController,
+                          reverse: preferences?.readingDirection == 'rtl',
+                          payload: payload,
+                          onPageChanged: (index) {
+                            _pagedIndex = index;
+                            if (_overlayVisible) {
+                              setState(() => _overlayVisible = false);
+                            }
+                            _saveTimer?.cancel();
+                            _saveTimer = Timer(
+                              const Duration(milliseconds: 500),
+                              _saveProgress,
+                            );
+                            _prefetchFromCurrentPosition(payload);
+                          },
+                          onFavorite: _saveFavoriteScene,
+                        )
+                      : NotificationListener<UserScrollNotification>(
+                          onNotification: (_) {
+                            if (_overlayVisible) {
+                              setState(() => _overlayVisible = false);
+                            }
+                            return false;
+                          },
+                          child: ListView.builder(
+                            controller: _scrollController,
+                            padding: EdgeInsets.zero,
+                            cacheExtent: MediaQuery.sizeOf(context).height * 3,
+                            itemCount: payload.images.length,
+                            itemBuilder: (context, index) {
+                              final image = payload.images[index];
+                              return _ReaderImage(
+                                imageUrl: image.url,
+                                pageNumber: index + 1,
+                                onLongPress: () =>
+                                    _saveFavoriteScene(index, image.url),
+                              );
+                            },
+                          ),
+                        ),
                   AnimatedPositioned(
                     duration: const Duration(milliseconds: 180),
                     top: _overlayVisible ? 0 : -96,
@@ -190,6 +220,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
                     child: _ReaderBottomBar(
                       currentIndex: _pageIndex(payload.total),
                       total: payload.total,
+                      readingMode: _readingMode ?? 'vertical',
+                      onToggleMode: _toggleReadingMode,
                       onPrevious: previousChapter == null
                           ? null
                           : () => _goRelativeChapter(chapterList, 1),
@@ -239,6 +271,18 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     if (_restored || progress == null) return;
     if (progress.chapterNumber != widget.chapterNumber) return;
     final offset = progress.scrollOffset;
+    if (progress.readingMode == 'paged') {
+      _restored = true;
+      final pageIndex =
+          progress.pageIndex ?? progress.lastReadPageItemIndex ?? 0;
+      _pagedIndex = pageIndex;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_pageController.hasClients) {
+          _pageController.jumpToPage(pageIndex);
+        }
+      });
+      return;
+    }
     if (offset == null || offset <= 0) {
       _restored = true;
       return;
@@ -254,6 +298,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
 
   int _pageIndex(int total) {
     if (total <= 0) return 0;
+    if (_readingMode == 'paged') return math.min(total - 1, _pagedIndex);
     return math.min(total - 1, (_lastOffset / 800).floor());
   }
 
@@ -412,7 +457,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     final progress = ReadingProgress.fromReader(
       comic: detail.toSummary(),
       chapterNumber: widget.chapterNumber,
-      scrollOffset: _lastOffset,
+      readingMode: _readingMode ?? 'vertical',
+      scrollOffset: _readingMode == 'paged' ? null : _lastOffset,
+      pageIndex: _readingMode == 'paged' ? _pagedIndex : null,
       pageItemIndex: _pageIndex(total),
       totalPageItems: total,
       isCompleted: total > 0 && _pageIndex(total) >= total - 1,
@@ -472,13 +519,114 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     _saveProgress();
     context.go('/comic/${widget.sourceName}/${widget.slug}');
   }
+
+  void _toggleReadingMode() {
+    setState(() {
+      _readingMode = _readingMode == 'paged' ? 'vertical' : 'paged';
+      _overlayVisible = true;
+    });
+    _scheduleOverlayHide();
+    _saveProgress();
+  }
+
+  Future<void> _saveFavoriteScene(int index, String imageUrl) async {
+    final detail = _container
+        .read(comicDetailProvider(_comicRequest))
+        .asData
+        ?.value;
+    if (detail == null) return;
+    try {
+      await _container
+          .read(libraryRepositoryProvider)
+          .saveFavoriteScene(
+            comic: detail.toSummary(),
+            chapterNumber: widget.chapterNumber,
+            pageItemIndex: index,
+            imageUrl: imageUrl,
+          );
+      _container.invalidate(favoriteScenesProvider);
+      _container.invalidate(libraryComicStateProvider(detail.toSummary()));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Page ${index + 1} saved to favorite scenes.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+}
+
+class _PagedReader extends StatelessWidget {
+  const _PagedReader({
+    required this.controller,
+    required this.reverse,
+    required this.payload,
+    required this.onPageChanged,
+    required this.onFavorite,
+  });
+
+  final PageController controller;
+  final bool reverse;
+  final ChapterPayload payload;
+  final ValueChanged<int> onPageChanged;
+  final void Function(int index, String imageUrl) onFavorite;
+
+  @override
+  Widget build(BuildContext context) {
+    return PageView.builder(
+      controller: controller,
+      reverse: reverse,
+      itemCount: payload.images.length,
+      onPageChanged: onPageChanged,
+      itemBuilder: (context, index) {
+        final image = payload.images[index];
+        return Center(
+          child: InteractiveViewer(
+            minScale: 1,
+            maxScale: 4,
+            child: GestureDetector(
+              onLongPress: () => onFavorite(index, image.url),
+              child: CachedNetworkImage(
+                imageUrl: image.url,
+                cacheManager: ReaderImageCacheManager.instance,
+                fit: BoxFit.contain,
+                fadeInDuration: Duration.zero,
+                fadeOutDuration: Duration.zero,
+                placeholder: (context, url) => const _ImageSkeleton(),
+                errorWidget: (context, url, error) => Center(
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      CachedNetworkImage.evictFromCache(
+                        image.url,
+                        cacheManager: ReaderImageCacheManager.instance,
+                      );
+                    },
+                    icon: const Icon(Icons.refresh),
+                    label: Text('Retry page ${index + 1}'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _ReaderImage extends StatefulWidget {
-  const _ReaderImage({required this.imageUrl, required this.pageNumber});
+  const _ReaderImage({
+    required this.imageUrl,
+    required this.pageNumber,
+    required this.onLongPress,
+  });
 
   final String imageUrl;
   final int pageNumber;
+  final VoidCallback onLongPress;
 
   @override
   State<_ReaderImage> createState() => _ReaderImageState();
@@ -489,22 +637,25 @@ class _ReaderImageState extends State<_ReaderImage> {
 
   @override
   Widget build(BuildContext context) {
-    return CachedNetworkImage(
-      key: ValueKey('${widget.imageUrl}#$_retry'),
-      imageUrl: widget.imageUrl,
-      cacheManager: ReaderImageCacheManager.instance,
-      fit: BoxFit.fitWidth,
-      width: double.infinity,
-      fadeInDuration: Duration.zero,
-      fadeOutDuration: Duration.zero,
-      placeholder: (context, url) => const _ImageSkeleton(),
-      errorWidget: (context, url, error) => SizedBox(
-        height: 260,
-        child: Center(
-          child: FilledButton.icon(
-            onPressed: () => setState(() => _retry++),
-            icon: const Icon(Icons.refresh),
-            label: Text('Retry page ${widget.pageNumber}'),
+    return GestureDetector(
+      onLongPress: widget.onLongPress,
+      child: CachedNetworkImage(
+        key: ValueKey('${widget.imageUrl}#$_retry'),
+        imageUrl: widget.imageUrl,
+        cacheManager: ReaderImageCacheManager.instance,
+        fit: BoxFit.fitWidth,
+        width: double.infinity,
+        fadeInDuration: Duration.zero,
+        fadeOutDuration: Duration.zero,
+        placeholder: (context, url) => const _ImageSkeleton(),
+        errorWidget: (context, url, error) => SizedBox(
+          height: 260,
+          child: Center(
+            child: FilledButton.icon(
+              onPressed: () => setState(() => _retry++),
+              icon: const Icon(Icons.refresh),
+              label: Text('Retry page ${widget.pageNumber}'),
+            ),
           ),
         ),
       ),
@@ -654,12 +805,16 @@ class _ReaderBottomBar extends StatelessWidget {
   const _ReaderBottomBar({
     required this.currentIndex,
     required this.total,
+    required this.readingMode,
+    required this.onToggleMode,
     required this.onPrevious,
     required this.onNext,
   });
 
   final int currentIndex;
   final int total;
+  final String readingMode;
+  final VoidCallback onToggleMode;
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
 
@@ -693,6 +848,18 @@ class _ReaderBottomBar extends StatelessWidget {
                     Text(total == 0 ? 'Loading' : '${currentIndex + 1}/$total'),
                   ],
                 ),
+              ),
+              const SizedBox(width: 12),
+              IconButton.filledTonal(
+                onPressed: onToggleMode,
+                icon: Icon(
+                  readingMode == 'paged'
+                      ? Icons.view_agenda_outlined
+                      : Icons.auto_stories_outlined,
+                ),
+                tooltip: readingMode == 'paged'
+                    ? 'Switch to vertical'
+                    : 'Switch to paged',
               ),
               const SizedBox(width: 12),
               if (onNext != null)

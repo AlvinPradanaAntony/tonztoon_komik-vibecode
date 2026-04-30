@@ -74,7 +74,6 @@ def build_comic_ref(
         cover_image_url=build_proxy_image_url(
             comic.cover_image_url,
             base_url=base_url,
-            source_url=comic.source_url,
         ),
         author=comic.author,
         status=comic.status,
@@ -199,7 +198,6 @@ def build_favorite_scene_response(
         image_url=build_proxy_image_url(
             scene.image_url,
             base_url=base_url,
-            source_url=scene.chapter.source_url if scene.chapter else None,
         ),
         note=scene.note,
         created_at=scene.created_at,

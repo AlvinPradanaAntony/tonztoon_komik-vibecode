@@ -6,10 +6,12 @@ import '../core/storage.dart';
 import '../core/token_store.dart';
 import '../models/auth.dart';
 import '../models/comic.dart';
+import '../models/library.dart';
 import '../models/progress.dart';
 import '../models/source_info.dart';
 import 'auth_repository.dart';
 import 'catalog_repository.dart';
+import 'library_repository.dart';
 import 'progress_repository.dart';
 
 final configProvider = Provider<AppConfig>(
@@ -44,6 +46,14 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 
 final progressRepositoryProvider = Provider<ProgressRepository>((ref) {
   return ProgressRepository(
+    ref.watch(apiProvider),
+    ref.watch(tokenStoreProvider),
+    ref.watch(localStoreProvider),
+  );
+});
+
+final libraryRepositoryProvider = Provider<LibraryRepository>((ref) {
+  return LibraryRepository(
     ref.watch(apiProvider),
     ref.watch(tokenStoreProvider),
     ref.watch(localStoreProvider),
@@ -220,4 +230,54 @@ final chapterProvider = FutureProvider.family<ChapterPayload, ChapterRequest>((
   return ref
       .watch(catalogRepositoryProvider)
       .getChapter(request.sourceName, request.slug, request.chapterNumber);
+});
+
+final searchQueryProvider = NotifierProvider<SearchQueryController, String>(
+  SearchQueryController.new,
+);
+
+class SearchQueryController extends Notifier<String> {
+  @override
+  String build() => '';
+
+  void setQuery(String value) {
+    state = value;
+  }
+}
+
+final searchResultsProvider = FutureProvider<List<ComicSummary>>((ref) async {
+  final query = ref.watch(searchQueryProvider).trim();
+  if (query.isEmpty) return const [];
+  await Future<void>.delayed(const Duration(milliseconds: 300));
+  if (ref.watch(searchQueryProvider).trim() != query) return const [];
+  return ref.watch(catalogRepositoryProvider).search(query);
+});
+
+final libraryComicStateProvider =
+    FutureProvider.family<LibraryComicState, ComicSummary>((ref, comic) {
+      return ref.watch(libraryRepositoryProvider).getComicState(comic);
+    });
+
+final bookmarksProvider = FutureProvider<List<LibraryComicRef>>((ref) {
+  return ref.watch(libraryRepositoryProvider).getBookmarks();
+});
+
+final collectionsProvider = FutureProvider<List<CollectionSummary>>((ref) {
+  return ref.watch(libraryRepositoryProvider).getCollections();
+});
+
+final favoriteScenesProvider = FutureProvider<List<FavoriteScene>>((ref) {
+  return ref.watch(libraryRepositoryProvider).getFavoriteScenes();
+});
+
+final historyProvider = FutureProvider<List<ReadingProgress>>((ref) {
+  return ref.watch(libraryRepositoryProvider).getHistory();
+});
+
+final downloadsProvider = FutureProvider<List<DownloadEntry>>((ref) {
+  return ref.watch(libraryRepositoryProvider).getDownloads();
+});
+
+final readerPreferencesProvider = FutureProvider<ReaderPreferences>((ref) {
+  return ref.watch(libraryRepositoryProvider).getReaderPreferences();
 });

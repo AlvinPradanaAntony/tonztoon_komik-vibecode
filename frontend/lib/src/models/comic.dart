@@ -62,6 +62,16 @@ class ComicSummary {
   final double? rating;
   final int? totalView;
   final double? latestChapterNumber;
+
+  @override
+  bool operator ==(Object other) {
+    return other is ComicSummary &&
+        other.sourceName == sourceName &&
+        other.slug == slug;
+  }
+
+  @override
+  int get hashCode => Object.hash(sourceName, slug);
 }
 
 class ComicDetail {

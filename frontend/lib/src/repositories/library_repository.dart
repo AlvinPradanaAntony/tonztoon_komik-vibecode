@@ -1,0 +1,421 @@
+import '../core/api_client.dart';
+import '../core/storage.dart';
+import '../core/token_store.dart';
+import '../models/comic.dart';
+import '../models/library.dart';
+import '../models/progress.dart';
+
+class LibraryRepository {
+  LibraryRepository(this._api, this._tokenStore, this._store);
+
+  final TonztoonApi _api;
+  final TokenStore _tokenStore;
+  final LocalStore _store;
+
+  Future<bool> get _isLoggedIn async {
+    final token = await _tokenStore.readAccessToken();
+    return token != null && token.isNotEmpty;
+  }
+
+  Future<LibraryComicState> getComicState(ComicSummary comic) async {
+    if (await _isLoggedIn) {
+      final response = await _api.get<Map<String, dynamic>>(
+        '/library/state/${comic.sourceName}/comics/${comic.slug}',
+      );
+      return LibraryComicState.fromJson(response.data ?? const {});
+    }
+
+    final bookmark = _localBookmarks()[comic.key] != null;
+    final collections = _localCollections()
+        .where(
+          (collection) => collection.items.any((item) => item.key == comic.key),
+        )
+        .map(
+          (collection) => CollectionSummary(
+            id: collection.id,
+            name: collection.name,
+            totalItems: collection.items.length,
+          ),
+        )
+        .toList();
+    final progressRaw = _store.progress.get(
+      ReadingProgress.key(comic.sourceName, comic.slug),
+    );
+    return LibraryComicState(
+      comic: LibraryComicRef.fromSummary(comic),
+      bookmarked: bookmark,
+      collections: collections,
+      progress: progressRaw is Map
+          ? ReadingProgress.fromLocalJson(progressRaw)
+          : null,
+      favoriteSceneCount: _localFavoriteScenes()
+          .where((scene) => scene.comic.key == comic.key)
+          .length,
+      downloadStatusCounts: _downloadCountsFor(comic.key),
+      downloadEntries: _localDownloads()
+          .where((download) => download.comic.key == comic.key)
+          .toList(),
+    );
+  }
+
+  Future<List<LibraryComicRef>> getBookmarks() async {
+    if (await _isLoggedIn) {
+      final response = await _api.get<List<dynamic>>('/library/bookmarks');
+      return (response.data ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(
+            (json) => LibraryComicRef.fromJson(
+              json['comic'] as Map<String, dynamic>? ?? const {},
+            ),
+          )
+          .toList();
+    }
+    return _localBookmarks().values.toList();
+  }
+
+  Future<bool> toggleBookmark(ComicSummary comic, bool bookmarked) async {
+    if (await _isLoggedIn) {
+      if (bookmarked) {
+        await _api.delete<Map<String, dynamic>>(
+          '/library/bookmarks/${comic.sourceName}/comics/${comic.slug}',
+        );
+        return false;
+      }
+      await _api.put<Map<String, dynamic>>(
+        '/library/bookmarks/${comic.sourceName}/comics/${comic.slug}',
+      );
+      return true;
+    }
+
+    final bookmarks = _localBookmarks();
+    if (bookmarked) {
+      bookmarks.remove(comic.key);
+      await _store.library.put('bookmarks', _encodeComicRefMap(bookmarks));
+      return false;
+    }
+    bookmarks[comic.key] = LibraryComicRef.fromSummary(comic);
+    await _store.library.put('bookmarks', _encodeComicRefMap(bookmarks));
+    return true;
+  }
+
+  Future<List<CollectionSummary>> getCollections() async {
+    if (await _isLoggedIn) {
+      final response = await _api.get<List<dynamic>>('/library/collections');
+      return (response.data ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(CollectionSummary.fromJson)
+          .toList();
+    }
+    return _localCollections()
+        .map(
+          (collection) => CollectionSummary(
+            id: collection.id,
+            name: collection.name,
+            totalItems: collection.items.length,
+          ),
+        )
+        .toList();
+  }
+
+  Future<CollectionDetail> createCollection(String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) {
+      throw ApiException('Collection name cannot be empty.');
+    }
+    if (await _isLoggedIn) {
+      final response = await _api.post<Map<String, dynamic>>(
+        '/library/collections',
+        data: {'name': trimmed},
+      );
+      return CollectionDetail.fromJson(response.data ?? const {});
+    }
+
+    final collections = _localCollections();
+    if (collections.any(
+      (item) => item.name.toLowerCase() == trimmed.toLowerCase(),
+    )) {
+      throw ApiException('Collection name already exists.');
+    }
+    final nextId = collections.isEmpty
+        ? 1
+        : collections.map((item) => item.id).reduce((a, b) => a > b ? a : b) +
+              1;
+    final created = CollectionDetail(
+      id: nextId,
+      name: trimmed,
+      totalItems: 0,
+      items: const [],
+    );
+    collections.add(created);
+    await _saveLocalCollections(collections);
+    return created;
+  }
+
+  Future<void> setComicCollections(
+    ComicSummary comic,
+    Set<int> selectedCollectionIds,
+  ) async {
+    if (await _isLoggedIn) {
+      final current = await getComicState(comic);
+      final currentIds = current.collections.map((item) => item.id).toSet();
+      for (final id in selectedCollectionIds.difference(currentIds)) {
+        await _api.put<Map<String, dynamic>>(
+          '/library/collections/$id/comics/${comic.sourceName}/${comic.slug}',
+        );
+      }
+      for (final id in currentIds.difference(selectedCollectionIds)) {
+        await _api.delete<Map<String, dynamic>>(
+          '/library/collections/$id/comics/${comic.sourceName}/${comic.slug}',
+        );
+      }
+      return;
+    }
+
+    final collections = _localCollections();
+    final ref = LibraryComicRef.fromSummary(comic);
+    final updated = collections.map((collection) {
+      final items = collection.items
+          .where((item) => item.key != comic.key)
+          .toList();
+      if (selectedCollectionIds.contains(collection.id)) {
+        items.add(ref);
+      }
+      return CollectionDetail(
+        id: collection.id,
+        name: collection.name,
+        totalItems: items.length,
+        items: items,
+      );
+    }).toList();
+    await _saveLocalCollections(updated);
+  }
+
+  Future<List<FavoriteScene>> getFavoriteScenes() async {
+    if (await _isLoggedIn) {
+      final response = await _api.get<List<dynamic>>(
+        '/library/favorite-scenes',
+      );
+      return (response.data ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(FavoriteScene.fromJson)
+          .toList();
+    }
+    return _localFavoriteScenes();
+  }
+
+  Future<void> saveFavoriteScene({
+    required ComicSummary comic,
+    required double chapterNumber,
+    required int pageItemIndex,
+    required String imageUrl,
+  }) async {
+    if (await _isLoggedIn) {
+      await _api.post<Map<String, dynamic>>(
+        '/library/favorite-scenes',
+        data: {
+          'source_name': comic.sourceName,
+          'comic_slug': comic.slug,
+          'chapter_number': chapterNumber,
+          'page_item_index': pageItemIndex,
+          'image_url': imageUrl,
+        },
+      );
+      return;
+    }
+
+    final scenes = _localFavoriteScenes();
+    scenes.removeWhere(
+      (scene) =>
+          scene.comic.key == comic.key &&
+          scene.chapterNumber == chapterNumber &&
+          scene.pageItemIndex == pageItemIndex,
+    );
+    final nextId = scenes.isEmpty
+        ? 1
+        : scenes.map((item) => item.id).reduce((a, b) => a > b ? a : b) + 1;
+    scenes.add(
+      FavoriteScene(
+        id: nextId,
+        comic: LibraryComicRef.fromSummary(comic),
+        chapterNumber: chapterNumber,
+        pageItemIndex: pageItemIndex,
+        imageUrl: imageUrl,
+      ),
+    );
+    await _store.library.put(
+      'favorite_scenes',
+      scenes.map((scene) => scene.toJson()).toList(),
+    );
+  }
+
+  Future<List<ReadingProgress>> getHistory() async {
+    if (await _isLoggedIn) {
+      final response = await _api.get<List<dynamic>>('/library/history');
+      return (response.data ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(ReadingProgress.fromLibraryJson)
+          .toList();
+    }
+    return _store.progress.values
+        .whereType<Map<dynamic, dynamic>>()
+        .map(ReadingProgress.fromLocalJson)
+        .toList()
+      ..sort((a, b) => b.lastReadAt.compareTo(a.lastReadAt));
+  }
+
+  Future<List<DownloadEntry>> getDownloads() async {
+    if (await _isLoggedIn) {
+      final response = await _api.get<List<dynamic>>('/library/downloads');
+      return (response.data ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(DownloadEntry.fromJson)
+          .toList();
+    }
+    return _localDownloads();
+  }
+
+  Future<void> enqueueDownloadBatch(
+    ComicSummary comic,
+    List<double>? chapterNumbers,
+  ) async {
+    if (await _isLoggedIn) {
+      await _api.post<Map<String, dynamic>>(
+        '/library/downloads/batch',
+        data: {
+          'source_name': comic.sourceName,
+          'comic_slug': comic.slug,
+          'chapter_numbers': chapterNumbers,
+          'status': 'pending',
+        },
+      );
+      return;
+    }
+
+    final downloads = _localDownloads();
+    final ref = LibraryComicRef.fromSummary(comic);
+    final chapters = chapterNumbers ?? const <double>[];
+    var nextId = downloads.isEmpty
+        ? 1
+        : downloads.map((item) => item.id).reduce((a, b) => a > b ? a : b) + 1;
+    for (final chapter in chapters) {
+      downloads.removeWhere(
+        (item) => item.comic.key == comic.key && item.chapterNumber == chapter,
+      );
+      downloads.add(
+        DownloadEntry(
+          id: nextId++,
+          comic: ref,
+          chapterNumber: chapter,
+          status: 'pending',
+        ),
+      );
+    }
+    await _store.library.put(
+      'downloads',
+      downloads.map((download) => download.toJson()).toList(),
+    );
+  }
+
+  Future<ReaderPreferences> getReaderPreferences() async {
+    if (await _isLoggedIn) {
+      try {
+        final response = await _api.get<Map<String, dynamic>>(
+          '/library/reader-preferences',
+        );
+        final prefs = ReaderPreferences.fromJson(response.data ?? const {});
+        await _store.settings.put('reader_preferences', prefs.toJson());
+        return prefs;
+      } catch (_) {
+        return _localReaderPreferences();
+      }
+    }
+    return _localReaderPreferences();
+  }
+
+  Future<ReaderPreferences> saveReaderPreferences(
+    ReaderPreferences prefs,
+  ) async {
+    await _store.settings.put('reader_preferences', prefs.toJson());
+    if (await _isLoggedIn) {
+      final response = await _api.put<Map<String, dynamic>>(
+        '/library/reader-preferences',
+        data: prefs.toJson(),
+      );
+      return ReaderPreferences.fromJson(response.data ?? prefs.toJson());
+    }
+    return prefs;
+  }
+
+  Map<String, LibraryComicRef> _localBookmarks() {
+    final raw = _store.library.get('bookmarks');
+    if (raw is! Map) return {};
+    return raw.map(
+      (key, value) => MapEntry(
+        key.toString(),
+        LibraryComicRef.fromJson(Map<String, dynamic>.from(value as Map)),
+      ),
+    );
+  }
+
+  List<CollectionDetail> _localCollections() {
+    final raw = _store.library.get('collections');
+    if (raw is! List) return [];
+    return raw
+        .whereType<Map<dynamic, dynamic>>()
+        .map(
+          (item) => CollectionDetail.fromJson(Map<String, dynamic>.from(item)),
+        )
+        .toList();
+  }
+
+  Future<void> _saveLocalCollections(List<CollectionDetail> collections) {
+    return _store.library.put(
+      'collections',
+      collections.map((collection) => collection.toJson()).toList(),
+    );
+  }
+
+  List<FavoriteScene> _localFavoriteScenes() {
+    final raw = _store.library.get('favorite_scenes');
+    if (raw is! List) return [];
+    return raw
+        .whereType<Map<dynamic, dynamic>>()
+        .map((item) => FavoriteScene.fromJson(Map<String, dynamic>.from(item)))
+        .toList();
+  }
+
+  List<DownloadEntry> _localDownloads() {
+    final raw = _store.library.get('downloads');
+    if (raw is! List) return [];
+    return raw
+        .whereType<Map<dynamic, dynamic>>()
+        .map((item) => DownloadEntry.fromJson(Map<String, dynamic>.from(item)))
+        .toList();
+  }
+
+  Map<String, int> _downloadCountsFor(String comicKey) {
+    final counts = <String, int>{};
+    for (final item in _localDownloads().where(
+      (item) => item.comic.key == comicKey,
+    )) {
+      counts[item.status] = (counts[item.status] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  ReaderPreferences _localReaderPreferences() {
+    final raw = _store.settings.get('reader_preferences');
+    if (raw is Map) {
+      return ReaderPreferences.fromJson(raw);
+    }
+    return const ReaderPreferences();
+  }
+
+  Map<String, dynamic> _encodeComicRefMap(Map<String, LibraryComicRef> value) {
+    return value.map((key, ref) => MapEntry(key, ref.toJson()));
+  }
+}
+
+extension on ComicSummary {
+  String get key => '$sourceName|$slug';
+}

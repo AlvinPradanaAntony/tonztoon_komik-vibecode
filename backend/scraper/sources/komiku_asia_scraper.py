@@ -47,10 +47,6 @@ from urllib.parse import urlencode
 
 from scrapling.fetchers import AsyncStealthySession
 
-from app.services.image_service import (
-    build_komiku_canonical_detail_url,
-    extract_cover_url_from_komiku_html,
-)
 from scraper.base_scraper import BaseComicScraper
 from scraper.sources.common import ScraperCommonMixin
 from scraper.utils import clean_text
@@ -240,37 +236,6 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
                 info_map[key] = value
         return info_map
 
-    def _extract_canonical_cover_url(self, source_url: str) -> str | None:
-        """
-        Ambil cover dari halaman canonical komiku.org.
-
-        Cover `wp-content/uploads` pada Komiku Asia diproteksi Cloudflare dan
-        gagal diproxy via HTTP biasa. Halaman canonical komiku.org menyediakan
-        URL `thumbnail.komiku.org` untuk slug yang sama.
-        """
-        canonical_url = build_komiku_canonical_detail_url(source_url)
-        if not canonical_url:
-            return None
-
-        try:
-            response = self.fetcher.get(canonical_url)
-            if getattr(response, "status", 0) != 200:
-                logger.warning(
-                    "Gagal fetch cover canonical Komiku Asia %s: status=%s",
-                    canonical_url,
-                    getattr(response, "status", "unknown"),
-                )
-                return None
-
-            return extract_cover_url_from_komiku_html(response.body, canonical_url)
-        except Exception as exc:
-            logger.warning(
-                "Gagal extract cover canonical Komiku Asia %s: %s",
-                canonical_url,
-                exc,
-            )
-            return None
-
     def _parse_grid_cards(self, cards: list) -> list[dict[str, Any]]:
         comics_data: list[dict[str, Any]] = []
 
@@ -400,7 +365,6 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
 
         cover_el = response.css(".seriestucontl .thumb img")
         cover_url = self._extract_image_url(cover_el[0] if cover_el else None, invalid_substrings=())
-        cover_url = self._extract_canonical_cover_url(url) or cover_url
 
         info_map = self._extract_info_table_map(response)
 

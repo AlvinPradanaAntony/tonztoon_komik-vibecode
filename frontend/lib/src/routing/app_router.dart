@@ -4,9 +4,11 @@ import 'package:go_router/go_router.dart';
 import '../features/auth/auth_screen.dart';
 import '../features/comic/comic_detail_screen.dart';
 import '../features/home/home_screen.dart';
+import '../features/library/library_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
-import '../features/placeholder/placeholder_screen.dart';
 import '../features/reader/reader_screen.dart';
+import '../features/search/search_screen.dart';
+import '../features/settings/settings_screen.dart';
 import '../features/shell/main_shell.dart';
 import '../features/splash/splash_screen.dart';
 
@@ -29,26 +31,15 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
           GoRoute(
             path: '/search',
-            builder: (context, state) => const PlaceholderScreen(
-              title: 'Search',
-              message:
-                  'Search will use the backend multi-source endpoint next.',
-            ),
+            builder: (context, state) => const SearchScreen(),
           ),
           GoRoute(
             path: '/library',
-            builder: (context, state) => const PlaceholderScreen(
-              title: 'Library',
-              message:
-                  'Bookmarks, collections, favorite scenes, history, and downloads are scaffolded for the next slice.',
-            ),
+            builder: (context, state) => const LibraryScreen(),
           ),
           GoRoute(
             path: '/settings',
-            builder: (context, state) => const PlaceholderScreen(
-              title: 'Settings',
-              message: 'Reader preferences and cache controls will live here.',
-            ),
+            builder: (context, state) => const SettingsScreen(),
           ),
         ],
       ),

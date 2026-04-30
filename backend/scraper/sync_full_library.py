@@ -106,6 +106,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.database import async_session
 from app.models import Chapter, Comic, comic_genre
 from app.schemas import ComicCreate
+from app.services.image_service import is_public_supabase_storage_url
 
 from scraper.base_scraper import BaseComicScraper
 from scraper.db_ops import upsert_comic, upsert_genre
@@ -647,14 +648,25 @@ async def refresh_existing_comic_fields(
         return False, [], "comic existing tidak ditemukan"
 
     changed_fields: dict[str, Any] = {}
+    preserved_storage_cover = False
     for field_name in requested_fields:
         if field_name not in patch or field_name not in SUPPORTED_REFRESH_FIELDS:
             continue
         new_value = patch[field_name]
-        if getattr(comic, field_name) != new_value:
+        current_value = getattr(comic, field_name)
+        if (
+            field_name == "cover_image_url"
+            and current_value
+            and is_public_supabase_storage_url(current_value)
+        ):
+            preserved_storage_cover = True
+            continue
+        if current_value != new_value:
             changed_fields[field_name] = new_value
 
     if not changed_fields:
+        if preserved_storage_cover:
+            return False, [], "cover_image_url storage dipertahankan"
         return False, [], "field target unchanged"
 
     changed_fields["updated_at"] = now_wib()

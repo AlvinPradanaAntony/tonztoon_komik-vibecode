@@ -77,7 +77,7 @@ except ModuleNotFoundError as exc:  # pragma: no cover - CLI guard
 logger = logging.getLogger("sync-cover-images")
 
 DEFAULT_LOG_FILE = Path("sync_cover_images.log")
-CHECKPOINT_DIR = Path(__file__).resolve().parent.parent / "data"
+CHECKPOINT_DIR = Path(__file__).resolve().parent.parent / "checkpoints"
 DEFAULT_MAX_BYTES = 150 * 1024
 DEFAULT_MAX_WIDTH = 600
 DEFAULT_LIMIT = 0
@@ -512,6 +512,8 @@ def optimize_cover_image(
 ) -> bytes:
     """Resize + kompres cover ke WebP dengan target ukuran maksimum."""
     with Image.open(BytesIO(content)) as image:
+        if getattr(image, "is_animated", False):
+            image.seek(0)
         image = image.convert("RGB")
 
         if image.width > max_width:

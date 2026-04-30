@@ -22,11 +22,13 @@ void main() {
     final settings = await Hive.openBox<dynamic>('settings_test');
     final auth = await Hive.openBox<dynamic>('auth_test');
     final progress = await Hive.openBox<dynamic>('progress_test');
+    final library = await Hive.openBox<dynamic>('library_test');
     final cache = await Hive.openBox<dynamic>('cache_test');
     store = LocalStore(
       settings: settings,
       auth: auth,
       progress: progress,
+      library: library,
       cache: cache,
     );
     tokenStore = MemoryTokenStore();
@@ -51,6 +53,7 @@ void main() {
         coverImageUrl: 'https://example.test/cover.jpg',
       ),
       chapterNumber: 603,
+      readingMode: 'vertical',
       scrollOffset: 900,
       pageItemIndex: 1,
       totalPageItems: 5,

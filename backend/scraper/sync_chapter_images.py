@@ -39,8 +39,8 @@ Strategi anti-blocking:
 Checkpoint:
 - File checkpoint dipisahkan per `source`.
 - Contoh:
-  - `data/sync_chapter_images_komikcast.json`
-  - `data/sync_chapter_images_all.json`
+  - `checkpoints/sync_chapter_images_komikcast.json`
+  - `checkpoints/sync_chapter_images_all.json`
 - `--reset` akan menghapus checkpoint aktif agar proses dimulai dari awal.
 
 Perilaku saat backlog kosong:
@@ -135,7 +135,7 @@ from scraper.utils import (
 )
 
 DEFAULT_LOG_FILE = Path("sync_chapter_images.log")
-CHECKPOINT_DIR = Path(__file__).resolve().parent.parent / "data"
+CHECKPOINT_DIR = Path(__file__).resolve().parent.parent / "checkpoints"
 
 SUPPORTED_SOURCES = tuple(get_supported_source_names())
 SUPPORTED_SELECTIONS = {"ordered", "random"}

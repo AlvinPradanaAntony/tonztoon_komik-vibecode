@@ -4,7 +4,9 @@ class AppConfig {
   factory AppConfig.fromEnvironment() {
     const configured = String.fromEnvironment('API_BASE_URL');
     return const AppConfig(
-      apiBaseUrl: configured == '' ? 'http://192.168.1.8:8000/api/v1' : configured,
+      apiBaseUrl: configured == ''
+          ? 'http://192.168.1.8:8000/api/v1'
+          : configured,
     );
   }
 

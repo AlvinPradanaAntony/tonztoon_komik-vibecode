@@ -91,7 +91,6 @@ def _build_comic_response(
                 build_proxy_image_url(
                     getattr(comic, field_name),
                     base_url=base_url,
-                    source_url=comic.source_url,
                 )
                 if field_name == "cover_image_url"
                 else getattr(comic, field_name)
@@ -113,7 +112,6 @@ def _build_source_chapter_response(
     images = wrap_chapter_image_urls(
         chapter.images,
         base_url=_get_request_base_url(request),
-        source_url=chapter.source_url,
     )
     return SourceChapterResponse(
         source_name=source_name,
@@ -190,7 +188,6 @@ def _build_source_comic_list_item(
         cover_image_url=build_proxy_image_url(
             comic.cover_image_url,
             base_url=base_url,
-            source_url=comic.source_url,
         ),
         status=comic.status,
         type=comic.type,

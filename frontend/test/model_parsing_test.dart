@@ -26,6 +26,7 @@ void main() {
         sourceName: 'komiku',
       ),
       chapterNumber: 603,
+      readingMode: 'vertical',
       scrollOffset: 1824.5,
       pageItemIndex: 18,
       totalPageItems: 80,
