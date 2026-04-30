@@ -217,6 +217,195 @@ class DownloadEntry {
   final String? lastError;
 }
 
+class OfflineChapter {
+  const OfflineChapter({
+    required this.comic,
+    required this.chapterNumber,
+    required this.status,
+    required this.localPaths,
+    required this.updatedAt,
+    this.lastError,
+  });
+
+  factory OfflineChapter.fromJson(Map<dynamic, dynamic> json) {
+    return OfflineChapter(
+      comic: LibraryComicRef.fromJson(
+        Map<String, dynamic>.from(json['comic'] as Map? ?? const {}),
+      ),
+      chapterNumber: (json['chapter_number'] as num?)?.toDouble() ?? 0,
+      status: json['status'] as String? ?? 'pending',
+      localPaths: ((json['local_paths'] as List?) ?? const [])
+          .map((path) => path.toString())
+          .toList(),
+      updatedAt:
+          DateTime.tryParse(json['updated_at'] as String? ?? '') ??
+          DateTime.now(),
+      lastError: json['last_error'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'comic': comic.toJson(),
+    'chapter_number': chapterNumber,
+    'status': status,
+    'local_paths': localPaths,
+    'updated_at': updatedAt.toIso8601String(),
+    'last_error': lastError,
+  };
+
+  String get key => '${comic.sourceName}|${comic.slug}|$chapterNumber';
+  bool get isCompleted => status == 'completed' && localPaths.isNotEmpty;
+
+  final LibraryComicRef comic;
+  final double chapterNumber;
+  final String status;
+  final List<String> localPaths;
+  final DateTime updatedAt;
+  final String? lastError;
+}
+
+class OfflineDownloadBatch {
+  const OfflineDownloadBatch({
+    required this.id,
+    required this.comic,
+    required this.chapterNumbers,
+    required this.status,
+    required this.completedChapters,
+    required this.totalChapters,
+    required this.completedImages,
+    required this.totalImages,
+    required this.createdAt,
+    required this.updatedAt,
+    this.progressValue,
+    this.currentChapterNumber,
+    this.lastError,
+  });
+
+  factory OfflineDownloadBatch.create({
+    required String id,
+    required ComicSummary comic,
+    required List<double> chapterNumbers,
+  }) {
+    final now = DateTime.now();
+    return OfflineDownloadBatch(
+      id: id,
+      comic: LibraryComicRef.fromSummary(comic),
+      chapterNumbers: chapterNumbers,
+      status: 'pending',
+      completedChapters: 0,
+      totalChapters: chapterNumbers.length,
+      completedImages: 0,
+      totalImages: 0,
+      createdAt: now,
+      updatedAt: now,
+    );
+  }
+
+  factory OfflineDownloadBatch.fromJson(Map<dynamic, dynamic> json) {
+    return OfflineDownloadBatch(
+      id: json['id'] as String? ?? '',
+      comic: LibraryComicRef.fromJson(
+        Map<String, dynamic>.from(json['comic'] as Map? ?? const {}),
+      ),
+      chapterNumbers: ((json['chapter_numbers'] as List?) ?? const [])
+          .map((value) => (value as num).toDouble())
+          .toList(),
+      status: json['status'] as String? ?? 'pending',
+      completedChapters: json['completed_chapters'] as int? ?? 0,
+      totalChapters: json['total_chapters'] as int? ?? 0,
+      completedImages: json['completed_images'] as int? ?? 0,
+      totalImages: json['total_images'] as int? ?? 0,
+      currentChapterNumber: (json['current_chapter_number'] as num?)
+          ?.toDouble(),
+      progressValue: (json['progress_value'] as num?)?.toDouble(),
+      createdAt:
+          DateTime.tryParse(json['created_at'] as String? ?? '') ??
+          DateTime.now(),
+      updatedAt:
+          DateTime.tryParse(json['updated_at'] as String? ?? '') ??
+          DateTime.now(),
+      lastError: json['last_error'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'comic': comic.toJson(),
+    'chapter_numbers': chapterNumbers,
+    'status': status,
+    'completed_chapters': completedChapters,
+    'total_chapters': totalChapters,
+    'completed_images': completedImages,
+    'total_images': totalImages,
+    'progress_value': progressValue,
+    'current_chapter_number': currentChapterNumber,
+    'created_at': createdAt.toIso8601String(),
+    'updated_at': updatedAt.toIso8601String(),
+    'last_error': lastError,
+  };
+
+  OfflineDownloadBatch copyWith({
+    String? status,
+    int? completedChapters,
+    int? totalChapters,
+    int? completedImages,
+    int? totalImages,
+    double? currentChapterNumber,
+    double? progressValue,
+    bool clearCurrentChapterNumber = false,
+    String? lastError,
+    bool clearLastError = false,
+  }) {
+    return OfflineDownloadBatch(
+      id: id,
+      comic: comic,
+      chapterNumbers: chapterNumbers,
+      status: status ?? this.status,
+      completedChapters: completedChapters ?? this.completedChapters,
+      totalChapters: totalChapters ?? this.totalChapters,
+      completedImages: completedImages ?? this.completedImages,
+      totalImages: totalImages ?? this.totalImages,
+      currentChapterNumber: clearCurrentChapterNumber
+          ? null
+          : currentChapterNumber ?? this.currentChapterNumber,
+      progressValue: progressValue ?? this.progressValue,
+      createdAt: createdAt,
+      updatedAt: DateTime.now(),
+      lastError: clearLastError ? null : lastError ?? this.lastError,
+    );
+  }
+
+  double get progress {
+    if (progressValue != null) {
+      return progressValue!.clamp(0, 1).toDouble();
+    }
+    if (totalImages > 0) {
+      return (completedImages / totalImages).clamp(0, 1).toDouble();
+    }
+    if (totalChapters > 0) {
+      return (completedChapters / totalChapters).clamp(0, 1).toDouble();
+    }
+    return 0;
+  }
+
+  bool get canCancel => status == 'pending' || status == 'downloading';
+  bool get canResume => status == 'pending' || status == 'paused';
+
+  final String id;
+  final LibraryComicRef comic;
+  final List<double> chapterNumbers;
+  final String status;
+  final int completedChapters;
+  final int totalChapters;
+  final int completedImages;
+  final int totalImages;
+  final double? progressValue;
+  final double? currentChapterNumber;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final String? lastError;
+}
+
 class ReaderPreferences {
   const ReaderPreferences({
     this.defaultReadingMode = 'vertical',

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_assets.dart';
+import '../../models/auth.dart';
 import '../../models/comic.dart';
 import '../../models/progress.dart';
 import '../../repositories/providers.dart';
@@ -19,6 +20,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _restored = false;
+  bool _migrationPromptShown = false;
 
   @override
   void didChangeDependencies() {
@@ -35,6 +37,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final home = ref.watch(homeDataProvider);
     final auth = ref.watch(authControllerProvider);
+    _maybePromptMigration(auth);
 
     return Scaffold(
       appBar: AppBar(
@@ -119,6 +122,67 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       ),
     );
+  }
+
+  void _maybePromptMigration(AuthState auth) {
+    if (_migrationPromptShown || !auth.isAuthenticated) return;
+    final repo = ref.read(libraryRepositoryProvider);
+    if (repo.migrationSkipped || !repo.hasMigratableLocalData()) return;
+    _migrationPromptShown = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _showMigrationDialog();
+    });
+  }
+
+  Future<void> _showMigrationDialog() async {
+    final repo = ref.read(libraryRepositoryProvider);
+    final action = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Sync guest data?'),
+        content: const Text(
+          'Progress, bookmarks, collections, favorite scenes, and download wishlist from guest mode can be migrated to your cloud account. Offline files stay on this device.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => context.pop('skip'),
+            child: const Text('Skip'),
+          ),
+          FilledButton(
+            onPressed: () => context.pop('migrate'),
+            child: const Text('Migrate & Sync'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || action == null) return;
+
+    if (action == 'skip') {
+      await repo.skipMigration();
+      return;
+    }
+
+    try {
+      await repo.importLocalSnapshotToCloud();
+      ref.invalidate(homeDataProvider);
+      ref.invalidate(bookmarksProvider);
+      ref.invalidate(collectionsProvider);
+      ref.invalidate(favoriteScenesProvider);
+      ref.invalidate(downloadsProvider);
+      ref.invalidate(historyProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Guest data migrated to cloud.')),
+      );
+    } catch (error) {
+      _migrationPromptShown = false;
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Migration failed: $error')));
+    }
   }
 }
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -589,26 +590,31 @@ class _PagedReader extends StatelessWidget {
             maxScale: 4,
             child: GestureDetector(
               onLongPress: () => onFavorite(index, image.url),
-              child: CachedNetworkImage(
-                imageUrl: image.url,
-                cacheManager: ReaderImageCacheManager.instance,
-                fit: BoxFit.contain,
-                fadeInDuration: Duration.zero,
-                fadeOutDuration: Duration.zero,
-                placeholder: (context, url) => const _ImageSkeleton(),
-                errorWidget: (context, url, error) => Center(
-                  child: FilledButton.icon(
-                    onPressed: () {
-                      CachedNetworkImage.evictFromCache(
-                        image.url,
-                        cacheManager: ReaderImageCacheManager.instance,
-                      );
-                    },
-                    icon: const Icon(Icons.refresh),
-                    label: Text('Retry page ${index + 1}'),
-                  ),
-                ),
-              ),
+              child: image.url.startsWith('file:')
+                  ? Image.file(
+                      File.fromUri(Uri.parse(image.url)),
+                      fit: BoxFit.contain,
+                    )
+                  : CachedNetworkImage(
+                      imageUrl: image.url,
+                      cacheManager: ReaderImageCacheManager.instance,
+                      fit: BoxFit.contain,
+                      fadeInDuration: Duration.zero,
+                      fadeOutDuration: Duration.zero,
+                      placeholder: (context, url) => const _ImageSkeleton(),
+                      errorWidget: (context, url, error) => Center(
+                        child: FilledButton.icon(
+                          onPressed: () {
+                            CachedNetworkImage.evictFromCache(
+                              image.url,
+                              cacheManager: ReaderImageCacheManager.instance,
+                            );
+                          },
+                          icon: const Icon(Icons.refresh),
+                          label: Text('Retry page ${index + 1}'),
+                        ),
+                      ),
+                    ),
             ),
           ),
         );
@@ -637,6 +643,17 @@ class _ReaderImageState extends State<_ReaderImage> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.imageUrl.startsWith('file:')) {
+      return GestureDetector(
+        onLongPress: widget.onLongPress,
+        child: Image.file(
+          File.fromUri(Uri.parse(widget.imageUrl)),
+          fit: BoxFit.fitWidth,
+          width: double.infinity,
+        ),
+      );
+    }
+
     return GestureDetector(
       onLongPress: widget.onLongPress,
       child: CachedNetworkImage(

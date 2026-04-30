@@ -36,10 +36,18 @@ flutter run --dart-define=API_BASE_URL=http://127.0.0.1:8000/api/v1
 - Reader settings for default mode, LTR/RTL, auto-next preference, and cache
   clearing.
 - Reader vertical/paged toggle and long-press favorite scene saving.
+- Actual offline chapter file download to app documents storage, offline reader
+  fallback, per-chapter delete, and clear-all offline storage.
+- Fine-grained offline queue controls with live batch progress percentages,
+  current chapter status, batch cancel, and completed batch removal.
+- Background-resumable download handling: interrupted batches are persisted as
+  paused and automatically resumed on app bootstrap, continuing from the next
+  unfinished chapter.
+- Guest-to-cloud migration dialog after login using `/library/sync/import`.
+- Collection rename and delete from the Library tab.
 
 ## Still Pending
 
-- Actual offline file download/storage and retry management.
 - Google OAuth activation.
-- Full collection detail management actions such as rename/delete.
-- Migration dialog for guest data after login.
+- Native OS-level background downloads that continue while the process is fully
+  terminated by the system.

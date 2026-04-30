@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/api_client.dart';
@@ -12,6 +15,7 @@ import '../models/source_info.dart';
 import 'auth_repository.dart';
 import 'catalog_repository.dart';
 import 'library_repository.dart';
+import 'offline_repository.dart';
 import 'progress_repository.dart';
 
 final configProvider = Provider<AppConfig>(
@@ -56,6 +60,13 @@ final libraryRepositoryProvider = Provider<LibraryRepository>((ref) {
   return LibraryRepository(
     ref.watch(apiProvider),
     ref.watch(tokenStoreProvider),
+    ref.watch(localStoreProvider),
+  );
+});
+
+final offlineRepositoryProvider = Provider<OfflineRepository>((ref) {
+  return OfflineRepository(
+    ref.watch(apiProvider),
     ref.watch(localStoreProvider),
   );
 });
@@ -226,10 +237,31 @@ class ChapterRequest extends ComicRequest {
 final chapterProvider = FutureProvider.family<ChapterPayload, ChapterRequest>((
   ref,
   request,
-) {
-  return ref
-      .watch(catalogRepositoryProvider)
-      .getChapter(request.sourceName, request.slug, request.chapterNumber);
+) async {
+  final offline = await ref
+      .watch(offlineRepositoryProvider)
+      .getOfflinePayload(
+        request.sourceName,
+        request.slug,
+        request.chapterNumber,
+      );
+  if (offline != null) return offline;
+
+  try {
+    return await ref
+        .watch(catalogRepositoryProvider)
+        .getChapter(request.sourceName, request.slug, request.chapterNumber);
+  } catch (_) {
+    final fallback = await ref
+        .watch(offlineRepositoryProvider)
+        .getOfflinePayload(
+          request.sourceName,
+          request.slug,
+          request.chapterNumber,
+        );
+    if (fallback != null) return fallback;
+    rethrow;
+  }
 });
 
 final searchQueryProvider = NotifierProvider<SearchQueryController, String>(
@@ -277,6 +309,241 @@ final historyProvider = FutureProvider<List<ReadingProgress>>((ref) {
 final downloadsProvider = FutureProvider<List<DownloadEntry>>((ref) {
   return ref.watch(libraryRepositoryProvider).getDownloads();
 });
+
+final offlineChaptersProvider = FutureProvider<List<OfflineChapter>>((ref) {
+  return ref.watch(offlineRepositoryProvider).getOfflineChapters();
+});
+
+final offlineQueueProvider =
+    AsyncNotifierProvider<OfflineQueueController, List<OfflineDownloadBatch>>(
+      OfflineQueueController.new,
+    );
+
+class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
+  final Map<String, CancelToken> _cancelTokens = {};
+
+  @override
+  Future<List<OfflineDownloadBatch>> build() {
+    return ref.watch(offlineRepositoryProvider).getBatches();
+  }
+
+  Future<void> refresh() async {
+    state = AsyncData(await ref.read(offlineRepositoryProvider).getBatches());
+  }
+
+  Future<void> startBatch({
+    required ComicSummary comic,
+    required List<ChapterListItem> chapters,
+  }) async {
+    if (chapters.isEmpty) return;
+    final chapterNumbers = chapters.map((item) => item.chapterNumber).toList();
+    final batch = OfflineDownloadBatch.create(
+      id: '${comic.sourceName}|${comic.slug}|${DateTime.now().microsecondsSinceEpoch}',
+      comic: comic,
+      chapterNumbers: chapterNumbers,
+    );
+    await ref
+        .read(libraryRepositoryProvider)
+        .enqueueDownloadBatch(comic, chapterNumbers);
+    await ref.read(offlineRepositoryProvider).saveBatch(batch);
+    await refresh();
+    unawaited(_runBatch(batch));
+  }
+
+  Future<void> resumeBatch(String batchId) async {
+    final batches = state.asData?.value ?? await build();
+    OfflineDownloadBatch? batch;
+    for (final item in batches) {
+      if (item.id == batchId) {
+        batch = item;
+        break;
+      }
+    }
+    if (batch == null || !batch.canResume) return;
+    unawaited(_runBatch(batch));
+  }
+
+  Future<void> resumeRecoverableBatches() async {
+    final batches = await ref.read(offlineRepositoryProvider).getBatches();
+    state = AsyncData(batches);
+    for (final batch in batches.where((batch) => batch.canResume)) {
+      unawaited(_runBatch(batch));
+    }
+  }
+
+  Future<void> cancelBatch(String batchId) async {
+    _cancelTokens[batchId]?.cancel('Download batch cancelled.');
+    OfflineDownloadBatch? batch;
+    for (final item in state.asData?.value ?? const <OfflineDownloadBatch>[]) {
+      if (item.id == batchId) {
+        batch = item;
+        break;
+      }
+    }
+    if (batch != null) {
+      await _saveBatch(
+        batch.copyWith(
+          status: 'cancelled',
+          clearCurrentChapterNumber: true,
+          lastError: 'Cancelled by user.',
+        ),
+      );
+    }
+  }
+
+  Future<void> deleteBatch(String batchId) async {
+    _cancelTokens[batchId]?.cancel('Download batch deleted.');
+    _cancelTokens.remove(batchId);
+    await ref.read(offlineRepositoryProvider).deleteBatch(batchId);
+    await refresh();
+  }
+
+  Future<void> _runBatch(OfflineDownloadBatch initialBatch) async {
+    if (_cancelTokens.containsKey(initialBatch.id)) return;
+    final token = CancelToken();
+    _cancelTokens[initialBatch.id] = token;
+    var batch = initialBatch.copyWith(
+      status: 'downloading',
+      completedChapters: 0,
+      progressValue: 0,
+      clearLastError: true,
+    );
+    await _saveBatch(batch);
+
+    try {
+      final startIndex = batch.completedChapters.clamp(
+        0,
+        batch.chapterNumbers.length,
+      );
+      for (
+        var chapterIndex = startIndex;
+        chapterIndex < batch.chapterNumbers.length;
+        chapterIndex++
+      ) {
+        if (token.isCancelled) {
+          await _saveBatch(
+            batch.copyWith(
+              status: 'cancelled',
+              clearCurrentChapterNumber: true,
+              lastError: 'Cancelled by user.',
+            ),
+          );
+          return;
+        }
+        final chapterNumber = batch.chapterNumbers[chapterIndex];
+        final existing = await ref
+            .read(offlineRepositoryProvider)
+            .getOfflineChapter(
+              batch.comic.sourceName,
+              batch.comic.slug,
+              chapterNumber,
+            );
+        if (existing?.isCompleted == true) {
+          batch = batch.copyWith(
+            completedChapters: chapterIndex + 1,
+            progressValue: (chapterIndex + 1) / batch.totalChapters,
+          );
+          await _saveBatch(batch);
+          continue;
+        }
+        batch = batch.copyWith(
+          status: 'downloading',
+          currentChapterNumber: chapterNumber,
+          completedChapters: chapterIndex,
+          progressValue: chapterIndex / batch.totalChapters,
+        );
+        await _saveBatch(batch);
+
+        final payload = await ref
+            .read(catalogRepositoryProvider)
+            .getChapter(
+              batch.comic.sourceName,
+              batch.comic.slug,
+              chapterNumber,
+            );
+        final totalPages = payload.images.length;
+        batch = batch.copyWith(totalImages: totalPages);
+        await _saveBatch(batch);
+
+        await ref
+            .read(offlineRepositoryProvider)
+            .downloadChapter(
+              comic: batch.comic.toSummary(),
+              chapterNumber: chapterNumber,
+              payload: payload,
+              cancelToken: token,
+              onImageProgress: (pageIndex, received, total) {
+                final pageFraction = total <= 0 ? 0.0 : received / total;
+                final chapterFraction = totalPages == 0
+                    ? 1.0
+                    : ((pageIndex + pageFraction) / totalPages).clamp(0, 1);
+                final overall =
+                    ((chapterIndex + chapterFraction) / batch.totalChapters)
+                        .clamp(0, 1)
+                        .toDouble();
+                final live = batch.copyWith(
+                  completedChapters: chapterIndex,
+                  completedImages: pageIndex,
+                  totalImages: totalPages,
+                  progressValue: overall,
+                );
+                unawaited(_saveBatch(live));
+              },
+            );
+
+        batch = batch.copyWith(
+          completedChapters: chapterIndex + 1,
+          progressValue: (chapterIndex + 1) / batch.totalChapters,
+        );
+        await _saveBatch(batch);
+        ref.invalidate(offlineChaptersProvider);
+      }
+
+      await _saveBatch(
+        batch.copyWith(
+          status: 'completed',
+          completedChapters: batch.totalChapters,
+          progressValue: 1,
+          clearCurrentChapterNumber: true,
+        ),
+      );
+    } on DioException catch (error) {
+      final cancelled = CancelToken.isCancel(error);
+      await _saveBatch(
+        batch.copyWith(
+          status: cancelled ? 'cancelled' : 'failed',
+          clearCurrentChapterNumber: true,
+          lastError: error.message ?? error.toString(),
+        ),
+      );
+    } catch (error) {
+      await _saveBatch(
+        batch.copyWith(
+          status: 'failed',
+          clearCurrentChapterNumber: true,
+          lastError: error.toString(),
+        ),
+      );
+    } finally {
+      _cancelTokens.remove(initialBatch.id);
+      ref.invalidate(offlineChaptersProvider);
+      ref.invalidate(downloadsProvider);
+    }
+  }
+
+  Future<void> _saveBatch(OfflineDownloadBatch batch) async {
+    await ref.read(offlineRepositoryProvider).saveBatch(batch);
+    final current = [...?state.asData?.value];
+    final index = current.indexWhere((item) => item.id == batch.id);
+    if (index >= 0) {
+      current[index] = batch;
+    } else {
+      current.insert(0, batch);
+    }
+    current.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    state = AsyncData(current);
+  }
+}
 
 final readerPreferencesProvider = FutureProvider<ReaderPreferences>((ref) {
   return ref.watch(libraryRepositoryProvider).getReaderPreferences();

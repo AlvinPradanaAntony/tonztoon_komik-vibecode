@@ -502,16 +502,11 @@ class ComicDetailScreen extends ConsumerWidget {
     }
     try {
       await ref
-          .read(libraryRepositoryProvider)
-          .enqueueDownloadBatch(
-            comic,
-            chapters.map((item) => item.chapterNumber).toList(),
-          );
-      ref.invalidate(downloadsProvider);
-      ref.invalidate(libraryComicStateProvider(comic));
+          .read(offlineQueueProvider.notifier)
+          .startBatch(comic: comic, chapters: chapters);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Download wishlist queued.')),
+          const SnackBar(content: Text('Download batch started.')),
         );
       }
     } catch (error) {

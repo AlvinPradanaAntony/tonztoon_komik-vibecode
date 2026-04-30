@@ -151,6 +151,60 @@ class LibraryRepository {
     return created;
   }
 
+  Future<CollectionDetail> renameCollection(
+    int collectionId,
+    String name,
+  ) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) {
+      throw ApiException('Collection name cannot be empty.');
+    }
+    if (await _isLoggedIn) {
+      final response = await _api.patch<Map<String, dynamic>>(
+        '/library/collections/$collectionId',
+        data: {'name': trimmed},
+      );
+      return CollectionDetail.fromJson(response.data ?? const {});
+    }
+
+    final collections = _localCollections();
+    if (collections.any(
+      (item) =>
+          item.id != collectionId &&
+          item.name.toLowerCase() == trimmed.toLowerCase(),
+    )) {
+      throw ApiException('Collection name already exists.');
+    }
+    final index = collections.indexWhere((item) => item.id == collectionId);
+    if (index < 0) {
+      throw ApiException('Collection not found.');
+    }
+    final current = collections[index];
+    final updated = CollectionDetail(
+      id: current.id,
+      name: trimmed,
+      totalItems: current.items.length,
+      items: current.items,
+    );
+    collections[index] = updated;
+    await _saveLocalCollections(collections);
+    return updated;
+  }
+
+  Future<void> deleteCollection(int collectionId) async {
+    if (await _isLoggedIn) {
+      await _api.delete<Map<String, dynamic>>(
+        '/library/collections/$collectionId',
+      );
+      return;
+    }
+
+    final collections = _localCollections()
+        .where((collection) => collection.id != collectionId)
+        .toList();
+    await _saveLocalCollections(collections);
+  }
+
   Future<void> setComicCollections(
     ComicSummary comic,
     Set<int> selectedCollectionIds,
@@ -344,6 +398,103 @@ class LibraryRepository {
       return ReaderPreferences.fromJson(response.data ?? prefs.toJson());
     }
     return prefs;
+  }
+
+  bool hasMigratableLocalData() {
+    return _localBookmarks().isNotEmpty ||
+        _localCollections().isNotEmpty ||
+        _localFavoriteScenes().isNotEmpty ||
+        _localDownloads().isNotEmpty ||
+        _store.progress.isNotEmpty ||
+        _store.settings.get('reader_preferences') is Map;
+  }
+
+  bool get migrationSkipped {
+    return _store.settings.get('guest_cloud_migration_skipped') == true;
+  }
+
+  Future<void> skipMigration() {
+    return _store.settings.put('guest_cloud_migration_skipped', true);
+  }
+
+  Future<void> importLocalSnapshotToCloud() async {
+    if (!await _isLoggedIn) {
+      throw ApiException('Login required before migration.');
+    }
+
+    final bookmarks = _localBookmarks().values
+        .map(
+          (comic) => {
+            'source_name': comic.sourceName,
+            'comic_slug': comic.slug,
+          },
+        )
+        .toList();
+    final collections = _localCollections()
+        .map(
+          (collection) => {
+            'name': collection.name,
+            'comics': collection.items
+                .map(
+                  (comic) => {
+                    'source_name': comic.sourceName,
+                    'comic_slug': comic.slug,
+                  },
+                )
+                .toList(),
+          },
+        )
+        .toList();
+    final progress = _store.progress.values
+        .whereType<Map<dynamic, dynamic>>()
+        .map(ReadingProgress.fromLocalJson)
+        .map((item) => item.toProgressPayload())
+        .toList();
+    final scenes = _localFavoriteScenes()
+        .map(
+          (scene) => {
+            'source_name': scene.comic.sourceName,
+            'comic_slug': scene.comic.slug,
+            'chapter_number': scene.chapterNumber,
+            'page_item_index': scene.pageItemIndex,
+            'image_url': scene.imageUrl,
+            'note': scene.note,
+          },
+        )
+        .toList();
+    final downloads = _localDownloads()
+        .map(
+          (download) => {
+            'source_name': download.comic.sourceName,
+            'comic_slug': download.comic.slug,
+            'chapter_number': download.chapterNumber,
+            'status': download.status,
+            'last_error': download.lastError,
+          },
+        )
+        .toList();
+    final readerPrefs = _store.settings.get('reader_preferences');
+
+    await _api.post<Map<String, dynamic>>(
+      '/library/sync/import',
+      data: {
+        'bookmarks': bookmarks,
+        'collections': collections,
+        'progress': progress,
+        'favorite_scenes': scenes,
+        'downloads': downloads,
+        if (readerPrefs is Map)
+          'reader_preferences': Map<String, dynamic>.from(readerPrefs),
+      },
+    );
+
+    await _store.progress.clear();
+    await _store.library.delete('bookmarks');
+    await _store.library.delete('collections');
+    await _store.library.delete('favorite_scenes');
+    await _store.library.delete('downloads');
+    await _store.settings.delete('reader_preferences');
+    await _store.settings.delete('guest_cloud_migration_skipped');
   }
 
   Map<String, LibraryComicRef> _localBookmarks() {

@@ -24,6 +24,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   Future<void> _bootstrap() async {
     final start = DateTime.now();
     await ref.read(authControllerProvider.notifier).restore();
+    unawaited(
+      ref.read(offlineQueueProvider.notifier).resumeRecoverableBatches(),
+    );
     final elapsed = DateTime.now().difference(start);
     final remaining = const Duration(milliseconds: 900) - elapsed;
     if (remaining > Duration.zero) {
