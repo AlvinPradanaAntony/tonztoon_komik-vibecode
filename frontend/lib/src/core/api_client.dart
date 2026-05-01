@@ -14,6 +14,10 @@ class ApiException implements Exception {
 }
 
 class TonztoonApi {
+  static const Duration connectionTimeout = Duration(seconds: 3);
+  static const Duration sendTimeout = Duration(seconds: 8);
+  static const Duration receiveTimeout = Duration(seconds: 30);
+
   TonztoonApi({
     required AppConfig config,
     required TokenStore tokenStore,
@@ -24,8 +28,9 @@ class TonztoonApi {
            Dio(
              BaseOptions(
                baseUrl: config.apiBaseUrl,
-               connectTimeout: const Duration(seconds: 15),
-               receiveTimeout: const Duration(seconds: 30),
+               connectTimeout: connectionTimeout,
+               sendTimeout: sendTimeout,
+               receiveTimeout: receiveTimeout,
                headers: {'Accept': 'application/json'},
              ),
            ) {
@@ -68,7 +73,15 @@ class TonztoonApi {
 
     try {
       _refreshing = true;
-      final refreshDio = Dio(BaseOptions(baseUrl: dio.options.baseUrl));
+      final refreshDio = Dio(
+        BaseOptions(
+          baseUrl: dio.options.baseUrl,
+          connectTimeout: connectionTimeout,
+          sendTimeout: sendTimeout,
+          receiveTimeout: receiveTimeout,
+          headers: {'Accept': 'application/json'},
+        ),
+      );
       final refreshResponse = await refreshDio.post<Map<String, dynamic>>(
         '/auth/refresh',
         data: {'refresh_token': refreshToken},
@@ -129,7 +142,14 @@ class TonztoonApi {
     } on DioException catch (error) {
       final data = error.response?.data;
       String message = 'Request failed. Please try again.';
-      if (data is Map<String, dynamic>) {
+
+      if (error.type == DioExceptionType.connectionTimeout ||
+          error.type == DioExceptionType.receiveTimeout ||
+          error.type == DioExceptionType.sendTimeout ||
+          error.type == DioExceptionType.connectionError) {
+        message =
+            'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.';
+      } else if (data is Map<String, dynamic>) {
         message = (data['message'] ?? data['detail'] ?? message).toString();
       } else if (data is String && data.isNotEmpty) {
         message = data;

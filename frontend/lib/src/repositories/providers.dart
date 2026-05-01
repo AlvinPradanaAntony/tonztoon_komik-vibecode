@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/api_client.dart';
@@ -23,6 +24,34 @@ final configProvider = Provider<AppConfig>(
 );
 
 final localStoreProvider = Provider<LocalStore>((ref) => LocalStore());
+
+final appThemeModeProvider =
+    NotifierProvider<AppThemeModeController, ThemeMode>(
+      AppThemeModeController.new,
+    );
+
+class AppThemeModeController extends Notifier<ThemeMode> {
+  static const _storageKey = 'theme_mode';
+
+  @override
+  ThemeMode build() {
+    final value = ref.watch(localStoreProvider).settings.get(_storageKey);
+    return _themeModeFromName(value is String ? value : null);
+  }
+
+  Future<void> setMode(ThemeMode mode) async {
+    await ref.read(localStoreProvider).settings.put(_storageKey, mode.name);
+    state = mode;
+  }
+
+  static ThemeMode _themeModeFromName(String? name) {
+    return switch (name) {
+      'light' => ThemeMode.light,
+      'dark' => ThemeMode.dark,
+      _ => ThemeMode.system,
+    };
+  }
+}
 
 final tokenStoreProvider = Provider<TokenStore>((ref) => SecureTokenStore());
 

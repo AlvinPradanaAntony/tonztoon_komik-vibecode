@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import '../../core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -20,15 +21,22 @@ class LibraryScreen extends ConsumerWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Library'),
-          bottom: const TabBar(
-            isScrollable: true,
-            tabs: [
-              Tab(text: 'Bookmarks'),
-              Tab(text: 'Collections'),
-              Tab(text: 'Scenes'),
-              Tab(text: 'History'),
-              Tab(text: 'Downloads'),
-            ],
+          bottom: const PreferredSize(
+            preferredSize: Size.fromHeight(52),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: TabBar(
+                isScrollable: true,
+                padding: EdgeInsets.fromLTRB(16, 4, 16, 10),
+                tabs: [
+                  Tab(text: 'Bookmarks'),
+                  Tab(text: 'Collections'),
+                  Tab(text: 'Scenes'),
+                  Tab(text: 'History'),
+                  Tab(text: 'Downloads'),
+                ],
+              ),
+            ),
           ),
         ),
         body: TabBarView(
@@ -58,12 +66,12 @@ class _BookmarksTab extends StatelessWidget {
       builder: (items) => items.isEmpty
           ? const _LibraryEmpty(message: 'No bookmarks yet.')
           : ListView.separated(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
               itemBuilder: (context, index) {
                 final comic = items[index];
                 return _ComicRefTile(comic: comic);
               },
-              separatorBuilder: (context, index) => const Divider(height: 20),
+              separatorBuilder: (context, index) => const SizedBox(height: 10),
               itemCount: items.length,
             ),
     );
@@ -83,16 +91,15 @@ class _CollectionsTab extends StatelessWidget {
       builder: (items) => items.isEmpty
           ? const _LibraryEmpty(message: 'No collections yet.')
           : ListView.separated(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
               itemBuilder: (context, index) {
                 final collection = items[index];
-                return ListTile(
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.folder_outlined),
-                  ),
-                  title: Text(collection.name),
-                  subtitle: Text('${collection.totalItems} comics'),
+                return _SurfaceTile(
+                  leading: const _TileIcon(icon: TonztoonIcons.folder),
+                  title: collection.name,
+                  subtitle: '${collection.totalItems} comics',
                   trailing: PopupMenuButton<String>(
+                    icon: const Icon(TonztoonIcons.moreHoriz),
                     onSelected: (value) {
                       if (value == 'rename') {
                         _renameCollection(context, ref, collection);
@@ -107,7 +114,7 @@ class _CollectionsTab extends StatelessWidget {
                   ),
                 );
               },
-              separatorBuilder: (context, index) => const Divider(height: 20),
+              separatorBuilder: (context, index) => const SizedBox(height: 10),
               itemCount: items.length,
             ),
     );
@@ -192,7 +199,7 @@ class _ScenesTab extends StatelessWidget {
       builder: (items) => items.isEmpty
           ? const _LibraryEmpty(message: 'No favorite scenes saved.')
           : GridView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
                 mainAxisSpacing: 12,
@@ -220,8 +227,10 @@ class _ScenesTab extends StatelessWidget {
                           ),
                         Align(
                           alignment: Alignment.bottomLeft,
-                          child: ColoredBox(
-                            color: Colors.black54,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.64),
+                            ),
                             child: Padding(
                               padding: const EdgeInsets.all(8),
                               child: Text(
@@ -256,27 +265,25 @@ class _HistoryTab extends StatelessWidget {
       builder: (items) => items.isEmpty
           ? const _LibraryEmpty(message: 'No reading history yet.')
           : ListView.separated(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
               itemBuilder: (context, index) {
                 final item = items[index];
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
+                return _SurfaceTile(
                   leading: ComicCover(
                     imageUrl: item.coverImageUrl,
-                    width: 52,
-                    height: 72,
+                    width: 54,
+                    height: 76,
                   ),
-                  title: Text(item.comicTitle),
-                  subtitle: Text(
-                    'Chapter ${formatChapterNumber(item.chapterNumber)}',
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
+                  title: item.comicTitle,
+                  subtitle:
+                      'Chapter ${formatChapterNumber(item.chapterNumber)}',
+                  trailing: const Icon(TonztoonIcons.chevronRight),
                   onTap: () => context.push(
                     '/reader/${item.sourceName}/${item.comicSlug}/${formatChapterNumber(item.chapterNumber)}',
                   ),
                 );
               },
-              separatorBuilder: (context, index) => const Divider(height: 20),
+              separatorBuilder: (context, index) => const SizedBox(height: 10),
               itemCount: items.length,
             ),
     );
@@ -299,7 +306,7 @@ class _DownloadsTab extends StatelessWidget {
       builder: (batches) => batches.isEmpty && offline.isEmpty
           ? const _LibraryEmpty(message: 'No offline downloads yet.')
           : ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
               children: [
                 if (batches.isNotEmpty) ...[
                   Text('Queue', style: Theme.of(context).textTheme.titleLarge),
@@ -326,27 +333,25 @@ class _DownloadsTab extends StatelessWidget {
                               .clearAllOfflineChapters();
                           ref.invalidate(offlineChaptersProvider);
                         },
-                        icon: const Icon(Icons.delete_sweep_outlined),
+                        icon: const Icon(TonztoonIcons.deleteSweep),
                         label: const Text('Clear'),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
                   for (final item in offline) ...[
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
+                    _SurfaceTile(
                       leading: ComicCover(
                         imageUrl: item.comic.coverImageUrl,
-                        width: 52,
-                        height: 72,
+                        width: 54,
+                        height: 76,
                       ),
-                      title: Text(item.comic.title),
-                      subtitle: Text(
-                        'Chapter ${formatChapterNumber(item.chapterNumber)} • ${item.status}',
-                      ),
+                      title: item.comic.title,
+                      subtitle:
+                          'Chapter ${formatChapterNumber(item.chapterNumber)} • ${item.status}',
                       trailing: IconButton(
                         tooltip: 'Delete offline chapter',
-                        icon: const Icon(Icons.delete_outline),
+                        icon: const Icon(TonztoonIcons.deleteOutline),
                         onPressed: () async {
                           await ref
                               .read(offlineRepositoryProvider)
@@ -360,7 +365,7 @@ class _DownloadsTab extends StatelessWidget {
                             )
                           : null,
                     ),
-                    const Divider(height: 20),
+                    const SizedBox(height: 10),
                   ],
                 ],
               ],
@@ -384,6 +389,7 @@ class _BatchTile extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
         border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         borderRadius: BorderRadius.circular(8),
       ),
@@ -406,7 +412,10 @@ class _BatchTile extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 6),
-            LinearProgressIndicator(value: batch.progress),
+            LinearProgressIndicator(
+              borderRadius: BorderRadius.circular(99),
+              value: batch.progress,
+            ),
             const SizedBox(height: 8),
             Text(
               [
@@ -435,7 +444,7 @@ class _BatchTile extends StatelessWidget {
                     onPressed: () => ref
                         .read(offlineQueueProvider.notifier)
                         .cancelBatch(batch.id),
-                    icon: const Icon(Icons.cancel_outlined),
+                    icon: const Icon(TonztoonIcons.cancel),
                     label: const Text('Cancel'),
                   )
                 else if (batch.canResume)
@@ -443,7 +452,7 @@ class _BatchTile extends StatelessWidget {
                     onPressed: () => ref
                         .read(offlineQueueProvider.notifier)
                         .resumeBatch(batch.id),
-                    icon: const Icon(Icons.play_arrow),
+                    icon: const Icon(TonztoonIcons.playArrow),
                     label: const Text('Resume'),
                   ),
                 const Spacer(),
@@ -454,7 +463,7 @@ class _BatchTile extends StatelessWidget {
                       : () => ref
                             .read(offlineQueueProvider.notifier)
                             .deleteBatch(batch.id),
-                  icon: const Icon(Icons.close),
+                  icon: const Icon(TonztoonIcons.close),
                 ),
               ],
             ),
@@ -472,19 +481,101 @@ class _ComicRefTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: ComicCover(imageUrl: comic.coverImageUrl, width: 52, height: 72),
-      title: Text(comic.title),
-      subtitle: Text(
-        [
-          comic.sourceName,
-          if (comic.type != null) comic.type!,
-          if (comic.status != null) comic.status!,
-        ].join(' • '),
-      ),
-      trailing: const Icon(Icons.chevron_right),
+    return _SurfaceTile(
+      leading: ComicCover(imageUrl: comic.coverImageUrl, width: 54, height: 76),
+      title: comic.title,
+      subtitle: [
+        comic.sourceName,
+        if (comic.type != null) comic.type!,
+        if (comic.status != null) comic.status!,
+      ].join(' • '),
+      trailing: const Icon(TonztoonIcons.chevronRight),
       onTap: () => context.push('/comic/${comic.sourceName}/${comic.slug}'),
+    );
+  }
+}
+
+class _SurfaceTile extends StatelessWidget {
+  const _SurfaceTile({
+    required this.leading,
+    required this.title,
+    this.subtitle,
+    this.trailing,
+    this.onTap,
+  });
+
+  final Widget leading;
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          border: Border.all(color: colorScheme.outlineVariant),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Row(
+            children: [
+              leading,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        subtitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (trailing != null) ...[const SizedBox(width: 8), trailing!],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TileIcon extends StatelessWidget {
+  const _TileIcon({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.primary.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Icon(icon, color: colorScheme.primary),
+      ),
     );
   }
 }
@@ -499,7 +590,27 @@ class _LibraryEmpty extends StatelessWidget {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Text(message, textAlign: TextAlign.center),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                shape: BoxShape.circle,
+              ),
+              child: const Padding(
+                padding: EdgeInsets.all(18),
+                child: Icon(TonztoonIcons.libraryBooks, size: 36),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ],
+        ),
       ),
     );
   }

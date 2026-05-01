@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -42,8 +43,14 @@ class ComicDetailScreen extends ConsumerWidget {
             slivers: [
               SliverAppBar(
                 pinned: true,
-                expandedHeight: 320,
+                expandedHeight: 340,
                 flexibleSpace: FlexibleSpaceBar(
+                  titlePadding: const EdgeInsetsDirectional.fromSTEB(
+                    56,
+                    0,
+                    16,
+                    14,
+                  ),
                   title: Text(
                     comic.title,
                     maxLines: 1,
@@ -56,12 +63,15 @@ class ComicDetailScreen extends ConsumerWidget {
                         imageUrl: comic.coverImageUrl,
                         borderRadius: 0,
                       ),
-                      const DecoratedBox(
+                      DecoratedBox(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
-                            colors: [Colors.transparent, Color(0xEE111318)],
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.86),
+                            ],
                           ),
                         ),
                       ),
@@ -85,7 +95,7 @@ class ComicDetailScreen extends ConsumerWidget {
                             Chip(label: Text(_toSentenceCase(comic.status!))),
                           if (comic.rating != null)
                             Chip(
-                              avatar: const Icon(Icons.star, size: 18),
+                              avatar: const Icon(TonztoonIcons.star, size: 18),
                               label: Text(_formatRating(comic.rating!)),
                             ),
                         ],
@@ -121,32 +131,38 @@ class ComicDetailScreen extends ConsumerWidget {
                         ),
                       const SizedBox(height: 20),
                       progress.when(
-                        data: (item) => FilledButton.icon(
-                          onPressed: () {
-                            final chapter =
-                                item?.chapterNumber ??
-                                _firstReadableChapter(chapters.asData?.value);
-                            if (chapter == null) return;
-                            _openReader(context, ref, request, chapter);
-                          },
-                          icon: Icon(
-                            item == null
-                                ? Icons.play_arrow
-                                : Icons.play_circle_outline,
+                        data: (item) => SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: () {
+                              final chapter =
+                                  item?.chapterNumber ??
+                                  _firstReadableChapter(chapters.asData?.value);
+                              if (chapter == null) return;
+                              _openReader(context, ref, request, chapter);
+                            },
+                            icon: Icon(
+                              item == null
+                                  ? TonztoonIcons.playArrow
+                                  : TonztoonIcons.playCircleOutline,
+                            ),
+                            label: Text(item == null ? 'Read' : 'Continue'),
                           ),
-                          label: Text(item == null ? 'Read' : 'Continue'),
                         ),
                         loading: () => const LinearProgressIndicator(),
-                        error: (_, _) => FilledButton.icon(
-                          onPressed: () {
-                            final chapter = _firstReadableChapter(
-                              chapters.asData?.value,
-                            );
-                            if (chapter == null) return;
-                            _openReader(context, ref, request, chapter);
-                          },
-                          icon: const Icon(Icons.play_arrow),
-                          label: const Text('Read'),
+                        error: (_, _) => SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: () {
+                              final chapter = _firstReadableChapter(
+                                chapters.asData?.value,
+                              );
+                              if (chapter == null) return;
+                              _openReader(context, ref, request, chapter);
+                            },
+                            icon: const Icon(TonztoonIcons.playArrow),
+                            label: const Text('Read'),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -231,25 +247,28 @@ class ComicDetailScreen extends ConsumerWidget {
                           progressItem?.totalPageItems != null)
                         '${progressItem!.lastReadPageItemIndex! + 1}/${progressItem.totalPageItems}',
                     ];
-                    return ListTile(
-                      selected: isLastRead,
-                      leading: CircleAvatar(
-                        child: Text(formatChapterNumber(chapter.chapterNumber)),
+                    return Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        16,
+                        index == 0 ? 0 : 0,
+                        16,
+                        10,
                       ),
-                      title: Text(
-                        chapter.title?.isNotEmpty == true
+                      child: _ChapterTile(
+                        chapterNumber: chapter.chapterNumber,
+                        title: chapter.title?.isNotEmpty == true
                             ? chapter.title!
                             : 'Chapter ${formatChapterNumber(chapter.chapterNumber)}',
-                      ),
-                      subtitle: subtitleParts.isEmpty
-                          ? null
-                          : Text(subtitleParts.join(' • ')),
-                      trailing: isLastRead ? const Icon(Icons.history) : null,
-                      onTap: () => _openReader(
-                        context,
-                        ref,
-                        request,
-                        chapter.chapterNumber,
+                        subtitle: subtitleParts.isEmpty
+                            ? null
+                            : subtitleParts.join(' • '),
+                        selected: isLastRead,
+                        onTap: () => _openReader(
+                          context,
+                          ref,
+                          request,
+                          chapter.chapterNumber,
+                        ),
                       ),
                     );
                   },
@@ -389,7 +408,7 @@ class ComicDetailScreen extends ConsumerWidget {
                           selected.add(created.id);
                           setSheetState(() {});
                         },
-                        icon: const Icon(Icons.create_new_folder_outlined),
+                        icon: const Icon(TonztoonIcons.createNewFolder),
                         label: const Text('New'),
                       ),
                     ],
@@ -432,7 +451,7 @@ class ComicDetailScreen extends ConsumerWidget {
                         ref.invalidate(libraryComicStateProvider(comic));
                         if (context.mounted) context.pop();
                       },
-                      icon: const Icon(Icons.check),
+                      icon: const Icon(TonztoonIcons.check),
                       label: const Text('Save'),
                     ),
                   ),
@@ -538,25 +557,27 @@ class _DetailActions extends StatelessWidget {
       spacing: 8,
       runSpacing: 8,
       children: [
-        OutlinedButton.icon(
+        FilledButton.tonalIcon(
           onPressed: onBookmark,
           icon: Icon(
-            state.bookmarked ? Icons.bookmark : Icons.bookmark_outline,
+            state.bookmarked
+                ? TonztoonIcons.bookmarkRounded
+                : TonztoonIcons.bookmark,
           ),
           label: Text(state.bookmarked ? 'Bookmarked' : 'Bookmark'),
         ),
-        OutlinedButton.icon(
+        FilledButton.tonalIcon(
           onPressed: onCollections,
-          icon: const Icon(Icons.folder_copy_outlined),
+          icon: const Icon(TonztoonIcons.folderCopy),
           label: Text(
             state.collections.isEmpty
                 ? 'Collection'
                 : '${state.collections.length} Collections',
           ),
         ),
-        OutlinedButton.icon(
+        FilledButton.tonalIcon(
           onPressed: onDownload,
-          icon: const Icon(Icons.download_outlined),
+          icon: const Icon(TonztoonIcons.download),
           label: state.downloadStatusCounts.isEmpty
               ? const Text('Download')
               : Text(
@@ -564,6 +585,95 @@ class _DetailActions extends StatelessWidget {
                 ),
         ),
       ],
+    );
+  }
+}
+
+class _ChapterTile extends StatelessWidget {
+  const _ChapterTile({
+    required this.chapterNumber,
+    required this.title,
+    required this.selected,
+    required this.onTap,
+    this.subtitle,
+  });
+
+  final double chapterNumber;
+  final String title;
+  final String? subtitle;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: selected
+              ? colorScheme.primary.withValues(alpha: 0.12)
+              : colorScheme.surface,
+          border: Border.all(
+            color: selected ? colorScheme.primary : colorScheme.outlineVariant,
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: Center(
+                    child: Text(
+                      formatChapterNumber(chapterNumber),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        subtitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                selected ? TonztoonIcons.history : TonztoonIcons.chevronRight,
+                color: selected ? colorScheme.primary : colorScheme.outline,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

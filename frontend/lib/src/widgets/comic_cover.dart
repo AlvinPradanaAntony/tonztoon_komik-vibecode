@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import '../core/app_icons.dart';
 import 'package:shimmer/shimmer.dart';
 
 class ComicCover extends StatelessWidget {
@@ -8,7 +9,7 @@ class ComicCover extends StatelessWidget {
     required this.imageUrl,
     this.width,
     this.height,
-    this.borderRadius = 8,
+    this.borderRadius = 16,
   });
 
   final String? imageUrl;
@@ -18,9 +19,24 @@ class ComicCover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fallback = Container(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: const Center(child: Icon(Icons.menu_book_outlined)),
+    final colorScheme = Theme.of(context).colorScheme;
+    final fallback = DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            colorScheme.surfaceContainerHighest,
+            colorScheme.primary.withValues(alpha: 0.16),
+          ],
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          TonztoonIcons.menuBook,
+          color: colorScheme.onSurfaceVariant,
+        ),
+      ),
     );
     const shimmer = _CoverShimmer();
 

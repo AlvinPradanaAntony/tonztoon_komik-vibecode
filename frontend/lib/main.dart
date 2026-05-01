@@ -17,5 +17,10 @@ Future<void> main() async {
     Hive.openBox<dynamic>(HiveBoxes.cache),
   ]);
 
-  runApp(const ProviderScope(child: TonztoonApp()));
+  runApp(
+    ProviderScope(
+      retry: (retryCount, error) => null,
+      child: const TonztoonApp(),
+    ),
+  );
 }

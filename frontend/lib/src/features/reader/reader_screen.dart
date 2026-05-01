@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import '../../core/app_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -610,7 +611,7 @@ class _PagedReader extends StatelessWidget {
                               cacheManager: ReaderImageCacheManager.instance,
                             );
                           },
-                          icon: const Icon(Icons.refresh),
+                          icon: const Icon(TonztoonIcons.refresh),
                           label: Text('Retry page ${index + 1}'),
                         ),
                       ),
@@ -670,7 +671,7 @@ class _ReaderImageState extends State<_ReaderImage> {
           child: Center(
             child: FilledButton.icon(
               onPressed: () => setState(() => _retry++),
-              icon: const Icon(Icons.refresh),
+              icon: const Icon(TonztoonIcons.refresh),
               label: Text('Retry page ${widget.pageNumber}'),
             ),
           ),
@@ -752,13 +753,13 @@ class _ReaderErrorView extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.cloud_off, size: 40),
+                const Icon(TonztoonIcons.cloudOff, size: 40),
                 const SizedBox(height: 12),
                 Text(message, textAlign: TextAlign.center),
                 const SizedBox(height: 16),
                 FilledButton.icon(
                   onPressed: onRetry,
-                  icon: const Icon(Icons.refresh),
+                  icon: const Icon(TonztoonIcons.refresh),
                   label: const Text('Retry'),
                 ),
               ],
@@ -801,7 +802,7 @@ class _ReaderTopBar extends StatelessWidget {
         child: ListTile(
           leading: IconButton(
             onPressed: onBack,
-            icon: const Icon(Icons.arrow_back),
+            icon: const Icon(TonztoonIcons.arrowBack),
           ),
           title: InkWell(
             borderRadius: BorderRadius.circular(6),
@@ -848,7 +849,7 @@ class _ReaderBottomBar extends StatelessWidget {
               if (onPrevious != null)
                 IconButton.filledTonal(
                   onPressed: onPrevious,
-                  icon: const Icon(Icons.skip_previous),
+                  icon: const Icon(TonztoonIcons.skipPrevious),
                   tooltip: 'Previous chapter',
                 )
               else
@@ -871,8 +872,8 @@ class _ReaderBottomBar extends StatelessWidget {
                 onPressed: onToggleMode,
                 icon: Icon(
                   readingMode == 'paged'
-                      ? Icons.view_agenda_outlined
-                      : Icons.auto_stories_outlined,
+                      ? TonztoonIcons.viewAgenda
+                      : TonztoonIcons.autoStories,
                 ),
                 tooltip: readingMode == 'paged'
                     ? 'Switch to vertical'
@@ -882,7 +883,7 @@ class _ReaderBottomBar extends StatelessWidget {
               if (onNext != null)
                 IconButton.filledTonal(
                   onPressed: onNext,
-                  icon: const Icon(Icons.skip_next),
+                  icon: const Icon(TonztoonIcons.skipNext),
                   tooltip: 'Next chapter',
                 )
               else

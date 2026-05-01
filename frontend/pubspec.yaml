@@ -45,6 +45,7 @@ dependencies:
   intl: ^0.20.2
   flutter_cache_manager: ^3.4.1
   shimmer: ^3.0.0
+  lucide_icons_flutter: ^3.1.13
 
 dev_dependencies:
   flutter_test:
@@ -73,7 +74,8 @@ flutter:
   assets:
     - lib/src/assets/logo_app_250px.png
     - lib/src/assets/logo_app_lg_250px.png
-    - lib/src/assets/logo_app_sm_500px.png
+    - lib/src/assets/logo_app_sm_250px.png
+    - lib/src/assets/logo_app_android12_1152px.png
 
 flutter_launcher_icons:
   android: true
@@ -83,13 +85,18 @@ flutter_launcher_icons:
   remove_alpha_ios: true
 
 flutter_native_splash:
-  color: "#060708"
-  image: "lib/src/assets/logo_app_sm_500px.png"
+  color: "#FFFFFF" # Background color untuk tema Terang (Light Mode)
+  color_dark: "#060708" # Background color untuk tema Gelap (Dark Mode)
+  image: "lib/src/assets/logo_app_sm_250px.png"
+  # image_dark: "lib/src/assets/logo_app_sm_dark_250px.png" # Opsional: Gunakan ini jika ada logo khusus versi dark mode
   android: true
   ios: true
   android_12:
-    color: "#060708"
-    image: "lib/src/assets/logo_app_sm_500px.png"
+    color: "#FFFFFF"
+    color_dark: "#060708"
+    # Android 12+ masks the splash icon, so use a 1152px canvas with safe padding.
+    image: "lib/src/assets/logo_app_android12_1152px.png"
+    # image_dark: "lib/src/assets/logo_app_sm_dark_250px.png"
 
   # To add assets to your application, add an assets section, like this:
   # assets:
