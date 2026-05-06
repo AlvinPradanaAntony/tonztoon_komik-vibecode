@@ -1,0 +1,80 @@
+import 'package:flutter/material.dart';
+
+class ChoiceChipGroup extends StatelessWidget {
+  const ChoiceChipGroup({
+    super.key,
+    required this.label,
+    required this.values,
+    required this.selectedValue,
+    required this.onChanged,
+    this.scrollable = true,
+    this.labelStyle,
+  });
+
+  final String label;
+  final List<String> values;
+  final String selectedValue;
+  final ValueChanged<String> onChanged;
+  final bool scrollable;
+  final TextStyle? labelStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    final chips = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final value in values)
+          _FilterChoiceChip(
+            value: value,
+            selected: selectedValue == value,
+            onSelected: () => onChanged(value),
+          ),
+      ],
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: labelStyle ?? Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 7),
+        if (scrollable)
+          SingleChildScrollView(scrollDirection: Axis.horizontal, child: chips)
+        else
+          chips,
+      ],
+    );
+  }
+}
+
+class _FilterChoiceChip extends StatelessWidget {
+  const _FilterChoiceChip({
+    required this.value,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final String value;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return ChoiceChip(
+      label: Text(value),
+      selected: selected,
+      onSelected: (_) => onSelected(),
+      selectedColor: colorScheme.primary.withValues(alpha: 0.18),
+      labelStyle: TextStyle(
+        color: selected ? colorScheme.primary : colorScheme.onSurfaceVariant,
+        fontWeight: FontWeight.w800,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: colorScheme.outlineVariant),
+      ),
+    );
+  }
+}
