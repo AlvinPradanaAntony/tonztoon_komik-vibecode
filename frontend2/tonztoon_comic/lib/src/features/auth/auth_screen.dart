@@ -1,26 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/app_assets.dart';
 import '../../core/app_icons.dart';
+import '../../repositories/providers.dart';
 
-class AuthScreen extends StatefulWidget {
-  const AuthScreen({
-    super.key,
-    required this.onEmailAuthenticated,
-    required this.onGoogleAuthenticated,
-    required this.onContinueGuest,
-  });
-
-  final VoidCallback onEmailAuthenticated;
-  final VoidCallback onGoogleAuthenticated;
-  final VoidCallback onContinueGuest;
+class AuthScreen extends ConsumerStatefulWidget {
+  const AuthScreen({super.key});
 
   @override
-  State<AuthScreen> createState() => _AuthScreenState();
+  ConsumerState<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> {
+class _AuthScreenState extends ConsumerState<AuthScreen> {
   final TextEditingController _emailController = TextEditingController(
     text: 'reader@tonztoon.app',
   );
@@ -84,7 +78,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   onToggleConfirmPassword: () => setState(
                     () => _obscureConfirmPassword = !_obscureConfirmPassword,
                   ),
-                  onSubmit: widget.onEmailAuthenticated,
+                  onSubmit: _submitEmail,
                   onToggleMode: () {
                     setState(() {
                       _registerMode = !_registerMode;
@@ -92,8 +86,8 @@ class _AuthScreenState extends State<AuthScreen> {
                     });
                   },
                   onForgotPassword: () => _openForgotPassword(context),
-                  onGoogle: widget.onGoogleAuthenticated,
-                  onGuest: widget.onContinueGuest,
+                  onGoogle: _continueGoogle,
+                  onGuest: () => context.go('/'),
                 ),
               ],
             ),
@@ -104,12 +98,51 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   void _openForgotPassword(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) =>
-            ForgotPasswordScreen(initialEmail: _emailController.text),
-      ),
+    context.push(
+      '/auth/forgot-password?email=${Uri.encodeQueryComponent(_emailController.text)}',
     );
+  }
+
+  Future<void> _submitEmail() async {
+    try {
+      final controller = ref.read(authControllerProvider.notifier);
+      if (_registerMode) {
+        await controller.register(
+          _emailController.text.trim(),
+          _passwordController.text,
+          null,
+        );
+      } else {
+        await controller.login(
+          _emailController.text.trim(),
+          _passwordController.text,
+        );
+      }
+      ref.invalidate(homeDataProvider);
+      if (!mounted) return;
+      context.go('/');
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(error.toString()),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    }
+  }
+
+  void _continueGoogle() {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('Google sign-in belum tersambung ke backend.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
   }
 }
 

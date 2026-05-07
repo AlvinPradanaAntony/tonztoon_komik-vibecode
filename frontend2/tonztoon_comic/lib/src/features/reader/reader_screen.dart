@@ -1,60 +1,163 @@
+import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/app_icons.dart';
+import '../../core/reader_image_cache.dart';
 import '../../models/comic.dart';
+import '../../models/library.dart';
+import '../../models/progress.dart';
+import '../../repositories/providers.dart';
 import '../library/downloaded_scene_store.dart';
 
-class ReaderScreen extends StatefulWidget {
-  const ReaderScreen({
+class ReaderScreen extends ConsumerStatefulWidget {
+  ReaderScreen({
     super.key,
-    required this.comicTitle,
-    required this.chapterTitle,
-    this.comic,
-  });
+    String? comicTitle,
+    String? chapterTitle,
+    ComicSummary? comic,
+    String? sourceName,
+    String? slug,
+    double? chapterNumber,
+    ComicSummary? initialComic,
+  }) : comic = initialComic ?? comic,
+       sourceName = sourceName ?? comic?.sourceName ?? 'komiku',
+       slug = slug ?? comic?.slug ?? '',
+       chapterNumber = chapterNumber ?? 1,
+       comicTitle =
+           comicTitle ?? initialComic?.title ?? comic?.title ?? 'Komik',
+       chapterTitle =
+           chapterTitle ??
+           'Chapter ${chapterNumber == null ? 1 : formatChapterNumber(chapterNumber)}';
 
+  final String sourceName;
+  final String slug;
+  final double chapterNumber;
   final String comicTitle;
   final String chapterTitle;
   final ComicSummary? comic;
 
   @override
-  State<ReaderScreen> createState() => _ReaderScreenState();
+  ConsumerState<ReaderScreen> createState() => _ReaderScreenState();
 }
 
-class _ReaderScreenState extends State<ReaderScreen> {
+class _ReaderScreenState extends ConsumerState<ReaderScreen>
+    with WidgetsBindingObserver {
+  static const _nearbyChapterWindow = 5.0;
+  static const _nearbyStatusPollInterval = Duration(seconds: 4);
+  static const _nearbyStatusMaxPolls = 20;
+
   final _scrollController = ScrollController();
   final _pageController = PageController();
   final ValueNotifier<int> _currentPage = ValueNotifier<int>(0);
+  final Stopwatch _readingStopwatch = Stopwatch();
+  late final ReadingTimeController _readingTimeController;
+  List<_ReaderPageUi> _activePages = const [];
   bool _overlayVisible = false;
   bool _pagedMode = false;
+  bool _didApplyReaderPreferences = false;
+  bool _restored = false;
+  bool _nearbyWatcherStarted = false;
+  Timer? _imagePrefetchTimer;
+  Timer? _initialPreloadTimeoutTimer;
+  Timer? _nearbyReadyTimer;
+  int _nearbyReadyPolls = 0;
+  String? _initialPreloadKey;
+  Future<void>? _initialPreloadFuture;
+  final Set<int> _requestedPrefetchIndexes = <int>{};
+  final Set<double> _announcedNearbyReadyChapters = <double>{};
+  final Map<double, int> _knownNearbyPageCounts = <double, int>{};
+
+  ComicRequest get _comicRequest =>
+      ComicRequest(widget.sourceName, widget.slug);
 
   @override
   void initState() {
     super.initState();
+    _readingTimeController = ref.read(readingTimeProvider.notifier);
+    WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_syncVerticalProgress);
+    _startReadingTimer();
   }
 
   @override
   void dispose() {
+    _flushReadingTime(deferProviderUpdate: true);
+    WidgetsBinding.instance.removeObserver(this);
     _scrollController
       ..removeListener(_syncVerticalProgress)
       ..dispose();
     _pageController.dispose();
     _currentPage.dispose();
+    _imagePrefetchTimer?.cancel();
+    _initialPreloadTimeoutTimer?.cancel();
+    _nearbyReadyTimer?.cancel();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    switch (state) {
+      case AppLifecycleState.resumed:
+        _startReadingTimer();
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        _flushReadingTime(deferProviderUpdate: true);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant ReaderScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.sourceName != widget.sourceName ||
+        oldWidget.slug != widget.slug ||
+        oldWidget.chapterNumber != widget.chapterNumber) {
+      _currentPage.value = 0;
+      _pagedMode = false;
+      _didApplyReaderPreferences = false;
+      _restored = false;
+      _nearbyWatcherStarted = false;
+      _nearbyReadyPolls = 0;
+      _initialPreloadKey = null;
+      _initialPreloadFuture = null;
+      _requestedPrefetchIndexes.clear();
+      _announcedNearbyReadyChapters.clear();
+      _knownNearbyPageCounts.clear();
+      _imagePrefetchTimer?.cancel();
+      _initialPreloadTimeoutTimer?.cancel();
+      _nearbyReadyTimer?.cancel();
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0);
+      }
+      if (_pageController.hasClients) {
+        _pageController.jumpToPage(0);
+      }
+    }
+  }
+
   void _syncVerticalProgress() {
-    if (!_scrollController.hasClients || _pagedMode) return;
+    if (!_scrollController.hasClients || _pagedMode || _activePages.isEmpty) {
+      return;
+    }
     final viewport = MediaQuery.sizeOf(context).height;
     final nextPage = (_scrollController.offset / (viewport * 0.82))
         .floor()
-        .clamp(0, _readerPages.length - 1);
+        .clamp(0, _activePages.length - 1);
 
     if (_currentPage.value != nextPage) {
       _currentPage.value = nextPage;
+      _recordProgress(nextPage, scrollOffset: _scrollController.offset);
+      _scheduleImagePrefetch();
     }
 
     if (_overlayVisible &&
@@ -62,6 +165,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ScrollDirection.idle) {
       setState(() => _overlayVisible = false);
     }
+  }
+
+  void _scheduleImagePrefetch() {
+    _imagePrefetchTimer?.cancel();
+    _imagePrefetchTimer = Timer(const Duration(milliseconds: 140), () {
+      if (!mounted) return;
+      unawaited(_preloadFromCurrentPosition());
+    });
   }
 
   void _toggleOverlay() {
@@ -75,7 +186,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final page = _currentPage.value.clamp(0, _readerPages.length - 1);
+      final page = _currentPage.value.clamp(0, _activePages.length - 1);
       if (_pagedMode && _pageController.hasClients) {
         _pageController.jumpToPage(page);
       } else if (!_pagedMode && _scrollController.hasClients) {
@@ -87,8 +198,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   void _goRelativePage(int delta) {
-    final next = (_currentPage.value + delta).clamp(0, _readerPages.length - 1);
+    final next = (_currentPage.value + delta).clamp(0, _activePages.length - 1);
     _currentPage.value = next;
+    _recordProgress(next);
     if (_pagedMode && _pageController.hasClients) {
       _pageController.animateToPage(
         next,
@@ -111,7 +223,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
         widget.comic ??
         ComicSummary(
           title: widget.comicTitle,
-          coverImageUrl: _coverForTitle(widget.comicTitle),
+          slug: widget.slug,
+          sourceName: widget.sourceName,
         );
 
     saveDownloadedScene(
@@ -120,7 +233,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         chapterTitle: widget.chapterTitle,
         pageNumber: page.number,
         label: '${widget.chapterTitle} - Page ${page.number}',
-        imageUrl: comic.coverImageUrl,
+        imageUrl: page.imageUrl,
         downloadedAt: DateTime.now(),
       ),
     );
@@ -136,8 +249,125 @@ class _ReaderScreenState extends State<ReaderScreen> {
       );
   }
 
+  void _recordProgress(int pageIndex, {double? scrollOffset}) {
+    _flushReadingTime(restart: true);
+    final comic =
+        widget.comic ??
+        ComicSummary(
+          title: widget.comicTitle,
+          slug: widget.slug,
+          sourceName: widget.sourceName,
+          coverImageUrl: widget.comic?.coverImageUrl,
+        );
+    if (comic.slug.trim().isEmpty) return;
+    final comicRequest = ComicRequest(widget.sourceName, widget.slug);
+    unawaited(
+      ref
+          .read(progressRepositoryProvider)
+          .saveProgress(
+            ReadingProgress.fromReader(
+              comic: comic,
+              chapterNumber: widget.chapterNumber,
+              readingMode: _pagedMode ? 'paged' : 'vertical',
+              scrollOffset: scrollOffset,
+              pageIndex: _pagedMode ? pageIndex : null,
+              pageItemIndex: pageIndex,
+              totalPageItems: _activePages.length,
+              isCompleted: pageIndex >= _activePages.length - 1,
+            ),
+          )
+          .then((_) {
+            if (!mounted) return;
+            ref.invalidate(progressProvider(comicRequest));
+            ref.invalidate(continueReadingProvider);
+            ref.invalidate(homeDataProvider);
+          })
+          .catchError((_) {}),
+    );
+  }
+
+  void _startReadingTimer() {
+    if (!_readingStopwatch.isRunning) {
+      _readingStopwatch.start();
+    }
+  }
+
+  void _flushReadingTime({
+    bool restart = false,
+    bool deferProviderUpdate = false,
+  }) {
+    final elapsed = _readingStopwatch.elapsed;
+    _readingStopwatch
+      ..reset()
+      ..stop();
+    if (elapsed.inSeconds > 0) {
+      if (deferProviderUpdate) {
+        unawaited(Future<void>(() => _readingTimeController.add(elapsed)));
+      } else {
+        unawaited(_readingTimeController.add(elapsed));
+      }
+    }
+    if (restart) {
+      _readingStopwatch.start();
+    }
+  }
+
+  void _restorePosition(ReadingProgress? progress) {
+    if (_restored || progress == null || _activePages.isEmpty) return;
+    if (progress.chapterNumber != widget.chapterNumber) return;
+
+    _restored = true;
+    final pageIndex =
+        (progress.pageIndex ?? progress.lastReadPageItemIndex ?? 0).clamp(
+          0,
+          _activePages.length - 1,
+        );
+    _currentPage.value = pageIndex;
+    _pagedMode = progress.readingMode == 'paged';
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_pagedMode) {
+        if (_pageController.hasClients) {
+          _pageController.jumpToPage(pageIndex);
+        }
+        return;
+      }
+      if (!_scrollController.hasClients) return;
+      final targetOffset =
+          progress.scrollOffset ??
+          pageIndex * MediaQuery.sizeOf(context).height * 0.82;
+      _scrollController.jumpTo(
+        targetOffset.clamp(0, _scrollController.position.maxScrollExtent),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final request = ChapterRequest(
+      widget.sourceName,
+      widget.slug,
+      widget.chapterNumber,
+    );
+    final chapterAsync = ref.watch(chapterProvider(request));
+    final payload = chapterAsync.asData?.value;
+    final readerPrefs = ref.watch(readerPreferencesProvider).asData?.value;
+    final chapters = ref.watch(chaptersProvider(_comicRequest));
+    final progress = ref.watch(progressProvider(_comicRequest));
+    final savedProgress = progress.asData?.value;
+    final matchingProgress =
+        savedProgress?.chapterNumber == widget.chapterNumber
+        ? savedProgress
+        : null;
+    if (!_didApplyReaderPreferences &&
+        (readerPrefs != null || matchingProgress != null)) {
+      _pagedMode =
+          matchingProgress?.readingMode == 'paged' ||
+          (matchingProgress == null &&
+              readerPrefs?.defaultReadingMode == 'paged');
+      _didApplyReaderPreferences = true;
+    }
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
@@ -155,48 +385,330 @@ class _ReaderScreenState extends State<ReaderScreen> {
       systemNavigationBarContrastEnforced: false,
     );
 
+    if (payload == null && chapterAsync.isLoading) {
+      return Scaffold(
+        backgroundColor: readerBackground,
+        body: const _PreparingChapterView(),
+      );
+    }
+
+    if (payload == null) {
+      final error = chapterAsync.whenOrNull(
+        error: (error, stackTrace) => error,
+      );
+      return Scaffold(
+        backgroundColor: readerBackground,
+        body: _ReaderErrorView(
+          message: error?.toString() ?? 'Chapter gagal dimuat.',
+          onRetry: () => ref.invalidate(chapterProvider(request)),
+        ),
+      );
+    }
+    _activePages = _pagesFromChapter(payload);
+    if (_activePages.isEmpty) {
+      return Scaffold(
+        backgroundColor: readerBackground,
+        body: _ReaderErrorView(
+          message: 'Chapter ini belum memiliki gambar.',
+          onRetry: () => ref.invalidate(chapterProvider(request)),
+        ),
+      );
+    }
+
+    return FutureBuilder<void>(
+      future: _ensureInitialPreload(_activePages),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return Scaffold(
+            backgroundColor: readerBackground,
+            body: const _PreparingChapterView(),
+          );
+        }
+
+        _restorePosition(matchingProgress);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scheduleImagePrefetch();
+          _ensureNearbyReadinessWatcher(chapters.asData?.value);
+        });
+
+        return _ReadyReaderScaffold(
+          overlayStyle: overlayStyle,
+          readerBackground: readerBackground,
+          pagedMode: _pagedMode,
+          pageController: _pageController,
+          scrollController: _scrollController,
+          activePages: _activePages,
+          readerPrefs: readerPrefs,
+          overlayVisible: _overlayVisible,
+          currentPage: _currentPage,
+          comicTitle: widget.comicTitle,
+          chapterTitle: widget.chapterTitle,
+          onToggleOverlay: _toggleOverlay,
+          onBack: () => context.pop(),
+          onDownloadPage: _downloadPage,
+          onPageChanged: (index) {
+            _currentPage.value = index;
+            _recordProgress(index);
+            _scheduleImagePrefetch();
+            if (_overlayVisible) {
+              setState(() => _overlayVisible = false);
+            }
+          },
+          onPrevious: () => _goRelativePage(-1),
+          onNext: () => _goRelativePage(1),
+          onToggleMode: _toggleMode,
+        );
+      },
+    );
+  }
+
+  Future<void> _ensureInitialPreload(List<_ReaderPageUi> pages) {
+    final key =
+        '${widget.sourceName}|${widget.slug}|${widget.chapterNumber}|${pages.length}';
+    if (_initialPreloadKey == key && _initialPreloadFuture != null) {
+      return _initialPreloadFuture!;
+    }
+    _initialPreloadKey = key;
+    _initialPreloadFuture = _preloadIndexes(
+      Iterable<int>.generate(math.min(3, pages.length)),
+      timeout: const Duration(seconds: 6),
+    );
+    return _initialPreloadFuture!;
+  }
+
+  Future<void> _preloadFromCurrentPosition() {
+    if (_activePages.isEmpty) return Future<void>.value();
+    final current = _currentPage.value.clamp(0, _activePages.length - 1);
+    final indexes = <int>[];
+    for (var index = current + 1; index <= current + 3; index++) {
+      if (index < _activePages.length) {
+        indexes.add(index);
+      }
+    }
+    return _preloadIndexes(indexes);
+  }
+
+  Future<void> _preloadIndexes(
+    Iterable<int> indexes, {
+    Duration? timeout,
+  }) async {
+    if (!mounted) return;
+    final providers = <ImageProvider>[];
+    for (final index in indexes) {
+      if (index < 0 || index >= _activePages.length) continue;
+      if (!_requestedPrefetchIndexes.add(index)) continue;
+      providers.add(
+        CachedNetworkImageProvider(
+          _activePages[index].imageUrl,
+          cacheManager: ReaderImageCacheManager.instance,
+        ),
+      );
+    }
+    if (providers.isEmpty) return;
+
+    final future = Future.wait(
+      providers.map(
+        (provider) => precacheImage(provider, context).catchError((_) {}),
+      ),
+    );
+    if (timeout == null) {
+      await future;
+      return;
+    }
+    final timeoutCompleter = Completer<void>();
+    _initialPreloadTimeoutTimer?.cancel();
+    _initialPreloadTimeoutTimer = Timer(timeout, () {
+      if (!timeoutCompleter.isCompleted) {
+        timeoutCompleter.complete();
+      }
+    });
+    await Future.any<void>([future.then((_) {}), timeoutCompleter.future]);
+    _initialPreloadTimeoutTimer?.cancel();
+    _initialPreloadTimeoutTimer = null;
+  }
+
+  void _ensureNearbyReadinessWatcher(List<ChapterListItem>? chapters) {
+    if (!mounted || _nearbyWatcherStarted || chapters == null) return;
+
+    final nearby = _nearbyChapters(chapters).toList();
+    if (nearby.isEmpty || nearby.every((chapter) => chapter.totalImages > 0)) {
+      return;
+    }
+
+    _nearbyWatcherStarted = true;
+    _syncNearbyBaseline(nearby);
+
+    _nearbyReadyTimer?.cancel();
+    _nearbyReadyTimer = Timer.periodic(_nearbyStatusPollInterval, (timer) {
+      _nearbyReadyPolls += 1;
+      if (_nearbyReadyPolls > _nearbyStatusMaxPolls || !mounted) {
+        timer.cancel();
+        return;
+      }
+      unawaited(_pollNearbyReadiness());
+    });
+  }
+
+  void _syncNearbyBaseline(List<ChapterListItem> chapters) {
+    for (final chapter in chapters) {
+      _knownNearbyPageCounts[chapter.chapterNumber] = chapter.totalImages;
+    }
+  }
+
+  Future<void> _pollNearbyReadiness() async {
+    try {
+      final chapters = await ref
+          .read(catalogRepositoryProvider)
+          .getChapters(widget.sourceName, widget.slug);
+      final newlyReady = <ChapterListItem>[];
+
+      for (final chapter in _nearbyChapters(chapters)) {
+        final oldCount = _knownNearbyPageCounts[chapter.chapterNumber];
+        _knownNearbyPageCounts[chapter.chapterNumber] = chapter.totalImages;
+        if (oldCount != null &&
+            oldCount <= 0 &&
+            chapter.totalImages > 0 &&
+            _announcedNearbyReadyChapters.add(chapter.chapterNumber)) {
+          newlyReady.add(chapter);
+        }
+      }
+
+      if (newlyReady.isNotEmpty && mounted) {
+        ref.invalidate(chaptersProvider(_comicRequest));
+        _showNearbyReadyToast(newlyReady);
+      }
+
+      final stillPending = _nearbyChapters(
+        chapters,
+      ).any((chapter) => chapter.totalImages <= 0);
+      if (!stillPending) {
+        _nearbyReadyTimer?.cancel();
+      }
+    } catch (_) {
+      // Keep this watcher quiet; reader UX should not be interrupted by polling.
+    }
+  }
+
+  Iterable<ChapterListItem> _nearbyChapters(List<ChapterListItem> chapters) {
+    final lower = widget.chapterNumber - _nearbyChapterWindow;
+    final upper = widget.chapterNumber + _nearbyChapterWindow;
+    return chapters.where((chapter) {
+      return chapter.chapterNumber >= lower &&
+          chapter.chapterNumber <= upper &&
+          chapter.chapterNumber != widget.chapterNumber;
+    });
+  }
+
+  void _showNearbyReadyToast(List<ChapterListItem> chapters) {
+    final sorted = [...chapters]
+      ..sort(
+        (a, b) => (a.chapterNumber - widget.chapterNumber).abs().compareTo(
+          (b.chapterNumber - widget.chapterNumber).abs(),
+        ),
+      );
+    final shown = sorted
+        .take(3)
+        .map((chapter) => 'Ch ${formatChapterNumber(chapter.chapterNumber)}');
+    final extra = sorted.length - shown.length;
+    final message = extra > 0
+        ? '${shown.join(', ')} +$extra siap dibaca'
+        : '${shown.join(', ')} siap dibaca';
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+  }
+}
+
+class _ReadyReaderScaffold extends StatelessWidget {
+  const _ReadyReaderScaffold({
+    required this.overlayStyle,
+    required this.readerBackground,
+    required this.pagedMode,
+    required this.pageController,
+    required this.scrollController,
+    required this.activePages,
+    required this.readerPrefs,
+    required this.overlayVisible,
+    required this.currentPage,
+    required this.comicTitle,
+    required this.chapterTitle,
+    required this.onToggleOverlay,
+    required this.onBack,
+    required this.onDownloadPage,
+    required this.onPageChanged,
+    required this.onPrevious,
+    required this.onNext,
+    required this.onToggleMode,
+  });
+
+  final SystemUiOverlayStyle overlayStyle;
+  final Color readerBackground;
+  final bool pagedMode;
+  final PageController pageController;
+  final ScrollController scrollController;
+  final List<_ReaderPageUi> activePages;
+  final ReaderPreferences? readerPrefs;
+  final bool overlayVisible;
+  final ValueListenable<int> currentPage;
+  final String comicTitle;
+  final String chapterTitle;
+  final VoidCallback onToggleOverlay;
+  final VoidCallback onBack;
+  final ValueChanged<_ReaderPageUi> onDownloadPage;
+  final ValueChanged<int> onPageChanged;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+  final VoidCallback onToggleMode;
+
+  @override
+  Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: overlayStyle,
       child: Scaffold(
         backgroundColor: readerBackground,
         body: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: _toggleOverlay,
+          onTap: onToggleOverlay,
           child: Stack(
             children: [
               Positioned.fill(
-                child: _pagedMode
+                child: pagedMode
                     ? _PagedReader(
-                        controller: _pageController,
-                        onDownloadPage: _downloadPage,
-                        actionsVisible: _overlayVisible,
-                        onPageChanged: (index) {
-                          _currentPage.value = index;
-                          if (_overlayVisible) {
-                            setState(() => _overlayVisible = false);
-                          }
-                        },
+                        controller: pageController,
+                        pages: activePages,
+                        reverse: readerPrefs?.readingDirection == 'rtl',
+                        onDownloadPage: onDownloadPage,
+                        actionsVisible: overlayVisible,
+                        onPageChanged: onPageChanged,
                       )
                     : _VerticalReader(
-                        controller: _scrollController,
-                        onDownloadPage: _downloadPage,
-                        actionsVisible: _overlayVisible,
+                        controller: scrollController,
+                        pages: activePages,
+                        onDownloadPage: onDownloadPage,
+                        actionsVisible: overlayVisible,
                       ),
               ),
               _ReaderTopBar(
-                visible: _overlayVisible,
-                comicTitle: widget.comicTitle,
-                chapterTitle: widget.chapterTitle,
-                onBack: () => Navigator.of(context).pop(),
+                visible: overlayVisible,
+                comicTitle: comicTitle,
+                chapterTitle: chapterTitle,
+                onBack: onBack,
               ),
               _ReaderBottomBar(
-                visible: _overlayVisible,
-                pagedMode: _pagedMode,
-                currentPage: _currentPage,
-                totalPages: _readerPages.length,
-                onPrevious: () => _goRelativePage(-1),
-                onNext: () => _goRelativePage(1),
-                onToggleMode: _toggleMode,
+                visible: overlayVisible,
+                pagedMode: pagedMode,
+                currentPage: currentPage,
+                totalPages: activePages.length,
+                onPrevious: onPrevious,
+                onNext: onNext,
+                onToggleMode: onToggleMode,
               ),
             ],
           ),
@@ -209,11 +721,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
 class _VerticalReader extends StatelessWidget {
   const _VerticalReader({
     required this.controller,
+    required this.pages,
     required this.onDownloadPage,
     required this.actionsVisible,
   });
 
   final ScrollController controller;
+  final List<_ReaderPageUi> pages;
   final ValueChanged<_ReaderPageUi> onDownloadPage;
   final bool actionsVisible;
 
@@ -222,28 +736,43 @@ class _VerticalReader extends StatelessWidget {
     return ListView.builder(
       controller: controller,
       padding: EdgeInsets.zero,
+      cacheExtent: _dynamicReaderCacheExtent(context),
       itemBuilder: (context, index) {
-        final page = _readerPages[index];
+        final page = pages[index];
         return _ReaderPage(
           page: page,
           actionsVisible: actionsVisible,
           onDownload: () => onDownloadPage(page),
         );
       },
-      itemCount: _readerPages.length,
+      itemCount: pages.length,
     );
   }
+}
+
+double _dynamicReaderCacheExtent(BuildContext context) {
+  final height = MediaQuery.sizeOf(context).height;
+  final multiplier = height < 700
+      ? 4.0
+      : height < 1000
+      ? 3.25
+      : 2.75;
+  return height * multiplier;
 }
 
 class _PagedReader extends StatelessWidget {
   const _PagedReader({
     required this.controller,
+    required this.pages,
+    required this.reverse,
     required this.onPageChanged,
     required this.onDownloadPage,
     required this.actionsVisible,
   });
 
   final PageController controller;
+  final List<_ReaderPageUi> pages;
+  final bool reverse;
   final ValueChanged<int> onPageChanged;
   final ValueChanged<_ReaderPageUi> onDownloadPage;
   final bool actionsVisible;
@@ -252,16 +781,17 @@ class _PagedReader extends StatelessWidget {
   Widget build(BuildContext context) {
     return PageView.builder(
       controller: controller,
+      reverse: reverse,
       onPageChanged: onPageChanged,
-      itemCount: _readerPages.length,
+      itemCount: pages.length,
       itemBuilder: (context, index) {
-        final page = _readerPages[index];
+        final page = pages[index];
         return Center(
           child: Padding(
             padding: EdgeInsets.fromLTRB(
-              14,
+              0,
               MediaQuery.paddingOf(context).top + 74,
-              14,
+              0,
               MediaQuery.paddingOf(context).bottom + 104,
             ),
             child: InteractiveViewer(
@@ -296,7 +826,6 @@ class _ReaderPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final decoration = paged
         ? BoxDecoration(
@@ -311,58 +840,163 @@ class _ReaderPage extends StatelessWidget {
             ],
           )
         : BoxDecoration(color: page.background);
+    final image = CachedNetworkImage(
+      imageUrl: page.imageUrl,
+      cacheManager: ReaderImageCacheManager.instance,
+      width: double.infinity,
+      fit: paged ? BoxFit.contain : BoxFit.fitWidth,
+      placeholder: (context, url) =>
+          _ImageSkeleton(height: paged ? double.infinity : 360),
+      errorWidget: (context, url, error) => SizedBox(
+        height: paged ? double.infinity : 260,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.cloud_off_rounded,
+                size: 42,
+                color: Theme.of(context).colorScheme.outline,
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: () {
+                  ReaderImageCacheManager.instance.removeFile(url);
+                },
+                icon: const Icon(Icons.refresh_rounded),
+                label: Text('Retry page ${page.number}'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
 
-    return Center(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: paged ? width : 720),
+    if (paged) {
+      return DecoratedBox(
+        decoration: decoration,
         child: AspectRatio(
           aspectRatio: page.aspectRatio,
-          child: DecoratedBox(
-            decoration: decoration,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(paged ? 8 : 0),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  for (final panel in page.panels) _ComicPanel(panel: panel),
-                  Positioned(
-                    right: 14,
-                    bottom: 12,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.62),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 9,
-                          vertical: 5,
-                        ),
-                        child: Text(
-                          '${page.number}',
-                          style: Theme.of(context).textTheme.labelMedium
-                              ?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w900,
-                              ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 12,
-                    right: 12,
-                    child: _PageDownloadButton(
-                      visible: actionsVisible,
-                      onPressed: onDownload,
-                    ),
-                  ),
-                ],
-              ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: _ReaderPageStack(
+              image: image,
+              actionsVisible: actionsVisible,
+              onDownload: onDownload,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return DecoratedBox(
+      decoration: decoration,
+      child: _ReaderPageStack(
+        image: image,
+        actionsVisible: actionsVisible,
+        onDownload: onDownload,
+      ),
+    );
+  }
+}
+
+class _ReaderPageStack extends StatelessWidget {
+  const _ReaderPageStack({
+    required this.image,
+    required this.actionsVisible,
+    required this.onDownload,
+  });
+
+  final Widget image;
+  final bool actionsVisible;
+  final VoidCallback onDownload;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.passthrough,
+      children: [
+        image,
+        Positioned(
+          top: 12,
+          right: 12,
+          child: _PageDownloadButton(
+            visible: actionsVisible,
+            onPressed: onDownload,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PreparingChapterView extends StatefulWidget {
+  const _PreparingChapterView();
+
+  @override
+  State<_PreparingChapterView> createState() => _PreparingChapterViewState();
+}
+
+class _PreparingChapterViewState extends State<_PreparingChapterView> {
+  bool _showMessage = false;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer(const Duration(milliseconds: 450), () {
+      if (mounted) setState(() => _showMessage = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Colors.black,
+      child: SafeArea(
+        child: Center(
+          child: AnimatedOpacity(
+            opacity: _showMessage ? 1 : 0,
+            duration: const Duration(milliseconds: 180),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 180,
+                  child: LinearProgressIndicator(minHeight: 2),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Preparing chapter...',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleMedium?.copyWith(color: Colors.white),
+                ),
+              ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ImageSkeleton extends StatelessWidget {
+  const _ImageSkeleton({required this.height});
+
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(color: Color(0xFF090A0D)),
+      child: SizedBox(width: double.infinity, height: height),
     );
   }
 }
@@ -397,69 +1031,6 @@ class _PageDownloadButton extends StatelessWidget {
               constraints: const BoxConstraints.tightFor(width: 38, height: 38),
               padding: EdgeInsets.zero,
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ComicPanel extends StatelessWidget {
-  const _ComicPanel({required this.panel});
-
-  final _PanelUi panel;
-
-  @override
-  Widget build(BuildContext context) {
-    return FractionallySizedBox(
-      alignment: panel.alignment,
-      widthFactor: panel.widthFactor,
-      heightFactor: panel.heightFactor,
-      child: Padding(
-        padding: panel.padding,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: panel.colors,
-            ),
-            border: Border.all(color: Colors.black, width: 2),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: CustomPaint(painter: _SpeedLinePainter(panel.accent)),
-              ),
-              Align(
-                alignment: panel.bubbleAlignment,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      border: Border.all(color: Colors.black, width: 2),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      child: Text(
-                        panel.caption,
-                        style: Theme.of(context).textTheme.labelMedium
-                            ?.copyWith(
-                              color: Colors.black,
-                              fontWeight: FontWeight.w900,
-                            ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
           ),
         ),
       ),
@@ -668,341 +1239,62 @@ class _ReaderBottomBar extends StatelessWidget {
   }
 }
 
-class _SpeedLinePainter extends CustomPainter {
-  const _SpeedLinePainter(this.color);
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color.withValues(alpha: 0.2)
-      ..strokeWidth = 1.4;
-
-    for (var i = 0; i < 12; i++) {
-      final y = size.height * (i / 12);
-      canvas.drawLine(
-        Offset(size.width * 0.08, y),
-        Offset(size.width * 0.92, y + size.height * 0.12),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _SpeedLinePainter oldDelegate) {
-    return oldDelegate.color != color;
-  }
-}
-
 class _ReaderPageUi {
   const _ReaderPageUi({
     required this.number,
     required this.aspectRatio,
     required this.background,
-    required this.panels,
+    required this.imageUrl,
   });
 
   final int number;
   final double aspectRatio;
   final Color background;
-  final List<_PanelUi> panels;
+  final String imageUrl;
 }
 
-class _PanelUi {
-  const _PanelUi({
-    required this.alignment,
-    required this.widthFactor,
-    required this.heightFactor,
-    required this.padding,
-    required this.colors,
-    required this.accent,
-    required this.caption,
-    required this.bubbleAlignment,
-  });
-
-  final Alignment alignment;
-  final double widthFactor;
-  final double heightFactor;
-  final EdgeInsets padding;
-  final List<Color> colors;
-  final Color accent;
-  final String caption;
-  final Alignment bubbleAlignment;
+List<_ReaderPageUi> _pagesFromChapter(ChapterPayload payload) {
+  final images = payload.images.where((image) => image.url.isNotEmpty).toList();
+  if (images.isEmpty) return const [];
+  return images
+      .map(
+        (image) => _ReaderPageUi(
+          number: image.page <= 0 ? images.indexOf(image) + 1 : image.page,
+          aspectRatio: 0.68,
+          background: Colors.black,
+          imageUrl: image.url,
+        ),
+      )
+      .toList();
 }
 
-String? _coverForTitle(String title) {
-  for (final comic in dummyComics) {
-    if (comic.title == title) return comic.coverImageUrl;
+class _ReaderErrorView extends StatelessWidget {
+  const _ReaderErrorView({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.cloud_off_rounded, size: 42, color: colorScheme.outline),
+            const SizedBox(height: 12),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
-  return null;
 }
-
-const _readerPages = [
-  _ReaderPageUi(
-    number: 1,
-    aspectRatio: 0.68,
-    background: Color(0xFFF5F1E8),
-    panels: [
-      _PanelUi(
-        alignment: Alignment.topCenter,
-        widthFactor: 1,
-        heightFactor: 0.46,
-        padding: EdgeInsets.fromLTRB(14, 14, 14, 6),
-        colors: [Color(0xFF1D2A3A), Color(0xFF55708A)],
-        accent: Color(0xFFFFFFFF),
-        caption: 'Gerbang dungeon terbuka.',
-        bubbleAlignment: Alignment.topLeft,
-      ),
-      _PanelUi(
-        alignment: Alignment.bottomLeft,
-        widthFactor: 0.54,
-        heightFactor: 0.54,
-        padding: EdgeInsets.fromLTRB(14, 6, 5, 14),
-        colors: [Color(0xFFB9472C), Color(0xFFF5A34A)],
-        accent: Color(0xFFFFFFFF),
-        caption: 'Cepat!',
-        bubbleAlignment: Alignment.bottomLeft,
-      ),
-      _PanelUi(
-        alignment: Alignment.bottomRight,
-        widthFactor: 0.46,
-        heightFactor: 0.54,
-        padding: EdgeInsets.fromLTRB(5, 6, 14, 14),
-        colors: [Color(0xFF192230), Color(0xFF8557D9)],
-        accent: Color(0xFFFFFFFF),
-        caption: 'Ada sesuatu.',
-        bubbleAlignment: Alignment.topRight,
-      ),
-    ],
-  ),
-  _ReaderPageUi(
-    number: 2,
-    aspectRatio: 0.66,
-    background: Color(0xFFEDE7DA),
-    panels: [
-      _PanelUi(
-        alignment: Alignment.topLeft,
-        widthFactor: 0.58,
-        heightFactor: 0.52,
-        padding: EdgeInsets.fromLTRB(14, 14, 5, 6),
-        colors: [Color(0xFF111827), Color(0xFF374151)],
-        accent: Color(0xFFFDE68A),
-        caption: 'Aku bisa melihat polanya.',
-        bubbleAlignment: Alignment.topLeft,
-      ),
-      _PanelUi(
-        alignment: Alignment.topRight,
-        widthFactor: 0.42,
-        heightFactor: 0.52,
-        padding: EdgeInsets.fromLTRB(5, 14, 14, 6),
-        colors: [Color(0xFF0F766E), Color(0xFF5EEAD4)],
-        accent: Color(0xFFFFFFFF),
-        caption: 'Tunggu.',
-        bubbleAlignment: Alignment.center,
-      ),
-      _PanelUi(
-        alignment: Alignment.bottomCenter,
-        widthFactor: 1,
-        heightFactor: 0.48,
-        padding: EdgeInsets.fromLTRB(14, 6, 14, 14),
-        colors: [Color(0xFF312E81), Color(0xFF818CF8)],
-        accent: Color(0xFFFFFFFF),
-        caption: 'Bayangan itu bergerak.',
-        bubbleAlignment: Alignment.bottomRight,
-      ),
-    ],
-  ),
-  _ReaderPageUi(
-    number: 3,
-    aspectRatio: 0.7,
-    background: Color(0xFFF7F2E7),
-    panels: [
-      _PanelUi(
-        alignment: Alignment.topCenter,
-        widthFactor: 1,
-        heightFactor: 0.34,
-        padding: EdgeInsets.fromLTRB(14, 14, 14, 5),
-        colors: [Color(0xFF7C2D12), Color(0xFFF97316)],
-        accent: Color(0xFFFFFFFF),
-        caption: 'Serangan datang dari atas!',
-        bubbleAlignment: Alignment.topCenter,
-      ),
-      _PanelUi(
-        alignment: Alignment.center,
-        widthFactor: 1,
-        heightFactor: 0.34,
-        padding: EdgeInsets.fromLTRB(14, 5, 14, 5),
-        colors: [Color(0xFF020617), Color(0xFF334155)],
-        accent: Color(0xFF93C5FD),
-        caption: 'Aku tidak boleh mundur.',
-        bubbleAlignment: Alignment.centerLeft,
-      ),
-      _PanelUi(
-        alignment: Alignment.bottomCenter,
-        widthFactor: 1,
-        heightFactor: 0.32,
-        padding: EdgeInsets.fromLTRB(14, 5, 14, 14),
-        colors: [Color(0xFF14532D), Color(0xFF86EFAC)],
-        accent: Color(0xFFFFFFFF),
-        caption: 'Skill baru terbuka.',
-        bubbleAlignment: Alignment.bottomRight,
-      ),
-    ],
-  ),
-  _ReaderPageUi(
-    number: 4,
-    aspectRatio: 0.64,
-    background: Color(0xFFEFE7DC),
-    panels: [
-      _PanelUi(
-        alignment: Alignment.topCenter,
-        widthFactor: 1,
-        heightFactor: 0.58,
-        padding: EdgeInsets.fromLTRB(14, 14, 14, 6),
-        colors: [Color(0xFF581C87), Color(0xFFE879F9)],
-        accent: Color(0xFFFFFFFF),
-        caption: 'Kekuatan ini...',
-        bubbleAlignment: Alignment.topLeft,
-      ),
-      _PanelUi(
-        alignment: Alignment.bottomCenter,
-        widthFactor: 1,
-        heightFactor: 0.42,
-        padding: EdgeInsets.fromLTRB(14, 6, 14, 14),
-        colors: [Color(0xFF0C4A6E), Color(0xFF38BDF8)],
-        accent: Color(0xFFFFFFFF),
-        caption: '...bukan kebetulan.',
-        bubbleAlignment: Alignment.bottomRight,
-      ),
-    ],
-  ),
-  _ReaderPageUi(
-    number: 5,
-    aspectRatio: 0.68,
-    background: Color(0xFFF2EDE2),
-    panels: [
-      _PanelUi(
-        alignment: Alignment.topLeft,
-        widthFactor: 0.5,
-        heightFactor: 0.5,
-        padding: EdgeInsets.fromLTRB(14, 14, 5, 5),
-        colors: [Color(0xFF111827), Color(0xFF6B7280)],
-        accent: Color(0xFFFFFFFF),
-        caption: 'Hening.',
-        bubbleAlignment: Alignment.topLeft,
-      ),
-      _PanelUi(
-        alignment: Alignment.topRight,
-        widthFactor: 0.5,
-        heightFactor: 0.5,
-        padding: EdgeInsets.fromLTRB(5, 14, 14, 5),
-        colors: [Color(0xFF92400E), Color(0xFFFBBF24)],
-        accent: Color(0xFFFFFFFF),
-        caption: 'Terlalu hening.',
-        bubbleAlignment: Alignment.bottomRight,
-      ),
-      _PanelUi(
-        alignment: Alignment.bottomCenter,
-        widthFactor: 1,
-        heightFactor: 0.5,
-        padding: EdgeInsets.fromLTRB(14, 5, 14, 14),
-        colors: [Color(0xFF172554), Color(0xFF60A5FA)],
-        accent: Color(0xFFFFFFFF),
-        caption: 'Boss muncul.',
-        bubbleAlignment: Alignment.center,
-      ),
-    ],
-  ),
-  _ReaderPageUi(
-    number: 6,
-    aspectRatio: 0.67,
-    background: Color(0xFFF8F1E5),
-    panels: [
-      _PanelUi(
-        alignment: Alignment.topCenter,
-        widthFactor: 1,
-        heightFactor: 0.45,
-        padding: EdgeInsets.fromLTRB(14, 14, 14, 6),
-        colors: [Color(0xFF450A0A), Color(0xFFEF4444)],
-        accent: Color(0xFFFFFFFF),
-        caption: 'Satu pukulan.',
-        bubbleAlignment: Alignment.topRight,
-      ),
-      _PanelUi(
-        alignment: Alignment.bottomCenter,
-        widthFactor: 1,
-        heightFactor: 0.55,
-        padding: EdgeInsets.fromLTRB(14, 6, 14, 14),
-        colors: [Color(0xFF052E16), Color(0xFF22C55E)],
-        accent: Color(0xFFFFFFFF),
-        caption: 'Masih belum cukup.',
-        bubbleAlignment: Alignment.bottomLeft,
-      ),
-    ],
-  ),
-  _ReaderPageUi(
-    number: 7,
-    aspectRatio: 0.69,
-    background: Color(0xFFF3ECDF),
-    panels: [
-      _PanelUi(
-        alignment: Alignment.topCenter,
-        widthFactor: 1,
-        heightFactor: 0.38,
-        padding: EdgeInsets.fromLTRB(14, 14, 14, 5),
-        colors: [Color(0xFF0F172A), Color(0xFF475569)],
-        accent: Color(0xFFFFFFFF),
-        caption: 'Aku mengerti sekarang.',
-        bubbleAlignment: Alignment.topLeft,
-      ),
-      _PanelUi(
-        alignment: Alignment.bottomLeft,
-        widthFactor: 0.48,
-        heightFactor: 0.62,
-        padding: EdgeInsets.fromLTRB(14, 5, 5, 14),
-        colors: [Color(0xFF1E3A8A), Color(0xFF93C5FD)],
-        accent: Color(0xFFFFFFFF),
-        caption: 'Formasi kiri.',
-        bubbleAlignment: Alignment.center,
-      ),
-      _PanelUi(
-        alignment: Alignment.bottomRight,
-        widthFactor: 0.52,
-        heightFactor: 0.62,
-        padding: EdgeInsets.fromLTRB(5, 5, 14, 14),
-        colors: [Color(0xFF713F12), Color(0xFFFACC15)],
-        accent: Color(0xFFFFFFFF),
-        caption: 'Tutup jalannya.',
-        bubbleAlignment: Alignment.bottomRight,
-      ),
-    ],
-  ),
-  _ReaderPageUi(
-    number: 8,
-    aspectRatio: 0.65,
-    background: Color(0xFFF7EFE4),
-    panels: [
-      _PanelUi(
-        alignment: Alignment.topCenter,
-        widthFactor: 1,
-        heightFactor: 0.5,
-        padding: EdgeInsets.fromLTRB(14, 14, 14, 6),
-        colors: [Color(0xFF4C1D95), Color(0xFFA78BFA)],
-        accent: Color(0xFFFFFFFF),
-        caption: 'Sistem merespons.',
-        bubbleAlignment: Alignment.topCenter,
-      ),
-      _PanelUi(
-        alignment: Alignment.bottomCenter,
-        widthFactor: 1,
-        heightFactor: 0.5,
-        padding: EdgeInsets.fromLTRB(14, 6, 14, 14),
-        colors: [Color(0xFF7F1D1D), Color(0xFFFCA5A5)],
-        accent: Color(0xFFFFFFFF),
-        caption: 'Misi dimulai.',
-        bubbleAlignment: Alignment.bottomRight,
-      ),
-    ],
-  ),
-];

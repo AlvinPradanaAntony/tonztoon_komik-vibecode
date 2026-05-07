@@ -1,29 +1,32 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/app_icons.dart';
 import '../../models/comic.dart';
+import '../../repositories/providers.dart';
+import '../../widgets/app_async_view.dart';
 import '../../widgets/choice_chip_group.dart';
 import '../../widgets/comic_card.dart';
 import '../../widgets/comic_cover.dart';
-import '../comic/comic_detail_screen.dart';
 
-class FullCatalogScreen extends StatefulWidget {
+class FullCatalogScreen extends ConsumerStatefulWidget {
   const FullCatalogScreen({super.key, this.showBackButton = true});
 
   final bool showBackButton;
 
   @override
-  State<FullCatalogScreen> createState() => _FullCatalogScreenState();
+  ConsumerState<FullCatalogScreen> createState() => _FullCatalogScreenState();
 }
 
-class _FullCatalogScreenState extends State<FullCatalogScreen> {
+class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
   _CatalogFilters _filters = const _CatalogFilters();
   bool _isGrid = true;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final comics = _visibleEntries;
+    final catalogAsync = ref.watch(catalogDataProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -60,48 +63,65 @@ class _FullCatalogScreenState extends State<FullCatalogScreen> {
           ),
         ],
       ),
-      body: ListView(
-        padding: EdgeInsets.fromLTRB(
-          16,
-          8,
-          16,
-          widget.showBackButton ? 28 : 132,
-        ),
-        children: [
-          _CatalogHero(
-            visibleCount: comics.length,
-            totalCount: _catalogEntries.length,
-          ),
-          const SizedBox(height: 16),
-          _ActiveFilterStrip(filters: _filters, onClear: _clearFilters),
-          const SizedBox(height: 18),
-          Row(
+      body: AppAsyncView<CatalogData>(
+        value: catalogAsync,
+        onRetry: () => ref.invalidate(catalogDataProvider),
+        builder: (catalog) {
+          final entries = _catalogPool(catalog.comics);
+          final comics = _visibleEntries(entries);
+
+          return ListView(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              8,
+              16,
+              widget.showBackButton ? 28 : 132,
+            ),
             children: [
-              Expanded(
-                child: Text(
-                  '${comics.length} komik ditemukan',
-                  style: theme.textTheme.titleMedium,
-                ),
+              _CatalogHero(
+                visibleCount: comics.length,
+                totalCount: entries.length,
               ),
-              _SortPill(label: _filters.sort),
+              const SizedBox(height: 16),
+              _ActiveFilterStrip(filters: _filters, onClear: _clearFilters),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${comics.length} komik ditemukan',
+                      style: theme.textTheme.titleMedium,
+                    ),
+                  ),
+                  _SortPill(label: _filters.sort),
+                ],
+              ),
+              const SizedBox(height: 12),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: comics.isEmpty
+                    ? const _EmptyCatalogState()
+                    : _isGrid
+                    ? _CatalogGrid(entries: comics, onTap: _openComicDetail)
+                    : _CatalogList(entries: comics, onTap: _openComicDetail),
+              ),
             ],
-          ),
-          const SizedBox(height: 12),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 180),
-            child: comics.isEmpty
-                ? const _EmptyCatalogState()
-                : _isGrid
-                ? _CatalogGrid(entries: comics, onTap: _openComicDetail)
-                : _CatalogList(entries: comics, onTap: _openComicDetail),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
 
-  List<_CatalogEntry> get _visibleEntries {
-    final filtered = _catalogEntries.where((entry) {
+  List<_CatalogEntry> _catalogPool(List<ComicSummary> comics) {
+    return comics
+        .asMap()
+        .entries
+        .map((entry) => _CatalogEntry.fromSummary(entry.value, entry.key))
+        .toList();
+  }
+
+  List<_CatalogEntry> _visibleEntries(List<_CatalogEntry> entries) {
+    final filtered = entries.where((entry) {
       final comic = entry.comic;
       final sourceMatches =
           _filters.source == 'Semua' || entry.source == _filters.source;
@@ -156,10 +176,9 @@ class _FullCatalogScreenState extends State<FullCatalogScreen> {
   }
 
   void _openComicDetail(_CatalogEntry entry) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) => ComicDetailScreen(comic: entry.comic),
-      ),
+    context.push(
+      '/comic/${Uri.encodeComponent(comicRouteSource(entry.comic))}/${Uri.encodeComponent(comicRouteSlug(entry.comic))}',
+      extra: entry.comic,
     );
   }
 }
@@ -709,12 +728,44 @@ class _CatalogEntry {
     required this.updateRank,
   });
 
+  factory _CatalogEntry.fromSummary(ComicSummary comic, int index) {
+    final source = _sourceLabel(comic.sourceName);
+    final type = comic.type?.trim().isNotEmpty == true
+        ? comic.type!.trim()
+        : 'Manga';
+    final status = comic.status?.trim().isNotEmpty == true
+        ? comic.status!.trim()
+        : 'Ongoing';
+    return _CatalogEntry(
+      comic: comic,
+      source: source,
+      status: status,
+      genre: type,
+      rating: comic.rating ?? 0,
+      updateRank: comic.latestChapterNumber?.round() ?? (1000 - index),
+    );
+  }
+
   final ComicSummary comic;
   final String source;
   final String status;
   final String genre;
   final double rating;
   final int updateRank;
+}
+
+String _sourceLabel(String sourceName) {
+  final value = sourceName.trim();
+  if (value.isEmpty) return 'Komiku';
+  return value
+      .split(RegExp(r'[_\-\s]+'))
+      .where((part) => part.isNotEmpty)
+      .map(
+        (part) => part.length == 1
+            ? part.toUpperCase()
+            : '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
+      )
+      .join(' ');
 }
 
 const List<String> _sources = [
@@ -745,159 +796,4 @@ const List<String> _sorts = [
   'Paling populer',
   'Chapter terbanyak',
   'A-Z',
-];
-
-final List<_CatalogEntry> _catalogEntries = [
-  for (var i = 0; i < dummyComics.length; i++)
-    _CatalogEntry(
-      comic: dummyComics[i],
-      source: ['Komiku', 'Komikcast', 'Shinigami', 'Komiku'][i],
-      status: ['Completed', 'Ongoing', 'Ongoing', 'Ongoing'][i],
-      genre: ['Action', 'Adventure', 'Fantasy', 'Action'][i],
-      rating: [4.9, 4.8, 4.7, 4.6][i],
-      updateRank: 100 - i,
-    ),
-  const _CatalogEntry(
-    comic: ComicSummary(
-      title: 'Tower of God',
-      type: 'Manhwa',
-      latestChapterNumber: 621,
-      coverImageUrl: 'https://cdn.myanimelist.net/images/manga/2/170796l.jpg',
-    ),
-    source: 'Webtoon',
-    status: 'Ongoing',
-    genre: 'Fantasy',
-    rating: 4.8,
-    updateRank: 96,
-  ),
-  const _CatalogEntry(
-    comic: ComicSummary(
-      title: 'Blue Lock',
-      type: 'Manga',
-      latestChapterNumber: 272,
-      coverImageUrl: 'https://cdn.myanimelist.net/images/manga/5/213341l.jpg',
-    ),
-    source: 'Komikcast',
-    status: 'Ongoing',
-    genre: 'Sports',
-    rating: 4.7,
-    updateRank: 95,
-  ),
-  const _CatalogEntry(
-    comic: ComicSummary(
-      title: 'Chainsaw Man',
-      type: 'Manga',
-      latestChapterNumber: 173,
-      coverImageUrl: 'https://cdn.myanimelist.net/images/manga/3/216464l.jpg',
-    ),
-    source: 'Shinigami',
-    status: 'Ongoing',
-    genre: 'Supernatural',
-    rating: 4.8,
-    updateRank: 94,
-  ),
-  const _CatalogEntry(
-    comic: ComicSummary(
-      title: 'The Beginning After the End',
-      type: 'Manhwa',
-      latestChapterNumber: 187,
-      coverImageUrl: 'https://cdn.myanimelist.net/images/manga/3/222681l.jpg',
-    ),
-    source: 'Komiku',
-    status: 'Ongoing',
-    genre: 'Fantasy',
-    rating: 4.6,
-    updateRank: 93,
-  ),
-  const _CatalogEntry(
-    comic: ComicSummary(
-      title: 'Jujutsu Kaisen',
-      type: 'Manga',
-      latestChapterNumber: 271,
-      coverImageUrl: 'https://cdn.myanimelist.net/images/manga/3/210341l.jpg',
-    ),
-    source: 'Shinigami',
-    status: 'Completed',
-    genre: 'Supernatural',
-    rating: 4.9,
-    updateRank: 92,
-  ),
-  const _CatalogEntry(
-    comic: ComicSummary(
-      title: 'Dandadan',
-      type: 'Manga',
-      latestChapterNumber: 163,
-      coverImageUrl: 'https://cdn.myanimelist.net/images/manga/2/248746l.jpg',
-    ),
-    source: 'Komikcast',
-    status: 'Ongoing',
-    genre: 'Comedy',
-    rating: 4.7,
-    updateRank: 91,
-  ),
-  const _CatalogEntry(
-    comic: ComicSummary(
-      title: 'Eleceed',
-      type: 'Manhwa',
-      latestChapterNumber: 310,
-      coverImageUrl: 'https://cdn.myanimelist.net/images/manga/2/242512l.jpg',
-    ),
-    source: 'Webtoon',
-    status: 'Ongoing',
-    genre: 'Action',
-    rating: 4.6,
-    updateRank: 90,
-  ),
-  const _CatalogEntry(
-    comic: ComicSummary(
-      title: 'Wind Breaker',
-      type: 'Manga',
-      latestChapterNumber: 154,
-      coverImageUrl: 'https://cdn.myanimelist.net/images/manga/5/253176l.jpg',
-    ),
-    source: 'Komiku',
-    status: 'Ongoing',
-    genre: 'Action',
-    rating: 4.5,
-    updateRank: 89,
-  ),
-  const _CatalogEntry(
-    comic: ComicSummary(
-      title: 'Horimiya',
-      type: 'Manga',
-      latestChapterNumber: 122,
-      coverImageUrl: 'https://cdn.myanimelist.net/images/manga/2/191110l.jpg',
-    ),
-    source: 'Komiku',
-    status: 'Completed',
-    genre: 'Romance',
-    rating: 4.5,
-    updateRank: 88,
-  ),
-  const _CatalogEntry(
-    comic: ComicSummary(
-      title: 'Lookism',
-      type: 'Manhwa',
-      latestChapterNumber: 506,
-      coverImageUrl: 'https://cdn.myanimelist.net/images/manga/2/258749l.jpg',
-    ),
-    source: 'Webtoon',
-    status: 'Ongoing',
-    genre: 'Action',
-    rating: 4.4,
-    updateRank: 87,
-  ),
-  const _CatalogEntry(
-    comic: ComicSummary(
-      title: 'Hunter x Hunter',
-      type: 'Manga',
-      latestChapterNumber: 400,
-      coverImageUrl: 'https://cdn.myanimelist.net/images/manga/2/253119l.jpg',
-    ),
-    source: 'Komikcast',
-    status: 'Hiatus',
-    genre: 'Adventure',
-    rating: 4.9,
-    updateRank: 86,
-  ),
 ];

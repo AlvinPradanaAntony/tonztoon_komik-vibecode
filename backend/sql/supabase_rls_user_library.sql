@@ -31,6 +31,14 @@ begin
     end if;
 
     if not exists (
+      select 1 from pg_constraint where conname = 'fk_user_reading_stats_user'
+    ) then
+      alter table public.user_reading_stats
+        add constraint fk_user_reading_stats_user
+        foreign key (user_id) references auth.users(id) on delete cascade;
+    end if;
+
+    if not exists (
       select 1 from pg_constraint where conname = 'fk_user_bookmarks_user'
     ) then
       alter table public.user_bookmarks
@@ -87,6 +95,9 @@ alter table public.profiles force row level security;
 alter table public.reader_preferences enable row level security;
 alter table public.reader_preferences force row level security;
 
+alter table public.user_reading_stats enable row level security;
+alter table public.user_reading_stats force row level security;
+
 alter table public.user_bookmarks enable row level security;
 alter table public.user_bookmarks force row level security;
 
@@ -118,6 +129,11 @@ drop policy if exists "reader_preferences_select_own" on public.reader_preferenc
 drop policy if exists "reader_preferences_insert_own" on public.reader_preferences;
 drop policy if exists "reader_preferences_update_own" on public.reader_preferences;
 drop policy if exists "reader_preferences_delete_own" on public.reader_preferences;
+
+drop policy if exists "user_reading_stats_select_own" on public.user_reading_stats;
+drop policy if exists "user_reading_stats_insert_own" on public.user_reading_stats;
+drop policy if exists "user_reading_stats_update_own" on public.user_reading_stats;
+drop policy if exists "user_reading_stats_delete_own" on public.user_reading_stats;
 
 drop policy if exists "user_bookmarks_select_own" on public.user_bookmarks;
 drop policy if exists "user_bookmarks_insert_own" on public.user_bookmarks;
@@ -202,6 +218,32 @@ with check ((select auth.uid()) is not null and (select auth.uid()) = user_id);
 
 create policy "reader_preferences_delete_own"
 on public.reader_preferences
+for delete
+to authenticated
+using ((select auth.uid()) is not null and (select auth.uid()) = user_id);
+
+-- user_reading_stats
+create policy "user_reading_stats_select_own"
+on public.user_reading_stats
+for select
+to authenticated
+using ((select auth.uid()) is not null and (select auth.uid()) = user_id);
+
+create policy "user_reading_stats_insert_own"
+on public.user_reading_stats
+for insert
+to authenticated
+with check ((select auth.uid()) is not null and (select auth.uid()) = user_id);
+
+create policy "user_reading_stats_update_own"
+on public.user_reading_stats
+for update
+to authenticated
+using ((select auth.uid()) is not null and (select auth.uid()) = user_id)
+with check ((select auth.uid()) is not null and (select auth.uid()) = user_id);
+
+create policy "user_reading_stats_delete_own"
+on public.user_reading_stats
 for delete
 to authenticated
 using ((select auth.uid()) is not null and (select auth.uid()) = user_id);

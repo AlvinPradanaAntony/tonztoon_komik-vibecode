@@ -35,6 +35,8 @@ from app.schemas import (
     LibrarySyncImportResponse,
     ProgressResponse,
     ProgressUpsertRequest,
+    ReadingTimeDeltaRequest,
+    ReadingTimeResponse,
     ReaderPreferenceResponse,
     ReaderPreferenceUpdateRequest,
 )
@@ -47,6 +49,7 @@ from app.services.library_service import (
     build_favorite_scene_response,
     build_history_response,
     build_progress_response,
+    build_reading_time_response,
     build_reader_preferences_response,
     create_collection,
     delete_bookmark,
@@ -54,9 +57,11 @@ from app.services.library_service import (
     delete_download_entry,
     delete_favorite_scene,
     enqueue_download_batch,
+    add_reading_time_delta,
     get_library_state_for_comic,
     get_library_summary,
     get_or_create_reader_preferences,
+    get_or_create_reading_stat,
     get_progress_for_comic,
     import_library_snapshot,
     list_bookmarks,
@@ -503,6 +508,27 @@ async def get_reader_preferences(
     """Ambil reader preferences, membuat default bila belum ada."""
     preference = await get_or_create_reader_preferences(db, user_id)
     return build_reader_preferences_response(preference)
+
+
+@router.get("/reading-time", response_model=ReadingTimeResponse)
+async def get_reading_time(
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Ambil total waktu baca user dalam detik."""
+    stat = await get_or_create_reading_stat(db, user_id)
+    return build_reading_time_response(stat)
+
+
+@router.post("/reading-time", response_model=ReadingTimeResponse)
+async def post_reading_time_delta(
+    payload: ReadingTimeDeltaRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Tambahkan delta durasi baca dari reader."""
+    stat = await add_reading_time_delta(db, user_id, payload.delta_seconds)
+    return build_reading_time_response(stat)
 
 
 @router.put("/reader-preferences", response_model=ReaderPreferenceResponse)

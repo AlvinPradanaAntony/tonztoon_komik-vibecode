@@ -2,23 +2,26 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../../core/app_icons.dart';
 import '../../models/comic.dart';
+import '../../repositories/providers.dart';
+import '../../widgets/app_async_view.dart';
 import '../../widgets/choice_chip_group.dart';
 import '../../widgets/comic_card.dart';
 import '../../widgets/comic_cover.dart';
-import '../comic/comic_detail_screen.dart';
 
-class SearchScreen extends StatefulWidget {
+class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
 
   @override
-  State<SearchScreen> createState() => _SearchScreenState();
+  ConsumerState<SearchScreen> createState() => _SearchScreenState();
 }
 
-class _SearchScreenState extends State<SearchScreen> {
+class _SearchScreenState extends ConsumerState<SearchScreen> {
   static const _keyboardDismissDuration = Duration(milliseconds: 260);
   static const _sheetEnterDuration = Duration(milliseconds: 300);
   static const _sheetExitDuration = Duration(milliseconds: 220);
@@ -45,7 +48,8 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final query = _searchController.text.trim();
-    final results = _visibleResults;
+    final searchAsync = ref.watch(searchResultsProvider);
+    final isLoading = _isSearching && !searchAsync.hasValue;
 
     return Scaffold(
       appBar: AppBar(
@@ -77,7 +81,7 @@ class _SearchScreenState extends State<SearchScreen> {
           const SizedBox(height: 22),
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 220),
-            child: _isSearching
+            child: isLoading
                 ? _SearchLoadingPlaceholder(
                     key: ValueKey('search-loading-$_gridView'),
                     gridView: _gridView,
@@ -90,22 +94,34 @@ class _SearchScreenState extends State<SearchScreen> {
                     message:
                         'Masukkan judul, author, genre, atau sumber untuk mulai mencari.',
                   )
-                : results.isEmpty
-                ? _SearchEmptyState(
-                    key: const ValueKey('search-empty-results'),
-                    icon: TonztoonIcons.search,
-                    title: 'Tidak ada hasil',
-                    message: 'Tidak ada komik yang cocok untuk "$query".',
-                  )
-                : Column(
-                    key: ValueKey('search-results-$_gridView-$query'),
-                    children: [
-                      _ResultHeader(query: query, resultCount: results.length),
-                      const SizedBox(height: 12),
-                      _gridView
-                          ? _ResultGrid(comics: results)
-                          : _ResultList(comics: results),
-                    ],
+                : AppAsyncView<List<ComicSummary>>(
+                    key: ValueKey('search-async-$query-$_gridView'),
+                    value: searchAsync,
+                    onRetry: () => ref.invalidate(searchResultsProvider),
+                    builder: (items) {
+                      final results = _visibleResults(_searchPool(items));
+                      return results.isEmpty
+                          ? _SearchEmptyState(
+                              key: const ValueKey('search-empty-results'),
+                              icon: TonztoonIcons.search,
+                              title: 'Tidak ada hasil',
+                              message:
+                                  'Tidak ada komik yang cocok untuk "$query".',
+                            )
+                          : Column(
+                              key: ValueKey('search-results-$_gridView-$query'),
+                              children: [
+                                _ResultHeader(
+                                  query: query,
+                                  resultCount: results.length,
+                                ),
+                                const SizedBox(height: 12),
+                                _gridView
+                                    ? _ResultGrid(comics: results)
+                                    : _ResultList(comics: results),
+                              ],
+                            );
+                    },
                   ),
           ),
         ],
@@ -113,11 +129,15 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  List<_SearchComicUi> get _visibleResults {
+  List<_SearchComicUi> _searchPool(List<ComicSummary> liveResults) {
+    return liveResults.map(_SearchComicUi.fromSummary).toList();
+  }
+
+  List<_SearchComicUi> _visibleResults(List<_SearchComicUi> searchPool) {
     final query = _searchController.text.trim().toLowerCase();
     if (query.isEmpty) return const [];
 
-    final filtered = _searchResults.where((comic) {
+    final filtered = searchPool.where((comic) {
       final values = [
         comic.summary.title,
         comic.summary.type ?? '',
@@ -157,6 +177,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   void _handleSearchChanged(String value) {
     _searchDebounce?.cancel();
+    ref.read(searchQueryProvider.notifier).setQuery(value);
     final query = value.trim();
 
     if (query.isEmpty) {
@@ -174,6 +195,7 @@ class _SearchScreenState extends State<SearchScreen> {
   void _clearSearch() {
     _searchDebounce?.cancel();
     _searchController.clear();
+    ref.read(searchQueryProvider.notifier).setQuery('');
     setState(() => _isSearching = false);
   }
 
@@ -952,10 +974,9 @@ class _SectionTitle extends StatelessWidget {
 }
 
 void _openComicDetail(BuildContext context, ComicSummary comic) {
-  Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      builder: (context) => ComicDetailScreen(comic: comic),
-    ),
+  context.push(
+    '/comic/${Uri.encodeComponent(comicRouteSource(comic))}/${Uri.encodeComponent(comicRouteSlug(comic))}',
+    extra: comic,
   );
 }
 
@@ -972,6 +993,30 @@ class _SearchComicUi {
     required this.updateRank,
   });
 
+  factory _SearchComicUi.fromSummary(ComicSummary summary) {
+    final source = _sourceLabel(summary.sourceName);
+    final chapterNumber = summary.latestChapterNumber;
+    final type = summary.type?.trim().isNotEmpty == true
+        ? summary.type!.trim()
+        : 'Komik';
+    return _SearchComicUi(
+      summary: summary,
+      source: source,
+      type: type,
+      rating: (summary.rating ?? 0).toStringAsFixed(1),
+      status: summary.status?.trim().isNotEmpty == true
+          ? summary.status!.trim()
+          : 'Ongoing',
+      genre: type,
+      chapter: chapterNumber == null
+          ? 'Chapter terbaru'
+          : 'Chapter ${formatChapterNumber(chapterNumber)}',
+      description:
+          'Komik dari $source dengan pembaruan chapter dan informasi katalog terbaru.',
+      updateRank: chapterNumber?.round() ?? summary.totalView ?? 0,
+    );
+  }
+
   final ComicSummary summary;
   final String source;
   final String type;
@@ -985,53 +1030,16 @@ class _SearchComicUi {
   double get ratingValue => double.tryParse(rating) ?? 0;
 }
 
-final List<_SearchComicUi> _searchResults = [
-  _SearchComicUi(
-    summary: dummyComics[0],
-    source: 'Komiku',
-    type: 'Manhwa',
-    rating: '4.9',
-    status: 'Completed',
-    genre: 'Action',
-    chapter: 'Chapter 179',
-    description:
-        'Hunter paling lemah mendapat sistem misterius dan tumbuh menjadi kekuatan yang menembus batas dunia dungeon.',
-    updateRank: 98,
-  ),
-  _SearchComicUi(
-    summary: dummyComics[2],
-    source: 'Shinigami',
-    type: 'Manhwa',
-    rating: '4.8',
-    status: 'Ongoing',
-    genre: 'Fantasy',
-    chapter: 'Chapter 200',
-    description:
-        'Pembaca tunggal novel apokaliptik memakai pengetahuannya untuk bertahan saat cerita berubah menjadi kenyataan.',
-    updateRank: 100,
-  ),
-  _SearchComicUi(
-    summary: dummyComics[3],
-    source: 'Komikcast',
-    type: 'Manga',
-    rating: '4.6',
-    status: 'Ongoing',
-    genre: 'Action',
-    chapter: 'Chapter 24',
-    description:
-        'Pemburu pedang sihir mengejar kelompok kriminal dalam dunia bawah yang penuh dendam dan teknik berbahaya.',
-    updateRank: 97,
-  ),
-  _SearchComicUi(
-    summary: dummyComics[1],
-    source: 'Komiku Asia',
-    type: 'Manga',
-    rating: '4.8',
-    status: 'Ongoing',
-    genre: 'Adventure',
-    chapter: 'Chapter 1111',
-    description:
-        'Kru Topi Jerami berlayar dari pulau ke pulau, membuka rahasia besar sambil mengejar harta legendaris.',
-    updateRank: 99,
-  ),
-];
+String _sourceLabel(String sourceName) {
+  final value = sourceName.trim();
+  if (value.isEmpty) return 'Komiku';
+  return value
+      .split(RegExp(r'[_\-\s]+'))
+      .where((part) => part.isNotEmpty)
+      .map(
+        (part) => part.length == 1
+            ? part.toUpperCase()
+            : '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
+      )
+      .join(' ');
+}

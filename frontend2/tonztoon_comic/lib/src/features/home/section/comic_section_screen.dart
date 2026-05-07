@@ -1,10 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/app_icons.dart';
 import '../../../models/comic.dart';
 import '../../../widgets/choice_chip_group.dart';
 import '../../../widgets/comic_card.dart';
-import '../../comic/comic_detail_screen.dart';
+
+class ComicSectionPayload {
+  const ComicSectionPayload({
+    required this.title,
+    required this.subtitle,
+    required this.comics,
+    required this.initialSort,
+  });
+
+  final String title;
+  final String subtitle;
+  final List<ComicSummary> comics;
+  final String initialSort;
+}
 
 class ComicSectionScreen extends StatefulWidget {
   const ComicSectionScreen({
@@ -378,9 +392,8 @@ class _SortOption extends StatelessWidget {
 }
 
 void _openComicDetail(BuildContext context, ComicSummary comic) {
-  Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      builder: (context) => ComicDetailScreen(comic: comic),
-    ),
+  context.push(
+    '/comic/${Uri.encodeComponent(comicRouteSource(comic))}/${Uri.encodeComponent(comicRouteSlug(comic))}',
+    extra: comic,
   );
 }

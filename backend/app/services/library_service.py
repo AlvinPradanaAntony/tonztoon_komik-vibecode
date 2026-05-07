@@ -9,6 +9,7 @@ from collections import Counter
 from datetime import UTC, datetime
 
 from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -23,6 +24,7 @@ from app.models import (
     UserFavoriteScene,
     UserHistoryEntry,
     UserProgress,
+    UserReadingStat,
 )
 from app.schemas.library import (
     BookmarkResponse,
@@ -44,6 +46,7 @@ from app.schemas.library import (
     LibrarySyncImportResponse,
     ProgressResponse,
     ProgressUpsertRequest,
+    ReadingTimeResponse,
     ReaderPreferenceResponse,
     ReaderPreferenceUpdateRequest,
 )
@@ -103,6 +106,14 @@ def build_reader_preferences_response(preference: ReaderPreference) -> ReaderPre
         mark_read_on_complete=preference.mark_read_on_complete,
         default_binge_mode=preference.default_binge_mode,
         updated_at=preference.updated_at,
+    )
+
+
+def build_reading_time_response(stat: UserReadingStat) -> ReadingTimeResponse:
+    """Serialisasi akumulasi waktu baca user."""
+    return ReadingTimeResponse(
+        total_reading_seconds=stat.total_reading_seconds,
+        updated_at=stat.updated_at,
     )
 
 
@@ -320,6 +331,57 @@ async def update_reader_preferences(
     await db.commit()
     await db.refresh(preference)
     return preference
+
+
+async def get_or_create_reading_stat(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+) -> UserReadingStat:
+    """Ambil total waktu baca user, buat row default jika belum ada."""
+    stat = await db.get(UserReadingStat, user_id)
+    if stat is None:
+        stat = UserReadingStat(
+            user_id=user_id,
+            total_reading_seconds=0,
+            updated_at=_utcnow(),
+        )
+        db.add(stat)
+        await db.commit()
+        await db.refresh(stat)
+    return stat
+
+
+async def add_reading_time_delta(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    delta_seconds: int,
+) -> UserReadingStat:
+    """Tambah durasi baca secara atomic agar aman untuk multi-device."""
+    delta = max(0, int(delta_seconds))
+    if delta == 0:
+        return await get_or_create_reading_stat(db, user_id)
+
+    now = _utcnow()
+    statement = (
+        insert(UserReadingStat)
+        .values(
+            user_id=user_id,
+            total_reading_seconds=delta,
+            updated_at=now,
+        )
+        .on_conflict_do_update(
+            index_elements=[UserReadingStat.user_id],
+            set_={
+                "total_reading_seconds": UserReadingStat.total_reading_seconds
+                + delta,
+                "updated_at": now,
+            },
+        )
+        .returning(UserReadingStat)
+    )
+    result = await db.execute(statement)
+    await db.commit()
+    return result.scalars().first()
 
 
 async def list_bookmarks(
@@ -952,6 +1014,7 @@ async def get_library_summary(
     history = await list_history(db, user_id, limit=10)
     collections = await list_collections(db, user_id)
     preferences = await db.get(ReaderPreference, user_id)
+    reading_stat = await db.get(UserReadingStat, user_id)
 
     return LibrarySummaryResponse(
         counts=LibrarySummaryCounts(
@@ -961,6 +1024,9 @@ async def get_library_summary(
             history=history_count or 0,
             downloads=download_count or 0,
             continue_reading=progress_count or 0,
+        ),
+        reading_time_seconds=(
+            reading_stat.total_reading_seconds if reading_stat is not None else 0
         ),
         continue_reading=[
             build_progress_response(item, base_url=base_url)
@@ -1120,5 +1186,9 @@ async def import_library_snapshot(
     if payload.reader_preferences is not None:
         await update_reader_preferences(db, user_id, payload.reader_preferences)
         response.reader_preferences_updated = True
+
+    if payload.reading_time_seconds > 0:
+        await add_reading_time_delta(db, user_id, payload.reading_time_seconds)
+        response.reading_time_seconds_imported = payload.reading_time_seconds
 
     return response

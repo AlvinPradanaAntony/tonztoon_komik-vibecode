@@ -47,8 +47,8 @@ Timeout Policy:
     PREFETCH_TIMEOUT  = 20 detik  — background, tidak ada yang menunggu
 
 Prefetch Window:
-    PREFETCH_WINDOW = 3
-    Contoh: user buka Ch 10 → prefetch Ch 7–9 dan Ch 11–13 (yang images=NULL)
+    PREFETCH_WINDOW = 5
+    Contoh: user buka Ch 10 → prefetch Ch 5–9 dan Ch 11–15 (yang images invalid)
 
 Prefetch Cooldown:
     PREFETCH_COOLDOWN_SECONDS = 60
@@ -73,8 +73,8 @@ logger = logging.getLogger("service.chapter")
 # ── Konfigurasi ──────────────────────────────────────────────────────────────
 ON_DEMAND_TIMEOUT        = 10   # detik — batas waktu lazy load realtime
 PREFETCH_TIMEOUT         = 20   # detik — batas waktu per chapter saat background prefetch
-PREFETCH_WINDOW          = 3    # radius chapter kiri & kanan yang di-prefetch
-PREFETCH_COOLDOWN_SECONDS = 30  # detik — jeda minimum antar-trigger prefetch per komik
+PREFETCH_WINDOW          = 5    # radius chapter kiri & kanan yang di-prefetch
+PREFETCH_COOLDOWN_SECONDS = 60  # detik — jeda minimum antar-trigger prefetch per komik
 CHAPTER_NUMBER_TOLERANCE = 0.0001
 INVALID_IMAGES_JSONPATH = cast(
     '$[*] ? (!exists(@.page) || !exists(@.url) || @.url == "")',

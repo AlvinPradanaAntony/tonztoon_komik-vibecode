@@ -18,6 +18,7 @@ from app.models.library import (
     UserFavoriteScene,
     UserHistoryEntry,
     UserProgress,
+    UserReadingStat,
 )
 
 __all__ = [
@@ -35,4 +36,5 @@ __all__ = [
     "UserFavoriteScene",
     "UserHistoryEntry",
     "UserProgress",
+    "UserReadingStat",
 ]

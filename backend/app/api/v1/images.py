@@ -36,30 +36,45 @@ async def proxy_image(
 
     headers = get_proxy_headers(url)
 
+    client = httpx.AsyncClient(follow_redirects=True, timeout=30.0)
+    response: httpx.Response | None = None
     try:
-        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
-            response = await client.get(url, headers=headers)
+        request = client.build_request("GET", url, headers=headers)
+        response = await client.send(request, stream=True)
 
-            if response.status_code != 200:
-                raise HTTPException(
-                    status_code=response.status_code,
-                    detail="Failed to fetch image from source",
-                )
-
-            content_type = response.headers.get("content-type", "image/jpeg")
-
-            async def stream_content():
-                yield response.content
-
-            return StreamingResponse(
-                stream_content(),
-                media_type=content_type,
-                headers={
-                    "Cache-Control": "public, max-age=86400",  # 24h cache
-                },
+        if response.status_code != 200:
+            await response.aclose()
+            await client.aclose()
+            raise HTTPException(
+                status_code=response.status_code,
+                detail="Failed to fetch image from source",
             )
 
+        content_type = response.headers.get("content-type", "image/jpeg")
+
+        async def stream_content():
+            try:
+                async for chunk in response.aiter_bytes():
+                    yield chunk
+            finally:
+                await response.aclose()
+                await client.aclose()
+
+        return StreamingResponse(
+            stream_content(),
+            media_type=content_type,
+            headers={
+                "Cache-Control": "public, max-age=86400",  # 24h cache
+            },
+        )
+
     except httpx.TimeoutException:
+        if response is not None:
+            await response.aclose()
+        await client.aclose()
         raise HTTPException(status_code=504, detail="Image source timed out")
     except httpx.RequestError as e:
+        if response is not None:
+            await response.aclose()
+        await client.aclose()
         raise HTTPException(status_code=502, detail=f"Failed to fetch image: {str(e)}")

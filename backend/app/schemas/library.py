@@ -76,6 +76,19 @@ class ReaderPreferenceResponse(ReaderPreferenceUpdateRequest):
     updated_at: datetime
 
 
+class ReadingTimeDeltaRequest(BaseModel):
+    """Delta durasi baca yang dikirim dari reader."""
+
+    delta_seconds: int = Field(..., ge=1)
+
+
+class ReadingTimeResponse(BaseModel):
+    """Akumulasi waktu baca user."""
+
+    total_reading_seconds: int = Field(default=0, ge=0)
+    updated_at: datetime
+
+
 class ProgressUpsertRequest(ChapterSelector):
     """Payload sync progress / continue reading."""
 
@@ -264,6 +277,7 @@ class LibrarySummaryResponse(BaseModel):
     """Summary user-library untuk home/library screen."""
 
     counts: LibrarySummaryCounts
+    reading_time_seconds: int = Field(default=0, ge=0)
     continue_reading: list[ProgressResponse] = Field(default_factory=list)
     recent_history: list[HistoryItemResponse] = Field(default_factory=list)
     collections: list[CollectionSummaryResponse] = Field(default_factory=list)
@@ -307,6 +321,7 @@ class LibrarySyncImportRequest(BaseModel):
     favorite_scenes: list[FavoriteSceneCreateRequest] = Field(default_factory=list)
     downloads: list[DownloadEntryUpsertRequest] = Field(default_factory=list)
     reader_preferences: ReaderPreferenceUpdateRequest | None = None
+    reading_time_seconds: int = Field(default=0, ge=0)
 
 
 class LibrarySyncImportResponse(BaseModel):
@@ -319,3 +334,4 @@ class LibrarySyncImportResponse(BaseModel):
     favorite_scenes_upserted: int = Field(default=0, ge=0)
     downloads_upserted: int = Field(default=0, ge=0)
     reader_preferences_updated: bool = False
+    reading_time_seconds_imported: int = Field(default=0, ge=0)

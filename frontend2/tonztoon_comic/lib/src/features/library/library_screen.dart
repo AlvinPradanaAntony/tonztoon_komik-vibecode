@@ -1,12 +1,12 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/app_icons.dart';
 import '../../models/comic.dart';
 import '../../widgets/app_surface_ink.dart';
 import '../../widgets/comic_card.dart';
 import '../../widgets/comic_cover.dart';
-import '../comic/comic_detail_screen.dart';
 import 'downloaded_scene_store.dart';
 
 class LibraryScreen extends StatelessWidget {
@@ -148,7 +148,7 @@ class _CollectionsTabState extends State<_CollectionsTab> {
         _CollectionItem(
           id: DateTime.now().microsecondsSinceEpoch.toString(),
           title: title.trim(),
-          comics: [dummyComics[0], dummyComics[2]],
+          comics: const [],
         ),
       );
     });
@@ -845,9 +845,7 @@ class _CollectionDetailScreenState extends State<_CollectionDetailScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (context) {
-        final available = dummyComics
-            .where((comic) => !_collection.comics.contains(comic))
-            .toList();
+        const available = <ComicSummary>[];
 
         return SafeArea(
           top: false,
@@ -1407,10 +1405,9 @@ class _TypeFlagBadge extends StatelessWidget {
 }
 
 void _openComicDetail(BuildContext context, ComicSummary comic) {
-  Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      builder: (context) => ComicDetailScreen(comic: comic),
-    ),
+  context.push(
+    '/comic/${Uri.encodeComponent(comicRouteSource(comic))}/${Uri.encodeComponent(comicRouteSlug(comic))}',
+    extra: comic,
   );
 }
 
@@ -1534,78 +1531,10 @@ class _DownloadItem {
   final double progress;
 }
 
-final _bookmarkItems = [
-  _LibraryComicItem(
-    comic: dummyComics[0],
-    type: 'Manhwa',
-    status: 'Completed',
-    note: 'Disimpan ke Favorit Utama',
-  ),
-  _LibraryComicItem(
-    comic: dummyComics[2],
-    type: 'Manhwa',
-    status: 'Ongoing',
-    note: 'Update baru tersedia',
-  ),
-  _LibraryComicItem(
-    comic: dummyComics[1],
-    type: 'Manga',
-    status: 'Ongoing',
-    note: 'Arc terbaru sedang berjalan',
-  ),
-  _LibraryComicItem(
-    comic: dummyComics[3],
-    type: 'Manga',
-    status: 'Hiatus',
-    note: 'Masuk daftar baca nanti',
-  ),
-];
+final _bookmarkItems = <_LibraryComicItem>[];
 
-final _collections = [
-  _CollectionItem(
-    id: 'favorites',
-    title: 'Favorit Utama',
-    comics: [dummyComics[0], dummyComics[2], dummyComics[3]],
-  ),
-  _CollectionItem(
-    id: 'casual',
-    title: 'Baca Saat Santai',
-    comics: [dummyComics[1], dummyComics[3], dummyComics[0]],
-  ),
-  _CollectionItem(
-    id: 'completed-wait',
-    title: 'Tunggu Tamat',
-    comics: [dummyComics[2], dummyComics[1], dummyComics[3]],
-  ),
-];
+final _collections = <_CollectionItem>[];
 
-final _historyItems = [
-  _HistoryItem(
-    comic: dummyComics[2],
-    chapter: 'Chapter 200 - halaman 12/26',
-    progress: 0.46,
-  ),
-  _HistoryItem(
-    comic: dummyComics[1],
-    chapter: 'Chapter 1111 - halaman 9/17',
-    progress: 0.52,
-  ),
-  _HistoryItem(
-    comic: dummyComics[3],
-    chapter: 'Chapter 24 - halaman 16/19',
-    progress: 0.84,
-  ),
-];
+final _historyItems = <_HistoryItem>[];
 
-final _downloadItems = [
-  _DownloadItem(
-    comic: dummyComics[0],
-    status: '179 chapter tersedia offline',
-    progress: 1,
-  ),
-  _DownloadItem(
-    comic: dummyComics[2],
-    status: 'Mengunduh Chapter 200',
-    progress: 0.64,
-  ),
-];
+final _downloadItems = <_DownloadItem>[];

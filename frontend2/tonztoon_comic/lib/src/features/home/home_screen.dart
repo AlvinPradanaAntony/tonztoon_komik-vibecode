@@ -1,22 +1,38 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/app_assets.dart';
 import '../../core/app_icons.dart';
-import '../comic/comic_detail_screen.dart';
 import 'section/comic_section_screen.dart';
-import '../notifications/notifications_screen.dart';
+import '../../models/auth.dart';
 import '../../models/comic.dart';
+import '../../models/progress.dart';
+import '../../models/source_info.dart';
+import '../../repositories/providers.dart';
+import '../../widgets/app_async_view.dart';
 import '../../widgets/comic_card.dart';
 import '../../widgets/comic_cover.dart';
 
 /// [HomeScreen] adalah halaman beranda aplikasi komik.
 /// Menampilkan rekomendasi dan update terbaru.
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  bool _migrationPromptShown = false;
+
+  @override
   Widget build(BuildContext context) {
+    final homeAsync = ref.watch(homeDataProvider);
+    final auth = ref.watch(authControllerProvider);
+    _maybePromptMigration(auth);
+
     return Scaffold(
       appBar: AppBar(
         title: Image.asset(
@@ -29,9 +45,13 @@ class HomeScreen extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(right: 10),
             child: IconButton(
-              tooltip: 'Notifikasi',
-              onPressed: () => _openNotifications(context),
-              icon: const _NotificationBellBadge(count: 3),
+              tooltip: auth.isAuthenticated ? 'Notifikasi' : 'Login',
+              onPressed: auth.isAuthenticated
+                  ? () => _openNotifications(context)
+                  : () => context.push('/auth'),
+              icon: auth.isAuthenticated
+                  ? const _NotificationBellBadge(count: 3)
+                  : const Icon(TonztoonIcons.accountCircle),
             ),
           ),
         ],
@@ -40,75 +60,173 @@ class HomeScreen extends StatelessWidget {
       // tidak terpotong efek fade-mask dan floating navbar.
       body: RefreshIndicator(
         onRefresh: () async {
-          // Simulasi proses pembaruan data
-          await Future.delayed(const Duration(seconds: 1));
+          ref.invalidate(homeDataProvider);
+          await ref.read(homeDataProvider.future);
         },
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 128),
-          children: [
-            const _DiscoverHeader(),
-            const SizedBox(height: 20),
-            const _SectionTitle(title: 'Rekomendasi'),
-            const SizedBox(height: 10),
-            _RecommendationCarousel(
-              comics: _recommendedComics,
-              onComicTap: (comic) => _openComicDetail(context, comic),
-            ),
-            const SizedBox(height: 24),
-            const _SectionTitle(
-              title: 'Lanjutkan Membaca',
-              actionLabel: '4', // Label dummy
-            ),
-            const SizedBox(height: 10),
-            SizedBox(
-              height:
-                  154, // Diperbesar dari 130 untuk memberi ruang pada shadow
-              child: ListView.separated(
-                clipBehavior: Clip.none, // Mencegah shadow terpotong
-                padding: const EdgeInsets.only(
-                  bottom: 24,
-                ), // Memberi jeda bayangan ke bawah
-                scrollDirection: Axis.horizontal,
-                itemBuilder: (context, index) => _ProgressCard(
-                  comic: dummyComics[index],
-                  onTap: () => _openComicDetail(context, dummyComics[index]),
+        child: AppAsyncView<HomeData>(
+          value: homeAsync,
+          onRetry: () => ref.invalidate(homeDataProvider),
+          builder: (home) {
+            final latestComics = home.latest;
+            final popularComics = home.popular;
+            final recommendationComics =
+                (latestComics.isNotEmpty ? latestComics : popularComics)
+                    .take(4)
+                    .toList();
+            final continueProgress = home.continueReading;
+
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 128),
+              children: [
+                _DiscoverHeader(
+                  data: home,
+                  onSourceChanged: (value) {
+                    ref.read(selectedSourceProvider.notifier).select(value);
+                  },
+                  onLatestTap: latestComics.isEmpty
+                      ? null
+                      : () => _openComicSection(
+                          context,
+                          title: 'Rilis Terbaru',
+                          subtitle:
+                              'Chapter baru dari berbagai sumber favorit.',
+                          comics: latestComics,
+                          initialSort: 'Update terbaru',
+                        ),
+                  onPopularTap: popularComics.isEmpty
+                      ? null
+                      : () => _openComicSection(
+                          context,
+                          title: 'Populer',
+                          subtitle: 'Komik yang ramai dibaca minggu ini.',
+                          comics: popularComics,
+                          initialSort: 'Paling populer',
+                        ),
                 ),
-                separatorBuilder: (context, index) => const SizedBox(width: 12),
-                itemCount: dummyComics.length,
-              ),
-            ),
-            const SizedBox(
-              height: 12,
-            ), // Dikurangi dari 24 untuk mengompensasi padding bawah
-            _ComicRail(
-              title: 'Rilis Terbaru',
-              comics: dummyComics,
-              actionLabel: 'Lihat semua',
-              onAction: () => _openComicSection(
-                context,
-                title: 'Rilis Terbaru',
-                subtitle: 'Chapter baru dari berbagai sumber favorit.',
-                comics: _latestComics,
-                initialSort: 'Update terbaru',
-              ),
-            ),
-            const SizedBox(height: 24),
-            _ComicRail(
-              title: 'Populer',
-              comics: dummyComics,
-              actionLabel: 'Lihat semua',
-              onAction: () => _openComicSection(
-                context,
-                title: 'Populer',
-                subtitle: 'Komik yang ramai dibaca minggu ini.',
-                comics: _popularComics,
-                initialSort: 'Paling populer',
-              ),
-            ),
-          ],
+                const SizedBox(height: 20),
+                if (recommendationComics.isNotEmpty) ...[
+                  const _SectionTitle(title: 'Rekomendasi'),
+                  const SizedBox(height: 10),
+                  _RecommendationCarousel(
+                    comics: recommendationComics,
+                    onComicTap: (comic) => _openComicDetail(context, comic),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+                if (continueProgress.isNotEmpty) ...[
+                  _SectionTitle(
+                    title: 'Lanjutkan Membaca',
+                    actionLabel: '${continueProgress.length}',
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 154,
+                    child: ListView.separated(
+                      clipBehavior: Clip.none,
+                      padding: const EdgeInsets.only(bottom: 24),
+                      scrollDirection: Axis.horizontal,
+                      itemBuilder: (context, index) =>
+                          _ProgressCard(progress: continueProgress[index]),
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(width: 12),
+                      itemCount: continueProgress.length,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                _ComicRail(
+                  title: 'Rilis Terbaru',
+                  comics: latestComics.take(6).toList(),
+                  actionLabel: 'Lihat semua',
+                  onAction: () => _openComicSection(
+                    context,
+                    title: 'Rilis Terbaru',
+                    subtitle: 'Chapter baru dari berbagai sumber favorit.',
+                    comics: latestComics,
+                    initialSort: 'Update terbaru',
+                  ),
+                ),
+                const SizedBox(height: 24),
+                _ComicRail(
+                  title: 'Populer',
+                  comics: popularComics.take(6).toList(),
+                  actionLabel: 'Lihat semua',
+                  onAction: () => _openComicSection(
+                    context,
+                    title: 'Populer',
+                    subtitle: 'Komik yang ramai dibaca minggu ini.',
+                    comics: popularComics,
+                    initialSort: 'Paling populer',
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
+  }
+
+  void _maybePromptMigration(AuthState auth) {
+    if (_migrationPromptShown || !auth.isAuthenticated) return;
+    final repo = ref.read(libraryRepositoryProvider);
+    if (repo.migrationSkipped || !repo.hasMigratableLocalData()) return;
+    _migrationPromptShown = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _showMigrationDialog();
+    });
+  }
+
+  Future<void> _showMigrationDialog() async {
+    final repo = ref.read(libraryRepositoryProvider);
+    final action = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Sinkronkan data guest?'),
+        content: const Text(
+          'Progress, bookmark, koleksi, scene favorit, dan antrean download dari mode guest bisa dipindahkan ke akun cloud. File offline tetap tersimpan di perangkat ini.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => context.pop('skip'),
+            child: const Text('Lewati'),
+          ),
+          FilledButton(
+            onPressed: () => context.pop('migrate'),
+            child: const Text('Migrasi & Sinkronkan'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || action == null) return;
+
+    if (action == 'skip') {
+      await repo.skipMigration();
+      return;
+    }
+
+    try {
+      await repo.importLocalSnapshotToCloud();
+      ref.invalidate(homeDataProvider);
+      ref.invalidate(bookmarksProvider);
+      ref.invalidate(collectionsProvider);
+      ref.invalidate(favoriteScenesProvider);
+      ref.invalidate(downloadsProvider);
+      ref.invalidate(historyProvider);
+      ref.invalidate(readingTimeProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Data guest berhasil disinkronkan.')),
+      );
+    } catch (error) {
+      _migrationPromptShown = false;
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Migrasi gagal: $error')));
+    }
   }
 }
 
@@ -169,7 +287,17 @@ class _SectionTitle extends StatelessWidget {
 }
 
 class _DiscoverHeader extends StatelessWidget {
-  const _DiscoverHeader();
+  const _DiscoverHeader({
+    required this.data,
+    required this.onSourceChanged,
+    required this.onLatestTap,
+    required this.onPopularTap,
+  });
+
+  final HomeData data;
+  final ValueChanged<String> onSourceChanged;
+  final VoidCallback? onLatestTap;
+  final VoidCallback? onPopularTap;
 
   @override
   Widget build(BuildContext context) {
@@ -317,7 +445,12 @@ class _DiscoverHeader extends StatelessWidget {
                             ],
                           ),
                         ),
-                        const _SourceSelector(),
+                        _SourceSelector(
+                          selectedId: data.selectedSource.id,
+                          selectedLabel: data.selectedSource.label,
+                          sources: data.sources,
+                          onChanged: onSourceChanged,
+                        ),
                       ],
                     ),
 
@@ -329,27 +462,31 @@ class _DiscoverHeader extends StatelessWidget {
                         Expanded(
                           child: _StatCard(
                             icon: TonztoonIcons.autoAwesome,
-                            value: '24',
+                            value: _formatStatValue(data.latest.length),
                             label: 'Terbaru',
                             accentColor: primaryOrange,
                             isDark: isDark,
+                            onTap: onLatestTap,
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: _StatCard(
                             icon: TonztoonIcons.localFireDepartment,
-                            value: '12',
+                            value: _formatStatValue(data.popular.length),
                             label: 'Populer',
                             accentColor: const Color(0xFFFF5A5A),
                             isDark: isDark,
+                            onTap: onPopularTap,
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: _StatCard(
                             icon: TonztoonIcons.bookmarkAdded,
-                            value: '3',
+                            value: _formatStatValue(
+                              data.continueReading.length,
+                            ),
                             label: 'Aktif',
                             accentColor: accentBlue,
                             isDark: isDark,
@@ -368,6 +505,11 @@ class _DiscoverHeader extends StatelessWidget {
   }
 }
 
+String _formatStatValue(int value) {
+  if (value > 99) return '99+';
+  return '$value';
+}
+
 /// Kartu statistik dalam banner Jelajahi.
 class _StatCard extends StatelessWidget {
   const _StatCard({
@@ -376,6 +518,7 @@ class _StatCard extends StatelessWidget {
     required this.label,
     required this.accentColor,
     required this.isDark,
+    this.onTap,
   });
 
   final IconData icon;
@@ -383,72 +526,75 @@ class _StatCard extends StatelessWidget {
   final String label;
   final Color accentColor;
   final bool isDark;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.07)
-            : Colors.white.withValues(alpha: 0.72),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: accentColor.withValues(alpha: 0.18)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: accentColor.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 16, color: accentColor),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.07)
+                : Colors.white.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: accentColor.withValues(alpha: 0.18)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, size: 16, color: accentColor),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  value,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontSize: 18,
+                    color: accentColor,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontSize: 11,
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 6),
-            Text(
-              value,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontSize: 18,
-                color: accentColor,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            Text(
-              label,
-              style: theme.textTheme.bodySmall?.copyWith(
-                fontSize: 11,
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _SourceSelector extends StatefulWidget {
-  const _SourceSelector();
+class _SourceSelector extends StatelessWidget {
+  const _SourceSelector({
+    required this.selectedId,
+    required this.selectedLabel,
+    required this.sources,
+    required this.onChanged,
+  });
 
-  @override
-  State<_SourceSelector> createState() => _SourceSelectorState();
-}
-
-class _SourceSelectorState extends State<_SourceSelector> {
-  static const _sources = [
-    'Semua Sumber',
-    'Komiku',
-    'Komiku Asia',
-    'Komikcast',
-    'Shinigami',
-  ];
-
-  String _selectedSource = 'Semua Sumber';
+  final String selectedId;
+  final String selectedLabel;
+  final List<SourceInfo> sources;
+  final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -456,30 +602,26 @@ class _SourceSelectorState extends State<_SourceSelector> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return PopupMenuButton<String>(
-      initialValue: _selectedSource,
+      initialValue: selectedId,
       tooltip: 'Pilih Sumber',
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       position: PopupMenuPosition.under,
-      onSelected: (String result) {
-        setState(() {
-          _selectedSource = result;
-        });
-      },
-      itemBuilder: (BuildContext context) => _sources.map((String source) {
+      onSelected: onChanged,
+      itemBuilder: (BuildContext context) => sources.map((source) {
         return PopupMenuItem<String>(
-          value: source,
+          value: source.id,
           child: Row(
             children: [
               Icon(
-                _selectedSource == source ? TonztoonIcons.check : null,
+                selectedId == source.id ? TonztoonIcons.check : null,
                 size: 18,
                 color: colorScheme.primary,
               ),
               const SizedBox(width: 8),
               Text(
-                source,
+                source.label,
                 style: TextStyle(
-                  fontWeight: _selectedSource == source
+                  fontWeight: selectedId == source.id
                       ? FontWeight.bold
                       : FontWeight.normal,
                 ),
@@ -521,7 +663,7 @@ class _SourceSelectorState extends State<_SourceSelector> {
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 90),
                 child: Text(
-                  _selectedSource,
+                  selectedLabel,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
@@ -918,19 +1060,26 @@ class _BannerPill extends StatelessWidget {
 }
 
 class _ProgressCard extends StatelessWidget {
-  const _ProgressCard({required this.comic, required this.onTap});
+  const _ProgressCard({required this.progress});
 
-  final ComicSummary comic;
-  final VoidCallback onTap;
+  final ReadingProgress progress;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-
-    // Karena kita pakai ComicSummary (dummy data), kita buat hardcoded nilai progress untuk UI.
-    final chapterText = 'Chapter ${comic.latestChapterNumber ?? 1}';
-    const pageText = 'Halaman 12/24';
-    const double progressValue = 0.5;
+    final chapterText =
+        'Chapter ${formatChapterNumber(progress.chapterNumber)}';
+    final pageText =
+        progress.lastReadPageItemIndex == null ||
+            progress.totalPageItems == null
+        ? null
+        : 'Halaman ${progress.lastReadPageItemIndex! + 1}/${progress.totalPageItems}';
+    final progressValue =
+        progress.lastReadPageItemIndex == null ||
+            progress.totalPageItems == null ||
+            progress.totalPageItems == 0
+        ? null
+        : (progress.lastReadPageItemIndex! + 1) / progress.totalPageItems!;
 
     return SizedBox(
       width: 260,
@@ -954,13 +1103,13 @@ class _ProgressCard extends StatelessWidget {
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(12),
-            onTap: onTap,
+            onTap: () => _openReaderProgress(context, progress),
             child: Padding(
               padding: const EdgeInsets.all(10),
               child: Row(
                 children: [
                   ComicCover(
-                    imageUrl: comic.coverImageUrl,
+                    imageUrl: progress.coverImageUrl,
                     width: 76,
                     height: 108,
                   ),
@@ -971,7 +1120,7 @@ class _ProgressCard extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          comic.title,
+                          progress.comicTitle,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.titleMedium,
@@ -981,11 +1130,13 @@ class _ProgressCard extends StatelessWidget {
                           chapterText,
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          pageText,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
+                        if (pageText != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            pageText,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
                         const SizedBox(height: 10),
                         LinearProgressIndicator(
                           borderRadius: BorderRadius.circular(99),
@@ -1005,17 +1156,28 @@ class _ProgressCard extends StatelessWidget {
 }
 
 void _openComicDetail(BuildContext context, ComicSummary comic) {
-  Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      builder: (context) => ComicDetailScreen(comic: comic),
-    ),
+  context.push(
+    '/comic/${Uri.encodeComponent(comicRouteSource(comic))}/${Uri.encodeComponent(comicRouteSlug(comic))}',
+    extra: comic,
+  );
+}
+
+void _openReaderProgress(BuildContext context, ReadingProgress progress) {
+  final comic = ComicSummary(
+    title: progress.comicTitle,
+    slug: progress.comicSlug,
+    sourceName: progress.sourceName,
+    coverImageUrl: progress.coverImageUrl,
+    latestChapterNumber: progress.chapterNumber,
+  );
+  context.push(
+    '/reader/${Uri.encodeComponent(progress.sourceName)}/${Uri.encodeComponent(progress.comicSlug)}/${formatChapterNumber(progress.chapterNumber)}',
+    extra: comic,
   );
 }
 
 void _openNotifications(BuildContext context) {
-  Navigator.of(context).push(
-    MaterialPageRoute<void>(builder: (context) => const NotificationsScreen()),
-  );
+  context.push('/notifications');
 }
 
 void _openComicSection(
@@ -1025,14 +1187,14 @@ void _openComicSection(
   required List<ComicSummary> comics,
   required String initialSort,
 }) {
-  Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      builder: (context) => ComicSectionScreen(
-        title: title,
-        subtitle: subtitle,
-        comics: comics,
-        initialSort: initialSort,
-      ),
+  final section = initialSort == 'Paling populer' ? 'popular' : 'latest';
+  context.push(
+    '/comic/home/$section/section/$section',
+    extra: ComicSectionPayload(
+      title: title,
+      subtitle: subtitle,
+      comics: comics,
+      initialSort: initialSort,
     ),
   );
 }
@@ -1053,79 +1215,3 @@ class _NotificationBellBadge extends StatelessWidget {
     );
   }
 }
-
-final List<ComicSummary> _latestComics = [
-  ...dummyComics,
-  const ComicSummary(
-    title: 'Tower of God',
-    type: 'Manhwa',
-    latestChapterNumber: 621,
-    coverImageUrl: 'https://cdn.myanimelist.net/images/manga/2/170796l.jpg',
-  ),
-  const ComicSummary(
-    title: 'Blue Lock',
-    type: 'Manga',
-    latestChapterNumber: 272,
-    coverImageUrl: 'https://cdn.myanimelist.net/images/manga/5/213341l.jpg',
-  ),
-  const ComicSummary(
-    title: 'Chainsaw Man',
-    type: 'Manga',
-    latestChapterNumber: 173,
-    coverImageUrl: 'https://cdn.myanimelist.net/images/manga/3/216464l.jpg',
-  ),
-  const ComicSummary(
-    title: 'The Beginning After the End',
-    type: 'Manhwa',
-    latestChapterNumber: 187,
-    coverImageUrl: 'https://cdn.myanimelist.net/images/manga/3/222681l.jpg',
-  ),
-];
-
-final List<ComicSummary> _recommendedComics = [
-  dummyComics[2],
-  const ComicSummary(
-    title: 'Jujutsu Kaisen',
-    type: 'Manga',
-    latestChapterNumber: 271,
-    coverImageUrl: 'https://cdn.myanimelist.net/images/manga/3/210341l.jpg',
-  ),
-  const ComicSummary(
-    title: 'The Beginning After the End',
-    type: 'Manhwa',
-    latestChapterNumber: 187,
-    coverImageUrl: 'https://cdn.myanimelist.net/images/manga/3/222681l.jpg',
-  ),
-  dummyComics[0],
-];
-
-final List<ComicSummary> _popularComics = [
-  dummyComics[1],
-  dummyComics[0],
-  dummyComics[2],
-  const ComicSummary(
-    title: 'Jujutsu Kaisen',
-    type: 'Manga',
-    latestChapterNumber: 271,
-    coverImageUrl: 'https://cdn.myanimelist.net/images/manga/3/210341l.jpg',
-  ),
-  const ComicSummary(
-    title: 'Dandadan',
-    type: 'Manga',
-    latestChapterNumber: 163,
-    coverImageUrl: 'https://cdn.myanimelist.net/images/manga/2/248746l.jpg',
-  ),
-  const ComicSummary(
-    title: 'Eleceed',
-    type: 'Manhwa',
-    latestChapterNumber: 310,
-    coverImageUrl: 'https://cdn.myanimelist.net/images/manga/2/242512l.jpg',
-  ),
-  dummyComics[3],
-  const ComicSummary(
-    title: 'Wind Breaker',
-    type: 'Manga',
-    latestChapterNumber: 154,
-    coverImageUrl: 'https://cdn.myanimelist.net/images/manga/5/253176l.jpg',
-  ),
-];

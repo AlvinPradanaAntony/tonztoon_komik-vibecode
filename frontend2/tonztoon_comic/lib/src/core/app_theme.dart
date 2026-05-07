@@ -9,32 +9,41 @@ class TonztoonTheme {
   // ===========================================================================
   // 1. BRAND COLORS (Warna Utama Aplikasi)
   // ===========================================================================
-  static const _primary = Color(0xFFFF9D00);   // Primary: Orange
+  static const _primary = Color(0xFFFF9D00); // Primary: Orange
   static const _secondary = Color(0xFF3A86FF); // Secondary: Blue
-  static const _tertiary = Color.fromARGB(255, 243, 150, 0);  // Tertiary: Yellow
-  static const _neutral = Color.fromARGB(255, 10, 15, 26);   // Neutral: Slate/Dark Blue
+  static const _tertiary = Color.fromARGB(255, 243, 150, 0); // Tertiary: Yellow
+  static const _neutral = Color.fromARGB(
+    255,
+    10,
+    15,
+    26,
+  ); // Neutral: Slate/Dark Blue
 
   // ===========================================================================
   // 2. LIGHT MODE & DARK MODE CONFIGURATION
   // ===========================================================================
   static ThemeData light() => _build(
     brightness: Brightness.light,
-    background: const Color(0xFFF8FAFC), // Warna latar belakang aplikasi (Slate 50)
-    surface: const Color(0xFFFFFFFF),    // Warna latar untuk Card, Dialog, dll
-    surfaceHigh: const Color(0xFFF1F5F9),// Warna latar komponen yang sedikit lebih menonjol (Slate 100)
-    text: _neutral,                      // Warna teks utama menggunakan Neutral
-    mutedText: const Color(0xFF64748B),  // Warna teks sekunder (Slate 500)
-    outline: const Color(0xFFCBD5E1),    // Warna border/garis tepi (Slate 300)
+    background: const Color(
+      0xFFF8FAFC,
+    ), // Warna latar belakang aplikasi (Slate 50)
+    surface: const Color(0xFFFFFFFF), // Warna latar untuk Card, Dialog, dll
+    surfaceHigh: const Color(
+      0xFFF1F5F9,
+    ), // Warna latar komponen yang sedikit lebih menonjol (Slate 100)
+    text: _neutral, // Warna teks utama menggunakan Neutral
+    mutedText: const Color(0xFF64748B), // Warna teks sekunder (Slate 500)
+    outline: const Color(0xFFCBD5E1), // Warna border/garis tepi (Slate 300)
   );
 
   static ThemeData dark() => _build(
     brightness: Brightness.dark,
-    background: _neutral,                // Background utama menggunakan Neutral
-    surface: const Color(0xFF1E293B),    // Slate 800
-    surfaceHigh: const Color(0xFF334155),// Slate 700
-    text: const Color(0xFFF8FAFC),       // Slate 50
-    mutedText: const Color(0xFF94A3B8),  // Slate 400
-    outline: const Color(0xFF475569),    // Slate 600
+    background: _neutral, // Background utama menggunakan Neutral
+    surface: const Color(0xFF1E293B), // Slate 800
+    surfaceHigh: const Color(0xFF334155), // Slate 700
+    text: const Color(0xFFF8FAFC), // Slate 50
+    mutedText: const Color(0xFF94A3B8), // Slate 400
+    outline: const Color(0xFF475569), // Slate 600
   );
 
   // ===========================================================================
@@ -51,7 +60,10 @@ class TonztoonTheme {
   }) {
     // Membuat ColorScheme berdasarkan warna utama (_primary)
     final scheme =
-        ColorScheme.fromSeed(seedColor: _primary, brightness: brightness).copyWith(
+        ColorScheme.fromSeed(
+          seedColor: _primary,
+          brightness: brightness,
+        ).copyWith(
           primary: _primary,
           secondary: _secondary,
           tertiary: _tertiary,
@@ -103,16 +115,18 @@ class TonztoonTheme {
     // =========================================================================
     return base.copyWith(
       textTheme: textTheme,
-      
+
       // Styling untuk AppBar (Navigasi atas)
       appBarTheme: AppBarTheme(
         elevation: 0, // Hilangkan bayangan bawaan
         centerTitle: false,
-        backgroundColor: background.withValues(alpha: 0.84), // Transparan sebagian (efek blur jika ada konten di bawah)
+        backgroundColor: background.withValues(
+          alpha: 0.84,
+        ), // Transparan sebagian (efek blur jika ada konten di bawah)
         foregroundColor: text,
         surfaceTintColor: Colors.transparent,
       ),
-      
+
       // Styling untuk Card (Kartu komik)
       cardTheme: CardThemeData(
         clipBehavior: Clip.antiAlias,
@@ -122,7 +136,7 @@ class TonztoonTheme {
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
-      
+
       // Styling untuk Form Input
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -144,7 +158,7 @@ class TonztoonTheme {
           borderSide: const BorderSide(color: _primary, width: 1.8),
         ),
       ),
-      
+
       // Styling untuk Tombol Utama (Filled Button)
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
@@ -155,7 +169,7 @@ class TonztoonTheme {
           textStyle: textTheme.labelLarge,
         ),
       ),
-      
+
       progressIndicatorTheme: const ProgressIndicatorThemeData(color: _primary),
     );
   }

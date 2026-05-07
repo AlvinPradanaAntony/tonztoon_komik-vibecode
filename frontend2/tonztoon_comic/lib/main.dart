@@ -1,31 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'src/core/app_theme.dart';
-import 'src/features/splash/splash_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
-void main() {
+import 'src/app.dart';
+import 'src/core/storage.dart';
+
+export 'src/app.dart';
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Awal aplikasi (Splash & Onboarding): Fullscreen tanpa status bar dan nav bar
+
+  await Hive.initFlutter();
+  await Future.wait([
+    Hive.openBox<dynamic>(HiveBoxes.settings),
+    Hive.openBox<dynamic>(HiveBoxes.auth),
+    Hive.openBox<dynamic>(HiveBoxes.progress),
+    Hive.openBox<dynamic>(HiveBoxes.library),
+    Hive.openBox<dynamic>(HiveBoxes.cache),
+  ]);
+
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-  
-  runApp(const TonztoonApp());
+
+  runApp(
+    const ProviderScope(retry: _disableProviderRetry, child: TonztoonApp()),
+  );
 }
 
-class TonztoonApp extends StatelessWidget {
-  const TonztoonApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'TonzToon',
-      // Menggunakan tema terang dan gelap dari app_theme.dart (dengan Palet Baru!)
-      theme: TonztoonTheme.light(),
-      darkTheme: TonztoonTheme.dark(),
-      themeMode: ThemeMode.system, // Menyesuaikan dengan sistem (gelap/terang)
-      // Aplikasi kini dimulai dari SplashScreen sebelum ke AppShell
-      home: const SplashScreen(),
-    );
-  }
-}
+Duration? _disableProviderRetry(int retryCount, Object error) => null;

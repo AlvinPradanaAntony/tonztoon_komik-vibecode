@@ -44,6 +44,8 @@ from app.schemas.library import (
     LibrarySyncImportResponse,
     ProgressResponse,
     ProgressUpsertRequest,
+    ReadingTimeDeltaRequest,
+    ReadingTimeResponse,
     ReaderPreferenceResponse,
     ReaderPreferenceUpdateRequest,
 )
@@ -95,6 +97,8 @@ __all__ = [
     "LibrarySyncImportResponse",
     "ProgressResponse",
     "ProgressUpsertRequest",
+    "ReadingTimeDeltaRequest",
+    "ReadingTimeResponse",
     "ReaderPreferenceResponse",
     "ReaderPreferenceUpdateRequest",
     "AuthenticatedUser",

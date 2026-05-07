@@ -85,6 +85,29 @@ class ReaderPreference(Base):
     )
 
 
+class UserReadingStat(Base):
+    """Akumulasi waktu baca user lintas device."""
+
+    __tablename__ = "user_reading_stats"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+    )
+    total_reading_seconds: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
 class UserBookmark(Base):
     """Bookmark komik milik user."""
 

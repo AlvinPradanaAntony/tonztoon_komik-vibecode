@@ -1,15 +1,20 @@
-import 'package:flutter/material.dart';
-import '../../core/app_assets.dart';
-import '../onboarding/onboarding_screen.dart';
+import 'dart:async';
 
-class SplashScreen extends StatefulWidget {
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../core/app_assets.dart';
+import '../../repositories/providers.dart';
+
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends ConsumerState<SplashScreen> {
   double _progress = 0.08;
   String _status = 'STARTING';
 
@@ -24,27 +29,34 @@ class _SplashScreenState extends State<SplashScreen> {
     await precacheImage(const AssetImage(AppAssets.logoAppSplash), context);
     _setProgress(0.22, 'LOADING ASSETS');
 
-    // Simulate backend/storage initialization for UI purposes
-    await Future.delayed(const Duration(milliseconds: 400));
+    await ref.read(authControllerProvider.notifier).restore();
     _setProgress(0.48, 'RESTORING SESSION');
 
-    await Future.delayed(const Duration(milliseconds: 400));
+    unawaited(
+      ref.read(offlineQueueProvider.notifier).resumeRecoverableBatches(),
+    );
     _setProgress(0.62, 'SYNCING LIBRARY');
 
-    await Future.delayed(const Duration(milliseconds: 600));
+    final onboardingDone =
+        ref.read(localStoreProvider).settings.get('onboarding_completed') ==
+        true;
+    if (onboardingDone) {
+      try {
+        await ref.read(homeDataProvider.future);
+      } catch (_) {
+        // Home will render its own cached/error state; keep startup moving.
+      }
+    }
     _setProgress(1, 'READY');
 
     final elapsed = DateTime.now().difference(start);
-    final remaining = const Duration(milliseconds: 2000) - elapsed;
+    final remaining = const Duration(milliseconds: 1200) - elapsed;
     if (remaining > Duration.zero) {
       await Future<void>.delayed(remaining);
     }
     if (!mounted) return;
 
-    // Navigate to OnboardingScreen after splash screen
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const OnboardingScreen()),
-    );
+    context.go(onboardingDone ? '/' : '/onboarding');
   }
 
   void _setProgress(double progress, String status) {

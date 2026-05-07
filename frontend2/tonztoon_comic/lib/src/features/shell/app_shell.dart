@@ -1,38 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../core/app_icons.dart';
-import '../auth/auth_screen.dart';
-import '../catalog/full_catalog_screen.dart';
-import '../home/home_screen.dart';
-import '../library/library_screen.dart';
-import '../search/search_screen.dart';
-import '../settings/settings_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-/// [AppShell] adalah rangka luar aplikasi.
-/// Komponen ini bertugas mengelola Bottom Navigation Bar dan berpindah
-/// antar halaman utama tanpa menghilangkan state navigasi.
-class AppShell extends StatefulWidget {
-  const AppShell({super.key});
+import '../../core/app_icons.dart';
+import '../../repositories/providers.dart';
+
+class AppShell extends ConsumerStatefulWidget {
+  const AppShell({super.key, required this.navigationShell});
+
+  static final rootNavigatorKey = GlobalKey<NavigatorState>();
+
+  final StatefulNavigationShell navigationShell;
 
   @override
-  State<AppShell> createState() => _AppShellState();
+  ConsumerState<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
-  int _currentIndex = 0;
-  bool _isSignedIn = false;
+class _AppShellState extends ConsumerState<AppShell> {
   bool _exitDialogOpen = false;
-  final List<Widget> _staticPages = const [
-    HomeScreen(),
-    FullCatalogScreen(showBackButton: false),
-    SearchScreen(),
-    LibraryScreen(),
-  ];
 
   @override
   void initState() {
     super.initState();
-    // Saat masuk ke Home, kembali ke mode normal dengan bar transparan
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
 
@@ -61,22 +51,17 @@ class _AppShellState extends State<AppShell> {
           await _confirmExitApp();
         },
         child: Scaffold(
-          // Penting agar konten dirender penuh hingga ke bawah layar, melewati floating nav bar
           extendBody: true,
           body: Stack(
             children: [
-              // Konten Utama
-              Positioned.fill(
-                child: IndexedStack(index: _currentIndex, children: _pages),
-              ),
-              // Masking Fade Gradient di bagian bawah
+              Positioned.fill(child: widget.navigationShell),
               Positioned(
                 left: 0,
                 right: 0,
                 bottom: 0,
-                height: 120, // Tinggi area fade mask
+                height: 120,
                 child: IgnorePointer(
-                  child: Container(
+                  child: DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
@@ -116,7 +101,6 @@ class _AppShellState extends State<AppShell> {
             ),
           ],
         ),
-        // Material digunakan agar efek InkWell (hover/ripple) bisa terlihat
         child: Material(
           color: theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(32),
@@ -128,8 +112,8 @@ class _AppShellState extends State<AppShell> {
                 for (final item in _navigationItems)
                   _NavItem(
                     item: item,
-                    selected: _currentIndex == item.index,
-                    onTap: () => setState(() => _currentIndex = item.index),
+                    selected: widget.navigationShell.currentIndex == item.index,
+                    onTap: () => _goBranch(item.index),
                   ),
               ],
             ),
@@ -139,49 +123,40 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  List<Widget> get _pages => [
-    ..._staticPages,
-    SettingsScreen(
-      isSignedIn: _isSignedIn,
-      onOpenAuth: _openAuth,
-      onLogout: () => setState(() => _isSignedIn = false),
-    ),
-  ];
-
-  List<_NavigationItem> get _navigationItems => [
-    const _NavigationItem(icon: TonztoonIcons.home, index: 0, label: 'Home'),
-    const _NavigationItem(icon: TonztoonIcons.list, index: 1, label: 'Katalog'),
-    const _NavigationItem(icon: TonztoonIcons.search, index: 2, label: 'Cari'),
-    const _NavigationItem(
-      icon: TonztoonIcons.library,
-      index: 3,
-      label: 'Pustaka',
-    ),
-    _NavigationItem(
-      icon: _isSignedIn ? TonztoonIcons.accountCircle : TonztoonIcons.settings,
-      index: 4,
-      label: _isSignedIn ? 'Profil' : 'Setelan',
-    ),
-  ];
-
-  Future<void> _openAuth() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) => AuthScreen(
-          onEmailAuthenticated: () => _completeAuth(context, signedIn: true),
-          onGoogleAuthenticated: () => _completeAuth(context, signedIn: true),
-          onContinueGuest: () => _completeAuth(context, signedIn: false),
-        ),
+  List<_NavigationItem> get _navigationItems {
+    final auth = ref.watch(authControllerProvider);
+    return [
+      const _NavigationItem(icon: TonztoonIcons.home, index: 0, label: 'Home'),
+      const _NavigationItem(
+        icon: TonztoonIcons.list,
+        index: 1,
+        label: 'Katalog',
       ),
-    );
+      const _NavigationItem(
+        icon: TonztoonIcons.search,
+        index: 2,
+        label: 'Cari',
+      ),
+      const _NavigationItem(
+        icon: TonztoonIcons.library,
+        index: 3,
+        label: 'Pustaka',
+      ),
+      _NavigationItem(
+        icon: auth.isAuthenticated
+            ? TonztoonIcons.accountCircle
+            : TonztoonIcons.settings,
+        index: 4,
+        label: auth.isAuthenticated ? 'Profil' : 'Setelan',
+      ),
+    ];
   }
 
-  void _completeAuth(BuildContext authContext, {required bool signedIn}) {
-    setState(() {
-      _isSignedIn = signedIn;
-      _currentIndex = 4;
-    });
-    Navigator.of(authContext).pop();
+  void _goBranch(int index) {
+    widget.navigationShell.goBranch(
+      index,
+      initialLocation: index == widget.navigationShell.currentIndex,
+    );
   }
 
   Future<void> _confirmExitApp() async {

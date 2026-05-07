@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/app_assets.dart';
 import '../../core/app_icons.dart';
-import '../shell/app_shell.dart';
+import '../../repositories/providers.dart';
 
-class OnboardingScreen extends StatefulWidget {
+class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
   @override
-  State<OnboardingScreen> createState() => _OnboardingScreenState();
+  ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> {
+class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   late final PageController _controller;
   int _index = 0;
 
@@ -167,10 +169,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  void _complete() {
-    Navigator.of(
-      context,
-    ).pushReplacement(MaterialPageRoute(builder: (_) => const AppShell()));
+  Future<void> _complete() async {
+    await ref
+        .read(localStoreProvider)
+        .settings
+        .put('onboarding_completed', true);
+    if (mounted) context.go('/');
   }
 }
 

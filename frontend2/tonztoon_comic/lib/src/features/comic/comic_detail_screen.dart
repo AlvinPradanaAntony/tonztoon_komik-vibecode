@@ -3,23 +3,36 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/app_icons.dart';
 import '../../models/comic.dart';
+import '../../repositories/providers.dart';
+import '../../widgets/app_async_view.dart';
 import '../../widgets/comic_card.dart';
 import '../../widgets/comic_cover.dart';
-import '../reader/reader_screen.dart';
 
-class ComicDetailScreen extends StatefulWidget {
-  const ComicDetailScreen({super.key, required this.comic});
+class ComicDetailScreen extends ConsumerStatefulWidget {
+  ComicDetailScreen({
+    super.key,
+    ComicSummary? comic,
+    String? sourceName,
+    String? slug,
+    ComicSummary? initialComic,
+  }) : initialComic = initialComic ?? comic,
+       sourceName = sourceName ?? comic?.sourceName ?? 'komiku',
+       slug = slug ?? comic?.slug ?? '';
 
-  final ComicSummary comic;
+  final ComicSummary? initialComic;
+  final String sourceName;
+  final String slug;
 
   @override
-  State<ComicDetailScreen> createState() => _ComicDetailScreenState();
+  ConsumerState<ComicDetailScreen> createState() => _ComicDetailScreenState();
 }
 
-class _ComicDetailScreenState extends State<ComicDetailScreen> {
+class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
   static const double _expandedHeaderHeight = 380;
   static const double _titleFadeStart = 150;
   static const double _titleFadeDistance = 90;
@@ -60,7 +73,29 @@ class _ComicDetailScreenState extends State<ComicDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final detail = _ComicDetailUi.fromSummary(widget.comic);
+    final request = ComicRequest(widget.sourceName, widget.slug);
+    final detailAsync = ref.watch(comicDetailProvider(request));
+    final chaptersAsync = ref.watch(chaptersProvider(request));
+    final detailPayload = detailAsync.asData?.value;
+    if (detailPayload == null) {
+      return Scaffold(
+        body: AppAsyncView<ComicDetail>(
+          value: detailAsync,
+          onRetry: () {
+            ref.invalidate(comicDetailProvider(request));
+            ref.invalidate(chaptersProvider(request));
+          },
+          builder: (_) => const SizedBox.shrink(),
+        ),
+      );
+    }
+    final chapterItems = chaptersAsync.asData?.value;
+    final chaptersError = chaptersAsync.whenOrNull(
+      error: (error, stackTrace) => error,
+    );
+    final detail = _ComicDetailUi.fromDetail(detailPayload).copyWith(
+      chapters: chapterItems?.map(_ChapterUi.fromChapterItem).toList(),
+    );
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
@@ -81,8 +116,8 @@ class _ComicDetailScreenState extends State<ComicDetailScreen> {
       child: Scaffold(
         body: RefreshIndicator(
           onRefresh: () async {
-            // Simulasi proses pembaruan data
-            await Future.delayed(const Duration(seconds: 1));
+            ref.invalidate(comicDetailProvider(request));
+            ref.invalidate(chaptersProvider(request));
           },
           child: CustomScrollView(
             controller: _scrollController,
@@ -107,7 +142,8 @@ class _ComicDetailScreenState extends State<ComicDetailScreen> {
                     child: _GlassIconButton(
                       tooltip: 'Kembali',
                       icon: TonztoonIcons.arrowBack,
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: () =>
+                          context.canPop() ? context.pop() : context.go('/'),
                     ),
                   ),
                 ),
@@ -217,6 +253,10 @@ class _ComicDetailScreenState extends State<ComicDetailScreen> {
                         _ChapterPanel(
                           chapters: detail.chapters,
                           detail: detail,
+                          loading: chaptersAsync.isLoading,
+                          error: chaptersError,
+                          onRetry: () =>
+                              ref.invalidate(chaptersProvider(request)),
                         ),
                       ],
                     ),
@@ -471,10 +511,19 @@ class _QuickStats extends StatelessWidget {
 }
 
 class _ChapterPanel extends StatelessWidget {
-  const _ChapterPanel({required this.chapters, required this.detail});
+  const _ChapterPanel({
+    required this.chapters,
+    required this.detail,
+    required this.loading,
+    required this.onRetry,
+    this.error,
+  });
 
   final List<_ChapterUi> chapters;
   final _ComicDetailUi detail;
+  final bool loading;
+  final Object? error;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -508,33 +557,68 @@ class _ChapterPanel extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-            SizedBox(
-              height: 430,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Scrollbar(
-                  child: ListView.separated(
-                    primary: false,
-                    padding: const EdgeInsets.only(bottom: 4),
-                    physics: const BouncingScrollPhysics(),
-                    itemBuilder: (context, index) {
-                      return _ChapterRow(
-                        chapter: chapters[index],
-                        onTap: () {
-                          _openReader(context, detail, chapters[index]);
-                        },
-                      );
-                    },
-                    separatorBuilder: (context, index) => Divider(
-                      height: 1,
-                      indent: 58,
-                      color: colorScheme.outlineVariant.withValues(alpha: 0.7),
+            if (loading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 28),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (error != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Column(
+                  children: [
+                    Text(
+                      error.toString(),
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium,
                     ),
-                    itemCount: chapters.length,
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: onRetry,
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              )
+            else if (chapters.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Text(
+                  'Belum ada chapter tersedia.',
+                  style: theme.textTheme.bodyMedium,
+                ),
+              )
+            else
+              SizedBox(
+                height: 430,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Scrollbar(
+                    child: ListView.separated(
+                      primary: false,
+                      padding: const EdgeInsets.only(bottom: 4),
+                      physics: const BouncingScrollPhysics(),
+                      itemBuilder: (context, index) {
+                        return _ChapterRow(
+                          chapter: chapters[index],
+                          onTap: () {
+                            _openReader(context, detail, chapters[index]);
+                          },
+                        );
+                      },
+                      separatorBuilder: (context, index) => Divider(
+                        height: 1,
+                        indent: 58,
+                        color: colorScheme.outlineVariant.withValues(
+                          alpha: 0.7,
+                        ),
+                      ),
+                      itemCount: chapters.length,
+                    ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),
@@ -603,6 +687,7 @@ class _BottomReadBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final hasChapters = detail.chapters.isNotEmpty;
 
     return SafeArea(
       top: false,
@@ -629,11 +714,17 @@ class _BottomReadBar extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: FilledButton.icon(
-                onPressed: () {
-                  _openReader(context, detail, detail.chapters.first);
-                },
+                onPressed: hasChapters
+                    ? () {
+                        _openReader(context, detail, detail.chapters.first);
+                      }
+                    : null,
                 icon: const Icon(TonztoonIcons.play),
-                label: Text('Baca ${detail.firstChapterLabel}'),
+                label: Text(
+                  hasChapters
+                      ? 'Baca ${detail.firstChapterLabel}'
+                      : 'Chapter belum tersedia',
+                ),
               ),
             ),
             const SizedBox(width: 10),
@@ -654,18 +745,16 @@ void _openReader(
   _ComicDetailUi detail,
   _ChapterUi chapter,
 ) {
-  Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      builder: (context) => ReaderScreen(
-        comicTitle: detail.title,
-        chapterTitle: chapter.title,
-        comic: ComicSummary(
-          title: detail.title,
-          coverImageUrl: detail.coverImageUrl,
-          type: detail.type,
-        ),
-      ),
-    ),
+  final comic = ComicSummary(
+    title: detail.title,
+    slug: detail.slug,
+    sourceName: detail.sourceName,
+    coverImageUrl: detail.coverImageUrl,
+    type: detail.type,
+  );
+  context.push(
+    '/reader/${Uri.encodeComponent(comicRouteSource(comic))}/${Uri.encodeComponent(comicRouteSlug(comic))}/${formatChapterNumber(chapter.chapterNumber)}',
+    extra: comic,
   );
 }
 
@@ -906,32 +995,69 @@ class _ComicDetailUi {
     required this.synopsis,
     required this.genres,
     required this.chapters,
+    this.sourceName = 'komiku',
+    this.slug = '',
   });
 
-  factory _ComicDetailUi.fromSummary(ComicSummary comic) {
-    return _samples[comic.title] ??
-        _ComicDetailUi(
-          title: comic.title,
-          alternativeTitle: comic.title,
-          coverImageUrl: comic.coverImageUrl,
-          type: comic.type ?? 'Komik',
-          status: 'Ongoing',
-          rating: '4.7',
-          author: 'Studio Tonz',
-          artist: 'Tonz Team',
-          totalChapters: comic.latestChapterNumber == null
-              ? '24'
-              : formatChapterNumber(comic.latestChapterNumber!),
-          totalViews: '128K',
-          updatedAt: 'Hari ini',
-          synopsis:
-              'Petualangan penuh aksi dengan pacing cepat, karakter kuat, dan konflik yang terus berkembang dari chapter ke chapter.',
-          genres: const ['Action', 'Adventure', 'Fantasy', 'Drama'],
-          chapters: _defaultChapters,
-        );
+  factory _ComicDetailUi.fromDetail(ComicDetail detail) {
+    return _ComicDetailUi(
+      title: detail.title,
+      sourceName: detail.sourceName,
+      slug: detail.slug,
+      alternativeTitle: detail.alternativeTitles?.trim().isNotEmpty == true
+          ? detail.alternativeTitles!.trim()
+          : detail.title,
+      coverImageUrl: detail.coverImageUrl,
+      type: detail.type?.trim().isNotEmpty == true
+          ? detail.type!.trim()
+          : 'Komik',
+      status: detail.status?.trim().isNotEmpty == true
+          ? detail.status!.trim()
+          : 'Ongoing',
+      rating: detail.rating == null ? '0.0' : detail.rating!.toStringAsFixed(1),
+      author: detail.author?.trim().isNotEmpty == true
+          ? detail.author!.trim()
+          : 'Tidak diketahui',
+      artist: detail.artist?.trim().isNotEmpty == true
+          ? detail.artist!.trim()
+          : 'Tidak diketahui',
+      totalChapters: detail.totalChapters.toString(),
+      totalViews: _compactNumber(detail.totalView ?? 0),
+      updatedAt: 'Terbaru',
+      synopsis: detail.synopsis?.trim().isNotEmpty == true
+          ? detail.synopsis!.trim()
+          : 'Sinopsis belum tersedia untuk komik ini.',
+      genres: detail.genres.isEmpty
+          ? const ['Komik']
+          : detail.genres.map((genre) => genre.name).toList(),
+      chapters: const [],
+    );
+  }
+
+  _ComicDetailUi copyWith({List<_ChapterUi>? chapters}) {
+    return _ComicDetailUi(
+      title: title,
+      sourceName: sourceName,
+      slug: slug,
+      alternativeTitle: alternativeTitle,
+      coverImageUrl: coverImageUrl,
+      type: type,
+      status: status,
+      rating: rating,
+      author: author,
+      artist: artist,
+      totalChapters: totalChapters,
+      totalViews: totalViews,
+      updatedAt: updatedAt,
+      synopsis: synopsis,
+      genres: genres,
+      chapters: chapters ?? this.chapters,
+    );
   }
 
   final String title;
+  final String sourceName;
+  final String slug;
   final String alternativeTitle;
   final String? coverImageUrl;
   final String type;
@@ -950,121 +1076,53 @@ class _ComicDetailUi {
 }
 
 class _ChapterUi {
-  const _ChapterUi({required this.title, required this.subtitle});
+  const _ChapterUi({
+    required this.title,
+    required this.subtitle,
+    required this.chapterNumber,
+  });
+
+  factory _ChapterUi.fromChapterItem(ChapterListItem chapter) {
+    final chapterLabel = formatChapterNumber(chapter.chapterNumber);
+    final pages = chapter.totalImages <= 0
+        ? 'Jumlah halaman belum tersedia'
+        : '${chapter.totalImages} halaman';
+    final date = chapter.releaseDate ?? chapter.createdAt;
+    return _ChapterUi(
+      title: chapter.title?.trim().isNotEmpty == true
+          ? chapter.title!.trim()
+          : 'Chapter $chapterLabel',
+      subtitle: '$pages - ${_relativeDateLabel(date)}',
+      chapterNumber: chapter.chapterNumber,
+    );
+  }
 
   final String title;
   final String subtitle;
+  final double chapterNumber;
 }
 
-List<_ChapterUi> _buildDummyChapters({
-  required int latest,
-  required String firstSubtitle,
-}) {
-  const archiveSubtitles = [
-    '22 halaman - 2 hari lalu',
-    '25 halaman - Minggu lalu',
-    '21 halaman - 2 minggu lalu',
-    '24 halaman - 3 minggu lalu',
-    '20 halaman - Bulan lalu',
-    '23 halaman - Arsip',
-    '19 halaman - Arsip',
-    '26 halaman - Arsip',
-    '18 halaman - Arsip',
-  ];
-
-  return List<_ChapterUi>.generate(10, (index) {
-    final chapterNumber = latest - index;
-    return _ChapterUi(
-      title: 'Chapter $chapterNumber',
-      subtitle: index == 0 ? firstSubtitle : archiveSubtitles[index - 1],
-    );
-  });
+String _compactNumber(int value) {
+  if (value >= 1000000) {
+    return '${(value / 1000000).toStringAsFixed(1)}M';
+  }
+  if (value >= 1000) {
+    return '${(value / 1000).toStringAsFixed(1)}K';
+  }
+  return value.toString();
 }
 
-final _defaultChapters = _buildDummyChapters(
-  latest: 24,
-  firstSubtitle: '24 halaman - Hari ini',
-);
-
-final Map<String, _ComicDetailUi> _samples = {
-  'Solo Leveling': _ComicDetailUi(
-    title: 'Solo Leveling',
-    alternativeTitle: 'Na Honjaman Level Up',
-    coverImageUrl: dummyComics[0].coverImageUrl,
-    type: 'Manhwa',
-    status: 'Completed',
-    rating: '4.9',
-    author: 'Chugong',
-    artist: 'DUBU',
-    totalChapters: '179',
-    totalViews: '2.4M',
-    updatedAt: 'Selesai',
-    synopsis:
-        'Sung Jin-Woo, hunter rank E yang dikenal paling lemah, mendapat kesempatan kedua setelah melewati dungeon misterius. Dari sana ia tumbuh menjadi kekuatan yang mengubah aturan dunia hunter.',
-    genres: const ['Action', 'Fantasy', 'Adventure', 'System', 'Drama'],
-    chapters: _buildDummyChapters(
-      latest: 179,
-      firstSubtitle: '38 halaman - Tamat',
-    ),
-  ),
-  'One Piece': _ComicDetailUi(
-    title: 'One Piece',
-    alternativeTitle: 'Wan Pisu',
-    coverImageUrl: dummyComics[1].coverImageUrl,
-    type: 'Manga',
-    status: 'Ongoing',
-    rating: '4.8',
-    author: 'Eiichiro Oda',
-    artist: 'Eiichiro Oda',
-    totalChapters: '1111',
-    totalViews: '9.8M',
-    updatedAt: 'Minggu ini',
-    synopsis:
-        'Monkey D. Luffy dan kru Topi Jerami berlayar mencari harta legendaris One Piece. Setiap pulau membawa konflik, teman baru, dan potongan rahasia dunia yang makin besar.',
-    genres: const ['Adventure', 'Action', 'Comedy', 'Fantasy', 'Shounen'],
-    chapters: _buildDummyChapters(
-      latest: 1111,
-      firstSubtitle: '17 halaman - Minggu ini',
-    ),
-  ),
-  'Omniscient Reader\'s Viewpoint': _ComicDetailUi(
-    title: 'Omniscient Reader\'s Viewpoint',
-    alternativeTitle: 'Jeonjijeok Dokja Sijeom',
-    coverImageUrl: dummyComics[2].coverImageUrl,
-    type: 'Manhwa',
-    status: 'Ongoing',
-    rating: '4.8',
-    author: 'Sing Shong',
-    artist: 'Sleepy-C',
-    totalChapters: '200',
-    totalViews: '1.7M',
-    updatedAt: 'Kemarin',
-    synopsis:
-        'Kim Dokja adalah satu-satunya pembaca novel web yang tiba-tiba menjadi kenyataan. Pengetahuannya tentang cerita menjadi senjata utama untuk bertahan hidup.',
-    genres: const ['Action', 'Apocalypse', 'Fantasy', 'Psychological'],
-    chapters: _buildDummyChapters(
-      latest: 200,
-      firstSubtitle: '26 halaman - Kemarin',
-    ),
-  ),
-  'Kagurabachi': _ComicDetailUi(
-    title: 'Kagurabachi',
-    alternativeTitle: 'Kagurabachi',
-    coverImageUrl: dummyComics[3].coverImageUrl,
-    type: 'Manga',
-    status: 'Ongoing',
-    rating: '4.6',
-    author: 'Takeru Hokazono',
-    artist: 'Takeru Hokazono',
-    totalChapters: '24',
-    totalViews: '642K',
-    updatedAt: '3 hari lalu',
-    synopsis:
-        'Chihiro Rokuhira mengejar kelompok kriminal yang mencuri pedang sihir warisan ayahnya. Balas dendam, teknik pedang, dan dunia bawah menjadi panggung utamanya.',
-    genres: const ['Action', 'Supernatural', 'Swordplay', 'Shounen'],
-    chapters: _buildDummyChapters(
-      latest: 24,
-      firstSubtitle: '19 halaman - 3 hari lalu',
-    ),
-  ),
-};
+String _relativeDateLabel(DateTime date) {
+  final now = DateTime.now();
+  final difference = now.difference(date);
+  if (difference.inDays <= 0) return 'Hari ini';
+  if (difference.inDays == 1) return 'Kemarin';
+  if (difference.inDays < 7) return '${difference.inDays} hari lalu';
+  if (difference.inDays < 30) {
+    return '${(difference.inDays / 7).floor()} minggu lalu';
+  }
+  if (difference.inDays < 365) {
+    return '${(difference.inDays / 30).floor()} bulan lalu';
+  }
+  return '${(difference.inDays / 365).floor()} tahun lalu';
+}

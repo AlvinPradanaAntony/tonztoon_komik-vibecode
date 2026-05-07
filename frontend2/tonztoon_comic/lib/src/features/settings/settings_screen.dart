@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_icons.dart';
+import '../../models/auth.dart';
 import '../../models/comic.dart';
+import '../../models/library.dart';
+import '../../repositories/providers.dart';
+import '../../widgets/app_async_view.dart';
 import '../../widgets/app_surface_ink.dart';
 import '../../widgets/comic_cover.dart';
 import '../comic/comic_detail_screen.dart';
 
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({
     super.key,
     required this.isSignedIn,
@@ -16,25 +21,21 @@ class SettingsScreen extends StatefulWidget {
 
   final bool isSignedIn;
   final VoidCallback onOpenAuth;
-  final VoidCallback onLogout;
+  final Future<void> Function() onLogout;
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
-  bool _nightMode = false;
-  bool _autoNext = true;
-  bool _markRead = true;
-  bool _bingeMode = false;
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _pushNotifications = true;
-  String _theme = 'System';
-  String _readerMode = 'Vertical';
-  String _direction = 'LTR';
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final prefs = ref.watch(readerPreferencesProvider);
+    final themeMode = ref.watch(appThemeModeProvider);
+    final auth = ref.watch(authControllerProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -44,102 +45,167 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         centerTitle: false,
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 132),
-        children: [
-          if (widget.isSignedIn) ...[
-            const _ProfileHeader(),
-            const SizedBox(height: 18),
-            const _ProfileStats(),
-            const SizedBox(height: 24),
-            const _SectionLabel(text: 'Account'),
+      body: AppAsyncView<ReaderPreferences>(
+        value: prefs,
+        onRetry: () => ref.invalidate(readerPreferencesProvider),
+        builder: (readerPrefs) => ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 132),
+          children: [
+            if (widget.isSignedIn) ...[
+              _ProfileHeader(auth: auth),
+              const SizedBox(height: 18),
+              const _ProfileStats(),
+              const SizedBox(height: 24),
+              const _SectionLabel(text: 'Account'),
+              const SizedBox(height: 8),
+              _SettingsSection(
+                children: [
+                  _SettingsRow(
+                    icon: TonztoonIcons.settings2,
+                    title: 'Privacy & Security',
+                    subtitle: 'Password, devices, and account access',
+                    onTap: () => _openAccountFlow(
+                      context,
+                      const _PrivacySecurityScreen(),
+                    ),
+                  ),
+                  const _SettingsDivider(),
+                  _SettingsRow(
+                    icon: TonztoonIcons.bookmark,
+                    title: 'Saved Collections',
+                    subtitle: 'Manage synced reading shelves',
+                    onTap: () => _openAccountFlow(
+                      context,
+                      const _SavedCollectionsScreen(),
+                    ),
+                  ),
+                  const _SettingsDivider(),
+                  _SettingsRow(
+                    icon: TonztoonIcons.heart,
+                    title: 'My Favorites',
+                    subtitle: 'Comics and scenes you saved',
+                    onTap: () =>
+                        _openAccountFlow(context, const _MyFavoritesScreen()),
+                  ),
+                  const _SettingsDivider(),
+                  _SettingsRow(
+                    icon: TonztoonIcons.bell,
+                    title: 'Push Notifications',
+                    subtitle: 'New chapters and reading reminders',
+                    onTap: () => _openAccountFlow(
+                      context,
+                      const _PushNotificationsScreen(),
+                    ),
+                    trailing: Switch.adaptive(
+                      value: _pushNotifications,
+                      onChanged: (value) =>
+                          setState(() => _pushNotifications = value),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+            ],
+            const _SectionLabel(text: 'Preferences'),
             const SizedBox(height: 8),
-            _SettingsSection(
-              children: [
-                _SettingsRow(
-                  icon: TonztoonIcons.settings2,
-                  title: 'Privacy & Security',
-                  subtitle: 'Password, devices, and account access',
-                  onTap: () =>
-                      _openAccountFlow(context, const _PrivacySecurityScreen()),
-                ),
-                const _SettingsDivider(),
-                _SettingsRow(
-                  icon: TonztoonIcons.bookmark,
-                  title: 'Saved Collections',
-                  subtitle: 'Manage synced reading shelves',
-                  onTap: () => _openAccountFlow(
-                    context,
-                    const _SavedCollectionsScreen(),
-                  ),
-                ),
-                const _SettingsDivider(),
-                _SettingsRow(
-                  icon: TonztoonIcons.heart,
-                  title: 'My Favorites',
-                  subtitle: 'Comics and scenes you saved',
-                  onTap: () =>
-                      _openAccountFlow(context, const _MyFavoritesScreen()),
-                ),
-                const _SettingsDivider(),
-                _SettingsRow(
-                  icon: TonztoonIcons.bell,
-                  title: 'Push Notifications',
-                  subtitle: 'New chapters and reading reminders',
-                  onTap: () => _openAccountFlow(
-                    context,
-                    const _PushNotificationsScreen(),
-                  ),
-                  trailing: Switch.adaptive(
-                    value: _pushNotifications,
-                    onChanged: (value) =>
-                        setState(() => _pushNotifications = value),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-          ],
-          const _SectionLabel(text: 'Preferences'),
-          const SizedBox(height: 8),
-          _PreferencesSection(
-            nightMode: _nightMode,
-            theme: _theme,
-            readerMode: _readerMode,
-            direction: _direction,
-            autoNext: _autoNext,
-            markRead: _markRead,
-            bingeMode: _bingeMode,
-            isSignedIn: widget.isSignedIn,
-            onNightModeChanged: (value) => setState(() => _nightMode = value),
-            onThemeChanged: (value) => setState(() => _theme = value),
-            onReaderModeChanged: (value) => setState(() => _readerMode = value),
-            onDirectionChanged: (value) => setState(() => _direction = value),
-            onAutoNextChanged: (value) => setState(() => _autoNext = value),
-            onMarkReadChanged: (value) => setState(() => _markRead = value),
-            onBingeModeChanged: (value) => setState(() => _bingeMode = value),
-            onOpenAuth: widget.onOpenAuth,
-          ),
-          if (widget.isSignedIn) ...[
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: widget.onLogout,
-              icon: const Icon(TonztoonIcons.logout, size: 18),
-              label: const Text('Logout'),
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(48, 50),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
+            _PreferencesSection(
+              prefs: readerPrefs,
+              themeMode: themeMode,
+              isSignedIn: widget.isSignedIn,
+              onNightModeChanged: (enabled) =>
+                  _setThemeMode(enabled ? ThemeMode.dark : ThemeMode.light),
+              onThemeChanged: (value) =>
+                  _setThemeMode(_themeModeFromLabel(value)),
+              onReaderModeChanged: (value) => _savePrefs(
+                readerPrefs.copyWith(
+                  defaultReadingMode: value == 'Paged' ? 'paged' : 'vertical',
                 ),
               ),
+              onDirectionChanged: (value) => _savePrefs(
+                readerPrefs.copyWith(readingDirection: value.toLowerCase()),
+              ),
+              onAutoNextChanged: (value) =>
+                  _savePrefs(readerPrefs.copyWith(autoNext: value)),
+              onMarkReadChanged: (value) =>
+                  _savePrefs(readerPrefs.copyWith(markReadOnComplete: value)),
+              onBingeModeChanged: (value) =>
+                  _savePrefs(readerPrefs.copyWith(defaultBingeMode: value)),
+              onClearCache: _clearCache,
+              onOpenAuth: widget.onOpenAuth,
             ),
+            if (widget.isSignedIn) ...[
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: _logout,
+                icon: const Icon(TonztoonIcons.logout, size: 18),
+                label: const Text('Logout'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(48, 50),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
+
+  Future<void> _setThemeMode(ThemeMode mode) async {
+    await ref.read(appThemeModeProvider.notifier).setMode(mode);
+  }
+
+  Future<void> _savePrefs(ReaderPreferences prefs) async {
+    await ref.read(libraryRepositoryProvider).saveReaderPreferences(prefs);
+    ref.invalidate(readerPreferencesProvider);
+  }
+
+  Future<void> _clearCache() async {
+    await ref.read(localStoreProvider).cache.clear();
+    ref.invalidate(sourcesProvider);
+    ref.invalidate(homeDataProvider);
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Cache katalog dibersihkan.')));
+  }
+
+  Future<void> _logout() async {
+    await widget.onLogout();
+    ref.invalidate(homeDataProvider);
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Logout berhasil.')));
+  }
+
+  ThemeMode _themeModeFromLabel(String label) {
+    return switch (label) {
+      'Light' => ThemeMode.light,
+      'Dark' => ThemeMode.dark,
+      _ => ThemeMode.system,
+    };
+  }
+}
+
+String _themeModeLabel(ThemeMode mode) {
+  return switch (mode) {
+    ThemeMode.light => 'Light',
+    ThemeMode.dark => 'Dark',
+    ThemeMode.system => 'System',
+  };
+}
+
+String _readerModeLabel(String mode) {
+  return mode == 'paged' ? 'Paged' : 'Vertical';
+}
+
+String _directionLabel(String direction) {
+  return direction == 'rtl' ? 'RTL' : 'LTR';
 }
 
 void _openAccountFlow(BuildContext context, Widget page) {
@@ -180,12 +246,16 @@ Future<String?> _showProfileCollectionDialog(BuildContext context) {
 }
 
 class _ProfileHeader extends StatelessWidget {
-  const _ProfileHeader();
+  const _ProfileHeader({required this.auth});
+
+  final AuthState auth;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final name = _displayName(auth);
+    final initials = _initials(name);
 
     return Column(
       children: [
@@ -199,7 +269,7 @@ class _ProfileHeader extends StatelessWidget {
           ),
           child: Center(
             child: Text(
-              'TT',
+              initials,
               style: theme.textTheme.headlineSmall?.copyWith(
                 color: colorScheme.primary,
                 fontWeight: FontWeight.w900,
@@ -208,7 +278,7 @@ class _ProfileHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        Text('TonzToon Reader', style: theme.textTheme.titleLarge),
+        Text(name, style: theme.textTheme.titleLarge),
         const SizedBox(height: 6),
         DecoratedBox(
           decoration: BoxDecoration(
@@ -229,26 +299,79 @@ class _ProfileHeader extends StatelessWidget {
       ],
     );
   }
+
+  String _displayName(AuthState auth) {
+    final displayName = auth.user?.displayName?.trim();
+    if (displayName != null && displayName.isNotEmpty) return displayName;
+
+    final email = auth.user?.email;
+    if (email == null || email.trim().isEmpty) return 'TonzToon Reader';
+    final handle = email.split('@').first;
+    final words = handle
+        .split(RegExp(r'[._-]+'))
+        .where((part) => part.trim().isNotEmpty)
+        .toList();
+    if (words.isEmpty) return handle;
+    return words
+        .map((word) => word[0].toUpperCase() + word.substring(1).toLowerCase())
+        .join(' ');
+  }
+
+  String _initials(String name) {
+    final words = name.split(' ').where((word) => word.isNotEmpty).toList();
+    if (words.isEmpty) return 'TT';
+    if (words.length == 1) return words.first.substring(0, 1).toUpperCase();
+    return '${words.first[0]}${words.last[0]}'.toUpperCase();
+  }
 }
 
-class _ProfileStats extends StatelessWidget {
+class _ProfileStats extends ConsumerWidget {
   const _ProfileStats();
 
   @override
-  Widget build(BuildContext context) {
-    return const _SettingsSection(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bookmarks = ref.watch(bookmarksProvider);
+    final scenes = ref.watch(favoriteScenesProvider);
+    final readingTime = ref.watch(readingTimeProvider);
+    final favoriteCount = _favoriteCountLabel(bookmarks, scenes);
+    final activeTime = _activeTimeLabel(readingTime);
+
+    return _SettingsSection(
       child: Row(
         children: [
           Expanded(
-            child: _StatBlock(value: '12', label: 'Works'),
+            child: _StatBlock(value: favoriteCount, label: 'Favourite'),
           ),
-          SizedBox(height: 42, child: VerticalDivider(width: 1)),
+          const SizedBox(height: 42, child: VerticalDivider(width: 1)),
           Expanded(
-            child: _StatBlock(value: '14.2K', label: 'Followers'),
+            child: _StatBlock(value: activeTime, label: 'Aktif'),
           ),
         ],
       ),
     );
+  }
+
+  String _favoriteCountLabel(
+    AsyncValue<List<LibraryComicRef>> bookmarks,
+    AsyncValue<List<FavoriteScene>> scenes,
+  ) {
+    final bookmarkCount = bookmarks.asData?.value.length;
+    final sceneCount = scenes.asData?.value.length;
+    if (bookmarkCount == null || sceneCount == null) return '...';
+    final total = bookmarkCount + sceneCount;
+    if (total > 999) return '999+';
+    return '$total';
+  }
+
+  String _activeTimeLabel(Duration duration) {
+    if (duration.inSeconds <= 0) return '0m';
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes.remainder(60);
+    if (hours > 0) {
+      return '${hours}j ${minutes.toString().padLeft(2, '0')}m';
+    }
+    if (minutes > 0) return '${minutes}m';
+    return '${duration.inSeconds}s';
   }
 }
 
@@ -444,7 +567,7 @@ class _SavedCollectionsScreenState extends State<_SavedCollectionsScreen> {
         _ProfileCollection(
           title: title.trim(),
           subtitle: 'Koleksi sinkron baru',
-          comics: [dummyComics[0], dummyComics[2]],
+          comics: const [],
         ),
       );
     });
@@ -562,26 +685,17 @@ class _MyFavoritesScreen extends StatelessWidget {
         ),
         body: TabBarView(
           children: [
-            ListView(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
-              children: [
-                for (final comic in dummyComics) ...[
-                  _ComicMiniTile(comic: comic),
-                  const SizedBox(height: 12),
-                ],
-              ],
-            ),
-            GridView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
-              itemCount: dummyComics.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 0.78,
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('Belum ada komik favorit.'),
               ),
-              itemBuilder: (context, index) =>
-                  _FavoriteSceneCard(comic: dummyComics[index], index: index),
+            ),
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('Belum ada scene favorit.'),
+              ),
             ),
           ],
         ),
@@ -791,43 +905,6 @@ class _ComicMiniTile extends StatelessWidget {
   }
 }
 
-class _FavoriteSceneCard extends StatelessWidget {
-  const _FavoriteSceneCard({required this.comic, required this.index});
-
-  final ComicSummary comic;
-  final int index;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppSurfaceInk(
-      onTap: () => _openAccountFlow(context, ComicDetailScreen(comic: comic)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: ComicCover(imageUrl: comic.coverImageUrl, borderRadius: 0),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            comic.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelLarge,
-          ),
-          const SizedBox(height: 3),
-          Text(
-            'Scene ${index + 1} - Page ${(index + 1) * 4}',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _CoverStack extends StatelessWidget {
   const _CoverStack({required this.comics});
 
@@ -897,33 +974,12 @@ class _ProfileCollection {
   final List<ComicSummary> comics;
 }
 
-final _profileCollections = [
-  _ProfileCollection(
-    title: 'Favorit Utama',
-    subtitle: 'Komik yang paling sering dibaca',
-    comics: [dummyComics[0], dummyComics[2], dummyComics[3]],
-  ),
-  _ProfileCollection(
-    title: 'Baca Saat Santai',
-    subtitle: 'Pilihan ringan untuk malam hari',
-    comics: [dummyComics[1], dummyComics[3]],
-  ),
-  _ProfileCollection(
-    title: 'Tunggu Tamat',
-    subtitle: 'Ongoing yang menunggu batch chapter',
-    comics: [dummyComics[2], dummyComics[1], dummyComics[0]],
-  ),
-];
+final _profileCollections = <_ProfileCollection>[];
 
 class _PreferencesSection extends StatelessWidget {
   const _PreferencesSection({
-    required this.nightMode,
-    required this.theme,
-    required this.readerMode,
-    required this.direction,
-    required this.autoNext,
-    required this.markRead,
-    required this.bingeMode,
+    required this.prefs,
+    required this.themeMode,
     required this.isSignedIn,
     required this.onNightModeChanged,
     required this.onThemeChanged,
@@ -932,16 +988,12 @@ class _PreferencesSection extends StatelessWidget {
     required this.onAutoNextChanged,
     required this.onMarkReadChanged,
     required this.onBingeModeChanged,
+    required this.onClearCache,
     required this.onOpenAuth,
   });
 
-  final bool nightMode;
-  final String theme;
-  final String readerMode;
-  final String direction;
-  final bool autoNext;
-  final bool markRead;
-  final bool bingeMode;
+  final ReaderPreferences prefs;
+  final ThemeMode themeMode;
   final bool isSignedIn;
   final ValueChanged<bool> onNightModeChanged;
   final ValueChanged<String> onThemeChanged;
@@ -950,6 +1002,7 @@ class _PreferencesSection extends StatelessWidget {
   final ValueChanged<bool> onAutoNextChanged;
   final ValueChanged<bool> onMarkReadChanged;
   final ValueChanged<bool> onBingeModeChanged;
+  final VoidCallback onClearCache;
   final VoidCallback onOpenAuth;
 
   @override
@@ -961,7 +1014,7 @@ class _PreferencesSection extends StatelessWidget {
           title: 'Night Mode',
           subtitle: 'Use a darker reading surface',
           trailing: Switch.adaptive(
-            value: nightMode,
+            value: themeMode == ThemeMode.dark,
             onChanged: onNightModeChanged,
           ),
         ),
@@ -974,7 +1027,7 @@ class _PreferencesSection extends StatelessWidget {
             'Light': Icons.light_mode_rounded,
             'Dark': Icons.dark_mode_rounded,
           },
-          selected: theme,
+          selected: _themeModeLabel(themeMode),
           onChanged: onThemeChanged,
         ),
         const _SettingsDivider(),
@@ -985,7 +1038,7 @@ class _PreferencesSection extends StatelessWidget {
             'Vertical': Icons.view_day_rounded,
             'Paged': Icons.view_carousel_rounded,
           },
-          selected: readerMode,
+          selected: _readerModeLabel(prefs.defaultReadingMode),
           onChanged: onReaderModeChanged,
         ),
         const _SettingsDivider(),
@@ -996,7 +1049,7 @@ class _PreferencesSection extends StatelessWidget {
             'LTR': Icons.format_textdirection_l_to_r_rounded,
             'RTL': Icons.format_textdirection_r_to_l_rounded,
           },
-          selected: direction,
+          selected: _directionLabel(prefs.readingDirection),
           onChanged: onDirectionChanged,
         ),
         const _SettingsDivider(),
@@ -1005,7 +1058,7 @@ class _PreferencesSection extends StatelessWidget {
           title: 'Auto-next Chapter',
           subtitle: 'Continue when a chapter ends',
           trailing: Switch.adaptive(
-            value: autoNext,
+            value: prefs.autoNext,
             onChanged: onAutoNextChanged,
           ),
         ),
@@ -1015,7 +1068,7 @@ class _PreferencesSection extends StatelessWidget {
           title: 'Mark Read on Complete',
           subtitle: 'Save completed chapters visually',
           trailing: Switch.adaptive(
-            value: markRead,
+            value: prefs.markReadOnComplete,
             onChanged: onMarkReadChanged,
           ),
         ),
@@ -1025,9 +1078,16 @@ class _PreferencesSection extends StatelessWidget {
           title: 'Binge Mode Default',
           subtitle: 'Keep the reader focused for long sessions',
           trailing: Switch.adaptive(
-            value: bingeMode,
+            value: prefs.defaultBingeMode,
             onChanged: onBingeModeChanged,
           ),
+        ),
+        const _SettingsDivider(),
+        _SettingsRow(
+          icon: TonztoonIcons.paintbrush,
+          title: 'Clear Catalog Cache',
+          subtitle: 'Refresh source, catalog, comic, and chapter data',
+          onTap: onClearCache,
         ),
         if (!isSignedIn) ...[
           const _SettingsDivider(),
