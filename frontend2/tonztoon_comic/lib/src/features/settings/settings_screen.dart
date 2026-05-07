@@ -105,6 +105,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ],
               ),
               const SizedBox(height: 24),
+            ] else ...[
+              const _GuestReadingTimeCard(),
+              const SizedBox(height: 24),
             ],
             const _SectionLabel(text: 'Preferences'),
             const SizedBox(height: 8),
@@ -334,7 +337,7 @@ class _ProfileStats extends ConsumerWidget {
     final scenes = ref.watch(favoriteScenesProvider);
     final readingTime = ref.watch(readingTimeProvider);
     final favoriteCount = _favoriteCountLabel(bookmarks, scenes);
-    final activeTime = _activeTimeLabel(readingTime);
+    final activeTime = _readingTimeLabel(readingTime);
 
     return _SettingsSection(
       child: Row(
@@ -362,17 +365,70 @@ class _ProfileStats extends ConsumerWidget {
     if (total > 999) return '999+';
     return '$total';
   }
+}
 
-  String _activeTimeLabel(Duration duration) {
-    if (duration.inSeconds <= 0) return '0m';
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60);
-    if (hours > 0) {
-      return '${hours}j ${minutes.toString().padLeft(2, '0')}m';
-    }
-    if (minutes > 0) return '${minutes}m';
-    return '${duration.inSeconds}s';
+class _GuestReadingTimeCard extends ConsumerWidget {
+  const _GuestReadingTimeCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final readingTime = ref.watch(readingTimeProvider);
+
+    return _SettingsSection(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        child: Row(
+          children: [
+            const _IconBubble(icon: TonztoonIcons.bookOpen),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Waktu Baca Guest',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Tersimpan lokal dan bisa dimigrasi saat login',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              _readingTimeLabel(readingTime),
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: colorScheme.tertiary,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
+}
+
+String _readingTimeLabel(Duration duration) {
+  if (duration.inSeconds <= 0) return '0m';
+  final hours = duration.inHours;
+  final minutes = duration.inMinutes.remainder(60);
+  if (hours > 0) {
+    return '${hours}j ${minutes.toString().padLeft(2, '0')}m';
+  }
+  if (minutes > 0) return '${minutes}m';
+  return '${duration.inSeconds}s';
 }
 
 class _StatBlock extends StatelessWidget {

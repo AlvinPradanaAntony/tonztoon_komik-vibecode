@@ -71,6 +71,10 @@ class ReadingTimeController extends Notifier<Duration> {
     }
   }
 
+  Future<void> refreshFromCloud() {
+    return _syncCloudReadingTime();
+  }
+
   Future<void> _syncCloudReadingTime() async {
     if (_syncing || !ref.read(authControllerProvider).isAuthenticated) return;
     _syncing = true;

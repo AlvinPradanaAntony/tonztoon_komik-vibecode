@@ -30,6 +30,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final homeAsync = ref.watch(homeDataProvider);
+    final continueReadingAsync = ref.watch(continueReadingProvider);
     final auth = ref.watch(authControllerProvider);
     _maybePromptMigration(auth);
 
@@ -60,11 +61,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       // tidak terpotong efek fade-mask dan floating navbar.
       body: RefreshIndicator(
         onRefresh: () async {
-          ref.invalidate(homeDataProvider);
-          await ref.read(homeDataProvider.future);
+          try {
+            ref.invalidate(homeDataProvider);
+            await ref.read(homeDataProvider.future);
+          } catch (error) {
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(SnackBar(content: Text('Refresh gagal: $error')));
+          }
         },
         child: AppAsyncView<HomeData>(
           value: homeAsync,
+          skipLoadingOnRefresh: true,
+          skipError: true,
           onRetry: () => ref.invalidate(homeDataProvider),
           builder: (home) {
             final latestComics = home.latest;
@@ -73,7 +83,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 (latestComics.isNotEmpty ? latestComics : popularComics)
                     .take(4)
                     .toList();
-            final continueProgress = home.continueReading;
+            final continueProgress =
+                continueReadingAsync.asData?.value ?? home.continueReading;
 
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 128),
@@ -186,7 +197,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Sinkronkan data guest?'),
         content: const Text(
-          'Progress, bookmark, koleksi, scene favorit, dan antrean download dari mode guest bisa dipindahkan ke akun cloud. File offline tetap tersimpan di perangkat ini.',
+          'Progress, waktu baca, bookmark, koleksi, scene favorit, dan antrean download dari mode guest bisa dipindahkan ke akun cloud. File offline tetap tersimpan di perangkat ini.',
         ),
         actions: [
           TextButton(
@@ -216,6 +227,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ref.invalidate(downloadsProvider);
       ref.invalidate(historyProvider);
       ref.invalidate(readingTimeProvider);
+      unawaited(ref.read(readingTimeProvider.notifier).refreshFromCloud());
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Data guest berhasil disinkronkan.')),

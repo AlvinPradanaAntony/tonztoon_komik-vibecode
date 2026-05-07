@@ -280,7 +280,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
             if (!mounted) return;
             ref.invalidate(progressProvider(comicRequest));
             ref.invalidate(continueReadingProvider);
-            ref.invalidate(homeDataProvider);
           })
           .catchError((_) {}),
     );

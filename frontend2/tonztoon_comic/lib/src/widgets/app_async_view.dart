@@ -7,17 +7,24 @@ class AppAsyncView<T> extends StatelessWidget {
     required this.value,
     required this.builder,
     this.onRetry,
+    this.skipLoadingOnRefresh = false,
+    this.skipLoadingOnReload = false,
+    this.skipError = false,
   });
 
   final AsyncValue<T> value;
   final Widget Function(T data) builder;
   final VoidCallback? onRetry;
+  final bool skipLoadingOnRefresh;
+  final bool skipLoadingOnReload;
+  final bool skipError;
 
   @override
   Widget build(BuildContext context) {
     return value.when(
-      skipLoadingOnRefresh: false,
-      skipLoadingOnReload: false,
+      skipLoadingOnRefresh: skipLoadingOnRefresh,
+      skipLoadingOnReload: skipLoadingOnReload,
+      skipError: skipError,
       data: builder,
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stackTrace) => Center(
