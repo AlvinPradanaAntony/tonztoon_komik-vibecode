@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_assets.dart';
+import '../../core/api_client.dart';
 import '../../core/app_icons.dart';
 import '../../repositories/providers.dart';
 
@@ -15,9 +16,8 @@ class AuthScreen extends ConsumerStatefulWidget {
 }
 
 class _AuthScreenState extends ConsumerState<AuthScreen> {
-  final TextEditingController _emailController = TextEditingController(
-    text: 'reader@tonztoon.app',
-  );
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
@@ -26,6 +26,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   bool _rememberMe = true;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _submitting = false;
 
   @override
   void dispose() {
@@ -63,8 +64,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 _AuthHeader(registerMode: _registerMode, palette: palette),
                 const SizedBox(height: 26),
                 _AuthCard(
+                  formKey: _formKey,
                   palette: palette,
                   registerMode: _registerMode,
+                  submitting: _submitting,
                   emailController: _emailController,
                   passwordController: _passwordController,
                   confirmPasswordController: _confirmPasswordController,
@@ -80,6 +83,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   ),
                   onSubmit: _submitEmail,
                   onToggleMode: () {
+                    _formKey.currentState?.reset();
                     setState(() {
                       _registerMode = !_registerMode;
                       _confirmPasswordController.clear();
@@ -104,9 +108,15 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   }
 
   Future<void> _submitEmail() async {
+    if (_submitting) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    if (_formKey.currentState?.validate() != true) return;
+
+    setState(() => _submitting = true);
+    final mode = _registerMode;
     try {
       final controller = ref.read(authControllerProvider.notifier);
-      if (_registerMode) {
+      if (mode) {
         await controller.register(
           _emailController.text.trim(),
           _passwordController.text,
@@ -118,20 +128,54 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           _passwordController.text,
         );
       }
+      final auth = ref.read(authControllerProvider);
+      if (!auth.isAuthenticated) {
+        throw ApiException(
+          auth.message ??
+              (mode
+                  ? 'Registrasi belum berhasil. Silakan coba lagi.'
+                  : 'Login belum berhasil. Silakan coba lagi.'),
+        );
+      }
       ref.invalidate(homeDataProvider);
       if (!mounted) return;
       context.go('/');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(error.toString()),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+      await _showAuthErrorDialog(
+        title: mode ? 'Register gagal' : 'Login gagal',
+        message: _authErrorMessage(error),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
     }
+  }
+
+  Future<void> _showAuthErrorDialog({
+    required String title,
+    required String message,
+  }) {
+    return showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _authErrorMessage(Object error) {
+    if (error is ApiException) return error.message;
+    final message = error.toString().trim();
+    return message.isEmpty ? 'Terjadi kesalahan. Silakan coba lagi.' : message;
   }
 
   void _continueGoogle() {
@@ -187,8 +231,10 @@ class _AuthHeader extends StatelessWidget {
 
 class _AuthCard extends StatelessWidget {
   const _AuthCard({
+    required this.formKey,
     required this.palette,
     required this.registerMode,
+    required this.submitting,
     required this.emailController,
     required this.passwordController,
     required this.confirmPasswordController,
@@ -205,8 +251,10 @@ class _AuthCard extends StatelessWidget {
     required this.onGuest,
   });
 
+  final GlobalKey<FormState> formKey;
   final _AuthPalette palette;
   final bool registerMode;
+  final bool submitting;
   final TextEditingController emailController;
   final TextEditingController passwordController;
   final TextEditingController confirmPasswordController;
@@ -241,131 +289,206 @@ class _AuthCard extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _AuthField(
-              label: 'Email',
-              controller: emailController,
-              palette: palette,
-              keyboardType: TextInputType.emailAddress,
-              prefixIcon: TonztoonIcons.mail,
-            ),
-            const SizedBox(height: 16),
-            _AuthField(
-              label: 'Password',
-              controller: passwordController,
-              palette: palette,
-              prefixIcon: TonztoonIcons.lock,
-              obscureText: obscurePassword,
-              suffixIcon: IconButton(
-                tooltip: obscurePassword
-                    ? 'Tampilkan password'
-                    : 'Sembunyikan password',
-                onPressed: onTogglePassword,
-                icon: Icon(
-                  obscurePassword ? TonztoonIcons.eyeOff : TonztoonIcons.eye,
-                ),
+        child: Form(
+          key: formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _AuthField(
+                label: 'Email',
+                controller: emailController,
+                palette: palette,
+                keyboardType: TextInputType.emailAddress,
+                prefixIcon: TonztoonIcons.mail,
+                enabled: !submitting,
+                validator: _validateEmail,
               ),
-            ),
-            if (registerMode) ...[
               const SizedBox(height: 16),
               _AuthField(
-                label: 'Konfirmasi password',
-                controller: confirmPasswordController,
+                label: 'Password',
+                controller: passwordController,
                 palette: palette,
-                prefixIcon: TonztoonIcons.keyRound,
-                obscureText: obscureConfirmPassword,
+                prefixIcon: TonztoonIcons.lock,
+                obscureText: obscurePassword,
+                enabled: !submitting,
+                validator: _validatePassword,
                 suffixIcon: IconButton(
-                  tooltip: obscureConfirmPassword
+                  tooltip: obscurePassword
                       ? 'Tampilkan password'
                       : 'Sembunyikan password',
-                  onPressed: onToggleConfirmPassword,
+                  onPressed: submitting ? null : onTogglePassword,
                   icon: Icon(
-                    obscureConfirmPassword
-                        ? TonztoonIcons.eyeOff
-                        : TonztoonIcons.eye,
+                    obscurePassword ? TonztoonIcons.eyeOff : TonztoonIcons.eye,
                   ),
+                ),
+              ),
+              if (registerMode) ...[
+                const SizedBox(height: 16),
+                _AuthField(
+                  label: 'Konfirmasi password',
+                  controller: confirmPasswordController,
+                  palette: palette,
+                  prefixIcon: TonztoonIcons.keyRound,
+                  obscureText: obscureConfirmPassword,
+                  enabled: !submitting,
+                  validator: (value) =>
+                      _validateConfirmPassword(value, passwordController.text),
+                  suffixIcon: IconButton(
+                    tooltip: obscureConfirmPassword
+                        ? 'Tampilkan password'
+                        : 'Sembunyikan password',
+                    onPressed: submitting ? null : onToggleConfirmPassword,
+                    icon: Icon(
+                      obscureConfirmPassword
+                          ? TonztoonIcons.eyeOff
+                          : TonztoonIcons.eye,
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Checkbox(
+                    value: rememberMe,
+                    onChanged: submitting ? null : onRememberChanged,
+                    visualDensity: VisualDensity.compact,
+                    shape: const CircleBorder(),
+                  ),
+                  Text(
+                    'Remember me',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: palette.text,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (!registerMode)
+                    TextButton(
+                      onPressed: submitting ? null : onForgotPassword,
+                      child: const Text('Lupa password?'),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: _AuthSubmitButton(
+                  registerMode: registerMode,
+                  submitting: submitting,
+                  onPressed: submitting ? null : onSubmit,
+                ),
+              ),
+              const SizedBox(height: 18),
+              _OrDivider(color: palette.border, textColor: palette.muted),
+              const SizedBox(height: 18),
+              _SocialButton(
+                label: 'Continue with Google',
+                onPressed: submitting ? null : onGoogle,
+                leading: const _GoogleGlyph(),
+              ),
+              const SizedBox(height: 10),
+              _SocialButton(
+                label: 'Continue as Guest',
+                onPressed: submitting ? null : onGuest,
+                leading: const Icon(TonztoonIcons.chevronRight),
+              ),
+              const SizedBox(height: 16),
+              Center(
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 4,
+                  children: [
+                    Text(
+                      registerMode ? 'Sudah punya akun?' : 'Belum punya akun?',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: palette.muted,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: submitting ? null : onToggleMode,
+                      child: Text(
+                        registerMode ? 'Login' : 'Register',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: submitting ? palette.muted : palette.accent,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Checkbox(
-                  value: rememberMe,
-                  onChanged: onRememberChanged,
-                  visualDensity: VisualDensity.compact,
-                  shape: const CircleBorder(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String? _validateEmail(String? value) {
+    final email = value?.trim() ?? '';
+    if (email.isEmpty) return 'Email wajib diisi.';
+    final valid = RegExp(
+      r'^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$',
+      caseSensitive: false,
+    ).hasMatch(email);
+    if (!valid) return 'Format email tidak valid.';
+    return null;
+  }
+
+  String? _validatePassword(String? value) {
+    if ((value ?? '').isEmpty) return 'Password wajib diisi.';
+    return null;
+  }
+
+  String? _validateConfirmPassword(String? value, String password) {
+    if ((value ?? '').isEmpty) return 'Konfirmasi password wajib diisi.';
+    if (value != password) return 'Konfirmasi password tidak sama.';
+    return null;
+  }
+}
+
+class _AuthSubmitButton extends StatelessWidget {
+  const _AuthSubmitButton({
+    required this.registerMode,
+    required this.submitting,
+    required this.onPressed,
+  });
+
+  final bool registerMode;
+  final bool submitting;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return FilledButton(
+      onPressed: onPressed,
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 160),
+        child: submitting
+            ? SizedBox.square(
+                key: const ValueKey('auth-submit-loading'),
+                dimension: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.4,
+                  color: colorScheme.onPrimary,
                 ),
-                Text(
-                  'Remember me',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: palette.text,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const Spacer(),
-                if (!registerMode)
-                  TextButton(
-                    onPressed: onForgotPassword,
-                    child: const Text('Lupa password?'),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: onSubmit,
-                icon: Icon(
-                  registerMode ? TonztoonIcons.userPlus : TonztoonIcons.login,
-                ),
-                label: Text(registerMode ? 'Register dengan Email' : 'Login'),
-              ),
-            ),
-            const SizedBox(height: 18),
-            _OrDivider(color: palette.border, textColor: palette.muted),
-            const SizedBox(height: 18),
-            _SocialButton(
-              label: 'Continue with Google',
-              onPressed: onGoogle,
-              leading: const _GoogleGlyph(),
-            ),
-            const SizedBox(height: 10),
-            _SocialButton(
-              label: 'Continue as Guest',
-              onPressed: onGuest,
-              leading: const Icon(TonztoonIcons.chevronRight),
-            ),
-            const SizedBox(height: 16),
-            Center(
-              child: Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 4,
+              )
+            : Row(
+                key: const ValueKey('auth-submit-label'),
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    registerMode ? 'Sudah punya akun?' : 'Belum punya akun?',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: palette.muted,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  Icon(
+                    registerMode ? TonztoonIcons.userPlus : TonztoonIcons.login,
                   ),
-                  GestureDetector(
-                    onTap: onToggleMode,
-                    child: Text(
-                      registerMode ? 'Login' : 'Register',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: palette.accent,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
+                  const SizedBox(width: 8),
+                  Text(registerMode ? 'Register dengan Email' : 'Login'),
                 ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -770,6 +893,8 @@ class _AuthField extends StatelessWidget {
     this.keyboardType,
     this.obscureText = false,
     this.suffixIcon,
+    this.enabled = true,
+    this.validator,
   });
 
   final String label;
@@ -779,14 +904,18 @@ class _AuthField extends StatelessWidget {
   final TextInputType? keyboardType;
   final bool obscureText;
   final Widget? suffixIcon;
+  final bool enabled;
+  final String? Function(String?)? validator;
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
+    return TextFormField(
       controller: controller,
+      enabled: enabled,
       keyboardType: keyboardType,
       obscureText: obscureText,
       textInputAction: TextInputAction.next,
+      validator: validator,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(prefixIcon),
@@ -844,7 +973,7 @@ class _SocialButton extends StatelessWidget {
 
   final String label;
   final Widget leading;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {

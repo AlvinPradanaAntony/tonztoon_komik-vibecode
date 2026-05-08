@@ -12,6 +12,7 @@ import '../../models/progress.dart';
 import '../../models/source_info.dart';
 import '../../repositories/providers.dart';
 import '../../widgets/app_async_view.dart';
+import '../../widgets/app_loading_placeholder.dart';
 import '../../widgets/comic_card.dart';
 import '../../widgets/comic_cover.dart';
 import '../../widgets/comic_filter_sort_sheet.dart';
@@ -66,6 +67,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           value: homeAsync,
           skipLoadingOnRefresh: true,
           skipError: true,
+          loadingBuilder: (context) => const _HomeLoadingPlaceholder(),
           onRetry: () => unawaited(_retryHomeData()),
           builder: (home) {
             final latestComics = home.latest;
@@ -248,6 +250,115 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         context,
       ).showSnackBar(SnackBar(content: Text('Migrasi gagal: $error')));
     }
+  }
+}
+
+class _HomeLoadingPlaceholder extends StatelessWidget {
+  const _HomeLoadingPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 128),
+      children: const [
+        AppShimmer(
+          child: AppShimmerBlock(
+            width: double.infinity,
+            height: 150,
+            borderRadius: 18,
+          ),
+        ),
+        SizedBox(height: 20),
+        _HomeSkeletonSectionTitle(width: 136),
+        SizedBox(height: 10),
+        _HomeRecommendationShimmer(),
+        SizedBox(height: 24),
+        _HomeSkeletonSectionTitle(width: 164),
+        SizedBox(height: 10),
+        _HomeRailShimmer(),
+        SizedBox(height: 24),
+        _HomeSkeletonSectionTitle(width: 108),
+        SizedBox(height: 10),
+        _HomeRailShimmer(),
+      ],
+    );
+  }
+}
+
+class _HomeSkeletonSectionTitle extends StatelessWidget {
+  const _HomeSkeletonSectionTitle({required this.width});
+
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppShimmer(
+      child: Row(
+        children: [
+          const AppShimmerBlock(width: 4, height: 22, borderRadius: 4),
+          const SizedBox(width: 10),
+          AppShimmerBlock(width: width, height: 22),
+          const Spacer(),
+          const AppShimmerBlock(width: 74, height: 18),
+        ],
+      ),
+    );
+  }
+}
+
+class _HomeRecommendationShimmer extends StatelessWidget {
+  const _HomeRecommendationShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      height: 270,
+      child: AppShimmer(
+        child: AppShimmerBlock(
+          width: double.infinity,
+          height: double.infinity,
+          borderRadius: 18,
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeRailShimmer extends StatelessWidget {
+  const _HomeRailShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 245,
+      child: ListView.separated(
+        clipBehavior: Clip.none,
+        scrollDirection: Axis.horizontal,
+        itemCount: 3,
+        separatorBuilder: (context, index) => const SizedBox(width: 12),
+        itemBuilder: (context, index) => const SizedBox(
+          width: 138,
+          child: AppShimmer(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: AppShimmerBlock(
+                    width: double.infinity,
+                    borderRadius: 12,
+                  ),
+                ),
+                SizedBox(height: 9),
+                AppShimmerBlock(width: double.infinity, height: 14),
+                SizedBox(height: 7),
+                AppShimmerBlock(width: 112, height: 14),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

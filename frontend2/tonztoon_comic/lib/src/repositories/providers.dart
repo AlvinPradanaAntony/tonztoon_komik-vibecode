@@ -709,6 +709,38 @@ class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
   }
 }
 
-final readerPreferencesProvider = FutureProvider<ReaderPreferences>((ref) {
-  return ref.watch(libraryRepositoryProvider).getReaderPreferences();
-});
+final readerPreferencesProvider =
+    AsyncNotifierProvider<ReaderPreferencesController, ReaderPreferences>(
+      ReaderPreferencesController.new,
+    );
+
+class ReaderPreferencesController extends AsyncNotifier<ReaderPreferences> {
+  int _saveSerial = 0;
+
+  @override
+  Future<ReaderPreferences> build() {
+    return ref.watch(libraryRepositoryProvider).getReaderPreferences();
+  }
+
+  Future<void> save(ReaderPreferences prefs) async {
+    final serial = ++_saveSerial;
+    final previous = state.asData?.value;
+    state = AsyncData(prefs);
+
+    try {
+      final saved = await ref
+          .read(libraryRepositoryProvider)
+          .saveReaderPreferences(prefs);
+      if (serial == _saveSerial) {
+        state = AsyncData(saved);
+      }
+    } catch (error, stackTrace) {
+      if (serial == _saveSerial) {
+        state = previous == null
+            ? AsyncError(error, stackTrace)
+            : AsyncData(previous);
+      }
+      rethrow;
+    }
+  }
+}

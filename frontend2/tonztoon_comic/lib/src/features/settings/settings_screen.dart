@@ -163,8 +163,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _savePrefs(ReaderPreferences prefs) async {
-    await ref.read(libraryRepositoryProvider).saveReaderPreferences(prefs);
-    ref.invalidate(readerPreferencesProvider);
+    try {
+      await ref.read(readerPreferencesProvider.notifier).save(prefs);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text('Gagal menyimpan preferensi: $error')),
+        );
+    }
   }
 
   Future<void> _clearCache() async {

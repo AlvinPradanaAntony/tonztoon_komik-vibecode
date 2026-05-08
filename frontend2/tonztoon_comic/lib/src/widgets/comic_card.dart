@@ -331,8 +331,17 @@ class ComicStatusBadge extends StatelessWidget {
 }
 
 String comicSourceLabel(ComicSummary comic) {
-  const sources = ['Komiku', 'Komikcast', 'Shinigami', 'Webtoon'];
-  return sources[comic.title.length % sources.length];
+  return comicSourceNameLabel(comic.sourceName);
+}
+
+String comicSourceNameLabel(String sourceName) {
+  final value = sourceName.trim();
+  if (value.isEmpty) return 'Komiku';
+  return value
+      .split(RegExp(r'[_\-\s]+'))
+      .where((part) => part.isNotEmpty)
+      .map(_capitalizeBadgeWord)
+      .join(' ');
 }
 
 String comicTypeFlag(String? type) {

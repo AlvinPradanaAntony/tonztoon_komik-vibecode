@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'app_loading_placeholder.dart';
+
 class AppAsyncView<T> extends StatefulWidget {
   const AppAsyncView({
     super.key,
@@ -42,7 +44,7 @@ class _AppAsyncViewState<T> extends State<AppAsyncView<T>> {
   Widget build(BuildContext context) {
     if (_retrying) {
       return widget.loadingBuilder?.call(context) ??
-          const Center(child: CircularProgressIndicator());
+          const AppPageLoadingPlaceholder();
     }
 
     return widget.value.when(
@@ -52,7 +54,7 @@ class _AppAsyncViewState<T> extends State<AppAsyncView<T>> {
       data: widget.builder,
       loading: () =>
           widget.loadingBuilder?.call(context) ??
-          const Center(child: CircularProgressIndicator()),
+          const AppPageLoadingPlaceholder(),
       error: (error, stackTrace) => Center(
         child: Padding(
           padding: const EdgeInsets.all(24),

@@ -98,17 +98,7 @@ abstract final class ComicSortOption {
 }
 
 String comicSourceDisplayName(String sourceName) {
-  final value = sourceName.trim();
-  if (value.isEmpty) return 'Komiku';
-  return value
-      .split(RegExp(r'[_\-\s]+'))
-      .where((part) => part.isNotEmpty)
-      .map(
-        (part) => part.length == 1
-            ? part.toUpperCase()
-            : '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
-      )
-      .join(' ');
+  return comicSourceNameLabel(sourceName);
 }
 
 String comicTypeFilterLabel(String? type, {String fallback = 'Manga'}) {

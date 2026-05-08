@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/app_icons.dart';
 import '../../../models/comic.dart';
 import '../../../widgets/comic_card.dart';
-import '../../../widgets/comic_filter_sort_sheet.dart';
 
 class ComicSectionPayload {
   const ComicSectionPayload({
@@ -20,7 +19,7 @@ class ComicSectionPayload {
   final String initialSort;
 }
 
-class ComicSectionScreen extends StatefulWidget {
+class ComicSectionScreen extends StatelessWidget {
   const ComicSectionScreen({
     super.key,
     required this.title,
@@ -35,23 +34,13 @@ class ComicSectionScreen extends StatefulWidget {
   final String initialSort;
 
   @override
-  State<ComicSectionScreen> createState() => _ComicSectionScreenState();
-}
-
-class _ComicSectionScreenState extends State<ComicSectionScreen> {
-  late ComicFilterSortState _filters = ComicFilterSortState(
-    sort: ComicSortOption.normalize(widget.initialSort),
-  );
-
-  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final comics = _visibleComics;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.title, style: theme.textTheme.titleLarge),
+        title: Text(title, style: theme.textTheme.titleLarge),
         centerTitle: false,
         leading: Padding(
           padding: const EdgeInsets.only(left: 8),
@@ -61,43 +50,15 @@ class _ComicSectionScreenState extends State<ComicSectionScreen> {
             icon: const Icon(TonztoonIcons.arrowBack),
           ),
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: IconButton(
-              tooltip: 'Filter dan sorting',
-              onPressed: _showFilterSheet,
-              icon: Badge(
-                isLabelVisible: _filters.hasActiveFilters,
-                smallSize: 8,
-                child: const Icon(TonztoonIcons.slidersHorizontal),
-              ),
-            ),
-          ),
-        ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
         children: [
-          _SectionHero(
-            title: widget.title,
-            subtitle: widget.subtitle,
-            count: comics.length,
-          ),
+          _SectionHero(title: title, subtitle: subtitle, count: comics.length),
           const SizedBox(height: 18),
-          ComicActiveFilterStrip(filters: _filters, onClear: _clearFilters),
-          if (_filters.hasActiveFilters) const SizedBox(height: 18),
           Row(
             children: [
-              Icon(
-                TonztoonIcons.autoAwesome,
-                size: 18,
-                color: colorScheme.secondary,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(_filters.sort, style: theme.textTheme.titleMedium),
-              ),
+              Expanded(child: Text(title, style: theme.textTheme.titleMedium)),
               Text(
                 '${comics.length} komik',
                 style: theme.textTheme.bodyMedium?.copyWith(
@@ -122,7 +83,7 @@ class _ComicSectionScreenState extends State<ComicSectionScreen> {
               final comic = comics[index];
               return ComicCard(
                 comic: comic,
-                source: comicSourceDisplayName(comic.sourceName),
+                source: comicSourceNameLabel(comic.sourceName),
                 width: double.infinity,
                 onTap: () => _openComicDetail(context, comic),
               );
@@ -131,71 +92,6 @@ class _ComicSectionScreenState extends State<ComicSectionScreen> {
         ],
       ),
     );
-  }
-
-  List<ComicSummary> get _visibleComics {
-    final filtered = widget.comics.where((comic) {
-      final type = comicTypeFilterLabel(comic.type);
-      final status = comicStatusFilterLabel(comic.status);
-      return matchesComicFilters(
-        filters: _filters,
-        source: comicSourceDisplayName(comic.sourceName),
-        type: type,
-        status: status,
-        genre: type,
-      );
-    }).toList();
-
-    switch (_filters.sort) {
-      case ComicSortOption.updateNewest:
-        filtered.sort(
-          (a, b) => (b.latestChapterNumber ?? 0).compareTo(
-            a.latestChapterNumber ?? 0,
-          ),
-        );
-      case ComicSortOption.popular:
-        filtered.sort(
-          (a, b) => _popularityRank(b).compareTo(_popularityRank(a)),
-        );
-      case ComicSortOption.ratingHigh:
-        filtered.sort((a, b) => (b.rating ?? 0).compareTo(a.rating ?? 0));
-      case ComicSortOption.az:
-        filtered.sort((a, b) => a.title.compareTo(b.title));
-      case ComicSortOption.za:
-        filtered.sort((a, b) => b.title.compareTo(a.title));
-      case ComicSortOption.relevance:
-        break;
-    }
-
-    return filtered;
-  }
-
-  int _popularityRank(ComicSummary comic) {
-    final totalView = comic.totalView ?? 0;
-    if (totalView > 0) return totalView;
-    return ((comic.rating ?? 0) * 1000).round();
-  }
-
-  void _clearFilters() {
-    setState(
-      () => _filters = ComicFilterSortState(
-        sort: ComicSortOption.normalize(widget.initialSort),
-      ),
-    );
-  }
-
-  Future<void> _showFilterSheet() async {
-    FocusManager.instance.primaryFocus?.unfocus();
-
-    final result = await showComicFilterSortSheet(
-      context: context,
-      initialState: _filters,
-      title: 'Filter ${widget.title}',
-      resetSort: ComicSortOption.normalize(widget.initialSort),
-    );
-
-    if (result == null) return;
-    setState(() => _filters = result.normalized());
   }
 }
 
