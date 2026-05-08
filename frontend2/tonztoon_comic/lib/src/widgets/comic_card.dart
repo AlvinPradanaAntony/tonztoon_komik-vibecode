@@ -279,7 +279,7 @@ class ComicGenreBadge extends StatelessWidget {
           vertical: compact ? 5 : 8,
         ),
         child: Text(
-          genre,
+          comicBadgeLabel(genre),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
@@ -315,7 +315,7 @@ class ComicStatusBadge extends StatelessWidget {
             Icon(style.icon, size: 13, color: style.color),
             const SizedBox(width: 5),
             Text(
-              status,
+              comicBadgeLabel(status),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.labelSmall?.copyWith(
@@ -342,6 +342,20 @@ String comicTypeFlag(String? type) {
     'manhua' => '🇨🇳',
     _ => '🏳️',
   };
+}
+
+String comicBadgeLabel(String value) {
+  final normalized = value.trim().replaceAll(RegExp(r'[_\s]+'), ' ');
+  if (normalized.isEmpty) return value;
+  return normalized
+      .split(' ')
+      .map((word) => word.split('-').map(_capitalizeBadgeWord).join('-'))
+      .join(' ');
+}
+
+String _capitalizeBadgeWord(String value) {
+  if (value.isEmpty) return value;
+  return value[0].toUpperCase() + value.substring(1).toLowerCase();
 }
 
 Color comicGenreColor(String genre) {

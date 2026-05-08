@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload, selectinload
 
 from app.database import get_db
-from app.models import Chapter, Comic
+from app.models import Chapter, Comic, Genre
 from app.schemas import (
     ComicResponse,
     GenreResponse,
@@ -193,12 +193,66 @@ def _build_source_comic_list_item(
         type=comic.type,
         rating=comic.rating,
         total_view=comic.total_view,
+        genres=[
+            GenreResponse(id=genre.id, name=genre.name, slug=genre.slug)
+            for genre in comic.genres
+        ],
         latest_chapter_number=latest_chapter_number,
         detail_url=_build_absolute_url(
             request,
             _build_source_comic_detail_url(source_name, comic.slug),
         ),
     )
+
+
+def _normalize_query_value(value: str | None) -> str | None:
+    normalized = (value or "").strip().lower()
+    return normalized or None
+
+
+def _slugify_query_value(value: str) -> str:
+    return "-".join(value.replace("_", " ").split())
+
+
+def _apply_source_comic_sort(base_query, sort: str | None):
+    sort_value = _normalize_query_value(sort)
+    if sort_value:
+        sort_value = sort_value.replace("-", "_").replace(" ", "_")
+
+    match sort_value:
+        case "update_terbaru" | "update_newest" | "latest" | "newest":
+            return base_query.order_by(
+                Comic.latest_feed_batch_at.desc().nullslast(),
+                Comic.latest_feed_page.asc().nullslast(),
+                Comic.latest_feed_position.asc().nullslast(),
+                _latest_chapter_release_subq.desc().nullslast(),
+                Comic.updated_at.desc(),
+                Comic.title.asc(),
+            )
+        case "popular" | "populer":
+            return base_query.order_by(
+                Comic.popular_feed_batch_at.desc().nullslast(),
+                Comic.popular_feed_page.asc().nullslast(),
+                Comic.popular_feed_position.asc().nullslast(),
+                Comic.rating.desc().nullslast(),
+                Comic.total_view.desc().nullslast(),
+                Comic.updated_at.desc(),
+                Comic.title.asc(),
+            )
+        case "rating_high" | "rating_tinggi" | "rating":
+            return base_query.order_by(
+                Comic.rating.desc().nullslast(),
+                Comic.total_view.desc().nullslast(),
+                Comic.title.asc(),
+            )
+        case "az" | "a_z" | "title_asc":
+            return base_query.order_by(Comic.title.asc())
+        case "za" | "z_a" | "title_desc":
+            return base_query.order_by(Comic.title.desc())
+        case "relevance" | "relevansi" | None:
+            return base_query
+        case _:
+            return base_query
 
 
 def _get_source_or_404(source_name: str) -> dict:
@@ -256,26 +310,41 @@ async def list_source_comics(
     page_size: int = Query(20, ge=1, le=100),
     type: str | None = Query(None, description="Filter by type: manga/manhwa/manhua"),
     status: str | None = Query(None, description="Filter by status: ongoing/completed/hiatus"),
+    genre: str | None = Query(None, description="Filter by genre name or slug"),
+    sort: str | None = Query(None, description="Sort: latest/popular/rating_high/az/relevance"),
     db: AsyncSession = Depends(get_db),
 ):
     """List katalog komik untuk satu source."""
     source = _get_source_or_404(source_name)
     base_query = select(Comic).where(Comic.source_name == source["id"])
 
-    if type:
-        base_query = base_query.where(Comic.type == type.lower())
-    if status:
-        base_query = base_query.where(Comic.status == status.lower())
+    type_value = _normalize_query_value(type)
+    status_value = _normalize_query_value(status)
+    genre_value = _normalize_query_value(genre)
+
+    if type_value:
+        base_query = base_query.where(func.lower(Comic.type) == type_value)
+    if status_value:
+        base_query = base_query.where(func.lower(Comic.status) == status_value)
+    if genre_value:
+        genre_slug = _slugify_query_value(genre_value)
+        base_query = base_query.where(
+            Comic.genres.any(
+                or_(
+                    func.lower(Genre.name) == genre_value,
+                    func.lower(Genre.slug) == genre_slug,
+                )
+            )
+        )
 
     count_stmt = select(func.count()).select_from(base_query.subquery())
     total = (await db.execute(count_stmt)).scalar() or 0
 
     offset = (page - 1) * page_size
     stmt = (
-        base_query
+        _apply_source_comic_sort(base_query, sort)
         .add_columns(_latest_chapter_number_subq.label("latest_chapter_number"))
-        .options(noload(Comic.genres), noload(Comic.chapters))
-        .order_by(Comic.title.asc())
+        .options(selectinload(Comic.genres), noload(Comic.chapters))
         .offset(offset)
         .limit(page_size)
     )

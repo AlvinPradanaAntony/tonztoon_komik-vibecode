@@ -69,6 +69,46 @@ void main() {
     expect(latest.single.latestChapterNumber, 179);
   });
 
+  test('catalog repository parses genre responses', () async {
+    final repository = CatalogRepository(
+      _apiWithResponses({
+        'GET /genres': [
+          {'id': 1, 'name': 'Action', 'slug': 'action'},
+          {'id': 2, 'name': 'Romance', 'slug': 'romance'},
+        ],
+      }),
+      store,
+    );
+
+    final genres = await repository.getGenres();
+
+    expect(genres.map((genre) => genre.name), ['Action', 'Romance']);
+  });
+
+  test(
+    'catalog repository requests global catalog when source is null',
+    () async {
+      final repository = CatalogRepository(
+        _apiWithResponses({
+          'GET /comics': {
+            'items': [
+              {'title': 'Global Comic', 'slug': 'global-comic'},
+            ],
+            'total': 1,
+            'page': 1,
+            'page_size': 40,
+            'total_pages': 1,
+          },
+        }),
+        store,
+      );
+
+      final page = await repository.getSourceComics(sourceName: null, page: 1);
+
+      expect(page.items.single.title, 'Global Comic');
+    },
+  );
+
   test('catalog repository falls back to Hive cache', () async {
     final onlineRepository = CatalogRepository(
       _apiWithResponses({

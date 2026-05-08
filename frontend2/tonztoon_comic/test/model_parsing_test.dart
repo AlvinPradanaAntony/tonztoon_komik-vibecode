@@ -12,11 +12,15 @@ void main() {
       'cover_image_url': 'https://example.test/cover.jpg',
       'rating': 9.2,
       'latest_chapter_number': 201,
+      'genres': [
+        {'id': 1, 'name': 'Action', 'slug': 'action'},
+      ],
     });
 
     expect(comic.title, 'Solo Leveling');
     expect(comic.sourceName, 'komiku_asia');
     expect(comic.latestChapterNumber, 201);
+    expect(comic.genres.single.name, 'Action');
   });
 
   test('source info parses backend source shape', () {

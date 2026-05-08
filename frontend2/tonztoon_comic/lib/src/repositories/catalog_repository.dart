@@ -45,12 +45,90 @@ class CatalogRepository {
     }
   }
 
+  Future<List<Genre>> getGenres() async {
+    const cacheKey = 'genres';
+    try {
+      final response = await _api.get<List<dynamic>>('/genres');
+      final items = (response.data ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(Genre.fromJson)
+          .where((genre) => genre.name.trim().isNotEmpty)
+          .toList();
+      await _store.cache.put(
+        cacheKey,
+        items
+            .map(
+              (genre) => {
+                'id': genre.id,
+                'name': genre.name,
+                'slug': genre.slug,
+              },
+            )
+            .toList(),
+      );
+      return items;
+    } catch (_) {
+      final cached = _store.cache.get(cacheKey);
+      if (cached is List) {
+        return cached
+            .whereType<Map<dynamic, dynamic>>()
+            .map((item) => Genre.fromJson(Map<String, dynamic>.from(item)))
+            .where((genre) => genre.name.trim().isNotEmpty)
+            .toList();
+      }
+      rethrow;
+    }
+  }
+
   Future<List<ComicSummary>> getLatest(String sourceName) {
     return _getComicList('/sources/$sourceName/comics/latest');
   }
 
   Future<List<ComicSummary>> getPopular(String sourceName) {
     return _getComicList('/sources/$sourceName/comics/popular');
+  }
+
+  Future<SourceComicPage> getSourceComics({
+    required String? sourceName,
+    required int page,
+    int pageSize = 40,
+    String? type,
+    String? status,
+    String? genre,
+    String? sort,
+  }) async {
+    final queryParameters = <String, dynamic>{
+      'page': page,
+      'page_size': pageSize,
+      if (type != null && type.trim().isNotEmpty)
+        'type': type.trim().toLowerCase(),
+      if (status != null && status.trim().isNotEmpty)
+        'status': status.trim().toLowerCase(),
+      if (genre != null && genre.trim().isNotEmpty)
+        'genre': genre.trim().toLowerCase(),
+      if (sort != null && sort.trim().isNotEmpty)
+        'sort': sort.trim().toLowerCase(),
+    };
+    final source = sourceName?.trim();
+    final path = source == null || source.isEmpty
+        ? '/comics'
+        : '/sources/$source/comics';
+    final cacheKey = 'source-comics|$path|$queryParameters';
+    try {
+      final response = await _api.get<Map<String, dynamic>>(
+        path,
+        queryParameters: queryParameters,
+      );
+      final data = response.data ?? const {};
+      await _store.cache.put(cacheKey, data);
+      return SourceComicPage.fromJson(data);
+    } catch (_) {
+      final cached = _store.cache.get(cacheKey);
+      if (cached is Map) {
+        return SourceComicPage.fromJson(Map<String, dynamic>.from(cached));
+      }
+      rethrow;
+    }
   }
 
   Future<List<ComicSummary>> search(String query) async {
@@ -146,4 +224,35 @@ class CatalogRepository {
     );
     return ChapterPayload.fromJson(response.data ?? const {});
   }
+}
+
+class SourceComicPage {
+  const SourceComicPage({
+    required this.items,
+    required this.total,
+    required this.page,
+    required this.pageSize,
+    required this.totalPages,
+  });
+
+  factory SourceComicPage.fromJson(Map<String, dynamic> json) {
+    return SourceComicPage(
+      items: ((json['items'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((item) => ComicSummary.fromJson(Map<String, dynamic>.from(item)))
+          .toList(),
+      total: json['total'] as int? ?? 0,
+      page: json['page'] as int? ?? 1,
+      pageSize: json['page_size'] as int? ?? 0,
+      totalPages: json['total_pages'] as int? ?? 1,
+    );
+  }
+
+  final List<ComicSummary> items;
+  final int total;
+  final int page;
+  final int pageSize;
+  final int totalPages;
+
+  bool get hasNextPage => page < totalPages;
 }

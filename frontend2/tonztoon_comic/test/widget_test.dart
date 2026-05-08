@@ -153,6 +153,30 @@ class _FakeCatalogRepository implements CatalogRepository {
   ];
 
   @override
+  Future<List<Genre>> getGenres() async => const [
+    Genre(id: 1, name: 'Action', slug: 'action'),
+  ];
+
+  @override
+  Future<SourceComicPage> getSourceComics({
+    required String? sourceName,
+    required int page,
+    int pageSize = 40,
+    String? type,
+    String? status,
+    String? genre,
+    String? sort,
+  }) async {
+    return const SourceComicPage(
+      items: [comic],
+      total: 1,
+      page: 1,
+      pageSize: 40,
+      totalPages: 1,
+    );
+  }
+
+  @override
   Future<List<ComicSummary>> search(String query) async => const [comic];
 
   @override

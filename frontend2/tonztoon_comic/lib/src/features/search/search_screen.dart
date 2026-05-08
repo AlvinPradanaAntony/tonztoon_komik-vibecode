@@ -10,9 +10,9 @@ import '../../core/app_icons.dart';
 import '../../models/comic.dart';
 import '../../repositories/providers.dart';
 import '../../widgets/app_async_view.dart';
-import '../../widgets/choice_chip_group.dart';
 import '../../widgets/comic_card.dart';
 import '../../widgets/comic_cover.dart';
+import '../../widgets/comic_filter_sort_sheet.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -29,10 +29,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   final TextEditingController _searchController = TextEditingController();
   Timer? _searchDebounce;
-  String _selectedSource = 'Semua';
-  String _selectedStatus = 'Semua';
-  String _selectedGenre = 'Semua';
-  String _selectedSort = 'Relevansi';
+  ComicFilterSortState _filters = const ComicFilterSortState(
+    sort: ComicSortOption.relevance,
+  );
   bool _gridView = false;
   bool _filterButtonActive = false;
   bool _isSearching = false;
@@ -76,7 +75,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             onChanged: _handleSearchChanged,
             onClear: _clearSearch,
             onFilter: _showFilterSheet,
-            filterActive: _filterButtonActive,
+            filterActive: _filterButtonActive || _filters.hasActiveFilters,
           ),
           const SizedBox(height: 22),
           AnimatedSwitcher(
@@ -97,7 +96,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 : AppAsyncView<List<ComicSummary>>(
                     key: ValueKey('search-async-$query-$_gridView'),
                     value: searchAsync,
-                    onRetry: () => ref.invalidate(searchResultsProvider),
+                    onRetry: () => unawaited(_retrySearch()),
+                    loadingBuilder: (context) => _SearchLoadingPlaceholder(
+                      key: ValueKey('search-async-loading-$_gridView'),
+                      gridView: _gridView,
+                    ),
                     builder: (items) {
                       final results = _visibleResults(_searchPool(items));
                       return results.isEmpty
@@ -145,34 +148,46 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         comic.type,
         comic.status,
         comic.genre,
+        comic.genres.join(' '),
         comic.chapter,
         comic.description,
       ].join(' ').toLowerCase();
       final queryMatches = values.contains(query);
-      final sourceMatches =
-          _selectedSource == 'Semua' || comic.source == _selectedSource;
-      final statusMatches =
-          _selectedStatus == 'Semua' || comic.status == _selectedStatus;
-      final genreMatches =
-          _selectedGenre == 'Semua' || comic.genre == _selectedGenre;
+      final filterMatches = _matchesFilters(comic);
 
-      return queryMatches && sourceMatches && statusMatches && genreMatches;
+      return queryMatches && filterMatches;
     }).toList();
 
-    switch (_selectedSort) {
-      case 'Rating tinggi':
+    switch (_filters.sort) {
+      case ComicSortOption.ratingHigh:
         filtered.sort((a, b) => b.ratingValue.compareTo(a.ratingValue));
-      case 'Chapter terbanyak':
-        filtered.sort(
-          (a, b) => (b.summary.latestChapterNumber ?? 0).compareTo(
-            a.summary.latestChapterNumber ?? 0,
-          ),
-        );
-      case 'Update terbaru':
+      case ComicSortOption.updateNewest:
         filtered.sort((a, b) => b.updateRank.compareTo(a.updateRank));
+      case ComicSortOption.popular:
+        filtered.sort((a, b) => b.popularityRank.compareTo(a.popularityRank));
+      case ComicSortOption.az:
+        filtered.sort((a, b) => a.summary.title.compareTo(b.summary.title));
+      case ComicSortOption.za:
+        filtered.sort((a, b) => b.summary.title.compareTo(a.summary.title));
+      case ComicSortOption.relevance:
+        break;
     }
 
     return filtered;
+  }
+
+  bool _matchesFilters(_SearchComicUi comic) {
+    final genreMatches =
+        _filters.genre == ComicFilterOption.all ||
+        comic.genres.any((genre) => genre == _filters.genre);
+
+    return (_filters.source == ComicFilterOption.all ||
+            comic.source == _filters.source) &&
+        (_filters.type == ComicFilterOption.all ||
+            comic.type == _filters.type) &&
+        (_filters.status == ComicFilterOption.all ||
+            comic.status == _filters.status) &&
+        genreMatches;
   }
 
   void _handleSearchChanged(String value) {
@@ -199,37 +214,47 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     setState(() => _isSearching = false);
   }
 
+  Future<void> _retrySearch() async {
+    final query = _searchController.text.trim();
+    if (query.isEmpty) return;
+
+    _searchDebounce?.cancel();
+
+    try {
+      ref.invalidate(searchResultsProvider);
+      await ref.read(searchResultsProvider.future);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text('Pencarian gagal: $error')));
+    } finally {
+      if (mounted) {
+        setState(() => _isSearching = false);
+      }
+    }
+  }
+
   Future<void> _showFilterSheet() async {
     await _dismissKeyboardBeforeSheet();
     if (!mounted) return;
 
     setState(() => _filterButtonActive = true);
+    final genreOptions = await _loadGenreOptions();
+    if (!mounted) return;
 
-    final result = await showModalBottomSheet<_FilterState>(
+    final result = await showComicFilterSortSheet(
       context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      useSafeArea: true,
-      requestFocus: false,
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      initialState: _filters,
+      title: 'Filter dan Sorting',
+      resetSort: ComicSortOption.relevance,
+      genreOptions: genreOptions,
       constraints: BoxConstraints(
         maxHeight: MediaQuery.sizeOf(context).height * 0.78,
       ),
-      clipBehavior: Clip.antiAlias,
-      sheetAnimationStyle: const AnimationStyle(
+      animationStyle: const AnimationStyle(
         duration: _sheetEnterDuration,
         reverseDuration: _sheetExitDuration,
-      ),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (context) => _FilterSheet(
-        initialState: _FilterState(
-          source: _selectedSource,
-          status: _selectedStatus,
-          genre: _selectedGenre,
-          sort: _selectedSort,
-        ),
       ),
     );
 
@@ -237,12 +262,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     setState(() => _filterButtonActive = false);
 
     if (result == null) return;
-    setState(() {
-      _selectedSource = result.source;
-      _selectedStatus = result.status;
-      _selectedGenre = result.genre;
-      _selectedSort = result.sort;
-    });
+    setState(() => _filters = result.normalized());
+  }
+
+  Future<List<String>> _loadGenreOptions() async {
+    try {
+      final genres = await ref.read(genresProvider.future);
+      return genres
+          .map((genre) => genre.name.trim())
+          .where((name) => name.isNotEmpty)
+          .toList(growable: false);
+    } catch (_) {
+      return const [];
+    }
   }
 
   Future<void> _dismissKeyboardBeforeSheet() async {
@@ -277,245 +309,93 @@ class _SearchBox extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: colorScheme.outlineVariant),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(
-              alpha: theme.brightness == Brightness.dark ? 0.28 : 0.06,
-            ),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: TextField(
-        controller: controller,
-        onChanged: onChanged,
-        textInputAction: TextInputAction.search,
-        decoration: InputDecoration(
-          hintText: 'Judul, author, atau genre',
-          prefixIcon: const Icon(TonztoonIcons.search),
-          suffixIcon: Padding(
-            padding: const EdgeInsets.only(right: 6),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (controller.text.isNotEmpty)
-                  IconButton(
-                    tooltip: 'Hapus pencarian',
-                    onPressed: onClear,
-                    icon: const Icon(TonztoonIcons.close),
+    return Row(
+      children: [
+        Expanded(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: colorScheme.outlineVariant),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(
+                    alpha: theme.brightness == Brightness.dark ? 0.28 : 0.06,
                   ),
-                IconButton(
-                  tooltip: 'Filter dan sorting',
-                  onPressed: onFilter,
-                  icon: const Icon(TonztoonIcons.slidersHorizontal),
-                  style: IconButton.styleFrom(
-                    backgroundColor: filterActive
-                        ? colorScheme.primary.withValues(alpha: 0.16)
-                        : Colors.transparent,
-                    foregroundColor: filterActive
-                        ? colorScheme.primary
-                        : colorScheme.onSurfaceVariant,
-                    shape: const CircleBorder(),
-                  ),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
                 ),
               ],
             ),
-          ),
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
-          filled: false,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 4,
-            vertical: 18,
+            child: TextField(
+              controller: controller,
+              onChanged: onChanged,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: 'Judul, author, atau genre',
+                prefixIcon: const Icon(TonztoonIcons.search),
+                suffixIcon: controller.text.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Hapus pencarian',
+                        onPressed: onClear,
+                        icon: const Icon(TonztoonIcons.close),
+                      ),
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                filled: false,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 4,
+                  vertical: 18,
+                ),
+              ),
+              style: theme.textTheme.titleMedium,
+            ),
           ),
         ),
-        style: theme.textTheme.titleMedium,
-      ),
-    );
-  }
-}
-
-class _FilterSheet extends StatefulWidget {
-  const _FilterSheet({required this.initialState});
-
-  final _FilterState initialState;
-
-  @override
-  State<_FilterSheet> createState() => _FilterSheetState();
-}
-
-class _FilterSheetState extends State<_FilterSheet> {
-  late String _source = widget.initialState.source;
-  late String _status = widget.initialState.status;
-  late String _genre = widget.initialState.genre;
-  late String _sort = widget.initialState.sort;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return SafeArea(
-      top: false,
-      child: FractionallySizedBox(
-        heightFactor: 0.94,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Filter dan Sorting',
-                      style: theme.textTheme.titleLarge,
+        const SizedBox(width: 10),
+        Material(
+          color: filterActive
+              ? colorScheme.primary.withValues(alpha: 0.16)
+              : colorScheme.surface,
+          borderRadius: BorderRadius.circular(18),
+          child: InkWell(
+            onTap: onFilter,
+            borderRadius: BorderRadius.circular(18),
+            child: Container(
+              width: 56,
+              height: 56,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: filterActive
+                      ? colorScheme.primary.withValues(alpha: 0.42)
+                      : colorScheme.outlineVariant,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(
+                      alpha: theme.brightness == Brightness.dark ? 0.22 : 0.05,
                     ),
-                  ),
-                  IconButton(
-                    tooltip: 'Tutup',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(TonztoonIcons.close),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
                   ),
                 ],
               ),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Atur hasil pencarian berdasarkan sumber, status, genre, dan urutan.',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                    const SizedBox(height: 18),
-                    ChoiceChipGroup(
-                      label: 'Sumber',
-                      values: const [
-                        'Semua',
-                        'Komiku',
-                        'Komikcast',
-                        'Shinigami',
-                      ],
-                      selectedValue: _source,
-                      onChanged: (value) => setState(() => _source = value),
-                    ),
-                    const SizedBox(height: 14),
-                    ChoiceChipGroup(
-                      label: 'Status',
-                      values: const ['Semua', 'Ongoing', 'Completed', 'Hiatus'],
-                      selectedValue: _status,
-                      onChanged: (value) => setState(() => _status = value),
-                    ),
-                    const SizedBox(height: 14),
-                    ChoiceChipGroup(
-                      label: 'Genre',
-                      values: const [
-                        'Semua',
-                        'Action',
-                        'Fantasy',
-                        'Comedy',
-                        'Drama',
-                        'Adventure',
-                      ],
-                      selectedValue: _genre,
-                      onChanged: (value) => setState(() => _genre = value),
-                    ),
-                    const SizedBox(height: 14),
-                    ChoiceChipGroup(
-                      label: 'Urutkan',
-                      values: const [
-                        'Relevansi',
-                        'Update terbaru',
-                        'Rating tinggi',
-                        'Chapter terbanyak',
-                      ],
-                      selectedValue: _sort,
-                      onChanged: (value) => setState(() => _sort = value),
-                    ),
-                  ],
-                ),
+              child: Icon(
+                TonztoonIcons.slidersHorizontal,
+                color: filterActive
+                    ? colorScheme.primary
+                    : colorScheme.onSurfaceVariant,
               ),
             ),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: colorScheme.surface,
-                border: Border(
-                  top: BorderSide(color: colorScheme.outlineVariant),
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {
-                          setState(() {
-                            _source = 'Semua';
-                            _status = 'Semua';
-                            _genre = 'Semua';
-                            _sort = 'Relevansi';
-                          });
-                        },
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(48, 48),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          side: BorderSide(color: colorScheme.outlineVariant),
-                        ),
-                        child: const Text('Reset'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () {
-                          Navigator.of(context).pop(
-                            _FilterState(
-                              source: _source,
-                              status: _status,
-                              genre: _genre,
-                              sort: _sort,
-                            ),
-                          );
-                        },
-                        child: const Text('Terapkan'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
-}
-
-class _FilterState {
-  const _FilterState({
-    required this.source,
-    required this.status,
-    required this.genre,
-    required this.sort,
-  });
-
-  final String source;
-  final String status;
-  final String genre;
-  final String sort;
 }
 
 class _SearchEmptyState extends StatelessWidget {
@@ -988,32 +868,38 @@ class _SearchComicUi {
     required this.rating,
     required this.status,
     required this.genre,
+    required this.genres,
     required this.chapter,
     required this.description,
     required this.updateRank,
+    required this.popularityRank,
   });
 
   factory _SearchComicUi.fromSummary(ComicSummary summary) {
-    final source = _sourceLabel(summary.sourceName);
+    final source = comicSourceDisplayName(summary.sourceName);
     final chapterNumber = summary.latestChapterNumber;
-    final type = summary.type?.trim().isNotEmpty == true
-        ? summary.type!.trim()
-        : 'Komik';
+    final type = comicTypeFilterLabel(summary.type, fallback: 'Komik');
+    final genres = summary.genres
+        .map((genre) => genre.name.trim())
+        .where((name) => name.isNotEmpty)
+        .toList(growable: false);
+    final ratingValue = summary.rating ?? 0;
+    final totalView = summary.totalView ?? 0;
     return _SearchComicUi(
       summary: summary,
       source: source,
       type: type,
-      rating: (summary.rating ?? 0).toStringAsFixed(1),
-      status: summary.status?.trim().isNotEmpty == true
-          ? summary.status!.trim()
-          : 'Ongoing',
-      genre: type,
+      rating: ratingValue.toStringAsFixed(1),
+      status: comicStatusFilterLabel(summary.status),
+      genre: genres.isEmpty ? 'Genre' : genres.first,
+      genres: genres,
       chapter: chapterNumber == null
           ? 'Chapter terbaru'
           : 'Chapter ${formatChapterNumber(chapterNumber)}',
       description:
           'Komik dari $source dengan pembaruan chapter dan informasi katalog terbaru.',
-      updateRank: chapterNumber?.round() ?? summary.totalView ?? 0,
+      updateRank: chapterNumber?.round() ?? totalView,
+      popularityRank: totalView > 0 ? totalView : (ratingValue * 1000).round(),
     );
   }
 
@@ -1023,23 +909,11 @@ class _SearchComicUi {
   final String rating;
   final String status;
   final String genre;
+  final List<String> genres;
   final String chapter;
   final String description;
   final int updateRank;
+  final int popularityRank;
 
   double get ratingValue => double.tryParse(rating) ?? 0;
-}
-
-String _sourceLabel(String sourceName) {
-  final value = sourceName.trim();
-  if (value.isEmpty) return 'Komiku';
-  return value
-      .split(RegExp(r'[_\-\s]+'))
-      .where((part) => part.isNotEmpty)
-      .map(
-        (part) => part.length == 1
-            ? part.toUpperCase()
-            : '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
-      )
-      .join(' ');
 }

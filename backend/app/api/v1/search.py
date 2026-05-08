@@ -8,11 +8,11 @@ Endpoints:
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import noload
+from sqlalchemy.orm import noload, selectinload
 
 from app.database import get_db
 from app.models import Chapter, Comic
-from app.schemas import SourceComicListItem
+from app.schemas import GenreResponse, SourceComicListItem
 from app.services.image_service import build_proxy_image_url
 
 router = APIRouter()
@@ -52,7 +52,7 @@ async def search_comics(
 
     stmt = (
         select(Comic, _latest_chapter_number_subq.label("latest_chapter_number"))
-        .options(noload(Comic.genres), noload(Comic.chapters))
+        .options(selectinload(Comic.genres), noload(Comic.chapters))
         .where(
             or_(
                 Comic.title.ilike(search_pattern),
@@ -80,6 +80,10 @@ async def search_comics(
             type=comic.type,
             rating=comic.rating,
             total_view=comic.total_view,
+            genres=[
+                GenreResponse(id=genre.id, name=genre.name, slug=genre.slug)
+                for genre in comic.genres
+            ],
             latest_chapter_number=latest_chapter_number,
             detail_url=_build_absolute_url(
                 request,

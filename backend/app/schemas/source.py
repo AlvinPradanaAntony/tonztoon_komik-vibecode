@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel, Field, field_serializer
 
 from app.schemas.chapter import ChapterImageItem
+from app.schemas.comic import GenreResponse
 
 WIB = timezone(timedelta(hours=7))
 
@@ -73,6 +74,7 @@ class SourceComicListItem(BaseModel):
     type: str | None = Field(default=None, max_length=50, examples=["manhwa"])
     rating: float | None = Field(default=None, ge=0, le=10)
     total_view: int | None = Field(default=None, ge=0, examples=[238500])
+    genres: list[GenreResponse] = Field(default_factory=list)
     latest_chapter_number: float | None = Field(default=None, ge=0, examples=[201.0])
     detail_url: str = Field(
         ...,

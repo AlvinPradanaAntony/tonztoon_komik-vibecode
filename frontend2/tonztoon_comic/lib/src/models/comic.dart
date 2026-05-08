@@ -25,6 +25,7 @@ class ComicSummary {
     this.rating,
     this.totalView,
     this.latestChapterNumber,
+    this.genres = const [],
   });
 
   factory ComicSummary.fromJson(Map<String, dynamic> json) {
@@ -38,6 +39,10 @@ class ComicSummary {
       rating: (json['rating'] as num?)?.toDouble(),
       totalView: json['total_view'] as int?,
       latestChapterNumber: (json['latest_chapter_number'] as num?)?.toDouble(),
+      genres: ((json['genres'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((item) => Genre.fromJson(Map<String, dynamic>.from(item)))
+          .toList(),
     );
   }
 
@@ -51,6 +56,11 @@ class ComicSummary {
     'rating': rating,
     'total_view': totalView,
     'latest_chapter_number': latestChapterNumber,
+    'genres': genres
+        .map(
+          (genre) => {'id': genre.id, 'name': genre.name, 'slug': genre.slug},
+        )
+        .toList(),
   };
 
   final String title;
@@ -62,6 +72,7 @@ class ComicSummary {
   final double? rating;
   final int? totalView;
   final double? latestChapterNumber;
+  final List<Genre> genres;
 
   @override
   bool operator ==(Object other) {

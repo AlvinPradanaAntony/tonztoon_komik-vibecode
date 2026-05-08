@@ -14,6 +14,7 @@ import '../../repositories/providers.dart';
 import '../../widgets/app_async_view.dart';
 import '../../widgets/comic_card.dart';
 import '../../widgets/comic_cover.dart';
+import '../../widgets/comic_filter_sort_sheet.dart';
 
 /// [HomeScreen] adalah halaman beranda aplikasi komik.
 /// Menampilkan rekomendasi dan update terbaru.
@@ -60,22 +61,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       // Gunakan ListView dengan padding bawah besar (128) agar
       // tidak terpotong efek fade-mask dan floating navbar.
       body: RefreshIndicator(
-        onRefresh: () async {
-          try {
-            ref.invalidate(homeDataProvider);
-            await ref.read(homeDataProvider.future);
-          } catch (error) {
-            if (!context.mounted) return;
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(SnackBar(content: Text('Refresh gagal: $error')));
-          }
-        },
+        onRefresh: () => _retryHomeData(showErrorSnackBar: true),
         child: AppAsyncView<HomeData>(
           value: homeAsync,
           skipLoadingOnRefresh: true,
           skipError: true,
-          onRetry: () => ref.invalidate(homeDataProvider),
+          onRetry: () => unawaited(_retryHomeData()),
           builder: (home) {
             final latestComics = home.latest;
             final popularComics = home.popular;
@@ -85,6 +76,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     .toList();
             final continueProgress =
                 continueReadingAsync.asData?.value ?? home.continueReading;
+            final hasHomeContent =
+                latestComics.isNotEmpty ||
+                popularComics.isNotEmpty ||
+                recommendationComics.isNotEmpty ||
+                continueProgress.isNotEmpty;
 
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 128),
@@ -102,7 +98,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           subtitle:
                               'Chapter baru dari berbagai sumber favorit.',
                           comics: latestComics,
-                          initialSort: 'Update terbaru',
+                          initialSort: ComicSortOption.updateNewest,
                         ),
                   onPopularTap: popularComics.isEmpty
                       ? null
@@ -111,7 +107,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           title: 'Populer',
                           subtitle: 'Komik yang ramai dibaca minggu ini.',
                           comics: popularComics,
-                          initialSort: 'Paling populer',
+                          initialSort: ComicSortOption.popular,
                         ),
                 ),
                 const SizedBox(height: 20),
@@ -154,10 +150,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     title: 'Rilis Terbaru',
                     subtitle: 'Chapter baru dari berbagai sumber favorit.',
                     comics: latestComics,
-                    initialSort: 'Update terbaru',
+                    initialSort: ComicSortOption.updateNewest,
                   ),
                 ),
-                const SizedBox(height: 24),
+                if (hasHomeContent) const SizedBox(height: 24),
                 _ComicRail(
                   title: 'Populer',
                   comics: popularComics.take(6).toList(),
@@ -167,15 +163,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     title: 'Populer',
                     subtitle: 'Komik yang ramai dibaca minggu ini.',
                     comics: popularComics,
-                    initialSort: 'Paling populer',
+                    initialSort: ComicSortOption.popular,
                   ),
                 ),
+                if (!hasHomeContent) const _HomeEmptyState(),
               ],
             );
           },
         ),
       ),
     );
+  }
+
+  Future<void> _retryHomeData({bool showErrorSnackBar = false}) async {
+    try {
+      ref.invalidate(homeDataProvider);
+      await ref.read(homeDataProvider.future);
+    } catch (error) {
+      if (!mounted || !showErrorSnackBar) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text('Refresh gagal: $error')));
+    }
   }
 
   void _maybePromptMigration(AuthState auth) {
@@ -294,6 +303,57 @@ class _SectionTitle extends StatelessWidget {
                   ),
                 ),
       ],
+    );
+  }
+}
+
+class _HomeEmptyState extends StatelessWidget {
+  const _HomeEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 48),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHighest,
+              shape: BoxShape.circle,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Icon(
+                TonztoonIcons.bookOpen,
+                size: 38,
+                color: colorScheme.secondary,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Belum ada komik',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleLarge,
+          ),
+          const SizedBox(height: 7),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 320),
+            child: Text(
+              'Coba muat ulang katalog dari sumber ini.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+                height: 1.38,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1199,7 +1259,10 @@ void _openComicSection(
   required List<ComicSummary> comics,
   required String initialSort,
 }) {
-  final section = initialSort == 'Paling populer' ? 'popular' : 'latest';
+  final section =
+      ComicSortOption.normalize(initialSort) == ComicSortOption.popular
+      ? 'popular'
+      : 'latest';
   context.push(
     '/comic/home/$section/section/$section',
     extra: ComicSectionPayload(

@@ -289,6 +289,10 @@ final sourcesProvider = FutureProvider<List<SourceInfo>>((ref) {
   return ref.watch(catalogRepositoryProvider).getSources();
 });
 
+final genresProvider = FutureProvider<List<Genre>>((ref) {
+  return ref.watch(catalogRepositoryProvider).getGenres();
+});
+
 class HomeData {
   const HomeData({
     required this.sources,
@@ -328,45 +332,6 @@ final homeDataProvider = FutureProvider<HomeData>((ref) async {
     latest: results[0] as List<ComicSummary>,
     popular: results[1] as List<ComicSummary>,
     continueReading: results[2] as List<ReadingProgress>,
-  );
-});
-
-class CatalogData {
-  const CatalogData({
-    required this.sources,
-    required this.selectedSource,
-    required this.comics,
-  });
-
-  final List<SourceInfo> sources;
-  final SourceInfo selectedSource;
-  final List<ComicSummary> comics;
-}
-
-final catalogDataProvider = FutureProvider<CatalogData>((ref) async {
-  final repository = ref.watch(catalogRepositoryProvider);
-  final sources = await repository.getSources();
-  if (sources.isEmpty) {
-    throw ApiException('No sources available.');
-  }
-  final selectedId = ref.watch(selectedSourceProvider);
-  final selected = sources.firstWhere(
-    (source) => source.id == selectedId,
-    orElse: () => sources.first,
-  );
-  final results = await Future.wait([
-    repository.getLatest(selected.id),
-    repository.getPopular(selected.id),
-  ]);
-  final comicsByKey = <String, ComicSummary>{};
-  for (final comic in [...results[0], ...results[1]]) {
-    final key = '${comic.sourceName}|${comic.slug}|${comic.title}';
-    comicsByKey[key] = comic;
-  }
-  return CatalogData(
-    sources: sources,
-    selectedSource: selected,
-    comics: comicsByKey.values.toList(),
   );
 });
 

@@ -320,34 +320,79 @@ class _DetailHero extends StatelessWidget {
             alignment: Alignment.bottomCenter,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(24, 14, 24, 46),
-              child: Hero(
-                tag: 'detail-cover-${detail.title}',
-                child: RepaintBoundary(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.38),
-                          blurRadius: 28,
-                          offset: const Offset(0, 18),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _SourceInfoBadge(sourceName: detail.sourceName),
+                  const SizedBox(height: 12),
+                  Hero(
+                    tag: 'detail-cover-${detail.title}',
+                    child: RepaintBoundary(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.38),
+                              blurRadius: 28,
+                              offset: const Offset(0, 18),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: ComicCover(
-                      imageUrl: detail.coverImageUrl,
-                      width: 182,
-                      height: 268,
-                      borderRadius: 12,
-                      fallbackIconSize: 36,
+                        child: ComicCover(
+                          imageUrl: detail.coverImageUrl,
+                          width: 182,
+                          height: 268,
+                          borderRadius: 12,
+                          fallbackIconSize: 36,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
             ),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _SourceInfoBadge extends StatelessWidget {
+  const _SourceInfoBadge({required this.sourceName});
+
+  final String sourceName;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.58),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              TonztoonIcons.travelExplore,
+              size: 14,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              _sourceLabel(sourceName),
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -899,7 +944,7 @@ class _InfoPill extends StatelessWidget {
             Icon(icon, size: 16, color: color),
             const SizedBox(width: 6),
             Text(
-              label,
+              comicBadgeLabel(label),
               style: Theme.of(
                 context,
               ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w900),
@@ -936,7 +981,7 @@ class _TypeInfoPill extends StatelessWidget {
             ),
             const SizedBox(width: 6),
             Text(
-              type,
+              comicBadgeLabel(type),
               style: Theme.of(
                 context,
               ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w900),
@@ -1110,6 +1155,20 @@ String _compactNumber(int value) {
     return '${(value / 1000).toStringAsFixed(1)}K';
   }
   return value.toString();
+}
+
+String _sourceLabel(String sourceName) {
+  final value = sourceName.trim();
+  if (value.isEmpty) return 'Komiku';
+  return value
+      .split(RegExp(r'[_\-\s]+'))
+      .where((part) => part.isNotEmpty)
+      .map(
+        (part) => part.length == 1
+            ? part.toUpperCase()
+            : '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
+      )
+      .join(' ');
 }
 
 String _relativeDateLabel(DateTime date) {

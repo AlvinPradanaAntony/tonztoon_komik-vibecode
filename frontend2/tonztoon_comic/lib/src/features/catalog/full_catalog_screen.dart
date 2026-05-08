@@ -4,11 +4,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/app_icons.dart';
 import '../../models/comic.dart';
+import '../../models/source_info.dart';
 import '../../repositories/providers.dart';
-import '../../widgets/app_async_view.dart';
-import '../../widgets/choice_chip_group.dart';
 import '../../widgets/comic_card.dart';
 import '../../widgets/comic_cover.dart';
+import '../../widgets/comic_filter_sort_sheet.dart';
 
 class FullCatalogScreen extends ConsumerStatefulWidget {
   const FullCatalogScreen({super.key, this.showBackButton = true});
@@ -20,13 +20,58 @@ class FullCatalogScreen extends ConsumerStatefulWidget {
 }
 
 class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
-  _CatalogFilters _filters = const _CatalogFilters();
+  static const _pageSize = 40;
+
+  late final ScrollController _scrollController;
+
+  ComicFilterSortState _filters = const ComicFilterSortState(
+    sort: ComicSortOption.relevance,
+  );
+  List<ComicSummary> _comics = const [];
+  SourceInfo? _activeSource;
+  Object? _error;
+  int _page = 0;
+  int _total = 0;
+  int _totalPages = 1;
+  int _requestSerial = 0;
   bool _isGrid = true;
+  bool _isInitialLoading = true;
+  bool _isLoadingMore = false;
+
+  bool get _hasNextPage => _page < _totalPages;
+
+  String? get _typeQuery => _filters.type == ComicFilterOption.all
+      ? null
+      : _filters.type.toLowerCase();
+
+  String? get _statusQuery => _filters.status == ComicFilterOption.all
+      ? null
+      : _filters.status.toLowerCase();
+
+  String? get _genreQuery => _filters.genre == ComicFilterOption.all
+      ? null
+      : _filters.genre.toLowerCase();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController()..addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadFirstPage());
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_onScroll)
+      ..dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final catalogAsync = ref.watch(catalogDataProvider);
+    final entries = _catalogPool(_comics);
+    final comics = _visibleEntries(entries);
 
     return Scaffold(
       appBar: AppBar(
@@ -52,10 +97,10 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
           Padding(
             padding: const EdgeInsets.only(right: 10, left: 6),
             child: IconButton(
-              tooltip: 'Filter katalog',
+              tooltip: 'Filter dan Sorting katalog',
               onPressed: _showFilterSheet,
               icon: Badge(
-                isLabelVisible: _filters.isActive,
+                isLabelVisible: _filters.hasActiveFilters,
                 smallSize: 8,
                 child: const Icon(TonztoonIcons.slidersHorizontal),
               ),
@@ -63,53 +108,174 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
           ),
         ],
       ),
-      body: AppAsyncView<CatalogData>(
-        value: catalogAsync,
-        onRetry: () => ref.invalidate(catalogDataProvider),
-        builder: (catalog) {
-          final entries = _catalogPool(catalog.comics);
-          final comics = _visibleEntries(entries);
-
-          return ListView(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              8,
-              16,
-              widget.showBackButton ? 28 : 132,
-            ),
-            children: [
-              _CatalogHero(
-                visibleCount: comics.length,
-                totalCount: entries.length,
-              ),
-              const SizedBox(height: 16),
-              _ActiveFilterStrip(filters: _filters, onClear: _clearFilters),
-              const SizedBox(height: 18),
-              Row(
+      body: _isInitialLoading
+          ? const _CatalogLoadingState()
+          : _error != null
+          ? _CatalogErrorState(error: _error!, onRetry: _loadFirstPage)
+          : RefreshIndicator(
+              onRefresh: _loadFirstPage,
+              child: ListView(
+                controller: _scrollController,
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  8,
+                  16,
+                  widget.showBackButton ? 28 : 132,
+                ),
                 children: [
-                  Expanded(
-                    child: Text(
-                      '${comics.length} komik ditemukan',
-                      style: theme.textTheme.titleMedium,
-                    ),
+                  _CatalogHero(
+                    visibleCount: comics.length,
+                    totalCount: _total,
+                    sourceLabel: _activeSource?.label ?? 'Semua Sumber',
                   ),
-                  _SortPill(label: _filters.sort),
+                  const SizedBox(height: 16),
+                  ComicActiveFilterStrip(
+                    filters: _filters,
+                    onClear: _clearFilters,
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${comics.length} komik dimuat',
+                          style: theme.textTheme.titleMedium,
+                        ),
+                      ),
+                      _SortPill(label: _filters.sort),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 180),
+                    child: comics.isEmpty
+                        ? const _EmptyCatalogState()
+                        : _isGrid
+                        ? _CatalogGrid(entries: comics, onTap: _openComicDetail)
+                        : _CatalogList(
+                            entries: comics,
+                            onTap: _openComicDetail,
+                          ),
+                  ),
+                  _LoadMoreFooter(
+                    loading: _isLoadingMore,
+                    hasNextPage: _hasNextPage,
+                    loadedCount: _comics.length,
+                    totalCount: _total,
+                  ),
                 ],
               ),
-              const SizedBox(height: 12),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 180),
-                child: comics.isEmpty
-                    ? const _EmptyCatalogState()
-                    : _isGrid
-                    ? _CatalogGrid(entries: comics, onTap: _openComicDetail)
-                    : _CatalogList(entries: comics, onTap: _openComicDetail),
-              ),
-            ],
-          );
-        },
-      ),
+            ),
     );
+  }
+
+  Future<void> _loadFirstPage() async {
+    if (!mounted) return;
+    final serial = ++_requestSerial;
+    setState(() {
+      _isInitialLoading = true;
+      _isLoadingMore = false;
+      _error = null;
+      _page = 0;
+      _total = 0;
+      _totalPages = 1;
+      _comics = const [];
+    });
+
+    try {
+      final repository = ref.read(catalogRepositoryProvider);
+      final sources = await repository.getSources();
+      if (sources.isEmpty) {
+        throw Exception('No sources available.');
+      }
+
+      final source = _sourceFromFilter(sources);
+      final page = await repository.getSourceComics(
+        sourceName: source?.id,
+        page: 1,
+        pageSize: _pageSize,
+        type: _typeQuery,
+        status: _statusQuery,
+        genre: _genreQuery,
+        sort: _filters.sort,
+      );
+
+      if (!mounted || serial != _requestSerial) return;
+      setState(() {
+        _activeSource = source;
+        _comics = page.items;
+        _page = page.page;
+        _total = page.total;
+        _totalPages = page.totalPages < 1 ? 1 : page.totalPages;
+        _isInitialLoading = false;
+      });
+    } catch (error) {
+      if (!mounted || serial != _requestSerial) return;
+      setState(() {
+        _error = error;
+        _isInitialLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadNextPage() async {
+    final source = _activeSource;
+    if (_isInitialLoading || _isLoadingMore || !_hasNextPage) {
+      return;
+    }
+
+    final serial = _requestSerial;
+    setState(() => _isLoadingMore = true);
+
+    try {
+      final page = await ref
+          .read(catalogRepositoryProvider)
+          .getSourceComics(
+            sourceName: source?.id,
+            page: _page + 1,
+            pageSize: _pageSize,
+            type: _typeQuery,
+            status: _statusQuery,
+            genre: _genreQuery,
+            sort: _filters.sort,
+          );
+
+      if (!mounted || serial != _requestSerial) return;
+      final existingKeys = _comics
+          .map((comic) => '${comic.sourceName}|${comic.slug}|${comic.title}')
+          .toSet();
+      final nextComics = [..._comics];
+      for (final comic in page.items) {
+        final key = '${comic.sourceName}|${comic.slug}|${comic.title}';
+        if (existingKeys.add(key)) {
+          nextComics.add(comic);
+        }
+      }
+
+      setState(() {
+        _comics = nextComics;
+        _page = page.page;
+        _total = page.total;
+        _totalPages = page.totalPages < 1 ? 1 : page.totalPages;
+        _isLoadingMore = false;
+      });
+    } catch (error) {
+      if (!mounted || serial != _requestSerial) return;
+      setState(() => _isLoadingMore = false);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text('Gagal memuat halaman berikutnya: $error')),
+        );
+    }
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    if (_scrollController.position.extentAfter < 640) {
+      _loadNextPage();
+    }
   }
 
   List<_CatalogEntry> _catalogPool(List<ComicSummary> comics) {
@@ -121,58 +287,50 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
   }
 
   List<_CatalogEntry> _visibleEntries(List<_CatalogEntry> entries) {
-    final filtered = entries.where((entry) {
-      final comic = entry.comic;
-      final sourceMatches =
-          _filters.source == 'Semua' || entry.source == _filters.source;
-      final typeMatches =
-          _filters.type == 'Semua' || comic.type == _filters.type;
-      final statusMatches =
-          _filters.status == 'Semua' || entry.status == _filters.status;
-      final genreMatches =
-          _filters.genre == 'Semua' || entry.genre == _filters.genre;
-
-      return sourceMatches && typeMatches && statusMatches && genreMatches;
-    }).toList();
-
-    switch (_filters.sort) {
-      case 'Paling populer':
-        filtered.sort((a, b) => b.rating.compareTo(a.rating));
-      case 'Chapter terbanyak':
-        filtered.sort(
-          (a, b) => (b.comic.latestChapterNumber ?? 0).compareTo(
-            a.comic.latestChapterNumber ?? 0,
-          ),
-        );
-      case 'A-Z':
-        filtered.sort((a, b) => a.comic.title.compareTo(b.comic.title));
-      default:
-        filtered.sort((a, b) => b.updateRank.compareTo(a.updateRank));
-    }
-
-    return filtered;
+    return entries;
   }
 
   void _clearFilters() {
-    setState(() => _filters = const _CatalogFilters());
+    setState(
+      () => _filters = const ComicFilterSortState(
+        sort: ComicSortOption.relevance,
+      ),
+    );
+    _loadFirstPage();
   }
 
   Future<void> _showFilterSheet() async {
     FocusManager.instance.primaryFocus?.unfocus();
+    final genreOptions = await _loadGenreOptions();
+    if (!mounted) return;
 
-    final result = await showModalBottomSheet<_CatalogFilters>(
+    final result = await showComicFilterSortSheet(
       context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      initialState: _filters,
+      title: 'Filter Katalog',
+      resetSort: ComicSortOption.relevance,
+      genreOptions: genreOptions,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.78,
       ),
-      builder: (context) => _CatalogFilterSheet(filters: _filters),
     );
 
     if (result == null) return;
-    setState(() => _filters = result);
+    final filters = result.normalized();
+    setState(() => _filters = filters);
+    await _loadFirstPage();
+  }
+
+  Future<List<String>> _loadGenreOptions() async {
+    try {
+      final genres = await ref.read(genresProvider.future);
+      return genres
+          .map((genre) => genre.name.trim())
+          .where((name) => name.isNotEmpty)
+          .toList(growable: false);
+    } catch (_) {
+      return const [];
+    }
   }
 
   void _openComicDetail(_CatalogEntry entry) {
@@ -181,13 +339,33 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
       extra: entry.comic,
     );
   }
+
+  SourceInfo? _sourceFromFilter(
+    List<SourceInfo> sources, {
+    ComicFilterSortState? filters,
+  }) {
+    final selectedSource = (filters ?? _filters).source;
+    if (selectedSource == ComicFilterOption.all) return null;
+    for (final source in sources) {
+      if (source.label == selectedSource ||
+          comicSourceDisplayName(source.id) == selectedSource) {
+        return source;
+      }
+    }
+    return null;
+  }
 }
 
 class _CatalogHero extends StatelessWidget {
-  const _CatalogHero({required this.visibleCount, required this.totalCount});
+  const _CatalogHero({
+    required this.visibleCount,
+    required this.totalCount,
+    required this.sourceLabel,
+  });
 
   final int visibleCount;
   final int totalCount;
+  final String sourceLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -238,7 +416,7 @@ class _CatalogHero extends StatelessWidget {
                   Text('Full Katalog', style: theme.textTheme.headlineSmall),
                   const SizedBox(height: 5),
                   Text(
-                    'Semua judul dari sumber favorit dalam satu tempat.',
+                    'Semua judul dari $sourceLabel yang tersimpan di katalog.',
                     style: theme.textTheme.bodySmall,
                   ),
                 ],
@@ -271,54 +449,93 @@ class _CatalogHero extends StatelessWidget {
   }
 }
 
-class _ActiveFilterStrip extends StatelessWidget {
-  const _ActiveFilterStrip({required this.filters, required this.onClear});
-
-  final _CatalogFilters filters;
-  final VoidCallback onClear;
+class _CatalogLoadingState extends StatelessWidget {
+  const _CatalogLoadingState();
 
   @override
   Widget build(BuildContext context) {
-    if (!filters.isActive) return const SizedBox.shrink();
+    return const Center(child: CircularProgressIndicator());
+  }
+}
 
+class _CatalogErrorState extends StatelessWidget {
+  const _CatalogErrorState({required this.error, required this.onRetry});
+
+  final Object error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off_rounded, size: 40),
+            const SizedBox(height: 12),
+            Text(error.toString(), textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LoadMoreFooter extends StatelessWidget {
+  const _LoadMoreFooter({
+    required this.loading,
+    required this.hasNextPage,
+    required this.loadedCount,
+    required this.totalCount,
+  });
+
+  final bool loading;
+  final bool hasNextPage;
+  final int loadedCount;
+  final int totalCount;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final labels = [
-      if (filters.source != 'Semua') filters.source,
-      if (filters.type != 'Semua') filters.type,
-      if (filters.status != 'Semua') filters.status,
-      if (filters.genre != 'Semua') filters.genre,
-    ];
 
-    return Row(
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                for (final label in labels) ...[
-                  Chip(
-                    label: Text(label),
-                    visualDensity: VisualDensity.compact,
-                    backgroundColor: colorScheme.primary.withValues(
-                      alpha: 0.12,
-                    ),
-                    labelStyle: theme.textTheme.labelMedium?.copyWith(
-                      color: colorScheme.primary,
-                      fontWeight: FontWeight.w800,
-                    ),
-                    side: BorderSide.none,
-                  ),
-                  const SizedBox(width: 8),
-                ],
-              ],
+    if (loading) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.6,
+              color: colorScheme.secondary,
             ),
           ),
         ),
-        TextButton(onPressed: onClear, child: const Text('Reset')),
-      ],
-    );
+      );
+    }
+
+    if (!hasNextPage && totalCount > 0 && loadedCount >= totalCount) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        child: Text(
+          'Semua komik sudah dimuat',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
+      );
+    }
+
+    return const SizedBox(height: 20);
   }
 }
 
@@ -464,7 +681,7 @@ class _CatalogListTile extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              '${entry.source} • ${comicTypeFlag(comic.type)} ${comic.type ?? '-'}',
+                              '${entry.source} • ${comicTypeFlag(comic.type)} ${entry.type}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.labelMedium?.copyWith(
@@ -522,17 +739,41 @@ class _EmptyCatalogState extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 44),
+      padding: const EdgeInsets.symmetric(vertical: 64),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(TonztoonIcons.search, size: 44, color: colorScheme.outline),
-          const SizedBox(height: 12),
-          Text('Tidak ada komik', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 4),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHighest,
+              shape: BoxShape.circle,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Icon(
+                TonztoonIcons.search,
+                size: 38,
+                color: colorScheme.secondary,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
           Text(
-            'Coba ubah kata kunci atau filter katalog.',
+            'Tidak ada komik',
             textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall,
+            style: theme.textTheme.titleLarge,
+          ),
+          const SizedBox(height: 7),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 320),
+            child: Text(
+              'Coba ubah kata kunci atau filter katalog.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+                height: 1.38,
+              ),
+            ),
           ),
         ],
       ),
@@ -566,234 +807,43 @@ class _RatingText extends StatelessWidget {
   }
 }
 
-class _CatalogFilterSheet extends StatefulWidget {
-  const _CatalogFilterSheet({required this.filters});
-
-  final _CatalogFilters filters;
-
-  @override
-  State<_CatalogFilterSheet> createState() => _CatalogFilterSheetState();
-}
-
-class _CatalogFilterSheetState extends State<_CatalogFilterSheet> {
-  late String _source = widget.filters.source;
-  late String _type = widget.filters.type;
-  late String _status = widget.filters.status;
-  late String _genre = widget.filters.genre;
-  late String _sort = widget.filters.sort;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return SafeArea(
-      top: false,
-      child: DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.78,
-        minChildSize: 0.42,
-        maxChildSize: 0.9,
-        builder: (context, scrollController) {
-          return Column(
-            children: [
-              Expanded(
-                child: ListView(
-                  controller: scrollController,
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                  children: [
-                    Text('Filter Katalog', style: theme.textTheme.titleLarge),
-                    const SizedBox(height: 14),
-                    ChoiceChipGroup(
-                      label: 'Sumber',
-                      values: _sources,
-                      selectedValue: _source,
-                      onChanged: (value) => setState(() => _source = value),
-                      scrollable: false,
-                      labelStyle: theme.textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 16),
-                    ChoiceChipGroup(
-                      label: 'Tipe',
-                      values: _types,
-                      selectedValue: _type,
-                      onChanged: (value) => setState(() => _type = value),
-                      scrollable: false,
-                      labelStyle: theme.textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 16),
-                    ChoiceChipGroup(
-                      label: 'Status',
-                      values: _statuses,
-                      selectedValue: _status,
-                      onChanged: (value) => setState(() => _status = value),
-                      scrollable: false,
-                      labelStyle: theme.textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 16),
-                    ChoiceChipGroup(
-                      label: 'Genre',
-                      values: _genres,
-                      selectedValue: _genre,
-                      onChanged: (value) => setState(() => _genre = value),
-                      scrollable: false,
-                      labelStyle: theme.textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 16),
-                    ChoiceChipGroup(
-                      label: 'Urutkan',
-                      values: _sorts,
-                      selectedValue: _sort,
-                      onChanged: (value) => setState(() => _sort = value),
-                      scrollable: false,
-                      labelStyle: theme.textTheme.titleSmall,
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {
-                          setState(() {
-                            _source = 'Semua';
-                            _type = 'Semua';
-                            _status = 'Semua';
-                            _genre = 'Semua';
-                            _sort = 'Update terbaru';
-                          });
-                        },
-                        child: const Text('Reset'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () {
-                          Navigator.of(context).pop(
-                            _CatalogFilters(
-                              source: _source,
-                              type: _type,
-                              status: _status,
-                              genre: _genre,
-                              sort: _sort,
-                            ),
-                          );
-                        },
-                        child: const Text('Terapkan'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _CatalogFilters {
-  const _CatalogFilters({
-    this.source = 'Semua',
-    this.type = 'Semua',
-    this.status = 'Semua',
-    this.genre = 'Semua',
-    this.sort = 'Update terbaru',
-  });
-
-  final String source;
-  final String type;
-  final String status;
-  final String genre;
-  final String sort;
-
-  bool get isActive =>
-      source != 'Semua' ||
-      type != 'Semua' ||
-      status != 'Semua' ||
-      genre != 'Semua';
-}
-
 class _CatalogEntry {
   const _CatalogEntry({
     required this.comic,
     required this.source,
+    required this.type,
     required this.status,
     required this.genre,
     required this.rating,
     required this.updateRank,
+    required this.popularityRank,
   });
 
   factory _CatalogEntry.fromSummary(ComicSummary comic, int index) {
-    final source = _sourceLabel(comic.sourceName);
-    final type = comic.type?.trim().isNotEmpty == true
-        ? comic.type!.trim()
-        : 'Manga';
-    final status = comic.status?.trim().isNotEmpty == true
-        ? comic.status!.trim()
-        : 'Ongoing';
+    final source = comicSourceDisplayName(comic.sourceName);
+    final type = comicTypeFilterLabel(comic.type);
+    final status = comicStatusFilterLabel(comic.status);
+    final genre = comic.genres.isEmpty ? type : comic.genres.first.name;
+    final rating = comic.rating ?? 0;
+    final totalView = comic.totalView ?? 0;
     return _CatalogEntry(
       comic: comic,
       source: source,
+      type: type,
       status: status,
-      genre: type,
-      rating: comic.rating ?? 0,
+      genre: genre,
+      rating: rating,
       updateRank: comic.latestChapterNumber?.round() ?? (1000 - index),
+      popularityRank: totalView > 0 ? totalView : (rating * 1000).round(),
     );
   }
 
   final ComicSummary comic;
   final String source;
+  final String type;
   final String status;
   final String genre;
   final double rating;
   final int updateRank;
+  final int popularityRank;
 }
-
-String _sourceLabel(String sourceName) {
-  final value = sourceName.trim();
-  if (value.isEmpty) return 'Komiku';
-  return value
-      .split(RegExp(r'[_\-\s]+'))
-      .where((part) => part.isNotEmpty)
-      .map(
-        (part) => part.length == 1
-            ? part.toUpperCase()
-            : '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
-      )
-      .join(' ');
-}
-
-const List<String> _sources = [
-  'Semua',
-  'Komiku',
-  'Komikcast',
-  'Shinigami',
-  'Webtoon',
-];
-
-const List<String> _types = ['Semua', 'Manga', 'Manhwa'];
-
-const List<String> _statuses = ['Semua', 'Ongoing', 'Completed', 'Hiatus'];
-
-const List<String> _genres = [
-  'Semua',
-  'Action',
-  'Adventure',
-  'Comedy',
-  'Fantasy',
-  'Romance',
-  'Sports',
-  'Supernatural',
-];
-
-const List<String> _sorts = [
-  'Update terbaru',
-  'Paling populer',
-  'Chapter terbanyak',
-  'A-Z',
-];
