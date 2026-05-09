@@ -62,6 +62,47 @@ class AuthRepository {
     return _persistSession(session);
   }
 
+  Future<void> requestPasswordReset({required String email}) async {
+    await _api.post<Map<String, dynamic>>(
+      '/auth/password/forgot',
+      data: {'email': email.trim()},
+    );
+  }
+
+  Future<AuthState> verifyPasswordRecovery({
+    required String email,
+    required String tokenHash,
+  }) async {
+    final response = await _api.post<Map<String, dynamic>>(
+      '/auth/password/recovery/verify',
+      data: {'email': email.trim(), 'token_hash': tokenHash},
+    );
+    final session = AuthSession.fromJson(response.data ?? const {});
+    return _persistSession(session);
+  }
+
+  Future<AuthState> useAuthSession({
+    required String accessToken,
+    String? refreshToken,
+    int? expiresAt,
+  }) async {
+    await _tokenStore.save(
+      TokenPair(
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+        expiresAt: expiresAt,
+      ),
+    );
+    return restore();
+  }
+
+  Future<void> updatePassword({required String password}) async {
+    await _api.post<Map<String, dynamic>>(
+      '/auth/password/update',
+      data: {'password': password},
+    );
+  }
+
   Future<void> logout() async {
     try {
       await _api.post<Map<String, dynamic>>('/auth/logout');

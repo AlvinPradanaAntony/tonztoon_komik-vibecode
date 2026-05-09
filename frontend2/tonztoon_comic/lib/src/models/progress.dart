@@ -17,8 +17,14 @@ class ReadingProgress {
   });
 
   factory ReadingProgress.fromLibraryJson(Map<String, dynamic> json) {
-    final comic = json['comic'] as Map<String, dynamic>? ?? const {};
-    final chapter = json['chapter'] as Map<String, dynamic>? ?? const {};
+    final comicRaw = json['comic'];
+    final comic = comicRaw is Map
+        ? Map<String, dynamic>.from(comicRaw)
+        : const <String, dynamic>{};
+    final chapterRaw = json['chapter'];
+    final chapter = chapterRaw is Map
+        ? Map<String, dynamic>.from(chapterRaw)
+        : const <String, dynamic>{};
     return ReadingProgress(
       sourceName: comic['source_name'] as String? ?? '',
       comicSlug: comic['slug'] as String? ?? '',

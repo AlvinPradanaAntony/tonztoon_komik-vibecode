@@ -21,6 +21,9 @@ from app.config import (
 from app.schemas import (
     AuthenticatedUser,
     AuthLoginRequest,
+    AuthPasswordRecoveryRequest,
+    AuthPasswordRecoveryVerifyRequest,
+    AuthPasswordUpdateRequest,
     AuthRefreshRequest,
     AuthRegisterRequest,
     AuthSessionResponse,
@@ -232,6 +235,78 @@ async def refresh_auth_session(
     return _normalize_session(response.json())
 
 
+async def request_password_recovery(payload: AuthPasswordRecoveryRequest) -> None:
+    """Kirim email reset password melalui Supabase Auth."""
+    auth_base = get_supabase_auth_base_url()
+    if not auth_base:
+        raise AuthConfigurationError("SUPABASE_URL must be configured.")
+
+    redirect_to = payload.email_redirect_to or settings.SUPABASE_AUTH_REDIRECT_URL
+    params = {"redirect_to": redirect_to} if redirect_to else None
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            f"{auth_base}/recover",
+            params=params,
+            headers=_build_public_headers(),
+            json={"email": str(payload.email)},
+        )
+
+    if response.status_code >= 400:
+        raise _build_password_recovery_auth_error(response)
+
+
+async def verify_password_recovery(
+    payload: AuthPasswordRecoveryVerifyRequest,
+) -> AuthSessionResponse:
+    """Verifikasi token recovery dan kembalikan sesi Supabase."""
+    auth_base = get_supabase_auth_base_url()
+    if not auth_base:
+        raise AuthConfigurationError("SUPABASE_URL must be configured.")
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            f"{auth_base}/verify",
+            headers=_build_public_headers(),
+            json={
+                "type": "recovery",
+                "email": str(payload.email),
+                "token_hash": payload.token_hash,
+            },
+        )
+
+    if response.status_code >= 400:
+        raise _build_password_recovery_verify_auth_error(response)
+
+    return _normalize_session(response.json())
+
+
+async def update_auth_password(
+    access_token: str,
+    payload: AuthPasswordUpdateRequest,
+) -> None:
+    """Update password user aktif memakai sesi recovery/login yang valid."""
+    auth_base = get_supabase_auth_base_url()
+    if not auth_base:
+        raise AuthConfigurationError("SUPABASE_URL must be configured.")
+
+    _require_supabase_public_config()
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.put(
+            f"{auth_base}/user",
+            headers={
+                "apikey": settings.SUPABASE_PUBLISHABLE_KEY,
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+            },
+            json={"password": payload.password},
+        )
+
+    if response.status_code >= 400:
+        raise _build_password_update_auth_error(response)
+
+
 async def logout_auth_session(access_token: str) -> None:
     """Revoke current session refresh token chain via Supabase Auth logout."""
     auth_base = get_supabase_auth_base_url()
@@ -337,6 +412,57 @@ def _build_refresh_auth_error(response: httpx.Response) -> AuthRequestError:
         )
 
     return AuthRequestError(message, status_code=401, code=code)
+
+
+def _build_password_recovery_auth_error(response: httpx.Response) -> AuthRequestError:
+    message, code = _extract_auth_error_payload(response)
+    normalized = _normalize_error_text(message, code)
+
+    if "rate" in normalized or "too many" in normalized:
+        return AuthRequestError(
+            "Terlalu banyak permintaan reset. Coba lagi beberapa saat lagi.",
+            status_code=429,
+            code=code or "password_recovery_rate_limited",
+        )
+
+    return AuthRequestError(message, status_code=400, code=code)
+
+
+def _build_password_recovery_verify_auth_error(
+    response: httpx.Response,
+) -> AuthRequestError:
+    message, code = _extract_auth_error_payload(response)
+    normalized = _normalize_error_text(message, code)
+
+    if "expired" in normalized or "invalid" in normalized or "token" in normalized:
+        return AuthRequestError(
+            "Link reset tidak valid atau sudah kedaluwarsa.",
+            status_code=401,
+            code=code or "invalid_recovery_token",
+        )
+
+    return AuthRequestError(message, status_code=401, code=code)
+
+
+def _build_password_update_auth_error(response: httpx.Response) -> AuthRequestError:
+    message, code = _extract_auth_error_payload(response)
+    normalized = _normalize_error_text(message, code)
+
+    if "password" in normalized and "weak" in normalized:
+        return AuthRequestError(
+            "Password terlalu lemah. Gunakan minimal 8 karakter dengan kombinasi yang lebih kuat.",
+            status_code=400,
+            code=code or "weak_password",
+        )
+
+    if "jwt" in normalized or "token" in normalized or "session" in normalized:
+        return AuthRequestError(
+            "Sesi reset password tidak valid atau sudah kedaluwarsa.",
+            status_code=401,
+            code=code or "invalid_recovery_session",
+        )
+
+    return AuthRequestError(message, status_code=400, code=code)
 
 
 def _build_logout_auth_error(response: httpx.Response) -> AuthRequestError:

@@ -21,6 +21,7 @@ class TonztoonIcons {
   // Ikon untuk pembaca / buku
   static const IconData menuBook = LucideIcons.bookOpen;
   static const IconData bookmark = LucideIcons.bookmark;
+  static const IconData bookmarkFilled = Icons.bookmark_rounded;
   static const IconData bookmarkAdded = LucideIcons.bookmarkCheck;
   static const IconData heart = LucideIcons.heart;
   static const IconData star = LucideIcons.star;
@@ -47,6 +48,7 @@ class TonztoonIcons {
   static const IconData pencil = LucideIcons.pencil;
   static const IconData trash = LucideIcons.trash2;
   static const IconData check = LucideIcons.check;
+  static const IconData warning = LucideIcons.triangleAlert;
   static const IconData slidersHorizontal = LucideIcons.slidersHorizontal;
   static const IconData messageSquare = LucideIcons.messageSquare;
   static const IconData bookMarked = LucideIcons.bookMarked;

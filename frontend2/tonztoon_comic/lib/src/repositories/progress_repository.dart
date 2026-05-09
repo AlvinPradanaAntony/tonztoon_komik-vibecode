@@ -18,8 +18,8 @@ class ProgressRepository {
           '/library/progress/continue-reading',
         );
         return (response.data ?? const [])
-            .whereType<Map<String, dynamic>>()
-            .map(ReadingProgress.fromLibraryJson)
+            .whereType<Map>()
+            .map((item) => ReadingProgress.fromLibraryJson(Map<String, dynamic>.from(item)))
             .toList();
       } catch (_) {
         return _localContinueReading();

@@ -6,10 +6,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 import 'package:tonztoon_comic/src/app.dart';
 import 'package:tonztoon_comic/src/core/storage.dart';
+import 'package:tonztoon_comic/src/core/token_store.dart';
 import 'package:tonztoon_comic/src/features/auth/auth_screen.dart';
 import 'package:tonztoon_comic/src/features/comic/comic_detail_screen.dart';
 import 'package:tonztoon_comic/src/features/reader/reader_screen.dart';
 import 'package:tonztoon_comic/src/models/comic.dart';
+import 'package:tonztoon_comic/src/models/library.dart';
 import 'package:tonztoon_comic/src/models/source_info.dart';
 import 'package:tonztoon_comic/src/repositories/catalog_repository.dart';
 import 'package:tonztoon_comic/src/repositories/providers.dart';
@@ -115,9 +117,29 @@ ProviderContainer _testContainer() {
   return ProviderContainer(
     retry: (retryCount, error) => null,
     overrides: [
+      tokenStoreProvider.overrideWithValue(MemoryTokenStore()),
       catalogRepositoryProvider.overrideWithValue(_FakeCatalogRepository()),
+      libraryComicStateProvider(_FakeCatalogRepository.comic).overrideWith(
+        (ref) async => const LibraryComicState(
+          comic: LibraryComicRef(
+            sourceName: 'komiku',
+            slug: 'solo-leveling',
+            title: 'Solo Leveling',
+          ),
+          bookmarked: false,
+          collections: [],
+        ),
+      ),
+      offlineChaptersProvider.overrideWith((ref) async => const []),
+      downloadsProvider.overrideWith((ref) async => const []),
+      offlineQueueProvider.overrideWith(_FakeOfflineQueueController.new),
     ],
   );
+}
+
+class _FakeOfflineQueueController extends OfflineQueueController {
+  @override
+  Future<List<OfflineDownloadBatch>> build() async => const [];
 }
 
 class _FakeCatalogRepository implements CatalogRepository {
@@ -219,10 +241,8 @@ class _FakeCatalogRepository implements CatalogRepository {
     return const ChapterPayload(
       sourceName: 'komiku',
       chapterNumber: 179,
-      images: [
-        ChapterImageItem(page: 1, url: 'https://example.test/page-1.jpg'),
-      ],
-      total: 1,
+      images: [],
+      total: 0,
     );
   }
 }

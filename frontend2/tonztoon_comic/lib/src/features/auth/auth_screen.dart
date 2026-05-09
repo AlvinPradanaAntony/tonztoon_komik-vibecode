@@ -130,11 +130,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       }
       final auth = ref.read(authControllerProvider);
       if (!auth.isAuthenticated) {
+        if (mode) {
+          await _handleRegisterPendingConfirmation(auth.message);
+          return;
+        }
         throw ApiException(
-          auth.message ??
-              (mode
-                  ? 'Registrasi belum berhasil. Silakan coba lagi.'
-                  : 'Login belum berhasil. Silakan coba lagi.'),
+          auth.message ?? 'Login belum berhasil. Silakan coba lagi.',
         );
       }
       ref.invalidate(homeDataProvider);
@@ -151,6 +152,42 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         setState(() => _submitting = false);
       }
     }
+  }
+
+  Future<void> _handleRegisterPendingConfirmation(String? message) async {
+    if (!mounted) return;
+    _formKey.currentState?.reset();
+    setState(() {
+      _registerMode = false;
+      _passwordController.clear();
+      _confirmPasswordController.clear();
+      _obscurePassword = true;
+      _obscureConfirmPassword = true;
+    });
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Registrasi berhasil'),
+        content: Text(_registerSuccessMessage(message)),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Ke halaman login'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _registerSuccessMessage(String? message) {
+    final normalized = (message ?? '').trim().toLowerCase();
+    if (normalized.isEmpty ||
+        normalized.contains('email confirmation') ||
+        normalized.contains('confirm your email')) {
+      return 'Akun berhasil dibuat. Silakan cek email untuk konfirmasi, lalu login dengan akun tersebut.';
+    }
+    return message!.trim();
   }
 
   Future<void> _showAuthErrorDialog({
@@ -322,30 +359,43 @@ class _AuthCard extends StatelessWidget {
                   ),
                 ),
               ),
-              if (registerMode) ...[
-                const SizedBox(height: 16),
-                _AuthField(
-                  label: 'Konfirmasi password',
-                  controller: confirmPasswordController,
-                  palette: palette,
-                  prefixIcon: TonztoonIcons.keyRound,
-                  obscureText: obscureConfirmPassword,
-                  enabled: !submitting,
-                  validator: (value) =>
-                      _validateConfirmPassword(value, passwordController.text),
-                  suffixIcon: IconButton(
-                    tooltip: obscureConfirmPassword
-                        ? 'Tampilkan password'
-                        : 'Sembunyikan password',
-                    onPressed: submitting ? null : onToggleConfirmPassword,
-                    icon: Icon(
-                      obscureConfirmPassword
-                          ? TonztoonIcons.eyeOff
-                          : TonztoonIcons.eye,
-                    ),
-                  ),
-                ),
-              ],
+              AnimatedSize(
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOutCubic,
+                alignment: Alignment.topCenter,
+                child: registerMode
+                    ? Column(
+                        children: [
+                          const SizedBox(height: 16),
+                          _AuthField(
+                            label: 'Konfirmasi password',
+                            controller: confirmPasswordController,
+                            palette: palette,
+                            prefixIcon: TonztoonIcons.keyRound,
+                            obscureText: obscureConfirmPassword,
+                            enabled: !submitting,
+                            validator: (value) => _validateConfirmPassword(
+                              value,
+                              passwordController.text,
+                            ),
+                            suffixIcon: IconButton(
+                              tooltip: obscureConfirmPassword
+                                  ? 'Tampilkan password'
+                                  : 'Sembunyikan password',
+                              onPressed: submitting
+                                  ? null
+                                  : onToggleConfirmPassword,
+                              icon: Icon(
+                                obscureConfirmPassword
+                                    ? TonztoonIcons.eyeOff
+                                    : TonztoonIcons.eye,
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : const SizedBox.shrink(),
+              ),
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -406,8 +456,13 @@ class _AuthCard extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    GestureDetector(
-                      onTap: submitting ? null : onToggleMode,
+                    TextButton(
+                      onPressed: submitting ? null : onToggleMode,
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
                       child: Text(
                         registerMode ? 'Login' : 'Register',
                         style: theme.textTheme.bodyMedium?.copyWith(
@@ -494,20 +549,48 @@ class _AuthSubmitButton extends StatelessWidget {
   }
 }
 
-class ForgotPasswordScreen extends StatefulWidget {
+String? _validateRecoveryEmail(String? value) {
+  final email = (value ?? '').trim();
+  if (email.isEmpty) return 'Email wajib diisi.';
+  final valid = RegExp(
+    r'^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$',
+    caseSensitive: false,
+  ).hasMatch(email);
+  if (!valid) return 'Format email tidak valid.';
+  return null;
+}
+
+String? _validateNewPassword(String? value) {
+  final password = value ?? '';
+  if (password.isEmpty) return 'Password baru wajib diisi.';
+  if (password.length < 8) return 'Password minimal 8 karakter.';
+  return null;
+}
+
+String? _validateConfirmNewPassword(String? value, String password) {
+  if ((value ?? '').isEmpty) return 'Konfirmasi password wajib diisi.';
+  if (value != password) return 'Konfirmasi password tidak sama.';
+  return null;
+}
+
+class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key, this.initialEmail = ''});
 
   final String initialEmail;
 
   @override
-  State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
+  ConsumerState<ForgotPasswordScreen> createState() =>
+      _ForgotPasswordScreenState();
 }
 
-class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
+class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   late final TextEditingController _emailController = TextEditingController(
     text: widget.initialEmail,
   );
   bool _instructionSent = false;
+  bool _submitting = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
@@ -547,11 +630,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ),
                 const SizedBox(height: 26),
                 _ForgotPasswordCard(
+                  formKey: _formKey,
                   palette: palette,
                   emailController: _emailController,
                   instructionSent: _instructionSent,
-                  onSubmit: () => setState(() => _instructionSent = true),
-                  onEditEmail: () => setState(() => _instructionSent = false),
+                  submitting: _submitting,
+                  errorMessage: _errorMessage,
+                  onSubmit: _submit,
+                  onEditEmail: () => setState(() {
+                    _instructionSent = false;
+                    _errorMessage = null;
+                  }),
                 ),
                 const SizedBox(height: 18),
                 TextButton.icon(
@@ -569,6 +658,37 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _submit() async {
+    if (_submitting) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    if (_formKey.currentState?.validate() != true) return;
+
+    setState(() {
+      _submitting = true;
+      _errorMessage = null;
+    });
+    try {
+      await ref
+          .read(authRepositoryProvider)
+          .requestPasswordReset(email: _emailController.text);
+      if (!mounted) return;
+      setState(() => _instructionSent = true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _errorMessage = _authErrorMessage(error));
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
+  }
+
+  String _authErrorMessage(Object error) {
+    if (error is ApiException) return error.message;
+    final message = error.toString().trim();
+    return message.isEmpty ? 'Terjadi kesalahan. Silakan coba lagi.' : message;
   }
 }
 
@@ -601,8 +721,8 @@ class _ForgotPasswordHeader extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           instructionSent
-              ? 'Kami menyiapkan instruksi pemulihan agar kamu bisa kembali membaca dengan akun yang sama.'
-              : 'Masukkan email akun TonzToon. Kami akan menampilkan alur pengiriman instruksi reset password.',
+              ? 'Jika email terdaftar, link reset password sudah dikirim lewat Supabase Auth.'
+              : 'Masukkan email akun TonzToon. Kami akan mengirim link resmi untuk membuat password baru.',
           style: theme.textTheme.bodyMedium?.copyWith(
             color: palette.muted,
             height: 1.4,
@@ -616,16 +736,22 @@ class _ForgotPasswordHeader extends StatelessWidget {
 
 class _ForgotPasswordCard extends StatelessWidget {
   const _ForgotPasswordCard({
+    required this.formKey,
     required this.palette,
     required this.emailController,
     required this.instructionSent,
+    required this.submitting,
+    required this.errorMessage,
     required this.onSubmit,
     required this.onEditEmail,
   });
 
+  final GlobalKey<FormState> formKey;
   final _AuthPalette palette;
   final TextEditingController emailController;
   final bool instructionSent;
+  final bool submitting;
+  final String? errorMessage;
   final VoidCallback onSubmit;
   final VoidCallback onEditEmail;
 
@@ -657,8 +783,11 @@ class _ForgotPasswordCard extends StatelessWidget {
                 )
               : _ForgotPasswordForm(
                   key: const ValueKey('reset-form'),
+                  formKey: formKey,
                   palette: palette,
                   emailController: emailController,
+                  submitting: submitting,
+                  errorMessage: errorMessage,
                   onSubmit: onSubmit,
                 ),
         ),
@@ -670,57 +799,82 @@ class _ForgotPasswordCard extends StatelessWidget {
 class _ForgotPasswordForm extends StatelessWidget {
   const _ForgotPasswordForm({
     super.key,
+    required this.formKey,
     required this.palette,
     required this.emailController,
+    required this.submitting,
+    required this.errorMessage,
     required this.onSubmit,
   });
 
+  final GlobalKey<FormState> formKey;
   final _AuthPalette palette;
   final TextEditingController emailController;
+  final bool submitting;
+  final String? errorMessage;
   final VoidCallback onSubmit;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _ResetIconBadge(icon: TonztoonIcons.keyRound, palette: palette),
-        const SizedBox(height: 16),
-        Text(
-          'Reset via email',
-          style: theme.textTheme.titleLarge?.copyWith(
-            color: palette.text,
-            fontWeight: FontWeight.w900,
+    return Form(
+      key: formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _ResetIconBadge(icon: TonztoonIcons.keyRound, palette: palette),
+          const SizedBox(height: 16),
+          Text(
+            'Reset via email',
+            style: theme.textTheme.titleLarge?.copyWith(
+              color: palette.text,
+              fontWeight: FontWeight.w900,
+            ),
           ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Pastikan email masih aktif supaya instruksi reset mudah ditemukan.',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: palette.muted,
-            height: 1.4,
+          const SizedBox(height: 6),
+          Text(
+            'Pastikan email masih aktif supaya link reset mudah ditemukan.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: palette.muted,
+              height: 1.4,
+            ),
           ),
-        ),
-        const SizedBox(height: 18),
-        _AuthField(
-          label: 'Email',
-          controller: emailController,
-          palette: palette,
-          keyboardType: TextInputType.emailAddress,
-          prefixIcon: TonztoonIcons.mail,
-        ),
-        const SizedBox(height: 18),
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton.icon(
-            onPressed: onSubmit,
-            icon: const Icon(TonztoonIcons.mail),
-            label: const Text('Kirim instruksi reset'),
+          const SizedBox(height: 18),
+          _AuthField(
+            label: 'Email',
+            controller: emailController,
+            palette: palette,
+            keyboardType: TextInputType.emailAddress,
+            prefixIcon: TonztoonIcons.mail,
+            enabled: !submitting,
+            validator: _validateRecoveryEmail,
           ),
-        ),
-      ],
+          if (errorMessage != null) ...[
+            const SizedBox(height: 12),
+            _InlineAuthMessage(message: errorMessage!),
+          ],
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: submitting ? null : onSubmit,
+              icon: submitting
+                  ? SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        color: Theme.of(context).colorScheme.onPrimary,
+                      ),
+                    )
+                  : const Icon(TonztoonIcons.mail),
+              label: Text(
+                submitting ? 'Mengirim instruksi...' : 'Kirim instruksi reset',
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -748,7 +902,7 @@ class _ForgotPasswordSuccess extends StatelessWidget {
         _ResetIconBadge(icon: TonztoonIcons.badgeCheck, palette: palette),
         const SizedBox(height: 16),
         Text(
-          'Instruksi reset siap dikirim',
+          'Instruksi reset sudah dikirim',
           style: theme.textTheme.titleLarge?.copyWith(
             color: palette.text,
             fontWeight: FontWeight.w900,
@@ -756,7 +910,7 @@ class _ForgotPasswordSuccess extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          'Kami akan mengirim link pemulihan ke $targetEmail.',
+          'Jika akun $targetEmail terdaftar, link pemulihan sudah masuk ke inbox.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: palette.muted,
             height: 1.4,
@@ -881,6 +1035,561 @@ class _ResetStep extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _InlineAuthMessage extends StatelessWidget {
+  const _InlineAuthMessage({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              TonztoonIcons.warning,
+              color: colorScheme.onErrorContainer,
+              size: 18,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onErrorContainer,
+                  height: 1.35,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class ResetPasswordScreen extends ConsumerStatefulWidget {
+  const ResetPasswordScreen({
+    super.key,
+    this.initialEmail = '',
+    this.tokenHash,
+    this.accessToken,
+    this.refreshToken,
+    this.expiresAt,
+  });
+
+  final String initialEmail;
+  final String? tokenHash;
+  final String? accessToken;
+  final String? refreshToken;
+  final int? expiresAt;
+
+  @override
+  ConsumerState<ResetPasswordScreen> createState() =>
+      _ResetPasswordScreenState();
+}
+
+class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  late final TextEditingController _emailController = TextEditingController(
+    text: widget.initialEmail,
+  );
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
+
+  bool _submitting = false;
+  bool _completed = false;
+  bool _sessionReady = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+  String? _errorMessage;
+
+  bool get _hasAccessToken => (widget.accessToken ?? '').trim().isNotEmpty;
+  bool get _hasTokenHash => (widget.tokenHash ?? '').trim().isNotEmpty;
+  bool get _needsEmailForTokenHash => _hasTokenHash && !_hasAccessToken;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = _AuthPalette.fromTheme(Theme.of(context));
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      backgroundColor: palette.background,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 8),
+          child: IconButton(
+            tooltip: 'Kembali',
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(TonztoonIcons.arrowBack),
+          ),
+        ),
+      ),
+      body: SafeArea(
+        top: false,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(22, 8, 22, 28),
+              children: [
+                Image.asset(AppAssets.logoAppLarge, height: 42),
+                const SizedBox(height: 26),
+                Text(
+                  _completed ? 'Password diperbarui' : 'Buat password baru',
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    color: palette.text,
+                    fontWeight: FontWeight.w900,
+                    height: 1.06,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _completed
+                      ? 'Kamu bisa lanjut memakai akun TonzToon dengan password baru.'
+                      : 'Gunakan password baru untuk menyelesaikan proses pemulihan akun.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: palette.muted,
+                    height: 1.4,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 26),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: palette.surface,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: palette.border),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(
+                          alpha: palette.shadowAlpha,
+                        ),
+                        blurRadius: 24,
+                        offset: const Offset(0, 12),
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
+                    child: _completed
+                        ? _ResetPasswordSuccess(palette: palette)
+                        : _ResetPasswordForm(
+                            formKey: _formKey,
+                            palette: palette,
+                            emailController: _emailController,
+                            passwordController: _passwordController,
+                            confirmPasswordController:
+                                _confirmPasswordController,
+                            needsEmail: _needsEmailForTokenHash,
+                            submitting: _submitting,
+                            errorMessage: _errorMessage,
+                            obscurePassword: _obscurePassword,
+                            obscureConfirmPassword: _obscureConfirmPassword,
+                            onTogglePassword: () => setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            ),
+                            onToggleConfirmPassword: () => setState(
+                              () => _obscureConfirmPassword =
+                                  !_obscureConfirmPassword,
+                            ),
+                            onSubmit: _submit,
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                TextButton.icon(
+                  onPressed: () => context.go(
+                    ref.read(authControllerProvider).isAuthenticated
+                        ? '/settings'
+                        : '/auth',
+                  ),
+                  icon: const Icon(TonztoonIcons.login, size: 18),
+                  label: Text(_completed ? 'Lanjut ke akun' : 'Kembali'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: palette.accent,
+                    textStyle: theme.textTheme.labelLarge,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
+    if (_submitting) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    if (_formKey.currentState?.validate() != true) return;
+
+    setState(() {
+      _submitting = true;
+      _errorMessage = null;
+    });
+
+    try {
+      await _prepareRecoverySession();
+      await ref
+          .read(authControllerProvider.notifier)
+          .updatePassword(_passwordController.text);
+      if (!mounted) return;
+      setState(() => _completed = true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _errorMessage = _authErrorMessage(error));
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
+  }
+
+  Future<void> _prepareRecoverySession() async {
+    if (_sessionReady || ref.read(authControllerProvider).isAuthenticated) {
+      _sessionReady = true;
+      return;
+    }
+
+    final controller = ref.read(authControllerProvider.notifier);
+    if (_hasAccessToken) {
+      await controller.useAuthSession(
+        accessToken: widget.accessToken!.trim(),
+        refreshToken: widget.refreshToken?.trim(),
+        expiresAt: widget.expiresAt,
+      );
+    } else if (_hasTokenHash) {
+      await controller.verifyPasswordRecovery(
+        _emailController.text.trim(),
+        widget.tokenHash!.trim(),
+      );
+    } else {
+      throw ApiException(
+        'Link reset tidak lengkap. Minta link baru dari halaman lupa password.',
+      );
+    }
+
+    if (!ref.read(authControllerProvider).isAuthenticated) {
+      throw ApiException('Sesi reset password tidak valid. Minta link baru.');
+    }
+    _sessionReady = true;
+  }
+
+  String _authErrorMessage(Object error) {
+    if (error is ApiException) return error.message;
+    final message = error.toString().trim();
+    return message.isEmpty ? 'Terjadi kesalahan. Silakan coba lagi.' : message;
+  }
+}
+
+class _ResetPasswordForm extends StatelessWidget {
+  const _ResetPasswordForm({
+    required this.formKey,
+    required this.palette,
+    required this.emailController,
+    required this.passwordController,
+    required this.confirmPasswordController,
+    required this.needsEmail,
+    required this.submitting,
+    required this.errorMessage,
+    required this.obscurePassword,
+    required this.obscureConfirmPassword,
+    required this.onTogglePassword,
+    required this.onToggleConfirmPassword,
+    required this.onSubmit,
+  });
+
+  final GlobalKey<FormState> formKey;
+  final _AuthPalette palette;
+  final TextEditingController emailController;
+  final TextEditingController passwordController;
+  final TextEditingController confirmPasswordController;
+  final bool needsEmail;
+  final bool submitting;
+  final String? errorMessage;
+  final bool obscurePassword;
+  final bool obscureConfirmPassword;
+  final VoidCallback onTogglePassword;
+  final VoidCallback onToggleConfirmPassword;
+  final VoidCallback onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Form(
+      key: formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _ResetIconBadge(icon: TonztoonIcons.shieldCheck, palette: palette),
+          if (needsEmail) ...[
+            const SizedBox(height: 18),
+            _AuthField(
+              label: 'Email',
+              controller: emailController,
+              palette: palette,
+              keyboardType: TextInputType.emailAddress,
+              prefixIcon: TonztoonIcons.mail,
+              enabled: !submitting,
+              validator: _validateRecoveryEmail,
+            ),
+          ],
+          const SizedBox(height: 18),
+          _AuthField(
+            label: 'Password baru',
+            controller: passwordController,
+            palette: palette,
+            prefixIcon: TonztoonIcons.lock,
+            obscureText: obscurePassword,
+            enabled: !submitting,
+            validator: _validateNewPassword,
+            suffixIcon: IconButton(
+              tooltip: obscurePassword
+                  ? 'Tampilkan password'
+                  : 'Sembunyikan password',
+              onPressed: submitting ? null : onTogglePassword,
+              icon: Icon(
+                obscurePassword ? TonztoonIcons.eyeOff : TonztoonIcons.eye,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          _AuthField(
+            label: 'Konfirmasi password baru',
+            controller: confirmPasswordController,
+            palette: palette,
+            prefixIcon: TonztoonIcons.keyRound,
+            obscureText: obscureConfirmPassword,
+            enabled: !submitting,
+            validator: (value) =>
+                _validateConfirmNewPassword(value, passwordController.text),
+            suffixIcon: IconButton(
+              tooltip: obscureConfirmPassword
+                  ? 'Tampilkan password'
+                  : 'Sembunyikan password',
+              onPressed: submitting ? null : onToggleConfirmPassword,
+              icon: Icon(
+                obscureConfirmPassword
+                    ? TonztoonIcons.eyeOff
+                    : TonztoonIcons.eye,
+              ),
+            ),
+          ),
+          if (errorMessage != null) ...[
+            const SizedBox(height: 12),
+            _InlineAuthMessage(message: errorMessage!),
+          ],
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: submitting ? null : onSubmit,
+              icon: submitting
+                  ? SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        color: colorScheme.onPrimary,
+                      ),
+                    )
+                  : const Icon(TonztoonIcons.check),
+              label: Text(
+                submitting ? 'Memperbarui password...' : 'Simpan password baru',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ResetPasswordSuccess extends StatelessWidget {
+  const _ResetPasswordSuccess({required this.palette});
+
+  final _AuthPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _ResetIconBadge(icon: TonztoonIcons.badgeCheck, palette: palette),
+        const SizedBox(height: 16),
+        Text(
+          'Password baru tersimpan',
+          style: theme.textTheme.titleLarge?.copyWith(
+            color: palette.text,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Sesi akun sudah aktif. Kamu dapat melanjutkan membaca atau membuka pengaturan akun.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: palette.muted,
+            height: 1.4,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class AuthCallbackScreen extends ConsumerStatefulWidget {
+  const AuthCallbackScreen({
+    super.key,
+    this.accessToken,
+    this.refreshToken,
+    this.expiresAt,
+  });
+
+  final String? accessToken;
+  final String? refreshToken;
+  final int? expiresAt;
+
+  @override
+  ConsumerState<AuthCallbackScreen> createState() => _AuthCallbackScreenState();
+}
+
+class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.microtask(_completeAuthCallback);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = _AuthPalette.fromTheme(Theme.of(context));
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      backgroundColor: palette.background,
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: palette.surface,
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: palette.border),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _ResetIconBadge(
+                        icon: _errorMessage == null
+                            ? TonztoonIcons.shieldCheck
+                            : TonztoonIcons.warning,
+                        palette: palette,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        _errorMessage == null
+                            ? 'Menyelesaikan login'
+                            : 'Callback auth gagal',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          color: palette.text,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _errorMessage ??
+                            'Sebentar, kami sedang memulihkan sesi akun kamu.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: palette.muted,
+                          height: 1.4,
+                        ),
+                      ),
+                      if (_errorMessage == null) ...[
+                        const SizedBox(height: 18),
+                        const LinearProgressIndicator(),
+                      ] else ...[
+                        const SizedBox(height: 18),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: () => context.go('/auth'),
+                            icon: const Icon(TonztoonIcons.login),
+                            label: const Text('Kembali ke login'),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _completeAuthCallback() async {
+    final accessToken = widget.accessToken?.trim();
+    if (accessToken == null || accessToken.isEmpty) {
+      setState(() {
+        _errorMessage =
+            'Link auth tidak membawa sesi yang valid. Silakan login ulang.';
+      });
+      return;
+    }
+
+    try {
+      await ref
+          .read(authControllerProvider.notifier)
+          .useAuthSession(
+            accessToken: accessToken,
+            refreshToken: widget.refreshToken?.trim(),
+            expiresAt: widget.expiresAt,
+          );
+      if (!mounted) return;
+      context.go('/settings');
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = error is ApiException
+            ? error.message
+            : 'Tidak dapat memulihkan sesi. Silakan login ulang.';
+      });
+    }
   }
 }
 

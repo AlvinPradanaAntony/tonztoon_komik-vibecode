@@ -15,7 +15,6 @@ import '../../models/comic.dart';
 import '../../models/library.dart';
 import '../../models/progress.dart';
 import '../../repositories/providers.dart';
-import '../library/downloaded_scene_store.dart';
 
 class ReaderScreen extends ConsumerStatefulWidget {
   ReaderScreen({
@@ -53,6 +52,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   static const _nearbyChapterWindow = 5.0;
   static const _nearbyStatusPollInterval = Duration(seconds: 4);
   static const _nearbyStatusMaxPolls = 20;
+  static const _progressSaveDelay = Duration(milliseconds: 900);
 
   final _scrollController = ScrollController();
   final _pageController = PageController();
@@ -68,9 +68,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   Timer? _imagePrefetchTimer;
   Timer? _initialPreloadTimeoutTimer;
   Timer? _nearbyReadyTimer;
+  Timer? _progressSaveTimer;
   int _nearbyReadyPolls = 0;
   String? _initialPreloadKey;
   Future<void>? _initialPreloadFuture;
+  ReadingProgress? _pendingProgress;
+  ComicRequest? _pendingProgressRequest;
   final Set<int> _requestedPrefetchIndexes = <int>{};
   final Set<double> _announcedNearbyReadyChapters = <double>{};
   final Map<double, int> _knownNearbyPageCounts = <double, int>{};
@@ -89,6 +92,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
 
   @override
   void dispose() {
+    _flushPendingProgress();
     _flushReadingTime(deferProviderUpdate: true);
     WidgetsBinding.instance.removeObserver(this);
     _scrollController
@@ -99,6 +103,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     _imagePrefetchTimer?.cancel();
     _initialPreloadTimeoutTimer?.cancel();
     _nearbyReadyTimer?.cancel();
+    _progressSaveTimer?.cancel();
     super.dispose();
   }
 
@@ -112,6 +117,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       case AppLifecycleState.hidden:
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
+        _flushPendingProgress();
         _flushReadingTime(deferProviderUpdate: true);
     }
   }
@@ -122,6 +128,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     if (oldWidget.sourceName != widget.sourceName ||
         oldWidget.slug != widget.slug ||
         oldWidget.chapterNumber != widget.chapterNumber) {
+      _flushPendingProgress();
       _currentPage.value = 0;
       _pagedMode = false;
       _didApplyReaderPreferences = false;
@@ -136,6 +143,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       _imagePrefetchTimer?.cancel();
       _initialPreloadTimeoutTimer?.cancel();
       _nearbyReadyTimer?.cancel();
+      _progressSaveTimer?.cancel();
       if (_scrollController.hasClients) {
         _scrollController.jumpTo(0);
       }
@@ -158,6 +166,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       _currentPage.value = nextPage;
       _recordProgress(nextPage, scrollOffset: _scrollController.offset);
       _scheduleImagePrefetch();
+    } else {
+      _recordProgress(
+        nextPage,
+        scrollOffset: _scrollController.offset,
+        trackReadingTime: false,
+      );
     }
 
     if (_overlayVisible &&
@@ -226,31 +240,62 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
           slug: widget.slug,
           sourceName: widget.sourceName,
         );
+    if (comic.slug.trim().isEmpty) return;
 
-    saveDownloadedScene(
-      DownloadedSceneItem(
-        comic: comic,
-        chapterTitle: widget.chapterTitle,
-        pageNumber: page.number,
-        label: '${widget.chapterTitle} - Page ${page.number}',
-        imageUrl: page.imageUrl,
-        downloadedAt: DateTime.now(),
-      ),
+    unawaited(
+      ref
+          .read(libraryRepositoryProvider)
+          .saveFavoriteScene(
+            comic: comic,
+            chapterNumber: widget.chapterNumber,
+            pageItemIndex: page.number - 1,
+            imageUrl: page.imageUrl,
+          )
+          .then((_) {
+            ref.invalidate(favoriteScenesProvider);
+            if (!mounted) return;
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(
+                  content: Text('Page ${page.number} tersimpan ke Scene.'),
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+          })
+          .catchError((Object error) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(
+                  content: Text(error.toString()),
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+          }),
     );
-
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('Page ${page.number} tersimpan ke Scene.'),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
-      );
   }
 
-  void _recordProgress(int pageIndex, {double? scrollOffset}) {
-    _flushReadingTime(restart: true);
+  void _recordProgress(
+    int pageIndex, {
+    double? scrollOffset,
+    bool trackReadingTime = true,
+  }) {
+    if (trackReadingTime) {
+      _flushReadingTime(restart: true);
+    }
+    final progress = _buildProgress(pageIndex, scrollOffset: scrollOffset);
+    if (progress == null) return;
+    _pendingProgress = progress;
+    _pendingProgressRequest = ComicRequest(widget.sourceName, widget.slug);
+    _progressSaveTimer?.cancel();
+    _progressSaveTimer = Timer(_progressSaveDelay, _flushPendingProgress);
+  }
+
+  ReadingProgress? _buildProgress(int pageIndex, {double? scrollOffset}) {
     final comic =
         widget.comic ??
         ComicSummary(
@@ -259,26 +304,35 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
           sourceName: widget.sourceName,
           coverImageUrl: widget.comic?.coverImageUrl,
         );
-    if (comic.slug.trim().isEmpty) return;
-    final comicRequest = ComicRequest(widget.sourceName, widget.slug);
+    if (comic.slug.trim().isEmpty) return null;
+    return ReadingProgress.fromReader(
+      comic: comic,
+      chapterNumber: widget.chapterNumber,
+      readingMode: _pagedMode ? 'paged' : 'vertical',
+      scrollOffset: scrollOffset,
+      pageIndex: _pagedMode ? pageIndex : null,
+      pageItemIndex: pageIndex,
+      totalPageItems: _activePages.length,
+      isCompleted: pageIndex >= _activePages.length - 1,
+    );
+  }
+
+  void _flushPendingProgress() {
+    final progress = _pendingProgress;
+    final request = _pendingProgressRequest;
+    if (progress == null || request == null) return;
+    _pendingProgress = null;
+    _pendingProgressRequest = null;
+    _progressSaveTimer?.cancel();
+    _progressSaveTimer = null;
+
     unawaited(
       ref
           .read(progressRepositoryProvider)
-          .saveProgress(
-            ReadingProgress.fromReader(
-              comic: comic,
-              chapterNumber: widget.chapterNumber,
-              readingMode: _pagedMode ? 'paged' : 'vertical',
-              scrollOffset: scrollOffset,
-              pageIndex: _pagedMode ? pageIndex : null,
-              pageItemIndex: pageIndex,
-              totalPageItems: _activePages.length,
-              isCompleted: pageIndex >= _activePages.length - 1,
-            ),
-          )
+          .saveProgress(progress)
           .then((_) {
             if (!mounted) return;
-            ref.invalidate(progressProvider(comicRequest));
+            ref.invalidate(progressProvider(request));
             ref.invalidate(continueReadingProvider);
           })
           .catchError((_) {}),
@@ -353,6 +407,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     final payload = chapterAsync.asData?.value;
     final readerPrefs = ref.watch(readerPreferencesProvider).asData?.value;
     final chapters = ref.watch(chaptersProvider(_comicRequest));
+    final chapterItems = chapters.asData?.value;
+    final previousChapter = _previousChapter(chapterItems);
+    final nextChapter = _nextChapter(chapterItems);
     final progress = ref.watch(progressProvider(_comicRequest));
     final savedProgress = progress.asData?.value;
     final matchingProgress =
@@ -444,6 +501,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
           chapterTitle: widget.chapterTitle,
           onToggleOverlay: _toggleOverlay,
           onBack: () => context.pop(),
+          onOpenComicDetail: _openComicDetail,
           onDownloadPage: _downloadPage,
           onPageChanged: (index) {
             _currentPage.value = index;
@@ -455,9 +513,72 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
           },
           onPrevious: () => _goRelativePage(-1),
           onNext: () => _goRelativePage(1),
+          onPreviousChapter: previousChapter == null
+              ? null
+              : () => _goToChapter(previousChapter),
+          onNextChapter: nextChapter == null
+              ? null
+              : () => _goToChapter(nextChapter),
           onToggleMode: _toggleMode,
         );
       },
+    );
+  }
+
+  ChapterListItem? _previousChapter(List<ChapterListItem>? chapters) {
+    return _relativeChapter(
+      chapters,
+      (number) => number < widget.chapterNumber,
+    );
+  }
+
+  ChapterListItem? _nextChapter(List<ChapterListItem>? chapters) {
+    return _relativeChapter(
+      chapters,
+      (number) => number > widget.chapterNumber,
+    );
+  }
+
+  ChapterListItem? _relativeChapter(
+    List<ChapterListItem>? chapters,
+    bool Function(double chapterNumber) keep,
+  ) {
+    if (chapters == null || chapters.isEmpty) return null;
+    final candidates =
+        chapters.where((chapter) => keep(chapter.chapterNumber)).toList()..sort(
+          (a, b) => (a.chapterNumber - widget.chapterNumber).abs().compareTo(
+            (b.chapterNumber - widget.chapterNumber).abs(),
+          ),
+        );
+    return candidates.firstOrNull;
+  }
+
+  void _goToChapter(ChapterListItem chapter) {
+    _flushPendingProgress();
+    final comic =
+        widget.comic ??
+        ComicSummary(
+          title: widget.comicTitle,
+          slug: widget.slug,
+          sourceName: widget.sourceName,
+        );
+    context.go(
+      '/reader/${Uri.encodeComponent(widget.sourceName)}/${Uri.encodeComponent(widget.slug)}/${formatChapterNumber(chapter.chapterNumber)}',
+      extra: comic,
+    );
+  }
+
+  void _openComicDetail() {
+    final comic =
+        widget.comic ??
+        ComicSummary(
+          title: widget.comicTitle,
+          slug: widget.slug,
+          sourceName: widget.sourceName,
+        );
+    context.push(
+      '/comic/${Uri.encodeComponent(comicRouteSource(comic))}/${Uri.encodeComponent(comicRouteSlug(comic))}',
+      extra: comic,
     );
   }
 
@@ -640,10 +761,13 @@ class _ReadyReaderScaffold extends StatelessWidget {
     required this.chapterTitle,
     required this.onToggleOverlay,
     required this.onBack,
+    required this.onOpenComicDetail,
     required this.onDownloadPage,
     required this.onPageChanged,
     required this.onPrevious,
     required this.onNext,
+    required this.onPreviousChapter,
+    required this.onNextChapter,
     required this.onToggleMode,
   });
 
@@ -660,10 +784,13 @@ class _ReadyReaderScaffold extends StatelessWidget {
   final String chapterTitle;
   final VoidCallback onToggleOverlay;
   final VoidCallback onBack;
+  final VoidCallback onOpenComicDetail;
   final ValueChanged<_ReaderPageUi> onDownloadPage;
   final ValueChanged<int> onPageChanged;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
+  final VoidCallback? onPreviousChapter;
+  final VoidCallback? onNextChapter;
   final VoidCallback onToggleMode;
 
   @override
@@ -699,6 +826,7 @@ class _ReadyReaderScaffold extends StatelessWidget {
                 comicTitle: comicTitle,
                 chapterTitle: chapterTitle,
                 onBack: onBack,
+                onOpenComicDetail: onOpenComicDetail,
               ),
               _ReaderBottomBar(
                 visible: overlayVisible,
@@ -707,6 +835,8 @@ class _ReadyReaderScaffold extends StatelessWidget {
                 totalPages: activePages.length,
                 onPrevious: onPrevious,
                 onNext: onNext,
+                onPreviousChapter: onPreviousChapter,
+                onNextChapter: onNextChapter,
                 onToggleMode: onToggleMode,
               ),
             ],
@@ -810,7 +940,7 @@ class _PagedReader extends StatelessWidget {
   }
 }
 
-class _ReaderPage extends StatelessWidget {
+class _ReaderPage extends StatefulWidget {
   const _ReaderPage({
     required this.page,
     required this.onDownload,
@@ -824,11 +954,34 @@ class _ReaderPage extends StatelessWidget {
   final bool paged;
 
   @override
+  State<_ReaderPage> createState() => _ReaderPageState();
+}
+
+class _ReaderPageState extends State<_ReaderPage> {
+  var _retrySerial = 0;
+  bool _retrying = false;
+
+  Future<void> _retryImage(String url) async {
+    if (_retrying) return;
+    setState(() => _retrying = true);
+    try {
+      await ReaderImageCacheManager.instance.removeFile(url);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _retrySerial += 1;
+          _retrying = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final decoration = paged
+    final decoration = widget.paged
         ? BoxDecoration(
-            color: page.background,
+            color: widget.page.background,
             borderRadius: BorderRadius.circular(8),
             boxShadow: [
               BoxShadow(
@@ -838,16 +991,17 @@ class _ReaderPage extends StatelessWidget {
               ),
             ],
           )
-        : BoxDecoration(color: page.background);
+        : BoxDecoration(color: widget.page.background);
     final image = CachedNetworkImage(
-      imageUrl: page.imageUrl,
+      key: ValueKey('${widget.page.imageUrl}|$_retrySerial'),
+      imageUrl: widget.page.imageUrl,
       cacheManager: ReaderImageCacheManager.instance,
       width: double.infinity,
-      fit: paged ? BoxFit.contain : BoxFit.fitWidth,
+      fit: widget.paged ? BoxFit.contain : BoxFit.fitWidth,
       placeholder: (context, url) =>
-          _ImageSkeleton(height: paged ? double.infinity : 360),
+          _ImageSkeleton(height: widget.paged ? double.infinity : 360),
       errorWidget: (context, url, error) => SizedBox(
-        height: paged ? double.infinity : 260,
+        height: widget.paged ? double.infinity : 260,
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -859,11 +1013,14 @@ class _ReaderPage extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               FilledButton.icon(
-                onPressed: () {
-                  ReaderImageCacheManager.instance.removeFile(url);
-                },
-                icon: const Icon(Icons.refresh_rounded),
-                label: Text('Retry page ${page.number}'),
+                onPressed: _retrying ? null : () => _retryImage(url),
+                icon: _retrying
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh_rounded),
+                label: Text('Retry page ${widget.page.number}'),
               ),
             ],
           ),
@@ -871,17 +1028,17 @@ class _ReaderPage extends StatelessWidget {
       ),
     );
 
-    if (paged) {
+    if (widget.paged) {
       return DecoratedBox(
         decoration: decoration,
         child: AspectRatio(
-          aspectRatio: page.aspectRatio,
+          aspectRatio: widget.page.aspectRatio,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: _ReaderPageStack(
               image: image,
-              actionsVisible: actionsVisible,
-              onDownload: onDownload,
+              actionsVisible: widget.actionsVisible,
+              onDownload: widget.onDownload,
             ),
           ),
         ),
@@ -892,8 +1049,8 @@ class _ReaderPage extends StatelessWidget {
       decoration: decoration,
       child: _ReaderPageStack(
         image: image,
-        actionsVisible: actionsVisible,
-        onDownload: onDownload,
+        actionsVisible: widget.actionsVisible,
+        onDownload: widget.onDownload,
       ),
     );
   }
@@ -1043,12 +1200,14 @@ class _ReaderTopBar extends StatelessWidget {
     required this.comicTitle,
     required this.chapterTitle,
     required this.onBack,
+    required this.onOpenComicDetail,
   });
 
   final bool visible;
   final String comicTitle;
   final String chapterTitle;
   final VoidCallback onBack;
+  final VoidCallback onOpenComicDetail;
 
   @override
   Widget build(BuildContext context) {
@@ -1082,31 +1241,44 @@ class _ReaderTopBar extends StatelessWidget {
                   color: foreground,
                 ),
                 Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        comicTitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              color: foreground,
-                              fontWeight: FontWeight.w900,
+                  child: Tooltip(
+                    message: 'Buka detail komik',
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: onOpenComicDetail,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 8,
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              comicTitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(
+                                    color: foreground,
+                                    fontWeight: FontWeight.w900,
+                                  ),
                             ),
+                            const SizedBox(height: 2),
+                            Text(
+                              chapterTitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: Theme.of(
+                                context,
+                              ).textTheme.bodySmall?.copyWith(color: muted),
+                            ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        chapterTitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(
-                          context,
-                        ).textTheme.bodySmall?.copyWith(color: muted),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
                 const SizedBox(width: 54),
@@ -1127,6 +1299,8 @@ class _ReaderBottomBar extends StatelessWidget {
     required this.totalPages,
     required this.onPrevious,
     required this.onNext,
+    required this.onPreviousChapter,
+    required this.onNextChapter,
     required this.onToggleMode,
   });
 
@@ -1136,6 +1310,8 @@ class _ReaderBottomBar extends StatelessWidget {
   final int totalPages;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
+  final VoidCallback? onPreviousChapter;
+  final VoidCallback? onNextChapter;
   final VoidCallback onToggleMode;
 
   @override
@@ -1151,7 +1327,7 @@ class _ReaderBottomBar extends StatelessWidget {
     return AnimatedPositioned(
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOutCubic,
-      bottom: visible ? 0 : -132,
+      bottom: visible ? 0 : -186,
       left: 0,
       right: 0,
       child: Material(
@@ -1200,6 +1376,42 @@ class _ReaderBottomBar extends StatelessWidget {
                           tooltip: 'Halaman berikutnya',
                           onPressed: onNext,
                           icon: const Icon(TonztoonIcons.chevronRight),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: onPreviousChapter,
+                            icon: const Icon(TonztoonIcons.skipBack),
+                            label: const Text(
+                              'Ch sebelumnya',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: foreground,
+                              side: BorderSide(color: outline),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: onNextChapter,
+                            icon: const Icon(TonztoonIcons.skipForward),
+                            label: const Text(
+                              'Ch berikutnya',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: foreground,
+                              side: BorderSide(color: outline),
+                            ),
+                          ),
                         ),
                       ],
                     ),

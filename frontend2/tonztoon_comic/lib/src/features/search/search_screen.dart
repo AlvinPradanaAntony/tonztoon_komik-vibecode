@@ -35,6 +35,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   bool _gridView = false;
   bool _filterButtonActive = false;
   bool _isSearching = false;
+  bool _isFilteringResults = false;
 
   @override
   void dispose() {
@@ -75,7 +76,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             onChanged: _handleSearchChanged,
             onClear: _clearSearch,
             onFilter: _showFilterSheet,
-            filterActive: _filterButtonActive || _filters.hasActiveFilters,
+            filterActive:
+                _filterButtonActive ||
+                _isFilteringResults ||
+                _filters.hasActiveFilters,
+          ),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 160),
+            child: _isFilteringResults
+                ? const Padding(
+                    key: ValueKey('search-filter-processing'),
+                    padding: EdgeInsets.only(top: 12),
+                    child: _SearchFilterProcessingStrip(),
+                  )
+                : const SizedBox.shrink(),
           ),
           const SizedBox(height: 22),
           AnimatedSwitcher(
@@ -262,7 +276,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     setState(() => _filterButtonActive = false);
 
     if (result == null) return;
-    setState(() => _filters = result.normalized());
+    setState(() {
+      _filters = result.normalized();
+      _isFilteringResults = true;
+    });
+    await WidgetsBinding.instance.endOfFrame;
+    await Future<void>.delayed(const Duration(milliseconds: 220));
+    if (mounted) {
+      setState(() => _isFilteringResults = false);
+    }
   }
 
   Future<List<String>> _loadGenreOptions() async {
@@ -485,6 +507,48 @@ class _SearchLoadingHeader extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _SearchFilterProcessingStrip extends StatelessWidget {
+  const _SearchFilterProcessingStrip();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer.withValues(alpha: 0.58),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.16)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
+        child: Row(
+          children: [
+            SizedBox.square(
+              dimension: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.2,
+                color: colorScheme.primary,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Memproses hasil filter...',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: colorScheme.onPrimaryContainer,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

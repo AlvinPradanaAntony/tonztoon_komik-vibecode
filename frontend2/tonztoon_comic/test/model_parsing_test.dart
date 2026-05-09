@@ -1,7 +1,9 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tonztoon_comic/src/models/comic.dart';
 import 'package:tonztoon_comic/src/models/progress.dart';
 import 'package:tonztoon_comic/src/models/source_info.dart';
+import 'package:tonztoon_comic/src/widgets/comic_card.dart';
 
 void main() {
   test('comic summary parses backend list item shape', () {
@@ -21,6 +23,23 @@ void main() {
     expect(comic.sourceName, 'komiku_asia');
     expect(comic.latestChapterNumber, 201);
     expect(comic.genres.single.name, 'Action');
+  });
+
+  test('comic metadata parses string ratings and end status styling', () {
+    final detail = ComicDetail.fromJson(const {
+      'id': 1,
+      'title': 'Finished Comic',
+      'slug': 'finished-comic',
+      'source_name': 'komiku',
+      'source_url': 'https://example.test/finished-comic',
+      'status': 'End',
+      'rating': '92',
+      'total_chapters': 12,
+    });
+    final style = comicStatusStyle(const ColorScheme.light(), detail.status!);
+
+    expect(detail.rating, 9.2);
+    expect(style.color, const Color(0xFF16A34A));
   });
 
   test('source info parses backend source shape', () {

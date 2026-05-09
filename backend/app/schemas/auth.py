@@ -41,6 +41,33 @@ class AuthRefreshRequest(BaseModel):
     refresh_token: str = Field(..., min_length=1, max_length=2048)
 
 
+class AuthPasswordRecoveryRequest(BaseModel):
+    """Payload untuk mengirim email recovery password."""
+
+    email: EmailStr
+    email_redirect_to: str | None = Field(default=None, max_length=500)
+
+
+class AuthPasswordRecoveryVerifyRequest(BaseModel):
+    """Payload verifikasi token recovery dari email Supabase."""
+
+    email: EmailStr
+    token_hash: str = Field(..., min_length=1, max_length=2048)
+
+
+class AuthPasswordUpdateRequest(BaseModel):
+    """Payload update password setelah sesi recovery valid."""
+
+    password: str = Field(..., min_length=8, max_length=128)
+
+
+class AuthPasswordResetResponse(BaseModel):
+    """Response umum flow reset password."""
+
+    success: bool = True
+    message: str
+
+
 class AuthLogoutResponse(BaseModel):
     """Response logout backend."""
 

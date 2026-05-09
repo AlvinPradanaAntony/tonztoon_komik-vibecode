@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/api_client.dart';
+import '../core/app_navigation.dart';
 import '../core/config.dart';
+import '../core/download_notification_service.dart';
 import '../core/storage.dart';
 import '../core/token_store.dart';
 import '../models/auth.dart';
@@ -24,6 +26,13 @@ final configProvider = Provider<AppConfig>(
 );
 
 final localStoreProvider = Provider<LocalStore>((ref) => LocalStore());
+
+final downloadNotificationServiceProvider =
+    Provider<DownloadNotificationService>(
+      (ref) => DownloadNotificationService(
+        onOpenDownloads: openDownloadsFromNotification,
+      ),
+    );
 
 final appThemeModeProvider =
     NotifierProvider<AppThemeModeController, ThemeMode>(
@@ -260,6 +269,30 @@ class AuthController extends Notifier<AuthState> {
         .register(email: email, password: password, displayName: displayName);
   }
 
+  Future<void> verifyPasswordRecovery(String email, String tokenHash) async {
+    state = await ref
+        .read(authRepositoryProvider)
+        .verifyPasswordRecovery(email: email, tokenHash: tokenHash);
+  }
+
+  Future<void> useAuthSession({
+    required String accessToken,
+    String? refreshToken,
+    int? expiresAt,
+  }) async {
+    state = await ref
+        .read(authRepositoryProvider)
+        .useAuthSession(
+          accessToken: accessToken,
+          refreshToken: refreshToken,
+          expiresAt: expiresAt,
+        );
+  }
+
+  Future<void> updatePassword(String password) {
+    return ref.read(authRepositoryProvider).updatePassword(password: password);
+  }
+
   Future<void> logout() async {
     await ref.read(authRepositoryProvider).logout();
     state = const AuthState.guest();
@@ -462,6 +495,13 @@ final collectionsProvider = FutureProvider<List<CollectionSummary>>((ref) {
   return ref.watch(libraryRepositoryProvider).getCollections();
 });
 
+final collectionDetailProvider = FutureProvider.family<CollectionDetail, int>((
+  ref,
+  collectionId,
+) {
+  return ref.watch(libraryRepositoryProvider).getCollectionDetail(collectionId);
+});
+
 final favoriteScenesProvider = FutureProvider<List<FavoriteScene>>((ref) {
   return ref.watch(libraryRepositoryProvider).getFavoriteScenes();
 });
@@ -485,6 +525,7 @@ final offlineQueueProvider =
 
 class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
   final Map<String, CancelToken> _cancelTokens = {};
+  final Set<String> _deletedBatchIds = {};
 
   @override
   Future<List<OfflineDownloadBatch>> build() {
@@ -545,20 +586,26 @@ class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
       }
     }
     if (batch != null) {
-      await _saveBatch(
-        batch.copyWith(
-          status: 'cancelled',
-          clearCurrentChapterNumber: true,
-          lastError: 'Cancelled by user.',
-        ),
+      final cancelledBatch = batch.copyWith(
+        status: 'cancelled',
+        clearCurrentChapterNumber: true,
+        lastError: 'Cancelled by user.',
+      );
+      await _saveBatch(cancelledBatch);
+      unawaited(
+        ref
+            .read(downloadNotificationServiceProvider)
+            .showCancelled(cancelledBatch),
       );
     }
   }
 
   Future<void> deleteBatch(String batchId) async {
+    _deletedBatchIds.add(batchId);
     _cancelTokens[batchId]?.cancel('Download batch deleted.');
     _cancelTokens.remove(batchId);
     await ref.read(offlineRepositoryProvider).deleteBatch(batchId);
+    unawaited(ref.read(downloadNotificationServiceProvider).dismiss(batchId));
     await refresh();
   }
 
@@ -573,6 +620,7 @@ class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
       clearLastError: true,
     );
     await _saveBatch(batch);
+    unawaited(ref.read(downloadNotificationServiceProvider).showStarted(batch));
 
     try {
       final startIndex = batch.completedChapters.clamp(
@@ -585,12 +633,17 @@ class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
         chapterIndex++
       ) {
         if (token.isCancelled) {
-          await _saveBatch(
-            batch.copyWith(
-              status: 'cancelled',
-              clearCurrentChapterNumber: true,
-              lastError: 'Cancelled by user.',
-            ),
+          if (_deletedBatchIds.contains(initialBatch.id)) return;
+          final cancelledBatch = batch.copyWith(
+            status: 'cancelled',
+            clearCurrentChapterNumber: true,
+            lastError: 'Cancelled by user.',
+          );
+          await _saveBatch(cancelledBatch);
+          unawaited(
+            ref
+                .read(downloadNotificationServiceProvider)
+                .showCancelled(cancelledBatch),
           );
           return;
         }
@@ -608,6 +661,9 @@ class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
             progressValue: (chapterIndex + 1) / batch.totalChapters,
           );
           await _saveBatch(batch);
+          unawaited(
+            ref.read(downloadNotificationServiceProvider).showProgress(batch),
+          );
           continue;
         }
         batch = batch.copyWith(
@@ -617,6 +673,9 @@ class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
           progressValue: chapterIndex / batch.totalChapters,
         );
         await _saveBatch(batch);
+        unawaited(
+          ref.read(downloadNotificationServiceProvider).showProgress(batch),
+        );
 
         final payload = await ref
             .read(catalogRepositoryProvider)
@@ -628,8 +687,11 @@ class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
         final totalPages = payload.images.length;
         batch = batch.copyWith(totalImages: totalPages);
         await _saveBatch(batch);
+        unawaited(
+          ref.read(downloadNotificationServiceProvider).showProgress(batch),
+        );
 
-        await ref
+        final downloaded = await ref
             .read(offlineRepositoryProvider)
             .downloadChapter(
               comic: batch.comic.toSummary(),
@@ -652,44 +714,86 @@ class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
                   progressValue: overall,
                 );
                 unawaited(_saveBatch(live));
+                unawaited(
+                  ref
+                      .read(downloadNotificationServiceProvider)
+                      .showProgress(live),
+                );
               },
             );
+        if (token.isCancelled || downloaded.status == 'cancelled') {
+          if (_deletedBatchIds.contains(initialBatch.id)) return;
+          final cancelledBatch = batch.copyWith(
+            status: 'cancelled',
+            clearCurrentChapterNumber: true,
+            lastError: 'Cancelled by user.',
+          );
+          await _saveBatch(cancelledBatch);
+          unawaited(
+            ref
+                .read(downloadNotificationServiceProvider)
+                .showCancelled(cancelledBatch),
+          );
+          return;
+        }
+        if (!downloaded.isCompleted) {
+          throw ApiException(downloaded.lastError ?? 'Download gagal.');
+        }
 
         batch = batch.copyWith(
           completedChapters: chapterIndex + 1,
           progressValue: (chapterIndex + 1) / batch.totalChapters,
         );
         await _saveBatch(batch);
+        unawaited(
+          ref.read(downloadNotificationServiceProvider).showProgress(batch),
+        );
         ref.invalidate(offlineChaptersProvider);
       }
 
-      await _saveBatch(
-        batch.copyWith(
-          status: 'completed',
-          completedChapters: batch.totalChapters,
-          progressValue: 1,
-          clearCurrentChapterNumber: true,
-        ),
+      final completedBatch = batch.copyWith(
+        status: 'completed',
+        completedChapters: batch.totalChapters,
+        progressValue: 1,
+        clearCurrentChapterNumber: true,
+      );
+      await _saveBatch(completedBatch);
+      unawaited(
+        ref
+            .read(downloadNotificationServiceProvider)
+            .showCompleted(completedBatch),
       );
     } on DioException catch (error) {
       final cancelled = CancelToken.isCancel(error);
-      await _saveBatch(
-        batch.copyWith(
-          status: cancelled ? 'cancelled' : 'failed',
-          clearCurrentChapterNumber: true,
-          lastError: error.message ?? error.toString(),
-        ),
+      if (cancelled && _deletedBatchIds.contains(initialBatch.id)) return;
+      final failedBatch = batch.copyWith(
+        status: cancelled ? 'cancelled' : 'failed',
+        clearCurrentChapterNumber: true,
+        lastError: error.message ?? error.toString(),
+      );
+      await _saveBatch(failedBatch);
+      unawaited(
+        cancelled
+            ? ref
+                  .read(downloadNotificationServiceProvider)
+                  .showCancelled(failedBatch)
+            : ref
+                  .read(downloadNotificationServiceProvider)
+                  .showFailed(failedBatch),
       );
     } catch (error) {
-      await _saveBatch(
-        batch.copyWith(
-          status: 'failed',
-          clearCurrentChapterNumber: true,
-          lastError: error.toString(),
-        ),
+      final failedBatch = batch.copyWith(
+        status: 'failed',
+        clearCurrentChapterNumber: true,
+        lastError: error.toString(),
+      );
+      await _saveBatch(failedBatch);
+      unawaited(
+        ref.read(downloadNotificationServiceProvider).showFailed(failedBatch),
       );
     } finally {
       _cancelTokens.remove(initialBatch.id);
+      _deletedBatchIds.remove(initialBatch.id);
       ref.invalidate(offlineChaptersProvider);
       ref.invalidate(downloadsProvider);
     }

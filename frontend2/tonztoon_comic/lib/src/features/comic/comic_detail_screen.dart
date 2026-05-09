@@ -8,6 +8,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/app_icons.dart';
 import '../../models/comic.dart';
+import '../../models/library.dart';
+import '../../models/progress.dart';
 import '../../repositories/providers.dart';
 import '../../widgets/app_async_view.dart';
 import '../../widgets/app_loading_placeholder.dart';
@@ -41,6 +43,9 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
   late final ScrollController _scrollController;
   double _collapseProgress = 0;
   ValueNotifier<double>? _collapseProgressNotifier;
+  bool _bookmarkBusy = false;
+  bool _collectionBusy = false;
+  bool _downloadBusy = false;
 
   ValueNotifier<double> get _toolbarProgress =>
       _collapseProgressNotifier ??= ValueNotifier<double>(_collapseProgress);
@@ -77,6 +82,7 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
     final request = ComicRequest(widget.sourceName, widget.slug);
     final detailAsync = ref.watch(comicDetailProvider(request));
     final chaptersAsync = ref.watch(chaptersProvider(request));
+    final progressAsync = ref.watch(progressProvider(request));
     final detailPayload = detailAsync.asData?.value;
     if (detailPayload == null) {
       return Scaffold(
@@ -98,6 +104,16 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
     );
     final detail = _ComicDetailUi.fromDetail(detailPayload).copyWith(
       chapters: chapterItems?.map(_ChapterUi.fromChapterItem).toList(),
+    );
+    final comic = detailPayload.toSummary();
+    final libraryStateAsync = ref.watch(libraryComicStateProvider(comic));
+    final libraryState = libraryStateAsync.asData?.value;
+    final progress = progressAsync.asData?.value ?? libraryState?.progress;
+    final downloadState = _ComicDownloadState.from(
+      comic: comic,
+      libraryState: libraryState,
+      offlineChapters: ref.watch(offlineChaptersProvider).asData?.value,
+      queue: ref.watch(offlineQueueProvider).asData?.value,
     );
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -121,6 +137,14 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
           onRefresh: () async {
             ref.invalidate(comicDetailProvider(request));
             ref.invalidate(chaptersProvider(request));
+            ref.invalidate(progressProvider(request));
+            ref.invalidate(libraryComicStateProvider(comic));
+            await Future.wait([
+              ref.read(comicDetailProvider(request).future),
+              ref.read(chaptersProvider(request).future),
+              ref.read(progressProvider(request).future),
+              ref.read(libraryComicStateProvider(comic).future),
+            ]);
           },
           child: CustomScrollView(
             controller: _scrollController,
@@ -178,9 +202,13 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
                   Padding(
                     padding: const EdgeInsets.only(right: 12),
                     child: _GlassIconButton(
-                      tooltip: 'Simpan',
-                      icon: TonztoonIcons.bookmark,
-                      onPressed: () {},
+                      tooltip: libraryState?.bookmarked == true
+                          ? 'Hapus bookmark'
+                          : 'Simpan bookmark',
+                      icon: libraryState?.bookmarked == true
+                          ? TonztoonIcons.bookmarkFilled
+                          : TonztoonIcons.bookmark,
+                      onPressed: () => _toggleBookmark(comic, libraryState),
                     ),
                   ),
                 ],
@@ -272,10 +300,395 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
         bottomNavigationBar: _BottomReadBar(
           detail: detail,
           chaptersLoading: chaptersLoading,
+          progress: progress,
+          downloadState: downloadState,
+          downloadBusy: _downloadBusy,
+          collectionBusy: _collectionBusy,
+          onDownload: chapterItems == null || chapterItems.isEmpty
+              ? null
+              : () => _showDownloadSheet(comic, chapterItems, downloadState),
+          onManageCollections: () => _showCollectionSheet(comic, libraryState),
+          onContinueReading: () => _continueReading(detail, progress),
         ),
       ),
     );
   }
+
+  void _continueReading(_ComicDetailUi detail, ReadingProgress? progress) {
+    final chapter = _continueChapter(detail, progress);
+    if (chapter == null) {
+      _showSnack('Chapter belum tersedia.');
+      return;
+    }
+    _openReader(context, detail, chapter);
+  }
+
+  Future<void> _toggleBookmark(
+    ComicSummary comic,
+    LibraryComicState? currentState,
+  ) async {
+    if (_bookmarkBusy) return;
+    setState(() => _bookmarkBusy = true);
+    try {
+      final LibraryComicState state =
+          currentState ??
+          await ref.read(libraryComicStateProvider(comic).future);
+      final bookmarked = await ref
+          .read(libraryRepositoryProvider)
+          .toggleBookmark(comic, state.bookmarked);
+      ref.invalidate(libraryComicStateProvider(comic));
+      ref.invalidate(bookmarksProvider);
+      _showSnack(bookmarked ? 'Bookmark disimpan.' : 'Bookmark dihapus.');
+    } catch (error) {
+      _showSnack(error.toString());
+    } finally {
+      if (mounted) setState(() => _bookmarkBusy = false);
+    }
+  }
+
+  Future<void> _showCollectionSheet(
+    ComicSummary comic,
+    LibraryComicState? currentState,
+  ) async {
+    if (_collectionBusy) return;
+    setState(() => _collectionBusy = true);
+    try {
+      final LibraryComicState state =
+          currentState ??
+          await ref.read(libraryComicStateProvider(comic).future);
+      final collections = await ref.read(collectionsProvider.future);
+      final selectedIds = state.collections.map((item) => item.id).toSet();
+      if (!mounted) return;
+      final result = await _showCollectionPicker(
+        context,
+        collections: collections,
+        selectedIds: selectedIds,
+        onCreate: () async {
+          final name = await _showCollectionNameDialog(context);
+          if (name == null || name.trim().isEmpty) return null;
+          final created = await ref
+              .read(libraryRepositoryProvider)
+              .createCollection(name);
+          ref.invalidate(collectionsProvider);
+          return created;
+        },
+      );
+      if (!mounted || result == null) return;
+
+      await ref
+          .read(libraryRepositoryProvider)
+          .setComicCollections(comic, result);
+      ref.invalidate(libraryComicStateProvider(comic));
+      ref.invalidate(collectionsProvider);
+      _showSnack('Koleksi diperbarui.');
+    } catch (error) {
+      if (mounted) _showSnack(error.toString());
+    } finally {
+      if (mounted) setState(() => _collectionBusy = false);
+    }
+  }
+
+  Future<void> _showDownloadSheet(
+    ComicSummary comic,
+    List<ChapterListItem> chapters,
+    _ComicDownloadState downloadState,
+  ) async {
+    if (_downloadBusy) return;
+    final available = chapters
+        .where(
+          (chapter) => !downloadState.knownChapterNumbers.contains(
+            chapter.chapterNumber,
+          ),
+        )
+        .toList();
+    if (available.isEmpty) {
+      _showSnack('Semua chapter yang tersedia sudah masuk offline/antrean.');
+      return;
+    }
+
+    final selected = await _showDownloadPicker(
+      context,
+      chapters: available,
+      skippedCount: chapters.length - available.length,
+    );
+    if (!mounted || selected == null || selected.isEmpty) return;
+
+    setState(() => _downloadBusy = true);
+    try {
+      await ref
+          .read(offlineQueueProvider.notifier)
+          .startBatch(comic: comic, chapters: selected);
+      ref.invalidate(downloadsProvider);
+      ref.invalidate(offlineQueueProvider);
+      ref.invalidate(libraryComicStateProvider(comic));
+      _showSnack('${selected.length} chapter masuk antrean offline.');
+    } catch (error) {
+      _showSnack(error.toString());
+    } finally {
+      if (mounted) setState(() => _downloadBusy = false);
+    }
+  }
+
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+      );
+  }
+}
+
+Future<Set<int>?> _showCollectionPicker(
+  BuildContext context, {
+  required List<CollectionSummary> collections,
+  required Set<int> selectedIds,
+  required Future<CollectionSummary?> Function() onCreate,
+}) {
+  var items = [...collections];
+  final selected = {...selectedIds};
+  const collectionTileExtent = 72.0;
+
+  return showModalBottomSheet<Set<int>>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    useSafeArea: true,
+    requestFocus: false,
+    backgroundColor: Theme.of(context).colorScheme.surface,
+    clipBehavior: Clip.antiAlias,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+    ),
+    builder: (context) {
+      return StatefulBuilder(
+        builder: (context, setModalState) {
+          final theme = Theme.of(context);
+          final colorScheme = theme.colorScheme;
+
+          return SafeArea(
+            top: false,
+            child: FractionallySizedBox(
+              heightFactor: 0.45,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Tambah ke koleksi',
+                            style: theme.textTheme.titleLarge,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Tutup',
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(TonztoonIcons.close),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                    child: TextButton.icon(
+                      onPressed: () async {
+                        try {
+                          final created = await onCreate();
+                          if (created == null || !context.mounted) return;
+                          setModalState(() {
+                            items = [created, ...items];
+                            selected.add(created.id);
+                          });
+                        } catch (error) {
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(error.toString())),
+                          );
+                        }
+                      },
+                      icon: const Icon(TonztoonIcons.plus),
+                      label: const Text('Buat koleksi baru'),
+                    ),
+                  ),
+                  Expanded(
+                    child: items.isEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                              child: Text(
+                                'Belum ada koleksi tersimpan.',
+                                style: theme.textTheme.bodyMedium,
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          )
+                        : LayoutBuilder(
+                            builder: (context, constraints) {
+                              final contentHeight =
+                                  (items.length * collectionTileExtent) + 10;
+                              final shouldScroll =
+                                  contentHeight > constraints.maxHeight;
+
+                              return ListView.builder(
+                                padding: const EdgeInsets.fromLTRB(0, 0, 0, 10),
+                                physics: shouldScroll
+                                    ? null
+                                    : const NeverScrollableScrollPhysics(),
+                                itemExtent: collectionTileExtent,
+                                itemCount: items.length,
+                                itemBuilder: (context, index) {
+                                  final collection = items[index];
+                                  return CheckboxListTile(
+                                    value: selected.contains(collection.id),
+                                    onChanged: (value) {
+                                      setModalState(() {
+                                        if (value == true) {
+                                          selected.add(collection.id);
+                                        } else {
+                                          selected.remove(collection.id);
+                                        }
+                                      });
+                                    },
+                                    title: Text(collection.name),
+                                    subtitle: Text(
+                                      '${collection.totalItems} komik tersimpan',
+                                    ),
+                                    secondary: const Icon(
+                                      TonztoonIcons.library,
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                  ),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: colorScheme.surface,
+                      border: Border(
+                        top: BorderSide(color: colorScheme.outlineVariant),
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: const Text('Batal'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: () =>
+                                  Navigator.of(context).pop(selected),
+                              icon: const Icon(TonztoonIcons.check),
+                              label: const Text('Simpan'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
+Future<String?> _showCollectionNameDialog(BuildContext context) {
+  var value = '';
+  return showDialog<String>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Koleksi baru'),
+      content: TextFormField(
+        autofocus: true,
+        decoration: const InputDecoration(
+          labelText: 'Nama koleksi',
+          hintText: 'Contoh: Favorit Utama',
+        ),
+        textInputAction: TextInputAction.done,
+        onChanged: (text) => value = text,
+        onFieldSubmitted: (text) => Navigator.of(context).pop(text),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Batal'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(value),
+          child: const Text('Buat'),
+        ),
+      ],
+    ),
+  );
+}
+
+Future<List<ChapterListItem>?> _showDownloadPicker(
+  BuildContext context, {
+  required List<ChapterListItem> chapters,
+  required int skippedCount,
+}) {
+  final latestFive = chapters.take(5).toList();
+
+  return showModalBottomSheet<List<ChapterListItem>>(
+    context: context,
+    showDragHandle: true,
+    builder: (context) {
+      return SafeArea(
+        top: false,
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+          children: [
+            Text(
+              'Unduh offline',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            if (skippedCount > 0) ...[
+              const SizedBox(height: 6),
+              Text(
+                '$skippedCount chapter dilewati karena sudah offline atau sedang antre.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+            const SizedBox(height: 10),
+            ListTile(
+              leading: const Icon(TonztoonIcons.download),
+              title: Text(chapters.first.title ?? 'Chapter terbaru'),
+              subtitle: const Text('Masukkan satu chapter ke antrean'),
+              onTap: () => Navigator.of(context).pop([chapters.first]),
+            ),
+            if (latestFive.length > 1)
+              ListTile(
+                leading: const Icon(TonztoonIcons.list),
+                title: const Text('5 chapter terbaru'),
+                subtitle: Text('${latestFive.length} chapter masuk antrean'),
+                onTap: () => Navigator.of(context).pop(latestFive),
+              ),
+            if (chapters.length > latestFive.length)
+              ListTile(
+                leading: const Icon(TonztoonIcons.bookMarked),
+                title: const Text('Semua chapter'),
+                subtitle: Text('${chapters.length} chapter masuk antrean'),
+                onTap: () => Navigator.of(context).pop(chapters),
+              ),
+          ],
+        ),
+      );
+    },
+  );
 }
 
 class _DetailHero extends StatelessWidget {
@@ -413,29 +826,44 @@ class _ComicDetailLoadingPlaceholder extends StatelessWidget {
                 ),
                 SafeArea(
                   bottom: false,
-                  child: Align(
-                    alignment: Alignment.bottomCenter,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 14, 24, 46),
-                      child: AppShimmer(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            AppShimmerBlock(
-                              width: 104,
-                              height: 30,
-                              borderRadius: 18,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      const verticalPadding = 60.0;
+                      const badgeHeight = 30.0;
+                      const gap = 12.0;
+                      final coverHeight =
+                          (constraints.maxHeight -
+                                  verticalPadding -
+                                  badgeHeight -
+                                  gap)
+                              .clamp(180.0, 268.0)
+                              .toDouble();
+
+                      return Align(
+                        alignment: Alignment.bottomCenter,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 14, 24, 46),
+                          child: AppShimmer(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const AppShimmerBlock(
+                                  width: 104,
+                                  height: badgeHeight,
+                                  borderRadius: 18,
+                                ),
+                                const SizedBox(height: gap),
+                                AppShimmerBlock(
+                                  width: 182,
+                                  height: coverHeight,
+                                  borderRadius: 12,
+                                ),
+                              ],
                             ),
-                            SizedBox(height: 12),
-                            AppShimmerBlock(
-                              width: 182,
-                              height: 268,
-                              borderRadius: 12,
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
                 ),
               ],
@@ -837,7 +1265,7 @@ class _TitleBlock extends StatelessWidget {
             runSpacing: 8,
             children: [
               _TypeInfoPill(type: detail.type),
-              _InfoPill(icon: TonztoonIcons.clock, label: detail.status),
+              _StatusInfoPill(status: detail.status),
               _InfoPill(
                 icon: TonztoonIcons.starFilled,
                 label: detail.rating,
@@ -1131,21 +1559,44 @@ class _ChapterRow extends StatelessWidget {
 }
 
 class _BottomReadBar extends StatelessWidget {
-  const _BottomReadBar({required this.detail, required this.chaptersLoading});
+  const _BottomReadBar({
+    required this.detail,
+    required this.chaptersLoading,
+    required this.progress,
+    required this.downloadState,
+    required this.downloadBusy,
+    required this.collectionBusy,
+    required this.onDownload,
+    required this.onManageCollections,
+    required this.onContinueReading,
+  });
 
   final _ComicDetailUi detail;
   final bool chaptersLoading;
+  final ReadingProgress? progress;
+  final _ComicDownloadState downloadState;
+  final bool downloadBusy;
+  final bool collectionBusy;
+  final VoidCallback? onDownload;
+  final VoidCallback onManageCollections;
+  final VoidCallback onContinueReading;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final hasChapters = detail.chapters.isNotEmpty;
     final canRead = hasChapters && !chaptersLoading;
+    final continueChapter = _continueChapter(detail, progress);
+    final downloadTooltip = downloadState.label ?? 'Unduh';
+    final hasReadingProgress = progress != null;
+    final readProgress = _readingProgressFraction(progress);
     final readLabel = chaptersLoading
         ? 'Memuat chapter...'
-        : hasChapters
-        ? 'Baca ${detail.firstChapterLabel}'
-        : 'Chapter belum tersedia';
+        : progress == null
+        ? hasChapters
+              ? 'Baca ${continueChapter?.title ?? detail.firstChapterLabel}'
+              : 'Chapter belum tersedia'
+        : 'Lanjut ${continueChapter?.title ?? 'Chapter ${formatChapterNumber(progress!.chapterNumber)}'}';
 
     return SafeArea(
       top: false,
@@ -1165,35 +1616,256 @@ class _BottomReadBar extends StatelessWidget {
         child: Row(
           children: [
             IconButton.filledTonal(
-              tooltip: 'Unduh',
-              onPressed: () {},
-              icon: const Icon(TonztoonIcons.download),
+              tooltip: downloadTooltip,
+              onPressed: downloadBusy ? null : onDownload,
+              icon: downloadBusy
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(downloadState.icon),
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: FilledButton.icon(
-                onPressed: canRead
-                    ? () {
-                        _openReader(context, detail, detail.chapters.first);
-                      }
-                    : null,
-                icon: Icon(
-                  chaptersLoading ? TonztoonIcons.clock : TonztoonIcons.play,
-                ),
-                label: Text(readLabel),
-              ),
+              child: hasReadingProgress
+                  ? _ProgressReadButton(
+                      onPressed: canRead ? onContinueReading : null,
+                      icon: chaptersLoading
+                          ? TonztoonIcons.clock
+                          : TonztoonIcons.play,
+                      label: readLabel,
+                      progress: readProgress,
+                    )
+                  : FilledButton.icon(
+                      onPressed: canRead ? onContinueReading : null,
+                      icon: Icon(
+                        chaptersLoading
+                            ? TonztoonIcons.clock
+                            : TonztoonIcons.play,
+                      ),
+                      label: Text(readLabel),
+                    ),
             ),
             const SizedBox(width: 10),
             IconButton.filledTonal(
-              tooltip: 'Bagikan',
-              onPressed: () {},
-              icon: const Icon(TonztoonIcons.share),
+              tooltip: 'Tambah ke koleksi',
+              onPressed: collectionBusy ? null : onManageCollections,
+              icon: collectionBusy
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(TonztoonIcons.library),
             ),
           ],
         ),
       ),
     );
   }
+}
+
+class _ProgressReadButton extends StatelessWidget {
+  const _ProgressReadButton({
+    required this.onPressed,
+    required this.icon,
+    required this.label,
+    required this.progress,
+  });
+
+  final VoidCallback? onPressed;
+  final IconData icon;
+  final String label;
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final enabled = onPressed != null;
+    final value = enabled ? progress.clamp(0, 1).toDouble() : 0.0;
+    final backgroundColor = enabled
+        ? colorScheme.primaryContainer
+        : colorScheme.surfaceContainerHighest;
+    final foregroundColor = enabled
+        ? colorScheme.onPrimaryContainer
+        : colorScheme.onSurface.withValues(alpha: 0.38);
+    final fillColor = colorScheme.primary.withValues(
+      alpha: value >= 0.98 ? 1 : 0.32,
+    );
+    final filledForegroundColor = value >= 0.98
+        ? colorScheme.onPrimary
+        : foregroundColor;
+
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: label,
+      value: value > 0 ? '${(value * 100).round()}% terbaca' : null,
+      child: Material(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onPressed,
+          child: SizedBox(
+            height: 48,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (value > 0)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: AnimatedFractionallySizedBox(
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeOutCubic,
+                      widthFactor: value,
+                      heightFactor: 1,
+                      child: ColoredBox(color: fillColor),
+                    ),
+                  ),
+                if (value > 0 && value < 0.98)
+                  Align(
+                    alignment: Alignment.bottomLeft,
+                    child: AnimatedFractionallySizedBox(
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeOutCubic,
+                      widthFactor: value,
+                      heightFactor: 1,
+                      child: SizedBox(
+                        height: 4,
+                        child: ColoredBox(color: colorScheme.primary),
+                      ),
+                    ),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(icon, size: 18, color: filledForegroundColor),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: filledForegroundColor,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ComicDownloadState {
+  const _ComicDownloadState({
+    required this.offlineCount,
+    required this.queuedCount,
+    required this.syncedCount,
+    required this.knownChapterNumbers,
+  });
+
+  factory _ComicDownloadState.from({
+    required ComicSummary comic,
+    required LibraryComicState? libraryState,
+    required List<OfflineChapter>? offlineChapters,
+    required List<OfflineDownloadBatch>? queue,
+  }) {
+    final comicKey = _comicKey(comic.sourceName, comic.slug);
+    final knownChapterNumbers = <double>{};
+    final offlineCount = (offlineChapters ?? const <OfflineChapter>[])
+        .where(
+          (chapter) =>
+              _comicKey(chapter.comic.sourceName, chapter.comic.slug) ==
+              comicKey,
+        )
+        .where((chapter) {
+          if (chapter.isCompleted) {
+            knownChapterNumbers.add(chapter.chapterNumber);
+            return true;
+          }
+          return false;
+        })
+        .length;
+    final queuedCount = (queue ?? const <OfflineDownloadBatch>[])
+        .where(
+          (batch) =>
+              _comicKey(batch.comic.sourceName, batch.comic.slug) == comicKey,
+        )
+        .where(
+          (batch) => batch.status != 'completed' && batch.status != 'cancelled',
+        )
+        .fold<int>(0, (count, batch) {
+          knownChapterNumbers.addAll(batch.chapterNumbers);
+          return count + batch.chapterNumbers.length;
+        });
+    final syncedEntries =
+        libraryState?.downloadEntries ?? const <DownloadEntry>[];
+    for (final entry in syncedEntries) {
+      knownChapterNumbers.add(entry.chapterNumber);
+    }
+
+    return _ComicDownloadState(
+      offlineCount: offlineCount,
+      queuedCount: queuedCount,
+      syncedCount: syncedEntries.length,
+      knownChapterNumbers: knownChapterNumbers,
+    );
+  }
+
+  final int offlineCount;
+  final int queuedCount;
+  final int syncedCount;
+  final Set<double> knownChapterNumbers;
+
+  IconData get icon {
+    if (offlineCount > 0) return TonztoonIcons.badgeCheckFilled;
+    if (queuedCount > 0 || syncedCount > 0) return TonztoonIcons.clock;
+    return TonztoonIcons.download;
+  }
+
+  String? get label {
+    if (offlineCount > 0) return '$offlineCount chapter tersedia offline';
+    if (queuedCount > 0) return '$queuedCount chapter dalam antrean offline';
+    if (syncedCount > 0) return '$syncedCount chapter punya status download';
+    return null;
+  }
+}
+
+String _comicKey(String sourceName, String slug) => '$sourceName|$slug';
+
+double _readingProgressFraction(ReadingProgress? progress) {
+  if (progress == null) return 0;
+  if (progress.isCompleted) return 1;
+  final total = progress.totalPageItems;
+  if (total == null || total <= 0) return 0;
+  final currentIndex =
+      progress.lastReadPageItemIndex ?? progress.pageIndex ?? 0;
+  return ((currentIndex + 1) / total).clamp(0, 1).toDouble();
+}
+
+_ChapterUi? _continueChapter(_ComicDetailUi detail, ReadingProgress? progress) {
+  if (detail.chapters.isEmpty) return null;
+  if (progress == null) return detail.chapters.first;
+  for (final chapter in detail.chapters) {
+    if (chapter.chapterNumber == progress.chapterNumber) return chapter;
+  }
+  return _ChapterUi(
+    title: 'Chapter ${formatChapterNumber(progress.chapterNumber)}',
+    subtitle: 'Lanjutkan bacaan terakhir',
+    chapterNumber: progress.chapterNumber,
+  );
 }
 
 void _openReader(
@@ -1367,6 +2039,18 @@ class _InfoPill extends StatelessWidget {
   }
 }
 
+class _StatusInfoPill extends StatelessWidget {
+  const _StatusInfoPill({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = comicStatusStyle(Theme.of(context).colorScheme, status);
+    return _InfoPill(icon: style.icon, label: status, accent: style.color);
+  }
+}
+
 class _TypeInfoPill extends StatelessWidget {
   const _TypeInfoPill({required this.type});
 
@@ -1470,7 +2154,7 @@ class _ComicDetailUi {
       status: detail.status?.trim().isNotEmpty == true
           ? detail.status!.trim()
           : 'Ongoing',
-      rating: detail.rating == null ? '0.0' : detail.rating!.toStringAsFixed(1),
+      rating: detail.rating == null ? '-' : detail.rating!.toStringAsFixed(1),
       author: detail.author?.trim().isNotEmpty == true
           ? detail.author!.trim()
           : 'Tidak diketahui',

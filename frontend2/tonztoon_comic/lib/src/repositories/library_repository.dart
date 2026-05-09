@@ -64,11 +64,15 @@ class LibraryRepository {
     if (await _isLoggedIn) {
       final response = await _api.get<List<dynamic>>('/library/bookmarks');
       return (response.data ?? const [])
-          .whereType<Map<String, dynamic>>()
+          .whereType<Map>()
           .map(
-            (json) => LibraryComicRef.fromJson(
-              json['comic'] as Map<String, dynamic>? ?? const {},
-            ),
+            (json) {
+              final comicRaw = json['comic'];
+              final comic = comicRaw is Map
+                  ? Map<String, dynamic>.from(comicRaw)
+                  : const <String, dynamic>{};
+              return LibraryComicRef.fromJson(comic);
+            },
           )
           .toList();
     }
@@ -104,8 +108,8 @@ class LibraryRepository {
     if (await _isLoggedIn) {
       final response = await _api.get<List<dynamic>>('/library/collections');
       return (response.data ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .map(CollectionSummary.fromJson)
+          .whereType<Map>()
+          .map((item) => CollectionSummary.fromJson(Map<String, dynamic>.from(item)))
           .toList();
     }
     return _localCollections()
@@ -117,6 +121,23 @@ class LibraryRepository {
           ),
         )
         .toList();
+  }
+
+  Future<CollectionDetail> getCollectionDetail(int collectionId) async {
+    if (await _isLoggedIn) {
+      final response = await _api.get<Map<String, dynamic>>(
+        '/library/collections/$collectionId',
+      );
+      return CollectionDetail.fromJson(response.data ?? const {});
+    }
+
+    final collection = _localCollections()
+        .where((item) => item.id == collectionId)
+        .firstOrNull;
+    if (collection == null) {
+      throw ApiException('Collection not found.');
+    }
+    return collection;
   }
 
   Future<CollectionDetail> createCollection(String name) async {
@@ -246,14 +267,73 @@ class LibraryRepository {
     await _saveLocalCollections(updated);
   }
 
+  Future<CollectionDetail> addComicToCollection(
+    int collectionId,
+    ComicSummary comic,
+  ) async {
+    if (await _isLoggedIn) {
+      final response = await _api.put<Map<String, dynamic>>(
+        '/library/collections/$collectionId/comics/${comic.sourceName}/${comic.slug}',
+      );
+      return CollectionDetail.fromJson(response.data ?? const {});
+    }
+
+    final collections = _localCollections();
+    final index = collections.indexWhere((item) => item.id == collectionId);
+    if (index < 0) {
+      throw ApiException('Collection not found.');
+    }
+    final current = collections[index];
+    final items = current.items.where((item) => item.key != comic.key).toList()
+      ..add(LibraryComicRef.fromSummary(comic));
+    final updated = CollectionDetail(
+      id: current.id,
+      name: current.name,
+      totalItems: items.length,
+      items: items,
+    );
+    collections[index] = updated;
+    await _saveLocalCollections(collections);
+    return updated;
+  }
+
+  Future<CollectionDetail> removeComicFromCollection(
+    int collectionId,
+    ComicSummary comic,
+  ) async {
+    if (await _isLoggedIn) {
+      final response = await _api.delete<Map<String, dynamic>>(
+        '/library/collections/$collectionId/comics/${comic.sourceName}/${comic.slug}',
+      );
+      return CollectionDetail.fromJson(response.data ?? const {});
+    }
+
+    final collections = _localCollections();
+    final index = collections.indexWhere((item) => item.id == collectionId);
+    if (index < 0) {
+      throw ApiException('Collection not found.');
+    }
+    final current = collections[index];
+    final items = current.items.where((item) => item.key != comic.key).toList();
+    final updated = CollectionDetail(
+      id: current.id,
+      name: current.name,
+      totalItems: items.length,
+      items: items,
+    );
+    collections[index] = updated;
+    await _saveLocalCollections(collections);
+    return updated;
+  }
+
   Future<List<FavoriteScene>> getFavoriteScenes() async {
     if (await _isLoggedIn) {
       final response = await _api.get<List<dynamic>>(
         '/library/favorite-scenes',
       );
       return (response.data ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .map(FavoriteScene.fromJson)
+          .whereType<Map>()
+          .map((item) => FavoriteScene.fromJson(Map<String, dynamic>.from(item)))
           .toList();
     }
     return _localFavoriteScenes();
@@ -304,12 +384,29 @@ class LibraryRepository {
     );
   }
 
+  Future<void> deleteFavoriteScene(int sceneId) async {
+    if (await _isLoggedIn) {
+      await _api.delete<Map<String, dynamic>>(
+        '/library/favorite-scenes/$sceneId',
+      );
+      return;
+    }
+
+    final scenes = _localFavoriteScenes()
+        .where((scene) => scene.id != sceneId)
+        .toList();
+    await _store.library.put(
+      'favorite_scenes',
+      scenes.map((scene) => scene.toJson()).toList(),
+    );
+  }
+
   Future<List<ReadingProgress>> getHistory() async {
     if (await _isLoggedIn) {
       final response = await _api.get<List<dynamic>>('/library/history');
       return (response.data ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .map(ReadingProgress.fromLibraryJson)
+          .whereType<Map>()
+          .map((item) => ReadingProgress.fromLibraryJson(Map<String, dynamic>.from(item)))
           .toList();
     }
     return _store.progress.values
@@ -323,8 +420,8 @@ class LibraryRepository {
     if (await _isLoggedIn) {
       final response = await _api.get<List<dynamic>>('/library/downloads');
       return (response.data ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .map(DownloadEntry.fromJson)
+          .whereType<Map>()
+          .map((item) => DownloadEntry.fromJson(Map<String, dynamic>.from(item)))
           .toList();
     }
     return _localDownloads();
@@ -366,6 +463,27 @@ class LibraryRepository {
         ),
       );
     }
+    await _store.library.put(
+      'downloads',
+      downloads.map((download) => download.toJson()).toList(),
+    );
+  }
+
+  Future<void> deleteDownloadEntry(DownloadEntry entry) async {
+    if (await _isLoggedIn) {
+      await _api.delete<Map<String, dynamic>>(
+        '/library/downloads/${entry.comic.sourceName}/comics/${entry.comic.slug}/chapters/${entry.chapterNumber}',
+      );
+      return;
+    }
+
+    final downloads = _localDownloads()
+        .where(
+          (item) =>
+              item.comic.key != entry.comic.key ||
+              item.chapterNumber != entry.chapterNumber,
+        )
+        .toList();
     await _store.library.put(
       'downloads',
       downloads.map((download) => download.toJson()).toList(),
@@ -428,13 +546,19 @@ class LibraryRepository {
   }
 
   bool hasMigratableLocalData() {
-    return _localBookmarks().isNotEmpty ||
-        _localCollections().isNotEmpty ||
-        _localFavoriteScenes().isNotEmpty ||
-        _localDownloads().isNotEmpty ||
-        _store.progress.isNotEmpty ||
-        _store.settings.get('reader_preferences') is Map ||
-        _guestReadingSeconds() > 0;
+    return getGuestMigrationSummary().isEmpty == false;
+  }
+
+  GuestMigrationSummary getGuestMigrationSummary() {
+    return GuestMigrationSummary(
+      bookmarks: _localBookmarks().length,
+      collections: _localCollections().length,
+      progress: _store.progress.length,
+      favoriteScenes: _localFavoriteScenes().length,
+      downloads: _localDownloads().length,
+      hasReaderPreferences: _store.settings.get('reader_preferences') is Map,
+      readingTimeSeconds: _guestReadingSeconds(),
+    );
   }
 
   bool get migrationSkipped {

@@ -3,13 +3,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/app_navigation.dart';
 import '../../core/app_icons.dart';
 import '../../repositories/providers.dart';
 
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key, required this.navigationShell});
 
-  static final rootNavigatorKey = GlobalKey<NavigatorState>();
+  static final rootNavigatorKey = appRootNavigatorKey;
 
   final StatefulNavigationShell navigationShell;
 

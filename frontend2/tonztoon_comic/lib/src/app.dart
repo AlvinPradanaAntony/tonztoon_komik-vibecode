@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,11 +7,22 @@ import 'core/app_theme.dart';
 import 'repositories/providers.dart';
 import 'routing/app_router.dart';
 
-class TonztoonApp extends ConsumerWidget {
+class TonztoonApp extends ConsumerStatefulWidget {
   const TonztoonApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TonztoonApp> createState() => _TonztoonAppState();
+}
+
+class _TonztoonAppState extends ConsumerState<TonztoonApp> {
+  @override
+  void initState() {
+    super.initState();
+    unawaited(ref.read(downloadNotificationServiceProvider).initialize());
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(appThemeModeProvider);
 

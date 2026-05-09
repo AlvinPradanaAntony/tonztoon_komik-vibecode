@@ -110,20 +110,22 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
           ),
         ],
       ),
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 180),
-        child: _isFirstPageLoading && !_hasLoadedCatalog
-            ? const _CatalogLoadingState(key: ValueKey('catalog-loading'))
-            : _error != null && !_hasLoadedCatalog
-            ? _CatalogErrorState(
-                key: const ValueKey('catalog-error'),
-                error: _error!,
-                onRetry: _loadFirstPage,
-              )
-            : RefreshIndicator(
-                key: const ValueKey('catalog-content'),
-                onRefresh: _loadFirstPage,
-                child: CustomScrollView(
+      body: Stack(
+        children: [
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            child: _isFirstPageLoading && !_hasLoadedCatalog
+                ? const _CatalogLoadingState(key: ValueKey('catalog-loading'))
+                : _error != null && !_hasLoadedCatalog
+                ? _CatalogErrorState(
+                    key: const ValueKey('catalog-error'),
+                    error: _error!,
+                    onRetry: _loadFirstPage,
+                  )
+                : RefreshIndicator(
+                    key: const ValueKey('catalog-content'),
+                    onRefresh: _loadFirstPage,
+                    child: CustomScrollView(
                   controller: _scrollController,
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
@@ -192,8 +194,13 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
                       ),
                     ),
                   ],
-                ),
-              ),
+                    ),
+                  ),
+          ),
+          _FilterProcessingIndicator(
+            visible: _isFirstPageLoading && _hasLoadedCatalog,
+          ),
+        ],
       ),
     );
   }
@@ -494,6 +501,78 @@ class _CatalogLoadingState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const _CatalogLoadingPlaceholder();
+  }
+}
+
+class _FilterProcessingIndicator extends StatelessWidget {
+  const _FilterProcessingIndicator({required this.visible});
+
+  final bool visible;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return IgnorePointer(
+      child: AnimatedSlide(
+        offset: visible ? Offset.zero : const Offset(0, -1),
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        child: AnimatedOpacity(
+          opacity: visible ? 1 : 0,
+          duration: const Duration(milliseconds: 140),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: colorScheme.surface.withValues(alpha: 0.96),
+              border: Border(
+                bottom: BorderSide(color: colorScheme.outlineVariant),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                LinearProgressIndicator(
+                  minHeight: 3,
+                  color: colorScheme.primary,
+                  backgroundColor: colorScheme.primary.withValues(alpha: 0.12),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 9, 16, 10),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.2,
+                          color: colorScheme.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Memproses hasil filter...',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

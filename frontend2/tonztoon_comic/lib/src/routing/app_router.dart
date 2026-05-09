@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -72,7 +73,15 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/library',
-                builder: (context, state) => const LibraryScreen(),
+                builder: (context, state) {
+                  final tabIndex = _libraryTabIndex(
+                    state.uri.queryParameters['tab'],
+                  );
+                  return LibraryScreen(
+                    key: ValueKey('library-tab-$tabIndex'),
+                    initialTabIndex: tabIndex,
+                  );
+                },
               ),
             ],
           ),
@@ -99,12 +108,39 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
-      GoRoute(path: '/auth', builder: (context, state) => const AuthScreen()),
+      GoRoute(
+        path: '/auth',
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _instantPage(state, const AuthScreen()),
+      ),
       GoRoute(
         path: '/auth/forgot-password',
-        builder: (context, state) => ForgotPasswordScreen(
-          initialEmail: state.uri.queryParameters['email'] ?? '',
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) => _instantPage(
+          state,
+          ForgotPasswordScreen(
+            initialEmail: state.uri.queryParameters['email'] ?? '',
+          ),
         ),
+      ),
+      GoRoute(
+        path: '/auth/callback',
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _instantPage(state, _buildAuthCallbackScreen(state.uri)),
+      ),
+      GoRoute(
+        path: '/auth/reset-password',
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _instantPage(state, _buildResetPasswordScreen(state.uri)),
+      ),
+      GoRoute(
+        path: '/reset-password',
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _instantPage(state, _buildResetPasswordScreen(state.uri)),
       ),
       GoRoute(
         path: '/notifications',
@@ -161,3 +197,62 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+int _libraryTabIndex(String? tab) {
+  return switch (tab) {
+    'collections' || 'koleksi' => 1,
+    'scenes' || 'scene' => 2,
+    'history' || 'riwayat' => 3,
+    'downloads' || 'unduhan' => 4,
+    _ => 0,
+  };
+}
+
+Map<String, String> _authCallbackParams(Uri uri) {
+  final params = <String, String>{...uri.queryParameters};
+  final fragment = uri.fragment.trim();
+  if (fragment.isEmpty) return params;
+
+  if (fragment.startsWith('/')) {
+    final fragmentUri = Uri.tryParse(fragment);
+    if (fragmentUri != null) {
+      params.addAll(fragmentUri.queryParameters);
+    }
+    return params;
+  }
+
+  final queryStart = fragment.indexOf('?');
+  final fragmentQuery = queryStart >= 0
+      ? fragment.substring(queryStart + 1)
+      : fragment;
+  params.addAll(Uri.splitQueryString(fragmentQuery));
+  return params;
+}
+
+ResetPasswordScreen _buildResetPasswordScreen(Uri uri) {
+  final params = _authCallbackParams(uri);
+  return ResetPasswordScreen(
+    initialEmail: params['email'] ?? '',
+    tokenHash: params['token_hash'],
+    accessToken: params['access_token'],
+    refreshToken: params['refresh_token'],
+    expiresAt: int.tryParse(params['expires_at'] ?? ''),
+  );
+}
+
+Widget _buildAuthCallbackScreen(Uri uri) {
+  final params = _authCallbackParams(uri);
+  if (params['type'] == 'recovery') {
+    return _buildResetPasswordScreen(uri);
+  }
+
+  return AuthCallbackScreen(
+    accessToken: params['access_token'],
+    refreshToken: params['refresh_token'],
+    expiresAt: int.tryParse(params['expires_at'] ?? ''),
+  );
+}
+
+Page<void> _instantPage(GoRouterState state, Widget child) {
+  return NoTransitionPage<void>(key: state.pageKey, child: child);
+}

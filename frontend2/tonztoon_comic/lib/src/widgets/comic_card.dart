@@ -387,8 +387,15 @@ Color comicGenreColor(String genre) {
 }
 
 ComicStatusStyle comicStatusStyle(ColorScheme colorScheme, String status) {
-  return switch (status.toLowerCase()) {
-    'completed' => const ComicStatusStyle(
+  final normalized = status.trim().toLowerCase();
+  return switch (normalized) {
+    'completed' ||
+    'complete' ||
+    'end' ||
+    'ended' ||
+    'tamat' ||
+    'finish' ||
+    'finished' => const ComicStatusStyle(
       icon: TonztoonIcons.badgeCheckFilled,
       color: Color(0xFF16A34A),
     ),

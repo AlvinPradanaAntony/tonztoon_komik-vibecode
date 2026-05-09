@@ -36,7 +36,7 @@ class ComicSummary {
       coverImageUrl: json['cover_image_url'] as String?,
       status: json['status'] as String?,
       type: json['type'] as String?,
-      rating: (json['rating'] as num?)?.toDouble(),
+      rating: _readRating(json),
       totalView: json['total_view'] as int?,
       latestChapterNumber: (json['latest_chapter_number'] as num?)?.toDouble(),
       genres: ((json['genres'] as List?) ?? const [])
@@ -119,11 +119,11 @@ class ComicDetail {
       status: json['status'] as String?,
       type: json['type'] as String?,
       synopsis: json['synopsis'] as String?,
-      rating: (json['rating'] as num?)?.toDouble(),
+      rating: _readRating(json),
       totalView: json['total_view'] as int?,
       genres: ((json['genres'] as List?) ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .map(Genre.fromJson)
+          .whereType<Map>()
+          .map((item) => Genre.fromJson(Map<String, dynamic>.from(item)))
           .toList(),
       totalChapters: json['total_chapters'] as int? ?? 0,
     );
@@ -218,8 +218,11 @@ class ChapterPayload {
       sourceName: json['source_name'] as String? ?? '',
       chapterNumber: (json['chapter_number'] as num?)?.toDouble() ?? 0,
       images: ((json['images'] as List?) ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .map(ChapterImageItem.fromJson)
+          .whereType<Map>()
+          .map(
+            (item) =>
+                ChapterImageItem.fromJson(Map<String, dynamic>.from(item)),
+          )
           .toList(),
       total: json['total'] as int? ?? 0,
     );
@@ -249,4 +252,22 @@ String comicRouteSlug(ComicSummary comic) {
       .toLowerCase()
       .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
       .replaceAll(RegExp(r'^-+|-+$'), '');
+}
+
+double? _readRating(Map<String, dynamic> json) {
+  for (final key in const ['rating', 'rating_score', 'score', 'user_rate']) {
+    final value = _readDouble(json[key]);
+    if (value == null || value < 0) continue;
+    if (value <= 10) return value;
+    if (value <= 100) return value / 10;
+  }
+  return null;
+}
+
+double? _readDouble(Object? value) {
+  return switch (value) {
+    num value => value.toDouble(),
+    String value => double.tryParse(value.trim().replaceAll(',', '.')),
+    _ => null,
+  };
 }

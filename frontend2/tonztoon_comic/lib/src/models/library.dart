@@ -119,8 +119,10 @@ class CollectionDetail extends CollectionSummary {
 
   factory CollectionDetail.fromJson(Map<String, dynamic> json) {
     final items = ((json['items'] as List?) ?? const [])
-        .whereType<Map<String, dynamic>>()
-        .map(LibraryComicRef.fromJson)
+        .whereType<Map>()
+        .map(
+          (item) => LibraryComicRef.fromJson(Map<String, dynamic>.from(item)),
+        )
         .toList();
     return CollectionDetail(
       id: json['id'] as int? ?? 0,
@@ -150,12 +152,17 @@ class FavoriteScene {
   });
 
   factory FavoriteScene.fromJson(Map<String, dynamic> json) {
-    final chapter = json['chapter'] as Map<String, dynamic>? ?? const {};
+    final chapterRaw = json['chapter'];
+    final chapter = chapterRaw is Map
+        ? Map<String, dynamic>.from(chapterRaw)
+        : const <String, dynamic>{};
+    final comicRaw = json['comic'];
+    final comic = comicRaw is Map
+        ? Map<String, dynamic>.from(comicRaw)
+        : const <String, dynamic>{};
     return FavoriteScene(
       id: json['id'] as int? ?? 0,
-      comic: LibraryComicRef.fromJson(
-        json['comic'] as Map<String, dynamic>? ?? const {},
-      ),
+      comic: LibraryComicRef.fromJson(comic),
       chapterNumber: (chapter['chapter_number'] as num?)?.toDouble() ?? 0,
       pageItemIndex: json['page_item_index'] as int? ?? 0,
       imageUrl: json['image_url'] as String?,
@@ -190,12 +197,17 @@ class DownloadEntry {
   });
 
   factory DownloadEntry.fromJson(Map<String, dynamic> json) {
-    final chapter = json['chapter'] as Map<String, dynamic>? ?? const {};
+    final chapterRaw = json['chapter'];
+    final chapter = chapterRaw is Map
+        ? Map<String, dynamic>.from(chapterRaw)
+        : const <String, dynamic>{};
+    final comicRaw = json['comic'];
+    final comic = comicRaw is Map
+        ? Map<String, dynamic>.from(comicRaw)
+        : const <String, dynamic>{};
     return DownloadEntry(
       id: json['id'] as int? ?? 0,
-      comic: LibraryComicRef.fromJson(
-        json['comic'] as Map<String, dynamic>? ?? const {},
-      ),
+      comic: LibraryComicRef.fromJson(comic),
       chapterNumber: (chapter['chapter_number'] as num?)?.toDouble() ?? 0,
       status: json['status'] as String? ?? 'pending',
       lastError: json['last_error'] as String?,
@@ -468,27 +480,31 @@ class LibraryComicState {
   });
 
   factory LibraryComicState.fromJson(Map<String, dynamic> json) {
+    final comicRaw = json['comic'];
+    final comic = comicRaw is Map
+        ? Map<String, dynamic>.from(comicRaw)
+        : const <String, dynamic>{};
+    final progressRaw = json['progress'];
+    final progressMap = progressRaw is Map
+        ? Map<String, dynamic>.from(progressRaw)
+        : null;
     return LibraryComicState(
-      comic: LibraryComicRef.fromJson(
-        json['comic'] as Map<String, dynamic>? ?? const {},
-      ),
+      comic: LibraryComicRef.fromJson(comic),
       bookmarked: json['bookmarked'] as bool? ?? false,
       collections: ((json['collections'] as List?) ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .map(CollectionSummary.fromJson)
+          .whereType<Map>()
+          .map((item) => CollectionSummary.fromJson(Map<String, dynamic>.from(item)))
           .toList(),
-      progress: json['progress'] is Map<String, dynamic>
-          ? ReadingProgress.fromLibraryJson(
-              json['progress'] as Map<String, dynamic>,
-            )
+      progress: progressMap != null
+          ? ReadingProgress.fromLibraryJson(progressMap)
           : null,
       favoriteSceneCount: json['favorite_scene_count'] as int? ?? 0,
       downloadStatusCounts: Map<String, int>.from(
         json['download_status_counts'] as Map? ?? {},
       ),
       downloadEntries: ((json['download_entries'] as List?) ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .map(DownloadEntry.fromJson)
+          .whereType<Map>()
+          .map((item) => DownloadEntry.fromJson(Map<String, dynamic>.from(item)))
           .toList(),
     );
   }
@@ -500,4 +516,33 @@ class LibraryComicState {
   final int favoriteSceneCount;
   final Map<String, int> downloadStatusCounts;
   final List<DownloadEntry> downloadEntries;
+}
+
+class GuestMigrationSummary {
+  const GuestMigrationSummary({
+    required this.bookmarks,
+    required this.collections,
+    required this.progress,
+    required this.favoriteScenes,
+    required this.downloads,
+    required this.hasReaderPreferences,
+    required this.readingTimeSeconds,
+  });
+
+  final int bookmarks;
+  final int collections;
+  final int progress;
+  final int favoriteScenes;
+  final int downloads;
+  final bool hasReaderPreferences;
+  final int readingTimeSeconds;
+
+  bool get isEmpty =>
+      bookmarks == 0 &&
+      collections == 0 &&
+      progress == 0 &&
+      favoriteScenes == 0 &&
+      downloads == 0 &&
+      !hasReaderPreferences &&
+      readingTimeSeconds <= 0;
 }

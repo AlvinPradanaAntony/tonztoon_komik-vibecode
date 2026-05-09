@@ -8,6 +8,7 @@ import '../../core/app_icons.dart';
 import 'section/comic_section_screen.dart';
 import '../../models/auth.dart';
 import '../../models/comic.dart';
+import '../../models/library.dart';
 import '../../models/progress.dart';
 import '../../models/source_info.dart';
 import '../../repositories/providers.dart';
@@ -202,14 +203,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Future<void> _showMigrationDialog() async {
     final repo = ref.read(libraryRepositoryProvider);
+    final summary = repo.getGuestMigrationSummary();
     final action = await showDialog<String>(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: const Text('Sinkronkan data guest?'),
-        content: const Text(
-          'Progress, waktu baca, bookmark, koleksi, scene favorit, dan antrean download dari mode guest bisa dipindahkan ke akun cloud. File offline tetap tersimpan di perangkat ini.',
-        ),
+        content: _GuestMigrationDialogContent(summary: summary),
         actions: [
           TextButton(
             onPressed: () => context.pop('skip'),
@@ -251,6 +251,78 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ).showSnackBar(SnackBar(content: Text('Migrasi gagal: $error')));
     }
   }
+}
+
+class _GuestMigrationDialogContent extends StatelessWidget {
+  const _GuestMigrationDialogContent({required this.summary});
+
+  final GuestMigrationSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = [
+      _MigrationSummaryItem('Bookmark', summary.bookmarks),
+      _MigrationSummaryItem('Koleksi', summary.collections),
+      _MigrationSummaryItem('Progress baca', summary.progress),
+      _MigrationSummaryItem('Scene favorit', summary.favoriteScenes),
+      _MigrationSummaryItem('Antrean download', summary.downloads),
+      if (summary.hasReaderPreferences)
+        const _MigrationSummaryItem('Preferensi reader', 1),
+      if (summary.readingTimeSeconds > 0)
+        _MigrationSummaryItem(
+          'Waktu baca',
+          (summary.readingTimeSeconds / 60).ceil(),
+          suffix: 'menit',
+        ),
+    ];
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Data dari mode guest berikut bisa dipindahkan ke akun cloud. File offline tetap tersimpan di perangkat ini.',
+        ),
+        const SizedBox(height: 14),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Column(
+              children: [
+                for (final item in items)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Expanded(child: Text(item.label)),
+                        Text(
+                          item.suffix == null
+                              ? '${item.value}'
+                              : '${item.value} ${item.suffix}',
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MigrationSummaryItem {
+  const _MigrationSummaryItem(this.label, this.value, {this.suffix});
+
+  final String label;
+  final int value;
+  final String? suffix;
 }
 
 class _HomeLoadingPlaceholder extends StatelessWidget {

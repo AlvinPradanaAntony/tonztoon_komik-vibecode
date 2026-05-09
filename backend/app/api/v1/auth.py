@@ -14,6 +14,10 @@ from app.schemas import (
     AuthenticatedUser,
     AuthLoginRequest,
     AuthLogoutResponse,
+    AuthPasswordRecoveryRequest,
+    AuthPasswordRecoveryVerifyRequest,
+    AuthPasswordResetResponse,
+    AuthPasswordUpdateRequest,
     ProfileResponse,
     ProfileUpdateRequest,
     AuthRefreshRequest,
@@ -28,6 +32,9 @@ from app.services.auth_service import (
     logout_auth_session,
     refresh_auth_session,
     register_with_email_password,
+    request_password_recovery,
+    update_auth_password,
+    verify_password_recovery,
 )
 from app.services.profile_service import (
     build_profile_response,
@@ -104,6 +111,70 @@ async def refresh(
         raise_api_error(status.HTTP_500_INTERNAL_SERVER_ERROR, str(exc))
     except AuthRequestError as exc:
         _raise_auth_service_error(exc)
+
+
+@router.post(
+    "/password/forgot",
+    response_model=AuthPasswordResetResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def forgot_password(payload: AuthPasswordRecoveryRequest):
+    """Kirim email recovery password melalui Supabase Auth."""
+    try:
+        await request_password_recovery(payload)
+    except AuthConfigurationError as exc:
+        raise_api_error(status.HTTP_500_INTERNAL_SERVER_ERROR, str(exc))
+    except AuthRequestError as exc:
+        _raise_auth_service_error(exc)
+
+    return AuthPasswordResetResponse(
+        message=(
+            "Jika email terdaftar, instruksi reset password akan dikirim."
+        ),
+    )
+
+
+@router.post(
+    "/password/recovery/verify",
+    response_model=AuthSessionResponse,
+)
+async def verify_recovery(
+    payload: AuthPasswordRecoveryVerifyRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Verifikasi token recovery dari email dan buat sesi reset password."""
+    try:
+        response = await verify_password_recovery(payload)
+        if response.user is not None:
+            await ensure_profile_for_auth_user(
+                db,
+                response.user.id,
+                user_metadata=response.user.user_metadata,
+            )
+        return response
+    except AuthConfigurationError as exc:
+        raise_api_error(status.HTTP_500_INTERNAL_SERVER_ERROR, str(exc))
+    except AuthRequestError as exc:
+        _raise_auth_service_error(exc)
+
+
+@router.post("/password/update", response_model=AuthPasswordResetResponse)
+async def update_password(
+    payload: AuthPasswordUpdateRequest,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+):
+    """Update password memakai bearer token dari sesi recovery yang valid."""
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise_api_error(status.HTTP_401_UNAUTHORIZED, "Bearer token required.")
+
+    try:
+        await update_auth_password(credentials.credentials, payload)
+    except AuthConfigurationError as exc:
+        raise_api_error(status.HTTP_500_INTERNAL_SERVER_ERROR, str(exc))
+    except AuthRequestError as exc:
+        _raise_auth_service_error(exc)
+
+    return AuthPasswordResetResponse(message="Password berhasil diperbarui.")
 
 
 @router.post("/logout", response_model=AuthLogoutResponse)

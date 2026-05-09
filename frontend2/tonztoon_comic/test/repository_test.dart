@@ -153,6 +153,21 @@ void main() {
     expect(store.auth.get('user'), isA<Map>());
   });
 
+  test('auth repository requests password reset email', () async {
+    final repository = AuthRepository(
+      _apiWithResponses({
+        'POST /auth/password/forgot': {
+          'success': true,
+          'message': 'Reset email sent.',
+        },
+      }),
+      MemoryTokenStore(),
+      store,
+    );
+
+    await repository.requestPasswordReset(email: 'reader@tonztoon.app');
+  });
+
   test('progress repository saves guest progress locally', () async {
     final repository = ProgressRepository(
       _failingApi(),

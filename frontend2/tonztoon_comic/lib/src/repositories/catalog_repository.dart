@@ -14,8 +14,8 @@ class CatalogRepository {
     try {
       final response = await _api.get<List<dynamic>>('/sources');
       final items = (response.data ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .map(SourceInfo.fromJson)
+          .whereType<Map>()
+          .map((item) => SourceInfo.fromJson(Map<String, dynamic>.from(item)))
           .where((source) => source.enabled)
           .toList();
       await _store.cache.put(
@@ -50,8 +50,8 @@ class CatalogRepository {
     try {
       final response = await _api.get<List<dynamic>>('/genres');
       final items = (response.data ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .map(Genre.fromJson)
+          .whereType<Map>()
+          .map((item) => Genre.fromJson(Map<String, dynamic>.from(item)))
           .where((genre) => genre.name.trim().isNotEmpty)
           .toList();
       await _store.cache.put(
@@ -149,8 +149,8 @@ class CatalogRepository {
       final data = response.data ?? const [];
       await _store.cache.put(cacheKey, data);
       return data
-          .whereType<Map<String, dynamic>>()
-          .map(ComicSummary.fromJson)
+          .whereType<Map>()
+          .map((item) => ComicSummary.fromJson(Map<String, dynamic>.from(item)))
           .toList();
     } catch (_) {
       final cached = _store.cache.get(cacheKey);
@@ -196,8 +196,8 @@ class CatalogRepository {
       final data = response.data ?? const [];
       await _store.cache.put(cacheKey, data);
       return data
-          .whereType<Map<String, dynamic>>()
-          .map(ChapterListItem.fromJson)
+          .whereType<Map>()
+          .map((item) => ChapterListItem.fromJson(Map<String, dynamic>.from(item)))
           .toList();
     } catch (_) {
       final cached = _store.cache.get(cacheKey);

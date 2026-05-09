@@ -26,8 +26,8 @@ SUPABASE_JWT_ISSUER=https://your-project-ref.supabase.co/auth/v1
 # Optional fallback untuk project legacy HS256
 SUPABASE_JWT_SECRET=
 
-# Optional redirect email confirmation
-SUPABASE_AUTH_REDIRECT_URL=myapp://auth/callback
+# Redirect email confirmation, recovery, dan callback auth lain ke aplikasi Flutter
+SUPABASE_AUTH_REDIRECT_URL=tonztoon://auth/callback
 
 # Optional local-only fallback for old testing flow
 ALLOW_DEV_USER_HEADER=false
@@ -38,6 +38,9 @@ ALLOW_DEV_USER_HEADER=false
 - `POST /api/v1/auth/register`
 - `POST /api/v1/auth/login`
 - `POST /api/v1/auth/refresh`
+- `POST /api/v1/auth/password/forgot`
+- `POST /api/v1/auth/password/recovery/verify`
+- `POST /api/v1/auth/password/update`
 - `POST /api/v1/auth/logout`
 - `GET /api/v1/auth/me`
 - `GET /api/v1/auth/profile`

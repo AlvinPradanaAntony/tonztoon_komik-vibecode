@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/app_navigation.dart';
 import '../../core/app_assets.dart';
 import '../../repositories/providers.dart';
 
@@ -56,7 +57,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     }
     if (!mounted) return;
 
-    context.go(onboardingDone ? '/' : '/onboarding');
+    final nextLocation = consumePendingDownloadsNavigation()
+        ? libraryDownloadsLocation
+        : onboardingDone
+        ? '/'
+        : '/onboarding';
+    context.go(nextLocation);
   }
 
   void _setProgress(double progress, String status) {
