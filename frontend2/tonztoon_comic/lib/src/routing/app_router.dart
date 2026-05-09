@@ -21,10 +21,13 @@ import '../repositories/providers.dart';
 final routerProvider = Provider<GoRouter>((ref) {
   final rootNavigatorKey = AppShell.rootNavigatorKey;
 
-  return GoRouter(
+  final router = GoRouter(
     initialLocation: '/splash',
     navigatorKey: rootNavigatorKey,
     redirect: (context, state) {
+      final normalizedAuthCallback = _normalizedAuthCallbackLocation(state.uri);
+      if (normalizedAuthCallback != null) return normalizedAuthCallback;
+
       final auth = ref.read(authControllerProvider);
       final path = state.uri.path;
       final isAuthRoute = path == '/auth' || path == '/auth/forgot-password';
@@ -110,13 +113,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/auth',
-        parentNavigatorKey: rootNavigatorKey,
         pageBuilder: (context, state) =>
             _instantPage(state, const AuthScreen()),
       ),
       GoRoute(
         path: '/auth/forgot-password',
-        parentNavigatorKey: rootNavigatorKey,
         pageBuilder: (context, state) => _instantPage(
           state,
           ForgotPasswordScreen(
@@ -126,19 +127,21 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/auth/callback',
-        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            _instantPage(state, _buildAuthCallbackScreen(state.uri)),
+      ),
+      GoRoute(
+        path: '/callback',
         pageBuilder: (context, state) =>
             _instantPage(state, _buildAuthCallbackScreen(state.uri)),
       ),
       GoRoute(
         path: '/auth/reset-password',
-        parentNavigatorKey: rootNavigatorKey,
         pageBuilder: (context, state) =>
             _instantPage(state, _buildResetPasswordScreen(state.uri)),
       ),
       GoRoute(
         path: '/reset-password',
-        parentNavigatorKey: rootNavigatorKey,
         pageBuilder: (context, state) =>
             _instantPage(state, _buildResetPasswordScreen(state.uri)),
       ),
@@ -196,6 +199,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+  ref.onDispose(router.dispose);
+  return router;
 });
 
 int _libraryTabIndex(String? tab) {
@@ -206,6 +211,21 @@ int _libraryTabIndex(String? tab) {
     'downloads' || 'unduhan' => 4,
     _ => 0,
   };
+}
+
+String? _normalizedAuthCallbackLocation(Uri uri) {
+  final path = switch (uri.path) {
+    '/auth/callback/' => '/auth/callback',
+    '/callback/' => '/callback',
+    _ => null,
+  };
+  if (path == null) return null;
+
+  return Uri(
+    path: path,
+    queryParameters: uri.queryParameters.isEmpty ? null : uri.queryParameters,
+    fragment: uri.fragment.isEmpty ? null : uri.fragment,
+  ).toString();
 }
 
 Map<String, String> _authCallbackParams(Uri uri) {
@@ -247,6 +267,10 @@ Widget _buildAuthCallbackScreen(Uri uri) {
   }
 
   return AuthCallbackScreen(
+    callbackType: params['type'],
+    email: params['email'],
+    callbackError: params['error_description'] ?? params['error'],
+    tokenHash: params['token_hash'],
     accessToken: params['access_token'],
     refreshToken: params['refresh_token'],
     expiresAt: int.tryParse(params['expires_at'] ?? ''),

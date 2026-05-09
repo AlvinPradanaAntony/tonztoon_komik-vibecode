@@ -55,6 +55,13 @@ class AuthPasswordRecoveryVerifyRequest(BaseModel):
     token_hash: str = Field(..., min_length=1, max_length=2048)
 
 
+class AuthEmailVerificationRequest(BaseModel):
+    """Payload verifikasi email signup dari link Supabase."""
+
+    email: EmailStr
+    token_hash: str = Field(..., min_length=1, max_length=2048)
+
+
 class AuthPasswordUpdateRequest(BaseModel):
     """Payload update password setelah sesi recovery valid."""
 

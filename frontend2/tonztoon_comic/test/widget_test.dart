@@ -70,6 +70,28 @@ void main() {
     expect(find.text('Lupa password?'), findsOneWidget);
   });
 
+  testWidgets('opens password recovery callback from Supabase deep link', (
+    tester,
+  ) async {
+    final container = _testContainer();
+    addTearDown(container.dispose);
+    final router = container.read(routerProvider);
+    router.go(
+      'tonztoon://auth/callback#access_token=access-token&refresh_token=refresh-token&expires_at=1778337092&type=recovery',
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const TonztoonApp(),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byType(ResetPasswordScreen), findsOneWidget);
+    expect(find.text('Buat password baru'), findsOneWidget);
+  });
+
   testWidgets('opens comic detail and reader deep links', (tester) async {
     final container = _testContainer();
     addTearDown(container.dispose);

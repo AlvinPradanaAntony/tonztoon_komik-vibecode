@@ -12,6 +12,7 @@ from app.api.errors import raise_api_error
 from app.database import get_db
 from app.schemas import (
     AuthenticatedUser,
+    AuthEmailVerificationRequest,
     AuthLoginRequest,
     AuthLogoutResponse,
     AuthPasswordRecoveryRequest,
@@ -34,6 +35,7 @@ from app.services.auth_service import (
     register_with_email_password,
     request_password_recovery,
     update_auth_password,
+    verify_email_signup,
     verify_password_recovery,
 )
 from app.services.profile_service import (
@@ -145,6 +147,30 @@ async def verify_recovery(
     """Verifikasi token recovery dari email dan buat sesi reset password."""
     try:
         response = await verify_password_recovery(payload)
+        if response.user is not None:
+            await ensure_profile_for_auth_user(
+                db,
+                response.user.id,
+                user_metadata=response.user.user_metadata,
+            )
+        return response
+    except AuthConfigurationError as exc:
+        raise_api_error(status.HTTP_500_INTERNAL_SERVER_ERROR, str(exc))
+    except AuthRequestError as exc:
+        _raise_auth_service_error(exc)
+
+
+@router.post(
+    "/email/verify",
+    response_model=AuthSessionResponse,
+)
+async def verify_email(
+    payload: AuthEmailVerificationRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Verifikasi email signup dari link Supabase dan buat sesi awal."""
+    try:
+        response = await verify_email_signup(payload)
         if response.user is not None:
             await ensure_profile_for_auth_user(
                 db,

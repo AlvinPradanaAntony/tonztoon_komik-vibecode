@@ -641,54 +641,320 @@ Future<List<ChapterListItem>?> _showDownloadPicker(
   required int skippedCount,
 }) {
   final latestFive = chapters.take(5).toList();
+  final selected = <double>{};
+  final inputController = TextEditingController();
+  String? inputError;
 
   return showModalBottomSheet<List<ChapterListItem>>(
     context: context,
     showDragHandle: true,
+    isScrollControlled: true,
+    useSafeArea: true,
+    requestFocus: false,
+    backgroundColor: Theme.of(context).colorScheme.surface,
+    clipBehavior: Clip.antiAlias,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+    ),
     builder: (context) {
-      return SafeArea(
-        top: false,
-        child: ListView(
-          shrinkWrap: true,
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-          children: [
-            Text(
-              'Unduh offline',
-              style: Theme.of(context).textTheme.titleLarge,
+      return StatefulBuilder(
+        builder: (context, setModalState) {
+          final theme = Theme.of(context);
+          final colorScheme = theme.colorScheme;
+          final selectedChapters = chapters
+              .where((chapter) => selected.contains(chapter.chapterNumber))
+              .toList();
+
+          void setSelected(Iterable<ChapterListItem> items) {
+            setModalState(() {
+              inputError = null;
+              selected
+                ..clear()
+                ..addAll(items.map((chapter) => chapter.chapterNumber));
+            });
+          }
+
+          void applyInputSelection() {
+            final input = inputController.text;
+            try {
+              final numbers = _parseChapterSelection(input, chapters);
+              setModalState(() {
+                inputError = null;
+                selected
+                  ..clear()
+                  ..addAll(numbers);
+              });
+            } on FormatException catch (error) {
+              setModalState(() => inputError = error.message);
+            }
+          }
+
+          return SafeArea(
+            top: false,
+            child: FractionallySizedBox(
+              heightFactor: 0.78,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Unduh offline',
+                            style: theme.textTheme.titleLarge,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Tutup',
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(TonztoonIcons.close),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (skippedCount > 0) ...[
+                          Text(
+                            '$skippedCount chapter dilewati karena sudah offline atau sedang antre.',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            ActionChip(
+                              avatar: const Icon(
+                                TonztoonIcons.download,
+                                size: 16,
+                              ),
+                              label: const Text('Chapter terbaru'),
+                              onPressed: () => setSelected([chapters.first]),
+                            ),
+                            if (latestFive.length > 1)
+                              ActionChip(
+                                avatar: const Icon(
+                                  TonztoonIcons.list,
+                                  size: 16,
+                                ),
+                                label: Text('${latestFive.length} terbaru'),
+                                onPressed: () => setSelected(latestFive),
+                              ),
+                            ActionChip(
+                              avatar: const Icon(
+                                TonztoonIcons.bookMarked,
+                                size: 16,
+                              ),
+                              label: const Text('Semua tersedia'),
+                              onPressed: () => setSelected(chapters),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: inputController,
+                          keyboardType: TextInputType.text,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => applyInputSelection(),
+                          decoration: InputDecoration(
+                            labelText: 'Range atau chapter tertentu',
+                            hintText: 'Contoh: 1-5, 8, 12.5',
+                            helperText:
+                                'Pisahkan dengan koma. Range hanya memilih chapter yang tersedia.',
+                            errorText: inputError,
+                            prefixIcon: const Icon(TonztoonIcons.list),
+                            suffixIcon: TextButton(
+                              onPressed: applyInputSelection,
+                              child: const Text('Terapkan'),
+                            ),
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Text(
+                      selected.isEmpty
+                          ? 'Pilih chapter yang ingin diunduh'
+                          : '${selected.length} chapter dipilih',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: selected.isEmpty
+                            ? colorScheme.onSurfaceVariant
+                            : colorScheme.primary,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(0, 0, 0, 10),
+                      itemCount: chapters.length,
+                      itemBuilder: (context, index) {
+                        final chapter = chapters[index];
+                        final chapterLabel = formatChapterNumber(
+                          chapter.chapterNumber,
+                        );
+                        return CheckboxListTile(
+                          value: selected.contains(chapter.chapterNumber),
+                          onChanged: (value) {
+                            setModalState(() {
+                              inputError = null;
+                              if (value == true) {
+                                selected.add(chapter.chapterNumber);
+                              } else {
+                                selected.remove(chapter.chapterNumber);
+                              }
+                            });
+                          },
+                          secondary: const Icon(TonztoonIcons.bookOpen),
+                          title: Text(
+                            chapter.title?.trim().isNotEmpty == true
+                                ? chapter.title!.trim()
+                                : 'Chapter $chapterLabel',
+                          ),
+                          subtitle: Text(
+                            chapter.totalImages <= 0
+                                ? 'Jumlah halaman belum tersedia'
+                                : '${chapter.totalImages} halaman',
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: colorScheme.surface,
+                      border: Border(
+                        top: BorderSide(color: colorScheme.outlineVariant),
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: const Text('Batal'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: selectedChapters.isEmpty
+                                  ? null
+                                  : () => Navigator.of(
+                                      context,
+                                    ).pop(selectedChapters),
+                              icon: const Icon(TonztoonIcons.download),
+                              label: Text(
+                                selectedChapters.isEmpty
+                                    ? 'Pilih chapter'
+                                    : 'Unduh ${selectedChapters.length}',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            if (skippedCount > 0) ...[
-              const SizedBox(height: 6),
-              Text(
-                '$skippedCount chapter dilewati karena sudah offline atau sedang antre.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-            const SizedBox(height: 10),
-            ListTile(
-              leading: const Icon(TonztoonIcons.download),
-              title: Text(chapters.first.title ?? 'Chapter terbaru'),
-              subtitle: const Text('Masukkan satu chapter ke antrean'),
-              onTap: () => Navigator.of(context).pop([chapters.first]),
-            ),
-            if (latestFive.length > 1)
-              ListTile(
-                leading: const Icon(TonztoonIcons.list),
-                title: const Text('5 chapter terbaru'),
-                subtitle: Text('${latestFive.length} chapter masuk antrean'),
-                onTap: () => Navigator.of(context).pop(latestFive),
-              ),
-            if (chapters.length > latestFive.length)
-              ListTile(
-                leading: const Icon(TonztoonIcons.bookMarked),
-                title: const Text('Semua chapter'),
-                subtitle: Text('${chapters.length} chapter masuk antrean'),
-                onTap: () => Navigator.of(context).pop(chapters),
-              ),
-          ],
-        ),
+          );
+        },
       );
     },
-  );
+  ).whenComplete(inputController.dispose);
+}
+
+Set<double> _parseChapterSelection(
+  String input,
+  List<ChapterListItem> availableChapters,
+) {
+  final normalized = input.trim();
+  if (normalized.isEmpty) {
+    throw const FormatException('Masukkan range atau nomor chapter.');
+  }
+
+  final chunks = normalized
+      .split(RegExp(r'[,;\n]+'))
+      .map((item) => item.trim())
+      .where((item) => item.isNotEmpty)
+      .expand((item) {
+        if (item.contains('-') || item.contains('–') || item.contains('—')) {
+          return [item];
+        }
+        return item.split(RegExp(r'\s+')).where((part) => part.isNotEmpty);
+      });
+  final selected = <double>{};
+
+  for (final chunk in chunks) {
+    final rangeParts = chunk
+        .split(RegExp(r'\s*[-–—]\s*'))
+        .where((part) => part.trim().isNotEmpty)
+        .toList();
+    if (rangeParts.length == 2) {
+      final start = _parseChapterInputNumber(rangeParts.first);
+      final end = _parseChapterInputNumber(rangeParts.last);
+      if (start == null || end == null) {
+        throw FormatException('Range "$chunk" tidak valid.');
+      }
+      final min = start < end ? start : end;
+      final max = start > end ? start : end;
+      final matches = availableChapters
+          .where(
+            (chapter) =>
+                chapter.chapterNumber >= min && chapter.chapterNumber <= max,
+          )
+          .map((chapter) => chapter.chapterNumber)
+          .toList();
+      if (matches.isEmpty) {
+        throw FormatException(
+          'Tidak ada chapter tersedia untuk range "$chunk".',
+        );
+      }
+      selected.addAll(matches);
+      continue;
+    }
+    if (rangeParts.length > 2) {
+      throw FormatException('Range "$chunk" tidak valid.');
+    }
+
+    final number = _parseChapterInputNumber(chunk);
+    if (number == null) {
+      throw FormatException('Chapter "$chunk" tidak valid.');
+    }
+    final exists = availableChapters.any(
+      (chapter) => chapter.chapterNumber == number,
+    );
+    if (!exists) {
+      throw FormatException(
+        'Chapter ${formatChapterNumber(number)} tidak tersedia.',
+      );
+    }
+    selected.add(number);
+  }
+
+  if (selected.isEmpty) {
+    throw const FormatException('Tidak ada chapter yang cocok.');
+  }
+  return selected;
+}
+
+double? _parseChapterInputNumber(String value) {
+  return double.tryParse(value.trim().replaceAll(',', '.'));
 }
 
 class _DetailHero extends StatelessWidget {

@@ -57,6 +57,10 @@ class Settings(BaseSettings):
         default="",
         description="Optional redirect URL for signup confirmation emails",
     )
+    ADMIN_USER_IDS: str = Field(
+        default="",
+        description="Comma-separated Supabase Auth user IDs allowed to access admin endpoints",
+    )
     ALLOW_DEV_USER_HEADER: bool = Field(
         default=False,
         description="Allow X-User-Id fallback header during development when bearer token is absent",

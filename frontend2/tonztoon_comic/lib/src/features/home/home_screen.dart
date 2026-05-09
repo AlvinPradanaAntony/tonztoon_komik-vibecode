@@ -93,25 +93,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   onSourceChanged: (value) {
                     ref.read(selectedSourceProvider.notifier).select(value);
                   },
-                  onLatestTap: latestComics.isEmpty
-                      ? null
-                      : () => _openComicSection(
-                          context,
-                          title: 'Rilis Terbaru',
-                          subtitle:
-                              'Chapter baru dari berbagai sumber favorit.',
-                          comics: latestComics,
-                          initialSort: ComicSortOption.updateNewest,
-                        ),
-                  onPopularTap: popularComics.isEmpty
-                      ? null
-                      : () => _openComicSection(
-                          context,
-                          title: 'Populer',
-                          subtitle: 'Komik yang ramai dibaca minggu ini.',
-                          comics: popularComics,
-                          initialSort: ComicSortOption.popular,
-                        ),
                 ),
                 const SizedBox(height: 20),
                 if (recommendationComics.isNotEmpty) ...[
@@ -542,22 +523,14 @@ class _HomeEmptyState extends StatelessWidget {
 }
 
 class _DiscoverHeader extends StatelessWidget {
-  const _DiscoverHeader({
-    required this.data,
-    required this.onSourceChanged,
-    required this.onLatestTap,
-    required this.onPopularTap,
-  });
+  const _DiscoverHeader({required this.data, required this.onSourceChanged});
 
   final HomeData data;
   final ValueChanged<String> onSourceChanged;
-  final VoidCallback? onLatestTap;
-  final VoidCallback? onPopularTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
 
     // Warna aksen untuk gradient banner
@@ -647,11 +620,10 @@ class _DiscoverHeader extends StatelessWidget {
 
               // --- Konten utama banner ---
               Padding(
-                padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // --- Baris 1: Judul + Source Selector ---
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
@@ -684,19 +656,6 @@ class _DiscoverHeader extends StatelessWidget {
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 3),
-                              Padding(
-                                padding: const EdgeInsets.only(left: 14),
-                                child: Text(
-                                  'Temukan komik favoritmu',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: colorScheme.onSurface.withValues(
-                                      alpha: 0.55,
-                                    ),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
                             ],
                           ),
                         ),
@@ -708,129 +667,10 @@ class _DiscoverHeader extends StatelessWidget {
                         ),
                       ],
                     ),
-
-                    const SizedBox(height: 16),
-
-                    // --- Baris 2: Stat grid (3 kolom) ---
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _StatCard(
-                            icon: TonztoonIcons.autoAwesome,
-                            value: _formatStatValue(data.latest.length),
-                            label: 'Terbaru',
-                            accentColor: primaryOrange,
-                            isDark: isDark,
-                            onTap: onLatestTap,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _StatCard(
-                            icon: TonztoonIcons.localFireDepartment,
-                            value: _formatStatValue(data.popular.length),
-                            label: 'Populer',
-                            accentColor: const Color(0xFFFF5A5A),
-                            isDark: isDark,
-                            onTap: onPopularTap,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _StatCard(
-                            icon: TonztoonIcons.bookmarkAdded,
-                            value: _formatStatValue(
-                              data.continueReading.length,
-                            ),
-                            label: 'Aktif',
-                            accentColor: accentBlue,
-                            isDark: isDark,
-                          ),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-String _formatStatValue(int value) {
-  if (value > 99) return '99+';
-  return '$value';
-}
-
-/// Kartu statistik dalam banner Jelajahi.
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.icon,
-    required this.value,
-    required this.label,
-    required this.accentColor,
-    required this.isDark,
-    this.onTap,
-  });
-
-  final IconData icon;
-  final String value;
-  final String label;
-  final Color accentColor;
-  final bool isDark;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.07)
-                : Colors.white.withValues(alpha: 0.72),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: accentColor.withValues(alpha: 0.18)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: accentColor.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, size: 16, color: accentColor),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  value,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontSize: 18,
-                    color: accentColor,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                Text(
-                  label,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontSize: 11,
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
       ),

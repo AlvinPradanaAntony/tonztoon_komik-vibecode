@@ -1,0 +1,844 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tonztoon Account Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              ink: "#161a1d",
+              muted: "#667085",
+              line: "#d9dee5",
+              paper: "#f7f8fa",
+              brand: "#0f766e",
+              accent: "#b42318",
+            },
+            boxShadow: {
+              soft: "0 14px 40px rgba(16, 24, 40, 0.08)",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      [hidden] {
+        display: none !important;
+      }
+
+      .scrollbar-thin::-webkit-scrollbar {
+        height: 8px;
+        width: 8px;
+      }
+
+      .scrollbar-thin::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 999px;
+      }
+    </style>
+  </head>
+  <body class="min-h-screen bg-paper text-ink antialiased">
+    <div id="toast" class="fixed right-4 top-4 z-[70] hidden max-w-sm rounded-md border border-line bg-white px-4 py-3 text-sm shadow-soft"></div>
+
+    <section id="loginView" class="grid min-h-screen place-items-center px-4 py-8">
+      <form id="loginForm" class="w-full max-w-md rounded-md border border-line bg-white p-5 shadow-soft">
+        <div class="mb-5">
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Admin</p>
+          <h1 class="mt-1 text-2xl font-semibold text-ink">Account Manager</h1>
+          <p class="mt-2 text-sm text-muted">Masuk memakai akun Supabase yang punya role admin/owner atau terdaftar di `ADMIN_USER_IDS`.</p>
+        </div>
+        <label class="block">
+          <span class="text-sm font-medium text-ink">Backend API base URL</span>
+          <input id="apiBaseField" class="mt-1 h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" value="http://127.0.0.1:8000" />
+        </label>
+        <label class="mt-4 block">
+          <span class="text-sm font-medium text-ink">Email admin</span>
+          <input id="loginEmailField" type="email" required class="mt-1 h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
+        </label>
+        <label class="mt-4 block">
+          <span class="text-sm font-medium text-ink">Password</span>
+          <input id="loginPasswordField" type="password" required minlength="8" class="mt-1 h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
+        </label>
+        <button id="loginBtn" type="submit" class="mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white hover:bg-teal-800">
+          <i data-lucide="log-in" class="h-4 w-4"></i>
+          Masuk
+        </button>
+      </form>
+    </section>
+
+    <div id="appView" class="hidden min-h-screen">
+      <header class="border-b border-line bg-white">
+        <div class="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Supabase</p>
+            <h1 class="mt-1 text-2xl font-semibold tracking-normal text-ink sm:text-3xl">Manajemen Akun</h1>
+            <p id="apiBaseLabel" class="mt-1 break-all text-xs text-muted"></p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button id="reloadBtn" type="button" class="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-medium text-ink hover:bg-slate-50" title="Muat ulang akun">
+              <i data-lucide="refresh-cw" class="h-4 w-4"></i>
+              Reload
+            </button>
+            <button id="openCreateBtn" type="button" class="inline-flex h-10 items-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white hover:bg-teal-800" title="Tambah akun">
+              <i data-lucide="plus" class="h-4 w-4"></i>
+              Akun
+            </button>
+            <button id="logoutBtn" type="button" class="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-medium text-ink hover:bg-slate-50" title="Keluar">
+              <i data-lucide="log-out" class="h-4 w-4"></i>
+              Logout
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main class="mx-auto grid max-w-7xl gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:px-8">
+        <section class="min-w-0 space-y-4">
+          <div class="grid gap-3 sm:grid-cols-3">
+            <div class="rounded-md border border-line bg-white p-4">
+              <p class="text-sm font-medium text-muted">Total akun</p>
+              <p id="totalUsers" class="mt-2 text-3xl font-semibold text-ink">0</p>
+            </div>
+            <div class="rounded-md border border-line bg-white p-4">
+              <p class="text-sm font-medium text-muted">Aktif</p>
+              <p id="activeUsers" class="mt-2 text-3xl font-semibold text-ink">0</p>
+            </div>
+            <div class="rounded-md border border-line bg-white p-4">
+              <p class="text-sm font-medium text-muted">Relasi app</p>
+              <p id="relationCount" class="mt-2 text-3xl font-semibold text-ink">0</p>
+            </div>
+          </div>
+
+          <div class="rounded-md border border-line bg-white">
+            <div class="grid gap-3 border-b border-line p-4 lg:grid-cols-[minmax(220px,1fr)_160px_160px]">
+              <label class="relative block">
+                <span class="sr-only">Cari akun</span>
+                <i data-lucide="search" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"></i>
+                <input id="searchInput" type="search" class="h-10 w-full rounded-md border border-line bg-white pl-10 pr-3 text-sm outline-none placeholder:text-slate-400 focus:border-brand focus:ring-2 focus:ring-brand/20" placeholder="Cari nama, email, atau user ID" />
+              </label>
+              <select id="roleFilter" class="h-10 w-full rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20">
+                <option value="all">Semua role</option>
+                <option value="admin">Admin</option>
+                <option value="owner">Owner</option>
+                <option value="creator">Creator</option>
+                <option value="reader">Reader</option>
+              </select>
+              <select id="statusFilter" class="h-10 w-full rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20">
+                <option value="all">Semua status</option>
+                <option value="active">Aktif</option>
+                <option value="pending">Pending</option>
+                <option value="suspended">Suspended</option>
+              </select>
+            </div>
+
+            <div class="overflow-x-auto scrollbar-thin">
+              <table class="min-w-full divide-y divide-line">
+                <thead class="bg-slate-50">
+                  <tr>
+                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted">Akun</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted">Role</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted">Status</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted">Relasi</th>
+                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="usersTable" class="divide-y divide-line bg-white"></tbody>
+              </table>
+            </div>
+            <div id="emptyState" class="hidden px-4 py-14 text-center">
+              <i data-lucide="user-x" class="mx-auto h-8 w-8 text-muted"></i>
+              <p class="mt-3 text-sm font-medium text-ink">Tidak ada akun yang cocok.</p>
+            </div>
+          </div>
+        </section>
+
+        <aside class="min-w-0">
+          <div class="sticky top-5 rounded-md border border-line bg-white shadow-soft">
+            <div class="border-b border-line p-4">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="text-sm font-medium text-muted">Detail akun</p>
+                  <h2 id="detailName" class="mt-1 truncate text-xl font-semibold text-ink">Pilih akun</h2>
+                </div>
+                <span id="detailStatus" class="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">-</span>
+              </div>
+              <p id="detailEmail" class="mt-1 break-all text-sm text-muted">Relasi muncul berdasarkan user ID.</p>
+            </div>
+            <div class="p-4">
+              <div class="grid grid-cols-3 gap-2">
+                <button data-panel-tab="profile" type="button" class="panel-tab h-9 rounded-md border border-brand bg-teal-50 px-2 text-sm font-semibold text-brand">Profil</button>
+                <button data-panel-tab="relations" type="button" class="panel-tab h-9 rounded-md border border-line bg-white px-2 text-sm font-medium text-muted">Relasi</button>
+                <button data-panel-tab="metadata" type="button" class="panel-tab h-9 rounded-md border border-line bg-white px-2 text-sm font-medium text-muted">Metadata</button>
+              </div>
+              <div id="profilePanel" class="mt-4 space-y-3"></div>
+              <div id="relationsPanel" class="mt-4 space-y-4" hidden></div>
+              <div id="metadataPanel" class="mt-4 space-y-3" hidden></div>
+            </div>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <div id="userModal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-950/45 p-4">
+      <div class="w-full max-w-2xl rounded-md bg-white shadow-soft">
+        <form id="userForm" class="grid max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto]">
+          <div class="flex items-center justify-between border-b border-line p-4">
+            <h2 id="modalTitle" class="text-lg font-semibold text-ink">Tambah akun</h2>
+            <button type="button" data-close-modal="userModal" class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted hover:bg-slate-50 hover:text-ink" title="Tutup">
+              <i data-lucide="x" class="h-4 w-4"></i>
+            </button>
+          </div>
+          <div class="overflow-y-auto p-4 scrollbar-thin">
+            <input id="editingUserId" type="hidden" />
+            <div class="grid gap-4 sm:grid-cols-2">
+              <label class="block">
+                <span class="text-sm font-medium text-ink">Email</span>
+                <input id="emailField" type="email" required class="mt-1 h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
+              </label>
+              <label class="block">
+                <span class="text-sm font-medium text-ink">Password</span>
+                <input id="passwordField" type="password" minlength="8" class="mt-1 h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
+              </label>
+              <label class="block">
+                <span class="text-sm font-medium text-ink">Display name</span>
+                <input id="displayNameField" class="mt-1 h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
+              </label>
+              <label class="block">
+                <span class="text-sm font-medium text-ink">Username</span>
+                <input id="usernameField" class="mt-1 h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
+              </label>
+              <label class="block">
+                <span class="text-sm font-medium text-ink">Account role</span>
+                <select id="accountRoleField" class="mt-1 h-10 w-full rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20">
+                  <option value="reader">Reader</option>
+                  <option value="creator">Creator</option>
+                  <option value="admin">Admin</option>
+                  <option value="owner">Owner</option>
+                </select>
+              </label>
+              <label class="block">
+                <span class="text-sm font-medium text-ink">Account status</span>
+                <select id="accountStatusField" class="mt-1 h-10 w-full rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20">
+                  <option value="active">Aktif</option>
+                  <option value="pending">Pending</option>
+                  <option value="suspended">Suspended</option>
+                </select>
+              </label>
+              <label class="block sm:col-span-2">
+                <span class="text-sm font-medium text-ink">Avatar URL</span>
+                <input id="avatarUrlField" type="url" class="mt-1 h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
+              </label>
+              <label class="flex items-start gap-2 sm:col-span-2">
+                <input id="onboardingField" type="checkbox" class="mt-1 h-4 w-4 rounded border-line text-brand focus:ring-brand" />
+                <span class="text-sm text-ink">Onboarding selesai</span>
+              </label>
+            </div>
+          </div>
+          <div class="flex flex-wrap justify-end gap-2 border-t border-line p-4">
+            <button type="button" data-close-modal="userModal" class="h-10 rounded-md border border-line bg-white px-4 text-sm font-medium text-ink hover:bg-slate-50">Batal</button>
+            <button type="submit" class="inline-flex h-10 items-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white hover:bg-teal-800">
+              <i data-lucide="save" class="h-4 w-4"></i>
+              Simpan
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="deleteModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/45 p-4">
+      <div class="w-full max-w-lg rounded-md bg-white shadow-soft">
+        <div class="border-b border-line p-4">
+          <div class="flex items-start gap-3">
+            <div class="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-red-50 text-accent">
+              <i data-lucide="trash-2" class="h-4 w-4"></i>
+            </div>
+            <div>
+              <h2 class="text-lg font-semibold text-ink">Hapus akun</h2>
+              <p id="deleteMessage" class="mt-1 text-sm text-muted"></p>
+            </div>
+          </div>
+        </div>
+        <div class="p-4">
+          <div id="deleteRelations" class="grid gap-2"></div>
+          <label class="mt-4 flex items-start gap-2 rounded-md border border-line bg-slate-50 p-3">
+            <input id="confirmCascade" type="checkbox" class="mt-1 h-4 w-4 rounded border-line text-brand focus:ring-brand" />
+            <span class="text-sm text-ink">Saya paham akun Supabase Auth dan semua data public.* terkait user ID ini akan dihapus.</span>
+          </label>
+        </div>
+        <div class="flex flex-wrap justify-end gap-2 border-t border-line p-4">
+          <button type="button" data-close-modal="deleteModal" class="h-10 rounded-md border border-line bg-white px-4 text-sm font-medium text-ink hover:bg-slate-50">Batal</button>
+          <button id="confirmDeleteBtn" type="button" disabled class="inline-flex h-10 items-center gap-2 rounded-md bg-slate-300 px-4 text-sm font-semibold text-white transition enabled:bg-accent enabled:hover:bg-red-800">
+            <i data-lucide="trash-2" class="h-4 w-4"></i>
+            Hapus bersih
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const SESSION_KEY = "tonztoon.account-manager.session.v2";
+      const state = {
+        apiBase: "http://127.0.0.1:8000",
+        token: "",
+        users: [],
+        selectedUserId: null,
+        currentPanel: "profile",
+        pendingDeleteUserId: null,
+        relationPreview: null,
+      };
+
+      const els = {
+        toast: document.querySelector("#toast"),
+        loginView: document.querySelector("#loginView"),
+        appView: document.querySelector("#appView"),
+        loginForm: document.querySelector("#loginForm"),
+        apiBaseField: document.querySelector("#apiBaseField"),
+        loginEmailField: document.querySelector("#loginEmailField"),
+        loginPasswordField: document.querySelector("#loginPasswordField"),
+        apiBaseLabel: document.querySelector("#apiBaseLabel"),
+        usersTable: document.querySelector("#usersTable"),
+        emptyState: document.querySelector("#emptyState"),
+        totalUsers: document.querySelector("#totalUsers"),
+        activeUsers: document.querySelector("#activeUsers"),
+        relationCount: document.querySelector("#relationCount"),
+        searchInput: document.querySelector("#searchInput"),
+        roleFilter: document.querySelector("#roleFilter"),
+        statusFilter: document.querySelector("#statusFilter"),
+        detailName: document.querySelector("#detailName"),
+        detailEmail: document.querySelector("#detailEmail"),
+        detailStatus: document.querySelector("#detailStatus"),
+        profilePanel: document.querySelector("#profilePanel"),
+        relationsPanel: document.querySelector("#relationsPanel"),
+        metadataPanel: document.querySelector("#metadataPanel"),
+        userModal: document.querySelector("#userModal"),
+        deleteModal: document.querySelector("#deleteModal"),
+        userForm: document.querySelector("#userForm"),
+        modalTitle: document.querySelector("#modalTitle"),
+        confirmCascade: document.querySelector("#confirmCascade"),
+        confirmDeleteBtn: document.querySelector("#confirmDeleteBtn"),
+        deleteMessage: document.querySelector("#deleteMessage"),
+        deleteRelations: document.querySelector("#deleteRelations"),
+      };
+
+      restoreSession();
+      bindEvents();
+      lucide.createIcons();
+      if (state.token) {
+        showApp();
+        loadAccounts();
+      } else {
+        showLogin();
+      }
+
+      function bindEvents() {
+        els.loginForm.addEventListener("submit", login);
+        document.querySelector("#logoutBtn").addEventListener("click", logout);
+        document.querySelector("#reloadBtn").addEventListener("click", loadAccounts);
+        document.querySelector("#openCreateBtn").addEventListener("click", openCreateModal);
+        els.userForm.addEventListener("submit", saveUser);
+        els.confirmCascade.addEventListener("change", () => {
+          els.confirmDeleteBtn.disabled = !els.confirmCascade.checked;
+        });
+        els.confirmDeleteBtn.addEventListener("click", deleteUser);
+
+        [els.searchInput, els.roleFilter, els.statusFilter].forEach((input) => {
+          input.addEventListener("input", renderUsers);
+          input.addEventListener("change", renderUsers);
+        });
+
+        document.querySelectorAll("[data-panel-tab]").forEach((tab) => {
+          tab.addEventListener("click", () => setPanel(tab.dataset.panelTab));
+        });
+
+        document.addEventListener("click", (event) => {
+          const closeTarget = event.target.closest("[data-close-modal]");
+          if (closeTarget) closeModal(closeTarget.dataset.closeModal);
+
+          const actionTarget = event.target.closest("[data-action]");
+          if (!actionTarget) return;
+          const { action, userId } = actionTarget.dataset;
+          if (action === "select") selectUser(userId);
+          if (action === "edit") openEditModal(userId);
+          if (action === "delete") openDeleteModal(userId);
+        });
+
+        document.addEventListener("keydown", (event) => {
+          if (event.key !== "Escape") return;
+          closeModal("userModal");
+          closeModal("deleteModal");
+        });
+      }
+
+      function restoreSession() {
+        try {
+          const saved = JSON.parse(localStorage.getItem(SESSION_KEY) || "{}");
+          state.apiBase = saved.apiBase || state.apiBase;
+          state.token = saved.token || "";
+          els.apiBaseField.value = state.apiBase;
+        } catch {
+          localStorage.removeItem(SESSION_KEY);
+        }
+      }
+
+      function persistSession() {
+        localStorage.setItem(SESSION_KEY, JSON.stringify({ apiBase: state.apiBase, token: state.token }));
+      }
+
+      function showLogin() {
+        els.loginView.classList.remove("hidden");
+        els.appView.classList.add("hidden");
+      }
+
+      function showApp() {
+        els.loginView.classList.add("hidden");
+        els.appView.classList.remove("hidden");
+        els.apiBaseLabel.textContent = state.apiBase;
+      }
+
+      async function login(event) {
+        event.preventDefault();
+        state.apiBase = trimSlash(els.apiBaseField.value.trim() || "http://127.0.0.1:8000");
+        try {
+          const payload = await publicFetch("/api/v1/auth/login", {
+            method: "POST",
+            body: {
+              email: els.loginEmailField.value.trim(),
+              password: els.loginPasswordField.value,
+            },
+          });
+          state.token = payload.session?.access_token;
+          if (!state.token) throw new Error(payload.message || "Login berhasil tetapi token tidak diterima.");
+          persistSession();
+          showApp();
+          await loadAccounts();
+          notify("Login berhasil.");
+        } catch (error) {
+          notify(error.message, true);
+        }
+      }
+
+      function logout() {
+        state.token = "";
+        state.users = [];
+        state.selectedUserId = null;
+        localStorage.removeItem(SESSION_KEY);
+        showLogin();
+      }
+
+      async function loadAccounts() {
+        try {
+          const payload = await apiFetch("/api/v1/account-manager/accounts?per_page=200");
+          state.users = payload.users || [];
+          if (!state.users.some((user) => user.id === state.selectedUserId)) {
+            state.selectedUserId = state.users[0]?.id || null;
+          }
+          state.relationPreview = null;
+          render();
+        } catch (error) {
+          notify(error.message, true);
+          if (error.status === 401 || error.status === 403) logout();
+        }
+      }
+
+      async function selectUser(userId) {
+        state.selectedUserId = userId;
+        state.relationPreview = null;
+        render();
+        if (state.currentPanel === "relations") await loadRelations(userId);
+      }
+
+      async function loadRelations(userId) {
+        if (!userId) return;
+        try {
+          state.relationPreview = await apiFetch(`/api/v1/account-manager/accounts/${userId}/relations`);
+          renderRelationsPanel();
+        } catch (error) {
+          notify(error.message, true);
+        }
+      }
+
+      async function publicFetch(path, options = {}) {
+        return request(path, options, false);
+      }
+
+      async function apiFetch(path, options = {}) {
+        return request(path, options, true);
+      }
+
+      async function request(path, options = {}, authorized) {
+        const headers = { "Content-Type": "application/json" };
+        if (authorized) headers.Authorization = `Bearer ${state.token}`;
+        const response = await fetch(`${state.apiBase}${path}`, {
+          method: options.method || "GET",
+          headers,
+          body: options.body ? JSON.stringify(options.body) : undefined,
+        });
+        let payload = {};
+        try {
+          payload = await response.json();
+        } catch {
+          payload = {};
+        }
+        if (!response.ok) {
+          const error = new Error(payload.message || payload.detail || `Request gagal (${response.status}).`);
+          error.status = response.status;
+          throw error;
+        }
+        return payload;
+      }
+
+      function trimSlash(value) {
+        return value.replace(/\/+$/, "");
+      }
+
+      function render() {
+        renderStats();
+        renderUsers();
+        renderDetail();
+        lucide.createIcons();
+      }
+
+      function renderStats() {
+        els.totalUsers.textContent = state.users.length;
+        els.activeUsers.textContent = state.users.filter((user) => user.account_status === "active").length;
+        els.relationCount.textContent = state.users.reduce((total, user) => total + (user.relation_total || 0), 0);
+      }
+
+      function filteredUsers() {
+        const query = normalize(els.searchInput.value);
+        const role = els.roleFilter.value;
+        const status = els.statusFilter.value;
+        return state.users.filter((user) => {
+          const name = user.profile?.display_name || user.user_metadata?.display_name || "";
+          const matchesQuery = [name, user.email, user.id, user.profile?.username].some((value) => normalize(value).includes(query));
+          const matchesRole = role === "all" || user.account_role === role;
+          const matchesStatus = status === "all" || user.account_status === status;
+          return matchesQuery && matchesRole && matchesStatus;
+        });
+      }
+
+      function renderUsers() {
+        const users = filteredUsers();
+        els.usersTable.innerHTML = "";
+        els.emptyState.classList.toggle("hidden", users.length > 0);
+        users.forEach((user) => {
+          const name = displayName(user);
+          const row = document.createElement("tr");
+          row.className = user.id === state.selectedUserId ? "bg-teal-50/60" : "hover:bg-slate-50";
+          row.innerHTML = `
+            <td class="px-4 py-3">
+              <button type="button" data-action="select" data-user-id="${escapeHtml(user.id)}" class="block max-w-[280px] text-left">
+                <span class="block truncate text-sm font-semibold text-ink">${escapeHtml(name)}</span>
+                <span class="block truncate text-xs text-muted">${escapeHtml(user.email || "-")}</span>
+              </button>
+            </td>
+            <td class="px-4 py-3 text-sm text-ink">${escapeHtml(roleLabel(user.account_role))}</td>
+            <td class="px-4 py-3"><span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass(user.account_status)}">${escapeHtml(statusLabel(user.account_status))}</span></td>
+            <td class="px-4 py-3 text-sm text-ink">${user.relation_total || 0}</td>
+            <td class="px-4 py-3">
+              <div class="flex justify-end gap-2">
+                <button type="button" data-action="edit" data-user-id="${escapeHtml(user.id)}" class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted hover:bg-white hover:text-ink" title="Edit akun">
+                  <i data-lucide="pencil" class="h-4 w-4"></i>
+                </button>
+                <button type="button" data-action="delete" data-user-id="${escapeHtml(user.id)}" class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-red-200 text-accent hover:bg-red-50" title="Hapus akun">
+                  <i data-lucide="trash-2" class="h-4 w-4"></i>
+                </button>
+              </div>
+            </td>
+          `;
+          els.usersTable.appendChild(row);
+        });
+        lucide.createIcons();
+      }
+
+      function renderDetail() {
+        const user = selectedUser();
+        if (!user) {
+          els.detailName.textContent = "Pilih akun";
+          els.detailEmail.textContent = "Relasi muncul berdasarkan user ID.";
+          els.detailStatus.textContent = "-";
+          els.profilePanel.innerHTML = blankPanel("Belum ada akun.");
+          els.relationsPanel.innerHTML = "";
+          els.metadataPanel.innerHTML = "";
+          return;
+        }
+        els.detailName.textContent = displayName(user);
+        els.detailEmail.textContent = user.email || "-";
+        els.detailStatus.textContent = statusLabel(user.account_status);
+        els.detailStatus.className = `shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass(user.account_status)}`;
+
+        els.profilePanel.innerHTML = `
+          <dl class="grid gap-3 text-sm">
+            ${detailRow("User ID", user.id, true)}
+            ${detailRow("Auth role", user.role || "-")}
+            ${detailRow("Account role", roleLabel(user.account_role))}
+            ${detailRow("Username", user.profile?.username || "-")}
+            ${detailRow("Display name", user.profile?.display_name || user.user_metadata?.display_name || "-")}
+            ${detailRow("Email confirmed", user.email_confirmed_at ? formatDate(user.email_confirmed_at) : "Belum")}
+            ${detailRow("Last sign in", user.last_sign_in_at ? formatDate(user.last_sign_in_at) : "-")}
+            ${detailRow("Onboarding", user.profile?.onboarding_completed ? "Selesai" : "Belum")}
+          </dl>
+        `;
+        renderRelationsPanel();
+        els.metadataPanel.innerHTML = `
+          <div>
+            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">App metadata</p>
+            <pre class="max-h-56 overflow-auto rounded-md bg-slate-950 p-3 text-xs text-slate-100 scrollbar-thin">${escapeHtml(JSON.stringify(user.app_metadata || {}, null, 2))}</pre>
+          </div>
+          <div>
+            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">User metadata</p>
+            <pre class="max-h-56 overflow-auto rounded-md bg-slate-950 p-3 text-xs text-slate-100 scrollbar-thin">${escapeHtml(JSON.stringify(user.user_metadata || {}, null, 2))}</pre>
+          </div>
+        `;
+        setPanel(state.currentPanel);
+      }
+
+      function renderRelationsPanel() {
+        const user = selectedUser();
+        if (!user) return;
+        const counts = user.relation_counts || {};
+        const preview = state.relationPreview;
+        const sections = Object.entries(counts).map(([key, count]) => {
+          const items = preview?.[key] || [];
+          const rows = items.length
+            ? items.map((item) => relationRow(item.title, item.meta || item.table, item.id)).join("")
+            : `<p class="rounded-md border border-dashed border-line p-3 text-sm text-muted">Preview belum dimuat atau tidak ada data.</p>`;
+          return `
+            <section>
+              <div class="mb-2 flex items-center justify-between gap-2">
+                <h3 class="text-sm font-semibold text-ink">${tableLabel(key)}</h3>
+                <span class="text-xs font-medium text-muted">${count}</span>
+              </div>
+              <div class="grid gap-2">${rows}</div>
+            </section>
+          `;
+        }).join("");
+        els.relationsPanel.innerHTML = `
+          <button type="button" id="loadRelationsBtn" class="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-medium text-ink hover:bg-slate-50">
+            <i data-lucide="database" class="h-4 w-4"></i>
+            Muat preview relasi
+          </button>
+          ${sections || blankPanel("Tidak ada relasi.")}
+        `;
+        document.querySelector("#loadRelationsBtn")?.addEventListener("click", () => loadRelations(user.id));
+        lucide.createIcons();
+      }
+
+      function setPanel(panel) {
+        state.currentPanel = panel;
+        document.querySelectorAll(".panel-tab").forEach((tab) => {
+          const active = tab.dataset.panelTab === panel;
+          tab.className = active
+            ? "panel-tab h-9 rounded-md border border-brand bg-teal-50 px-2 text-sm font-semibold text-brand"
+            : "panel-tab h-9 rounded-md border border-line bg-white px-2 text-sm font-medium text-muted";
+        });
+        els.profilePanel.hidden = panel !== "profile";
+        els.relationsPanel.hidden = panel !== "relations";
+        els.metadataPanel.hidden = panel !== "metadata";
+        if (panel === "relations" && !state.relationPreview && selectedUser()) loadRelations(selectedUser().id);
+      }
+
+      function selectedUser() {
+        return state.users.find((user) => user.id === state.selectedUserId) || null;
+      }
+
+      function openCreateModal() {
+        els.modalTitle.textContent = "Tambah akun";
+        els.userForm.reset();
+        document.querySelector("#editingUserId").value = "";
+        document.querySelector("#passwordField").required = true;
+        document.querySelector("#accountRoleField").value = "reader";
+        document.querySelector("#accountStatusField").value = "active";
+        openModal("userModal");
+      }
+
+      function openEditModal(userId) {
+        const user = state.users.find((item) => item.id === userId);
+        if (!user) return;
+        els.modalTitle.textContent = "Edit akun";
+        document.querySelector("#editingUserId").value = user.id;
+        document.querySelector("#emailField").value = user.email || "";
+        document.querySelector("#passwordField").value = "";
+        document.querySelector("#passwordField").required = false;
+        document.querySelector("#displayNameField").value = user.profile?.display_name || user.user_metadata?.display_name || "";
+        document.querySelector("#usernameField").value = user.profile?.username || user.user_metadata?.username || "";
+        document.querySelector("#accountRoleField").value = user.account_role || "reader";
+        document.querySelector("#accountStatusField").value = user.account_status || "active";
+        document.querySelector("#avatarUrlField").value = user.profile?.avatar_url || "";
+        document.querySelector("#onboardingField").checked = Boolean(user.profile?.onboarding_completed);
+        openModal("userModal");
+      }
+
+      async function saveUser(event) {
+        event.preventDefault();
+        const userId = document.querySelector("#editingUserId").value;
+        const payload = {
+          email: document.querySelector("#emailField").value.trim(),
+          password: document.querySelector("#passwordField").value,
+          display_name: document.querySelector("#displayNameField").value.trim() || null,
+          username: document.querySelector("#usernameField").value.trim() || null,
+          account_role: document.querySelector("#accountRoleField").value,
+          account_status: document.querySelector("#accountStatusField").value,
+          avatar_url: document.querySelector("#avatarUrlField").value.trim() || null,
+          onboarding_completed: document.querySelector("#onboardingField").checked,
+        };
+        if (userId && !payload.password) delete payload.password;
+
+        try {
+          const saved = userId
+            ? await apiFetch(`/api/v1/account-manager/accounts/${userId}`, { method: "PATCH", body: payload })
+            : await apiFetch("/api/v1/account-manager/accounts", { method: "POST", body: payload });
+          closeModal("userModal");
+          await loadAccounts();
+          state.selectedUserId = saved.id;
+          render();
+          notify("Akun tersimpan.");
+        } catch (error) {
+          notify(error.message, true);
+        }
+      }
+
+      async function openDeleteModal(userId) {
+        const user = state.users.find((item) => item.id === userId);
+        if (!user) return;
+        state.pendingDeleteUserId = userId;
+        els.confirmCascade.checked = false;
+        els.confirmDeleteBtn.disabled = true;
+        els.deleteMessage.textContent = `${displayName(user)} (${user.id}) akan dihapus dari Supabase Auth dan tabel aplikasi.`;
+        els.deleteRelations.innerHTML = `<p class="text-sm text-muted">Memuat preview...</p>`;
+        openModal("deleteModal");
+        try {
+          const preview = await apiFetch(`/api/v1/account-manager/accounts/${userId}/delete-preview`);
+          els.deleteRelations.innerHTML = Object.entries(preview.relation_counts || {})
+            .map(([key, count]) => `
+              <div class="flex items-center justify-between rounded-md border border-line bg-slate-50 px-3 py-2 text-sm">
+                <span class="font-medium text-ink">${tableLabel(key)}</span>
+                <span class="font-semibold text-muted">${count}</span>
+              </div>
+            `)
+            .join("");
+        } catch (error) {
+          notify(error.message, true);
+          closeModal("deleteModal");
+        }
+      }
+
+      async function deleteUser() {
+        if (!state.pendingDeleteUserId || !els.confirmCascade.checked) return;
+        try {
+          await apiFetch(`/api/v1/account-manager/accounts/${state.pendingDeleteUserId}`, { method: "DELETE" });
+          state.pendingDeleteUserId = null;
+          closeModal("deleteModal");
+          await loadAccounts();
+          notify("Akun dan relasinya sudah dihapus.");
+        } catch (error) {
+          notify(error.message, true);
+        }
+      }
+
+      function openModal(id) {
+        document.querySelector(`#${id}`).classList.remove("hidden");
+        document.querySelector(`#${id}`).classList.add("flex");
+        lucide.createIcons();
+      }
+
+      function closeModal(id) {
+        document.querySelector(`#${id}`).classList.add("hidden");
+        document.querySelector(`#${id}`).classList.remove("flex");
+      }
+
+      function notify(message, isError = false) {
+        els.toast.textContent = message;
+        els.toast.className = `fixed right-4 top-4 z-[70] max-w-sm rounded-md border px-4 py-3 text-sm shadow-soft ${
+          isError ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"
+        }`;
+        clearTimeout(notify.timer);
+        notify.timer = setTimeout(() => els.toast.classList.add("hidden"), 4500);
+      }
+
+      function displayName(user) {
+        return user.profile?.display_name || user.user_metadata?.display_name || user.email || user.id;
+      }
+
+      function normalize(value) {
+        return String(value || "").toLowerCase();
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+
+      function blankPanel(text) {
+        return `<div class="rounded-md border border-dashed border-line p-5 text-center text-sm text-muted">${escapeHtml(text)}</div>`;
+      }
+
+      function detailRow(label, value, mono = false) {
+        return `
+          <div class="flex items-start justify-between gap-4 border-b border-line pb-2 last:border-b-0">
+            <dt class="text-muted">${escapeHtml(label)}</dt>
+            <dd class="min-w-0 text-right ${mono ? "font-mono text-xs" : "text-sm"} text-ink">${escapeHtml(value)}</dd>
+          </div>
+        `;
+      }
+
+      function relationRow(title, meta, badge) {
+        return `
+          <div class="flex items-center justify-between gap-3 rounded-md border border-line bg-white p-3">
+            <div class="min-w-0">
+              <p class="truncate text-sm font-semibold text-ink">${escapeHtml(title)}</p>
+              <p class="truncate text-xs text-muted">${escapeHtml(meta)}</p>
+            </div>
+            <span class="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">${escapeHtml(badge)}</span>
+          </div>
+        `;
+      }
+
+      function roleLabel(role) {
+        return { admin: "Admin", owner: "Owner", creator: "Creator", reader: "Reader" }[role] || role || "-";
+      }
+
+      function statusLabel(status) {
+        return { active: "Aktif", pending: "Pending", suspended: "Suspended" }[status] || status || "-";
+      }
+
+      function statusClass(status) {
+        const map = {
+          active: "bg-emerald-50 text-emerald-700",
+          pending: "bg-amber-50 text-amber-700",
+          suspended: "bg-red-50 text-red-700",
+        };
+        return map[status] || "bg-slate-100 text-slate-700";
+      }
+
+      function tableLabel(key) {
+        return {
+          profiles: "Profiles",
+          reader_preferences: "Reader Preferences",
+          user_reading_stats: "Reading Stats",
+          user_bookmarks: "Bookmarks",
+          user_collections: "Collections",
+          user_collection_comics: "Collection Items",
+          user_progress: "Progress",
+          user_history_entries: "History",
+          user_favorite_scenes: "Favorite Scenes",
+          user_download_entries: "Downloads",
+        }[key] || key;
+      }
+
+      function formatDate(value) {
+        return new Intl.DateTimeFormat("id-ID", {
+          dateStyle: "medium",
+          timeStyle: "short",
+        }).format(new Date(value));
+      }
+    </script>
+  </body>
+</html>

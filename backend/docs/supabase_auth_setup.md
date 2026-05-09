@@ -31,6 +31,10 @@ SUPABASE_AUTH_REDIRECT_URL=tonztoon://auth/callback
 
 # Optional local-only fallback for old testing flow
 ALLOW_DEV_USER_HEADER=false
+
+# Optional, untuk dashboard account manager.
+# Isi dengan UUID Supabase Auth user admin, pisahkan koma bila lebih dari satu.
+ADMIN_USER_IDS=
 ```
 
 ## Endpoint backend auth
@@ -40,6 +44,7 @@ ALLOW_DEV_USER_HEADER=false
 - `POST /api/v1/auth/refresh`
 - `POST /api/v1/auth/password/forgot`
 - `POST /api/v1/auth/password/recovery/verify`
+- `POST /api/v1/auth/email/verify`
 - `POST /api/v1/auth/password/update`
 - `POST /api/v1/auth/logout`
 - `GET /api/v1/auth/me`
@@ -51,6 +56,37 @@ ALLOW_DEV_USER_HEADER=false
 ```http
 Authorization: Bearer <supabase_access_token>
 ```
+
+## Endpoint account manager
+
+Dashboard statis di [admin/account-dashboard.html](</e:/Projek/projek_vibecode/tonztoon_komik/admin/account-dashboard.html>) memakai endpoint backend berikut:
+
+- `GET /api/v1/account-manager/accounts`
+- `POST /api/v1/account-manager/accounts`
+- `PATCH /api/v1/account-manager/accounts/{user_id}`
+- `GET /api/v1/account-manager/accounts/{user_id}/relations`
+- `GET /api/v1/account-manager/accounts/{user_id}/delete-preview`
+- `DELETE /api/v1/account-manager/accounts/{user_id}`
+
+Semua endpoint tersebut wajib memakai:
+
+```http
+Authorization: Bearer <supabase_access_token_admin>
+```
+
+Akun dianggap admin bila salah satu kondisi benar:
+
+- UUID user ada di `ADMIN_USER_IDS`
+- `app_metadata.role`, `app_metadata.account_role`, atau `app_metadata.admin_role` bernilai `admin`, `owner`, atau `superadmin`
+- `user_metadata.role`, `user_metadata.account_role`, atau `user_metadata.admin_role` bernilai `admin`, `owner`, atau `superadmin`
+
+Operasi Supabase Auth Admin memakai `SUPABASE_SERVICE_ROLE_KEY` hanya di backend. Jangan pernah menaruh service role key di file HTML, Flutter, atau JavaScript browser.
+
+Catatan perilaku dashboard:
+
+- Status `suspended` akan mengirim `ban_duration` ke Supabase Auth sehingga akun benar-benar diblokir login.
+- Status `active` dan `pending` akan melepas ban Supabase Auth bila sebelumnya user disuspend.
+- Dashboard memblokir penghapusan akun admin yang sedang dipakai login agar tidak mengunci akses sendiri.
 
 ## JWT validation strategy
 

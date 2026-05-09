@@ -15,6 +15,7 @@ class DownloadNotificationService {
   static const _progressChannelName = 'Progress download';
   static const _statusChannelId = 'download_status';
   static const _statusChannelName = 'Status download';
+  static const _androidSmallIcon = 'ic_stat_tonztoon';
 
   final FlutterLocalNotificationsPlugin _plugin;
   final VoidCallback _onOpenDownloads;
@@ -54,6 +55,7 @@ class DownloadNotificationService {
             _progressChannelId,
             _progressChannelName,
             channelDescription: 'Progress download komik offline',
+            icon: _androidSmallIcon,
             importance: Importance.low,
             priority: Priority.low,
             onlyAlertOnce: true,
@@ -157,6 +159,7 @@ class DownloadNotificationService {
             _statusChannelId,
             _statusChannelName,
             channelDescription: 'Status download komik offline',
+            icon: _androidSmallIcon,
             importance: Importance.defaultImportance,
             priority: Priority.defaultPriority,
             onlyAlertOnce: true,
@@ -197,7 +200,7 @@ class DownloadNotificationService {
     try {
       await _plugin.initialize(
         settings: const InitializationSettings(
-          android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+          android: AndroidInitializationSettings(_androidSmallIcon),
           iOS: darwinSettings,
           macOS: darwinSettings,
           linux: LinuxInitializationSettings(

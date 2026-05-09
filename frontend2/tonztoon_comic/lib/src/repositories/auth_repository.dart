@@ -81,6 +81,18 @@ class AuthRepository {
     return _persistSession(session);
   }
 
+  Future<AuthState> verifyEmailSignup({
+    required String email,
+    required String tokenHash,
+  }) async {
+    final response = await _api.post<Map<String, dynamic>>(
+      '/auth/email/verify',
+      data: {'email': email.trim(), 'token_hash': tokenHash},
+    );
+    final session = AuthSession.fromJson(response.data ?? const {});
+    return _persistSession(session);
+  }
+
   Future<AuthState> useAuthSession({
     required String accessToken,
     String? refreshToken,

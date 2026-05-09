@@ -1465,11 +1465,19 @@ class _ResetPasswordSuccess extends StatelessWidget {
 class AuthCallbackScreen extends ConsumerStatefulWidget {
   const AuthCallbackScreen({
     super.key,
+    this.callbackType,
+    this.email,
+    this.callbackError,
+    this.tokenHash,
     this.accessToken,
     this.refreshToken,
     this.expiresAt,
   });
 
+  final String? callbackType;
+  final String? email;
+  final String? callbackError;
+  final String? tokenHash;
   final String? accessToken;
   final String? refreshToken;
   final int? expiresAt;
@@ -1480,6 +1488,15 @@ class AuthCallbackScreen extends ConsumerStatefulWidget {
 
 class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
   String? _errorMessage;
+
+  bool get _isEmailVerification => widget.callbackType == 'signup';
+
+  String get _loadingTitle =>
+      _isEmailVerification ? 'Memverifikasi email' : 'Menyelesaikan login';
+
+  String get _loadingMessage => _isEmailVerification
+      ? 'Sebentar, kami sedang mengaktifkan akun kamu.'
+      : 'Sebentar, kami sedang memulihkan sesi akun kamu.';
 
   @override
   void initState() {
@@ -1521,7 +1538,7 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
                       const SizedBox(height: 16),
                       Text(
                         _errorMessage == null
-                            ? 'Menyelesaikan login'
+                            ? _loadingTitle
                             : 'Callback auth gagal',
                         style: theme.textTheme.titleLarge?.copyWith(
                           color: palette.text,
@@ -1530,8 +1547,7 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        _errorMessage ??
-                            'Sebentar, kami sedang memulihkan sesi akun kamu.',
+                        _errorMessage ?? _loadingMessage,
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: palette.muted,
                           height: 1.4,
@@ -1563,11 +1579,33 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
   }
 
   Future<void> _completeAuthCallback() async {
-    final accessToken = widget.accessToken?.trim();
-    if (accessToken == null || accessToken.isEmpty) {
+    final callbackError = widget.callbackError?.trim();
+    if (callbackError != null && callbackError.isNotEmpty) {
       setState(() {
-        _errorMessage =
-            'Link auth tidak membawa sesi yang valid. Silakan login ulang.';
+        _errorMessage = _isEmailVerification
+            ? 'Verifikasi email gagal: $callbackError'
+            : 'Callback auth gagal: $callbackError';
+      });
+      return;
+    }
+
+    final accessToken = widget.accessToken?.trim();
+    final tokenHash = widget.tokenHash?.trim();
+    final email = widget.email?.trim();
+    if (accessToken == null || accessToken.isEmpty) {
+      if (_isEmailVerification &&
+          tokenHash != null &&
+          tokenHash.isNotEmpty &&
+          email != null &&
+          email.isNotEmpty) {
+        await _verifySignupToken(email: email, tokenHash: tokenHash);
+        return;
+      }
+
+      setState(() {
+        _errorMessage = _isEmailVerification
+            ? 'Link verifikasi email tidak lengkap. Minta link baru dari halaman register.'
+            : 'Link auth tidak membawa sesi yang valid. Silakan login ulang.';
       });
       return;
     }
@@ -1588,6 +1626,26 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
         _errorMessage = error is ApiException
             ? error.message
             : 'Tidak dapat memulihkan sesi. Silakan login ulang.';
+      });
+    }
+  }
+
+  Future<void> _verifySignupToken({
+    required String email,
+    required String tokenHash,
+  }) async {
+    try {
+      await ref
+          .read(authControllerProvider.notifier)
+          .verifyEmailSignup(email, tokenHash);
+      if (!mounted) return;
+      context.go('/settings');
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = error is ApiException
+            ? error.message
+            : 'Tidak dapat memverifikasi email. Silakan minta link baru.';
       });
     }
   }

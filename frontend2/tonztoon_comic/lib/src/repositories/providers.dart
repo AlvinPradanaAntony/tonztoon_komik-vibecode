@@ -275,6 +275,12 @@ class AuthController extends Notifier<AuthState> {
         .verifyPasswordRecovery(email: email, tokenHash: tokenHash);
   }
 
+  Future<void> verifyEmailSignup(String email, String tokenHash) async {
+    state = await ref
+        .read(authRepositoryProvider)
+        .verifyEmailSignup(email: email, tokenHash: tokenHash);
+  }
+
   Future<void> useAuthSession({
     required String accessToken,
     String? refreshToken,

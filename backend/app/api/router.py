@@ -6,7 +6,17 @@ Menggabungkan semua sub-router ke satu v1 prefix.
 
 from fastapi import APIRouter
 
-from app.api.v1 import sources, comics, search, genres, images, scraper, library, auth
+from app.api.v1 import (
+    account_manager,
+    auth,
+    comics,
+    genres,
+    images,
+    library,
+    scraper,
+    search,
+    sources,
+)
 
 api_router = APIRouter()
 
@@ -18,3 +28,8 @@ api_router.include_router(images.router, prefix="/v1/images", tags=["Images"])
 api_router.include_router(scraper.router, prefix="/v1/scraper", tags=["Scraper"])
 api_router.include_router(library.router, prefix="/v1/library", tags=["Library"])
 api_router.include_router(auth.router, prefix="/v1/auth", tags=["Auth"])
+api_router.include_router(
+    account_manager.router,
+    prefix="/v1/account-manager",
+    tags=["Account Manager"],
+)

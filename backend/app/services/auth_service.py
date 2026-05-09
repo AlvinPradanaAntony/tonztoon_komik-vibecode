@@ -20,6 +20,7 @@ from app.config import (
 )
 from app.schemas import (
     AuthenticatedUser,
+    AuthEmailVerificationRequest,
     AuthLoginRequest,
     AuthPasswordRecoveryRequest,
     AuthPasswordRecoveryVerifyRequest,
@@ -281,6 +282,31 @@ async def verify_password_recovery(
     return _normalize_session(response.json())
 
 
+async def verify_email_signup(
+    payload: AuthEmailVerificationRequest,
+) -> AuthSessionResponse:
+    """Verifikasi email signup dan kembalikan sesi Supabase."""
+    auth_base = get_supabase_auth_base_url()
+    if not auth_base:
+        raise AuthConfigurationError("SUPABASE_URL must be configured.")
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            f"{auth_base}/verify",
+            headers=_build_public_headers(),
+            json={
+                "type": "signup",
+                "email": str(payload.email),
+                "token_hash": payload.token_hash,
+            },
+        )
+
+    if response.status_code >= 400:
+        raise _build_email_verification_auth_error(response)
+
+    return _normalize_session(response.json())
+
+
 async def update_auth_password(
     access_token: str,
     payload: AuthPasswordUpdateRequest,
@@ -439,6 +465,20 @@ def _build_password_recovery_verify_auth_error(
             "Link reset tidak valid atau sudah kedaluwarsa.",
             status_code=401,
             code=code or "invalid_recovery_token",
+        )
+
+    return AuthRequestError(message, status_code=401, code=code)
+
+
+def _build_email_verification_auth_error(response: httpx.Response) -> AuthRequestError:
+    message, code = _extract_auth_error_payload(response)
+    normalized = _normalize_error_text(message, code)
+
+    if "expired" in normalized or "invalid" in normalized or "token" in normalized:
+        return AuthRequestError(
+            "Link verifikasi email tidak valid atau sudah kedaluwarsa.",
+            status_code=401,
+            code=code or "invalid_email_verification_token",
         )
 
     return AuthRequestError(message, status_code=401, code=code)
