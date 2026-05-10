@@ -4,12 +4,9 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 **TonzToon Komik** adalah aplikasi pembaca komik lintas platform dan multi-sumber yang dibangun menggunakan Flutter. Aplikasi ini menggunakan backend Python FastAPI untuk pengambilan data langsung (*live scraping*) dan Supabase untuk sinkronisasi *cloud*.
 
-Format penulisan ini berdasarkan pada [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-dan proyek ini mematuhi standar penomoran versi [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
 ---
 
-## [1.0.0] - 2026-05-10
+## [1.5.0] - 2026-05-10
 
 ### 🎉 Initial Release
 
@@ -27,7 +24,7 @@ dan proyek ini mematuhi standar penomoran versi [Semantic Versioning](https://se
 - Riwayat baca otomatis tersimpan via Hive (local storage)
 - Progress baca tersimpan dan ditampilkan di home screen (Continue Reading)
 - Download chapter untuk dibaca offline
-- Notifikasi update chapter terbaru
+- Notifikasi update chapter terbaru (Dummy)
 - Pengaturan aplikasi (theme, dll)
 - Backend FastAPI dengan lazy loading dan background prefetch image
 - Deployment backend ke Hugging Face Spaces via Docker

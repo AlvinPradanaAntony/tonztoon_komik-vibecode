@@ -17,3 +17,4 @@ backend/logs/
 backend/checkpoints
 Arsitektur SoC
 backend/data/
+frontend/

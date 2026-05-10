@@ -27,6 +27,18 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "📦 Version: $VERSION"
 
+      - name: Validate API_BASE_URL
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+        run: |
+          if [ -z "$API_BASE_URL" ]; then
+            echo "❌ API_BASE_URL secret kosong"
+            exit 1
+          fi
+
+          echo "✅ API_BASE_URL tersedia"
+          echo "Length: ${#API_BASE_URL}"
+
       - name: Validasi versi release
         run: |
           set -euo pipefail
