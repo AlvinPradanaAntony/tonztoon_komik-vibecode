@@ -6,6 +6,22 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
+## [1.5.1] - 2026-05-10
+
+### Added
+- Integrasi plugin `package_info_plus` untuk menampilkan informasi versi aplikasi.
+- Penambahan izin `android.permission.INTERNET` pada `AndroidManifest.xml` untuk memastikan akses jaringan berjalan lancar di versi rilis.
+
+### Changed
+- Peningkatan durasi *timeout* pada klien API (Connection: 20s, Send: 20s, Receive: 60s) untuk meningkatkan stabilitas koneksi ke server Hugging Face Spaces.
+- Pembaruan `.gitignore` untuk mengecualikan direktori `frontend/` lama.
+
+---
+<details>
+<summary><strong>Lihat Riwayat Versi Sebelumnya</strong></summary>
+
+<br>
+
 ## [1.5.0] - 2026-05-10
 
 ### 🎉 Initial Release
@@ -36,7 +52,8 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 - Supabase sebagai database dan auth backend
 - GitHub Actions untuk sync data komik otomatis
 
----
+</details>
+
 
 <!-- 
 PANDUAN PENULISAN CHANGELOG

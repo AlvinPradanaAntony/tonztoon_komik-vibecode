@@ -14,9 +14,9 @@ class ApiException implements Exception {
 }
 
 class TonztoonApi {
-  static const Duration connectionTimeout = Duration(seconds: 3);
-  static const Duration sendTimeout = Duration(seconds: 8);
-  static const Duration receiveTimeout = Duration(seconds: 30);
+  static const Duration connectionTimeout = Duration(seconds: 20);
+  static const Duration sendTimeout = Duration(seconds: 20);
+  static const Duration receiveTimeout = Duration(seconds: 60);
 
   TonztoonApi({
     required AppConfig config,
