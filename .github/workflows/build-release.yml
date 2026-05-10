@@ -76,8 +76,19 @@ jobs:
         id: changelog
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          # Ambil bagian changelog untuk versi yang di-tag
-          NOTES=$(awk -v version="$VERSION" 'index($0, "## [" version "]") == 1 {found=1; next} found && /^## \[/{exit} found{print}' CHANGELOG.md)
+          # Ambil changelog versi terbaru dan maksimal satu blok collapse riwayat versi sebelumnya.
+          NOTES=$(awk -v version="$VERSION" '
+            index($0, "## [" version "]") == 1 {found=1; next}
+            !found {next}
+            /^<!--/ {exit}
+            !after_section && /^---$/ {after_section=1; print; next}
+            !after_section && /^## \[/ {exit}
+            !after_section {print; next}
+            after_section && /^<details>/ {details=1; print; next}
+            after_section && details {print; if ($0 ~ /^<\/details>/) exit; next}
+            after_section && /^[[:space:]]*$/ {print; next}
+            after_section {exit}
+          ' CHANGELOG.md)
           
           if [ -z "$NOTES" ]; then
             echo "❌ Release notes untuk $VERSION kosong."

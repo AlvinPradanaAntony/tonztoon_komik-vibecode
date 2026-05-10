@@ -6,11 +6,28 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
-## [1.5.0] - 2026-05-10
+## [1.5.1] - 2026-05-10
 
-### 🎉 Initial Release
+### Added
+- Integrasi plugin `package_info_plus` untuk menampilkan informasi versi aplikasi.
+- Penambahan izin `android.permission.INTERNET` pada `AndroidManifest.xml` untuk memastikan akses jaringan berjalan lancar di versi rilis.
 
-#### Added
+### Changed
+- Peningkatan durasi *timeout* pada klien API (Connection: 20s, Send: 20s, Receive: 60s) untuk meningkatkan stabilitas koneksi ke server Hugging Face Spaces.
+- Pembaruan `.gitignore` untuk mengecualikan direktori `frontend/` lama.
+
+---
+
+<details>
+<summary><strong>Riwayat versi sebelumnya</strong></summary>
+
+<br>
+
+### [1.5.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.5.0) - 2026-05-10
+
+#### 🎉 Initial Release
+
+##### Added
 - Multi-source comic reader (MangaKatana, Kiryuu, dll)
 - Onboarding screen dengan 3 halaman pengenalan fitur
 - Autentikasi pengguna via Supabase (login & register)
@@ -29,14 +46,15 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 - Backend FastAPI dengan lazy loading dan background prefetch image
 - Deployment backend ke Hugging Face Spaces via Docker
 
-#### Technical
+##### Technical
 - Flutter 3.x dengan arsitektur Riverpod
 - Hive sebagai local database (settings, auth, progress, library, cache)
 - Scrapling-based live scraping on-demand
 - Supabase sebagai database dan auth backend
 - GitHub Actions untuk sync data komik otomatis
 
----
+</details>
+
 
 <!-- 
 PANDUAN PENULISAN CHANGELOG
@@ -54,4 +72,8 @@ Checklist release:
 1. Update frontend2/tonztoon_comic/pubspec.yaml ke version: X.Y.Z+N
 2. Tambahkan entry CHANGELOG.md dengan header ## [X.Y.Z] - YYYY-MM-DD
 3. Buat dan push tag git dengan format vX.Y.Z
+
+Catatan:
+- Body GitHub Release mengambil versi terbaru dan satu blok <details> riwayat versi sebelumnya.
+- Simpan hanya 1 versi sebelumnya di dalam blok <details>, lengkap dengan link release/tag.
 -->
