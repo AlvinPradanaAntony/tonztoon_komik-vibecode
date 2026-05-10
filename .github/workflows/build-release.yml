@@ -1,0 +1,236 @@
+name: 🚀 Build & Publish Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'   # Trigger saat push tag seperti v1.0.0, v1.2.3, dll
+
+jobs:
+  # ─────────────────────────────────────────────
+  # JOB 1: Ekstrak Changelog untuk versi ini
+  # ─────────────────────────────────────────────
+  extract-changelog:
+    name: 📋 Extract Changelog
+    runs-on: ubuntu-latest
+    outputs:
+      release_notes: ${{ steps.changelog.outputs.release_notes }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get version dari tag
+        id: version
+        run: |
+          # Ambil versi tanpa prefix 'v' (misal: v1.0.0 -> 1.0.0)
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Version: $VERSION"
+
+      - name: Validasi versi release
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ steps.version.outputs.version }}"
+          PUBSPEC_VERSION=$(awk '/^version: / {print $2; exit}' frontend2/tonztoon_comic/pubspec.yaml)
+          PUBSPEC_BUILD_NAME="${PUBSPEC_VERSION%%+*}"
+
+          if [ -z "$PUBSPEC_VERSION" ]; then
+            echo "❌ version tidak ditemukan di frontend2/tonztoon_comic/pubspec.yaml"
+            exit 1
+          fi
+
+          if [ "$PUBSPEC_BUILD_NAME" != "$VERSION" ]; then
+            echo "❌ Versi tag dan pubspec.yaml tidak sama."
+            echo "   Tag release     : $GITHUB_REF_NAME"
+            echo "   Versi dari tag  : $VERSION"
+            echo "   Versi pubspec   : $PUBSPEC_VERSION"
+            echo ""
+            echo "Perbaiki dengan menyamakan pubspec.yaml, contoh:"
+            echo "version: $VERSION+1"
+            exit 1
+          fi
+
+          if ! grep -Fq "## [$VERSION]" CHANGELOG.md; then
+            echo "❌ CHANGELOG.md belum punya entry untuk versi $VERSION"
+            echo "Tambahkan header seperti:"
+            echo "## [$VERSION] - $(date +%F)"
+            exit 1
+          fi
+
+          echo "✅ Versi release konsisten: tag $GITHUB_REF_NAME, pubspec $PUBSPEC_VERSION, changelog $VERSION"
+
+      - name: Ekstrak release notes dari CHANGELOG.md
+        id: changelog
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          # Ambil bagian changelog untuk versi yang di-tag
+          NOTES=$(awk -v version="$VERSION" 'index($0, "## [" version "]") == 1 {found=1; next} found && /^## \[/{exit} found{print}' CHANGELOG.md)
+          
+          if [ -z "$NOTES" ]; then
+            echo "❌ Release notes untuk $VERSION kosong."
+            echo "Isi detail perubahan di bawah header ## [$VERSION] sebelum membuat tag release."
+            exit 1
+          fi
+          
+          echo "release_notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "✅ Release notes berhasil diekstrak"
+
+  # ─────────────────────────────────────────────
+  # JOB 2: Build Android APK
+  # ─────────────────────────────────────────────
+  build-android:
+    name: 🤖 Build Android APK
+    runs-on: ubuntu-latest
+    needs: extract-changelog
+    defaults:
+      run:
+        working-directory: frontend2/tonztoon_comic
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.9'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze project
+        run: flutter analyze --no-fatal-infos
+
+      - name: Build APK (release)
+        run: |
+          flutter build apk --release \
+            --build-name=${{ needs.extract-changelog.outputs.version }} \
+            --build-number=${{ github.run_number }} \
+            --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }}
+
+      - name: Rename APK
+        run: |
+          VERSION="${{ needs.extract-changelog.outputs.version }}"
+          mv build/app/outputs/flutter-apk/app-release.apk \
+             build/app/outputs/flutter-apk/tonztoon-v${VERSION}.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: frontend2/tonztoon_comic/build/app/outputs/flutter-apk/tonztoon-v*.apk
+          retention-days: 7
+
+  # ─────────────────────────────────────────────
+  # JOB 3: Build iOS IPA
+  # ─────────────────────────────────────────────
+  build-ios:
+    name: 🍎 Build iOS IPA
+    runs-on: macos-latest
+    needs: extract-changelog
+    defaults:
+      run:
+        working-directory: frontend2/tonztoon_comic
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.9'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build iOS (no codesign - untuk distribusi internal/testing)
+        run: |
+          flutter build ios --release --no-codesign \
+            --build-name=${{ needs.extract-changelog.outputs.version }} \
+            --build-number=${{ github.run_number }} \
+            --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }}
+
+      - name: Package IPA
+        run: |
+          VERSION="${{ needs.extract-changelog.outputs.version }}"
+          mkdir -p Payload
+          cp -r build/ios/iphoneos/Runner.app Payload/
+          zip -r tonztoon-v${VERSION}.ipa Payload
+          rm -rf Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: frontend2/tonztoon_comic/tonztoon-v*.ipa
+          retention-days: 7
+
+  # ─────────────────────────────────────────────
+  # JOB 4: Publish GitHub Release
+  # ─────────────────────────────────────────────
+  publish-release:
+    name: 📦 Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs: [extract-changelog, build-android, build-ios]
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+          path: ./release-assets/
+
+      - name: Download IPA artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-ipa
+          path: ./release-assets/
+
+      - name: List release assets
+        run: ls -la ./release-assets/
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "🎉 TonzToon ${{ github.ref_name }}"
+          body: |
+            ## 📋 Apa yang Baru di ${{ github.ref_name }}?
+
+            ${{ needs.extract-changelog.outputs.release_notes }}
+
+            ---
+
+            ## 📥 Download
+
+            | Platform | File | Keterangan |
+            |----------|------|------------|
+            | 🤖 Android | `tonztoon-${{ github.ref_name }}.apk` | Install langsung (enable Unknown Sources) |
+            | 🍎 iOS | `tonztoon-${{ github.ref_name }}.ipa` | Perlu signing / AltStore / TestFlight |
+
+            ---
+
+            > **Build:** #${{ github.run_number }} • **Commit:** `${{ github.sha }}`
+          files: ./release-assets/*
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
+          generate_release_notes: false

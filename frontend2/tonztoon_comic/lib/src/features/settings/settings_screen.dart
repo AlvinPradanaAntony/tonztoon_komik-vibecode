@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/app_icons.dart';
 import '../../models/auth.dart';
@@ -29,6 +30,13 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _pushNotifications = true;
+  late final Future<PackageInfo> _packageInfoFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _packageInfoFuture = PackageInfo.fromPlatform();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -152,6 +160,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ),
             ],
+            const SizedBox(height: 24),
+            const _SectionLabel(text: 'About'),
+            const SizedBox(height: 8),
+            _AppVersionSection(packageInfoFuture: _packageInfoFuture),
           ],
         ),
       ),
@@ -1263,6 +1275,55 @@ class _SectionLabel extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _AppVersionSection extends StatelessWidget {
+  const _AppVersionSection({required this.packageInfoFuture});
+
+  final Future<PackageInfo> packageInfoFuture;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<PackageInfo>(
+      future: packageInfoFuture,
+      builder: (context, snapshot) {
+        final versionLabel = switch (snapshot) {
+          AsyncSnapshot<PackageInfo>(hasData: true, data: final info?) =>
+            _formatVersion(info),
+          AsyncSnapshot<PackageInfo>(hasError: true) => 'Tidak tersedia',
+          _ => 'Memuat...',
+        };
+
+        return _SettingsSection(
+          children: [
+            _SettingsRow(
+              icon: TonztoonIcons.badge,
+              title: 'App Version',
+              subtitle: 'Mengikuti metadata build terbaru',
+              trailing: Text(
+                versionLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _formatVersion(PackageInfo info) {
+    final version = info.version.trim();
+    final buildNumber = info.buildNumber.trim();
+    if (version.isEmpty && buildNumber.isEmpty) return 'Tidak tersedia';
+    if (buildNumber.isEmpty) return 'v$version';
+    if (version.isEmpty) return 'Build $buildNumber';
+    return 'v$version ($buildNumber)';
   }
 }
 

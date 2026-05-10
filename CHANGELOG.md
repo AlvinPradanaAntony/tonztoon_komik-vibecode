@@ -1,0 +1,60 @@
+# Changelog
+
+Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di dalam file ini.
+
+**TonzToon Komik** adalah aplikasi pembaca komik lintas platform dan multi-sumber yang dibangun menggunakan Flutter. Aplikasi ini menggunakan backend Python FastAPI untuk pengambilan data langsung (*live scraping*) dan Supabase untuk sinkronisasi *cloud*.
+
+Format penulisan ini berdasarkan pada [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+dan proyek ini mematuhi standar penomoran versi [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+---
+
+## [1.0.0] - 2026-05-10
+
+### 🎉 Initial Release
+
+#### Added
+- Multi-source comic reader (MangaKatana, Kiryuu, dll)
+- Onboarding screen dengan 3 halaman pengenalan fitur
+- Autentikasi pengguna via Supabase (login & register)
+- Halaman Home dengan daftar komik terbaru dan populer
+- Fitur pencarian komik lintas sumber
+- Halaman Detail Komik dengan info lengkap (sinopsis, genre, author, status)
+- Reader komik berbasis viewer gambar dengan navigasi chapter
+- Navigasi antar chapter (sebelumnya / berikutnya) langsung dari reader
+- Sorting urutan chapter (Ascending / Descending)
+- Fitur Perpustakaan (Library) untuk menyimpan komik favorit
+- Riwayat baca otomatis tersimpan via Hive (local storage)
+- Progress baca tersimpan dan ditampilkan di home screen (Continue Reading)
+- Download chapter untuk dibaca offline
+- Notifikasi update chapter terbaru
+- Pengaturan aplikasi (theme, dll)
+- Backend FastAPI dengan lazy loading dan background prefetch image
+- Deployment backend ke Hugging Face Spaces via Docker
+
+#### Technical
+- Flutter 3.x dengan arsitektur Riverpod
+- Hive sebagai local database (settings, auth, progress, library, cache)
+- Scrapling-based live scraping on-demand
+- Supabase sebagai database dan auth backend
+- GitHub Actions untuk sync data komik otomatis
+
+---
+
+<!-- 
+PANDUAN PENULISAN CHANGELOG
+============================
+Format setiap entry:
+## [X.Y.Z] - YYYY-MM-DD
+
+### Added     → Fitur baru
+### Changed   → Perubahan pada fitur yang sudah ada
+### Fixed     → Bug fix
+### Removed   → Fitur yang dihapus
+### Security  → Perbaikan celah keamanan
+
+Checklist release:
+1. Update frontend2/tonztoon_comic/pubspec.yaml ke version: X.Y.Z+N
+2. Tambahkan entry CHANGELOG.md dengan header ## [X.Y.Z] - YYYY-MM-DD
+3. Buat dan push tag git dengan format vX.Y.Z
+-->
