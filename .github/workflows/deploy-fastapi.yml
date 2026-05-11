@@ -1,0 +1,120 @@
+name: Deploy Backend to Hugging Face
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'README.md'  # README asli akan di-append ke header HF
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (preview saja, tidak push ke HF)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+concurrency:
+  group: deploy-hf
+  cancel-in-progress: false
+
+env:
+  BACKEND_DIR: backend
+  HF_README_HEADER: |
+    ---
+    title: TonzToon Komik API
+    emoji: 📚
+    colorFrom: indigo
+    colorTo: purple
+    sdk: docker
+    app_port: 7860
+    pinned: false
+    license: mit
+    short_description: REST API backend untuk aplikasi pembaca komik TonzToon
+    ---
+  # Nilai default DRY_RUN; di-override oleh input workflow_dispatch jika dijalankan manual
+  DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Prepare Hugging Face payload
+        run: |
+          set -euo pipefail
+
+          rm -rf hf-payload
+          mkdir -p hf-payload
+
+          cp -R "$BACKEND_DIR" hf-payload/backend
+          cp Dockerfile .dockerignore hf-payload/
+
+          printf '%s\n\n' "$HF_README_HEADER" > hf-payload/README.md
+          awk '
+            NR == 1 && $0 == "---" { in_frontmatter = 1; next }
+            in_frontmatter && $0 == "---" { in_frontmatter = 0; next }
+            !in_frontmatter { print }
+          ' README.md >> hf-payload/README.md
+
+      - name: Sync payload to Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: ${{ secrets.HF_SPACE }}
+        run: |
+          set -euo pipefail
+
+          git clone --depth 1 "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}.git" hf-space
+          rsync -a --delete --itemize-changes --exclude='.git' hf-payload/ hf-space/ | tee rsync.log
+
+          cd hf-space
+          git add -A
+
+      - name: Log rsync summary
+        if: always()
+        run: |
+          set -euo pipefail
+
+          if [ ! -f rsync.log ]; then
+            echo "No rsync log found"
+            exit 0
+          fi
+
+          added=$(grep -c '^>f+++++++++' rsync.log || true)
+          deleted=$(grep -c '^\*deleting ' rsync.log || true)
+
+          echo "Rsync summary:"
+          echo "  added:   ${added}"
+          echo "  deleted: ${deleted}"
+
+      - name: Push to Hugging Face
+        working-directory: hf-space
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "DRY_RUN=true -> Preview only. The following push would occur:"
+            git status --short
+            git diff --cached --stat
+            echo "git commit -m \"chore: update backend deploy files [$(date +'%Y-%m-%d')]\""
+            echo "git push origin main"
+          elif git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: update backend deploy files [$(date +'%Y-%m-%d')]"
+            git push origin main
+          fi
