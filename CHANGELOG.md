@@ -6,22 +6,30 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
-## [1.5.1] - 2026-05-10
+## [1.5.2] - 2026-05-11
 
 ### Added
-- Integrasi plugin `package_info_plus` untuk menampilkan informasi versi aplikasi.
-- Penambahan izin `android.permission.INTERNET` pada `AndroidManifest.xml` untuk memastikan akses jaringan berjalan lancar di versi rilis.
+- GitHub Action workflow baru (\deploy-fastapi.yml\) untuk *deployment* otomatis backend FastAPI ke Hugging Face Spaces.
 
 ### Changed
-- Peningkatan durasi *timeout* pada klien API (Connection: 20s, Send: 20s, Receive: 60s) untuk meningkatkan stabilitas koneksi ke server Hugging Face Spaces.
-- Pembaruan `.gitignore` untuk mengecualikan direktori `frontend/` lama.
+- Restrukturisasi direktori aplikasi Flutter dari \frontend2/tonztoon_comic\ menjadi \frontend\.
+- Pembaruan *path* pada GitHub Actions (\build-release.yml\), \.gitignore\, dan \.dockerignore\ untuk menyesuaikan dengan struktur direktori \frontend\ yang baru.
 
 ---
 
 <details>
 <summary><strong>Riwayat versi sebelumnya</strong></summary>
 
-<br>
+### [1.5.1](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.5.1) - 2026-05-10
+
+### Added
+- Integrasi plugin \package_info_plus\ untuk menampilkan informasi versi aplikasi.
+- Penambahan izin \ android.permission.INTERNET\ pada \AndroidManifest.xml\ untuk memastikan akses jaringan berjalan lancar di versi rilis.
+
+### Changed
+- Peningkatan durasi *timeout* pada klien API (Connection: 20s, Send: 20s, Receive: 60s) untuk meningkatkan stabilitas koneksi ke server Hugging Face Spaces.
+- Pembaruan \.gitignore\ untuk mengecualikan direktori \ frontend/\ lama.
+
 
 ### [1.5.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.5.0) - 2026-05-10
 
@@ -62,14 +70,14 @@ PANDUAN PENULISAN CHANGELOG
 Format setiap entry:
 ## [X.Y.Z] - YYYY-MM-DD
 
-### Added     → Fitur baru
-### Changed   → Perubahan pada fitur yang sudah ada
-### Fixed     → Bug fix
-### Removed   → Fitur yang dihapus
-### Security  → Perbaikan celah keamanan
+### Added     -> Fitur baru
+### Changed   -> Perubahan pada fitur yang sudah ada
+### Fixed     -> Bug fix
+### Removed   -> Fitur yang dihapus
+### Security  -> Perbaikan celah keamanan
 
 Checklist release:
-1. Update frontend2/tonztoon_comic/pubspec.yaml ke version: X.Y.Z+N
+1. Update frontend/pubspec.yaml ke version: X.Y.Z+N
 2. Tambahkan entry CHANGELOG.md dengan header ## [X.Y.Z] - YYYY-MM-DD
 3. Buat dan push tag git dengan format vX.Y.Z
 
