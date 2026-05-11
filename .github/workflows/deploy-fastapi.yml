@@ -1,28 +1,32 @@
-name: Deploy Backend to Hugging Face
+name: "🚀 Deploy Backend to Hugging Face"
 
 on:
   push:
     branches:
       - main
     paths:
-      - 'backend/**'
-      - 'Dockerfile'
-      - '.dockerignore'
-      - 'README.md'  # README asli akan di-append ke header HF
+      - "backend/**"
+      - "Dockerfile"
+      - ".dockerignore"
+      - "README.md"
+
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Dry run (preview saja, tidak push ke HF)'
+        description: "Dry run (preview only, do not push to Hugging Face)"
         required: false
-        default: 'false'
+        default: "false"
         type: choice
         options:
-          - 'false'
-          - 'true'
+          - "false"
+          - "true"
 
 concurrency:
   group: deploy-hf
   cancel-in-progress: false
+
+permissions:
+  contents: read
 
 env:
   BACKEND_DIR: backend
@@ -44,28 +48,63 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v6
 
-      - name: Setup Git
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Prepare Hugging Face payload
+      - name: 🔎 Validate deployment prerequisites
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: ${{ secrets.HF_SPACE }}
         run: |
           set -euo pipefail
 
+          fail() { echo "❌ $1"; exit 1; }
+
+          echo "🔎 Memulai workflow deploy backend"
+          echo "🧪 Dry run mode: ${DRY_RUN}"
+
+          case "${DRY_RUN}" in
+            true|false) ;;
+            *) fail "Nilai dry_run tidak valid: ${DRY_RUN}" ;;
+          esac
+
+          [[ -d "${BACKEND_DIR}" ]] || fail "Folder ${BACKEND_DIR} tidak ditemukan"
+          [[ -f Dockerfile ]] || fail "Dockerfile tidak ditemukan"
+          [[ -f .dockerignore ]] || fail ".dockerignore tidak ditemukan"
+          [[ -f README.md ]] || fail "README.md tidak ditemukan"
+
+          if [ "${DRY_RUN}" = "true" ]; then
+            echo "⚠️ Dry run aktif, sinkronisasi dan push akan dilewati"
+          else
+            [[ -n "${HF_TOKEN:-}" ]] || fail "Secret HF_TOKEN belum tersedia"
+            [[ -n "${HF_SPACE:-}" ]] || fail "Secret HF_SPACE belum tersedia"
+            echo "✅ Semua secret dan file wajib tersedia"
+          fi
+
+      - name: 🛠️ Setup Git identity
+        run: |
+          set -euo pipefail
+
+          echo "🛠️ Mengatur identitas git untuk commit otomatis"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          echo "✅ Git identity sudah siap"
+
+      - name: 📦 Prepare Hugging Face payload
+        run: |
+          set -euo pipefail
+
+          echo "📦 Membersihkan payload lama"
           rm -rf hf-payload
           mkdir -p hf-payload
 
+          echo "📦 Menyalin backend, Dockerfile, dan .dockerignore"
           cp -R "$BACKEND_DIR" hf-payload/backend
           cp Dockerfile .dockerignore hf-payload/
 
+          echo "📝 Membangun README Hugging Face dengan header khusus"
           printf '%s\n\n' "$HF_README_HEADER" > hf-payload/README.md
           awk '
             NR == 1 && $0 == "---" { in_frontmatter = 1; next }
@@ -73,48 +112,85 @@ jobs:
             !in_frontmatter { print }
           ' README.md >> hf-payload/README.md
 
-      - name: Sync payload to Hugging Face Space
+          echo "📋 Payload siap dikirim"
+          find hf-payload -maxdepth 2 -type f | sort | sed 's#^#  - #'
+          echo "✅ Payload berhasil disiapkan"
+
+      - name: 🔍 Preview payload
+        if: env.DRY_RUN == 'true'
+        run: |
+          set -euo pipefail
+
+          echo "🔍 Preview mode aktif, tidak ada koneksi ke Hugging Face"
+          echo "📦 Ukuran payload:"
+          du -sh hf-payload | awk '{print "  - " $0}'
+          echo "✅ Preview selesai"
+
+      - name: 🚚 Sync payload to Hugging Face Space
+        if: env.DRY_RUN != 'true'
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_SPACE: ${{ secrets.HF_SPACE }}
         run: |
           set -euo pipefail
 
+          echo "🚚 Meng-clone Hugging Face Space: ${HF_SPACE}"
           git clone --depth 1 "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}.git" hf-space
+
+          echo "🔄 Menyinkronkan payload ke ruang Hugging Face"
           rsync -a --delete --itemize-changes --exclude='.git' hf-payload/ hf-space/ | tee rsync.log
 
           cd hf-space
           git add -A
+          echo "✅ Payload berhasil disinkronkan"
 
-      - name: Log rsync summary
-        if: always()
+      - name: 🧾 Log rsync summary
+        if: ${{ always() && env.DRY_RUN != 'true' }}
         run: |
           set -euo pipefail
 
           if [ ! -f rsync.log ]; then
-            echo "No rsync log found"
+            echo "⚠️ Rsync log tidak ditemukan"
             exit 0
           fi
 
           added=$(grep -c '^>f+++++++++' rsync.log || true)
           deleted=$(grep -c '^\*deleting ' rsync.log || true)
 
-          echo "Rsync summary:"
-          echo "  added:   ${added}"
-          echo "  deleted: ${deleted}"
+          echo "🧾 Rsync summary"
+          printf '  - added:   %s\n' "${added}"
+          printf '  - deleted: %s\n' "${deleted}"
+          echo "✅ Ringkasan rsync selesai"
 
-      - name: Push to Hugging Face
+      - name: 📤 Push to Hugging Face
+        if: env.DRY_RUN != 'true'
         working-directory: hf-space
         run: |
-          if [ "$DRY_RUN" = "true" ]; then
-            echo "DRY_RUN=true -> Preview only. The following push would occur:"
-            git status --short
-            git diff --cached --stat
-            echo "git commit -m \"chore: update backend deploy files [$(date +'%Y-%m-%d')]\""
-            echo "git push origin main"
-          elif git diff --cached --quiet; then
-            echo "No changes to commit"
+          set -euo pipefail
+
+          if git diff --cached --quiet; then
+            echo "⚠️ Tidak ada perubahan baru, push dilewati"
+            exit 0
+          fi
+
+          commit_message="chore: update backend deploy files [$(date +'%Y-%m-%d')]"
+          echo "📝 Membuat commit: ${commit_message}"
+          git commit -m "${commit_message}"
+
+          echo "🚀 Mendorong perubahan ke Hugging Face"
+          git push origin main
+
+          echo "✅ Push ke Hugging Face berhasil"
+
+      - name: ✅ Log completion
+        if: always()
+        run: |
+          set -euo pipefail
+
+          echo "⏱️ Waktu selesai: $(date -u)"
+
+          if [ "${DRY_RUN}" = "true" ]; then
+            echo "✅ Workflow selesai dalam mode preview"
           else
-            git commit -m "chore: update backend deploy files [$(date +'%Y-%m-%d')]"
-            git push origin main
+            echo "✅ Workflow deploy selesai"
           fi

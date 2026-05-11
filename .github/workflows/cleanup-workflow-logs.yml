@@ -1,0 +1,129 @@
+name: "🧹 Cleanup Workflow Logs"
+
+on:
+  schedule:
+    # Jalan tiap hari pukul 00:00 UTC+7, yaitu 17:00 UTC.
+    - cron: "0 17 * * *"
+
+  workflow_dispatch:
+    inputs:
+      retention_days:
+        description: "Keep logs from the last N days"
+        required: false
+        default: 2
+        type: number
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: cleanup-workflow-logs
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Delete Old Workflow Logs
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 🧹 Remove workflow runs older than retention window
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const retentionDaysRaw =
+              context.eventName === 'workflow_dispatch'
+                ? context.payload?.inputs?.retention_days
+                : 2;
+            const retentionDays = Number.parseInt(String(retentionDaysRaw ?? '2'), 10);
+            if (!Number.isInteger(retentionDays) || retentionDays < 1) {
+              throw new Error(`retention_days must be a positive integer, got: ${retentionDaysRaw}`);
+            }
+
+            const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+            const cutoffIso = cutoff.toISOString();
+            core.info(`Keeping workflow logs completed at or after ${cutoffIso}`);
+
+            let page = 1;
+            const perPage = 100;
+            let scanned = 0;
+            let deleted = 0;
+            let skippedRecent = 0;
+            let skippedMissingTimestamp = 0;
+
+            while (true) {
+              const { data } = await github.rest.actions.listWorkflowRunsForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                status: 'completed',
+                per_page: perPage,
+                page,
+              });
+
+              const runs = data.workflow_runs || [];
+              if (runs.length === 0) {
+                break;
+              }
+
+              for (const run of runs) {
+                scanned += 1;
+
+                const completedAtRaw = run.completed_at ?? run.updated_at ?? run.created_at;
+                if (!completedAtRaw) {
+                  skippedMissingTimestamp += 1;
+                  continue;
+                }
+
+                const completedAt = new Date(completedAtRaw);
+                if (Number.isNaN(completedAt.getTime())) {
+                  skippedMissingTimestamp += 1;
+                  continue;
+                }
+
+                if (completedAt >= cutoff) {
+                  skippedRecent += 1;
+                  continue;
+                }
+
+                try {
+                  await github.rest.actions.deleteWorkflowRun({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    run_id: run.id,
+                  });
+                  deleted += 1;
+                  core.info(`Deleted workflow run #${run.run_number} (${run.name}) timestamp ${completedAtRaw}`);
+                } catch (error) {
+                  if (error?.status === 404) {
+                    core.info(`Workflow run already gone for #${run.run_number} (${run.name})`);
+                    continue;
+                  }
+                  throw error;
+                }
+              }
+
+              if (runs.length < perPage) {
+                break;
+              }
+
+              page += 1;
+            }
+
+            await core.summary
+              .addHeading('🧾 Workflow run cleanup summary', 2)
+              .addRaw('\n')
+              .addTable([
+                [{ data: 'Metric', header: true }, { data: 'Value', header: true }],
+                ['⏱️ Retention window', `${retentionDays} day(s)`],
+                ['🎯 Cutoff', `\`${cutoffIso}\``],
+                ['🔎 Scanned runs', `${scanned}`],
+                ['🧹 Deleted workflow runs', `${deleted}`],
+                ['🕓 Skipped recent runs', `${skippedRecent}`],
+                ['⚠️ Missing timestamp data', `${skippedMissingTimestamp}`],
+              ])
+              .addRaw('\n')
+              .addQuote(`Cleanup finished successfully. Deleted ${deleted} workflow run(s).`)
+              .write();
+
+            core.notice(`Cleanup finished. Deleted ${deleted} workflow run(s).`);
