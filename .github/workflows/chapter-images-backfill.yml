@@ -81,7 +81,29 @@ jobs:
           fi
 
       - name: 📝 Log preflight summary
+        env:
+          SOURCE_FILTER: ${{ github.event.inputs.source || '' }}
         run: |
+          set -euo pipefail
+
+          completed_at="$(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          source_filter="${SOURCE_FILTER:-}"
+          if [ -z "${source_filter}" ]; then
+            source_filter="<all sources>"
+          fi
+
+          {
+            echo "## 🖼️ Chapter images preflight summary"
+            echo
+            echo "| Metric | Value |"
+            echo "|---|---|"
+            echo "| Has pending | ${{ steps.pending.outputs.has_pending }} |"
+            echo "| Pending count | ${{ steps.pending.outputs.pending_count }} |"
+            echo "| Pending by source | ${{ steps.pending.outputs.pending_by_source }} |"
+            echo "| Source filter | ${source_filter} |"
+            echo "| Completed at | ${completed_at} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
           echo "has_pending=${{ steps.pending.outputs.has_pending }}"
           echo "pending_count=${{ steps.pending.outputs.pending_count }}"
           echo "pending_by_source=${{ steps.pending.outputs.pending_by_source }}"
@@ -128,7 +150,33 @@ jobs:
 
       - name: 📝 Log completion
         if: always()
+        env:
+          SOURCE_FILTER: ${{ github.event.inputs.source || '' }}
+          SELECTION_MODE: ${{ github.event.inputs.selection || 'random' }}
+          BATCH_SIZE: ${{ github.event.inputs.batch_size || '10' }}
+          LIMIT_COUNT: ${{ github.event.inputs.limit || '20' }}
         run: |
+          set -euo pipefail
+
+          completed_at="$(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          source_filter="${SOURCE_FILTER:-}"
+          if [ -z "${source_filter}" ]; then
+            source_filter="<all sources>"
+          fi
+
+          {
+            echo "## 🖼️ Chapter images backfill summary"
+            echo
+            echo "| Metric | Value |"
+            echo "|---|---|"
+            echo "| Initial pending count | ${{ needs.preflight.outputs.pending_count }} |"
+            echo "| Source filter | ${source_filter} |"
+            echo "| Selection mode | ${SELECTION_MODE} |"
+            echo "| Batch size | ${BATCH_SIZE} |"
+            echo "| Limit | ${LIMIT_COUNT} |"
+            echo "| Completed at | ${completed_at} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
           echo "Chapter images backfill finished at $(date -u)"
           echo "Initial pending_count=${{ needs.preflight.outputs.pending_count }}"
 
@@ -141,6 +189,21 @@ jobs:
     steps:
       - name: 💤 Skip backfill
         run: |
+          set -euo pipefail
+
+          completed_at="$(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+
+          {
+            echo "## 💤 Chapter images backfill summary"
+            echo
+            echo "| Metric | Value |"
+            echo "|---|---|"
+            echo "| Status | Skipped, no pending images |"
+            echo "| Pending count | ${{ needs.preflight.outputs.pending_count }} |"
+            echo "| Pending by source | ${{ needs.preflight.outputs.pending_by_source }} |"
+            echo "| Completed at | ${completed_at} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
           echo "No pending chapter images found."
           echo "pending_count=${{ needs.preflight.outputs.pending_count }}"
           echo "pending_by_source=${{ needs.preflight.outputs.pending_by_source }}"

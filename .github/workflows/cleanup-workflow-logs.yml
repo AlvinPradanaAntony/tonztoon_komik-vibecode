@@ -1,4 +1,4 @@
-name: "🧹 Cleanup Workflow Logs"
+name: "🧹 Cleanup Workflow Runs"
 
 on:
   schedule:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       retention_days:
-        description: "Keep logs from the last N days"
+        description: "Keep workflow runs from the last N days"
         required: false
         default: 2
         type: number
@@ -18,12 +18,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: cleanup-workflow-logs
+  group: cleanup-workflow-runs
   cancel-in-progress: false
 
 jobs:
   cleanup:
-    name: Delete Old Workflow Logs
+    name: Delete Old Workflow Runs
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -43,14 +43,16 @@ jobs:
 
             const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
             const cutoffIso = cutoff.toISOString();
-            core.info(`Keeping workflow logs completed at or after ${cutoffIso}`);
+            core.info(`Keeping workflow runs started/created at or after ${cutoffIso}`);
 
             let page = 1;
             const perPage = 100;
             let scanned = 0;
-            let deleted = 0;
             let skippedRecent = 0;
             let skippedMissingTimestamp = 0;
+            let deleted = 0;
+            let alreadyGone = 0;
+            const oldRuns = [];
 
             while (true) {
               const { data } = await github.rest.actions.listWorkflowRunsForRepo({
@@ -69,38 +71,29 @@ jobs:
               for (const run of runs) {
                 scanned += 1;
 
-                const completedAtRaw = run.completed_at ?? run.updated_at ?? run.created_at;
-                if (!completedAtRaw) {
+                const ageTimestampRaw = run.run_started_at ?? run.created_at;
+                if (!ageTimestampRaw) {
                   skippedMissingTimestamp += 1;
                   continue;
                 }
 
-                const completedAt = new Date(completedAtRaw);
-                if (Number.isNaN(completedAt.getTime())) {
+                const ageTimestamp = new Date(ageTimestampRaw);
+                if (Number.isNaN(ageTimestamp.getTime())) {
                   skippedMissingTimestamp += 1;
                   continue;
                 }
 
-                if (completedAt >= cutoff) {
+                if (ageTimestamp >= cutoff) {
                   skippedRecent += 1;
                   continue;
                 }
 
-                try {
-                  await github.rest.actions.deleteWorkflowRun({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    run_id: run.id,
-                  });
-                  deleted += 1;
-                  core.info(`Deleted workflow run #${run.run_number} (${run.name}) timestamp ${completedAtRaw}`);
-                } catch (error) {
-                  if (error?.status === 404) {
-                    core.info(`Workflow run already gone for #${run.run_number} (${run.name})`);
-                    continue;
-                  }
-                  throw error;
-                }
+                oldRuns.push({
+                  id: run.id,
+                  name: run.name,
+                  runNumber: run.run_number,
+                  ageTimestampRaw,
+                });
               }
 
               if (runs.length < perPage) {
@@ -108,6 +101,25 @@ jobs:
               }
 
               page += 1;
+            }
+
+            for (const run of oldRuns) {
+              try {
+                await github.rest.actions.deleteWorkflowRun({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  run_id: run.id,
+                });
+                deleted += 1;
+                core.info(`Deleted workflow run #${run.runNumber} (${run.name}) timestamp ${run.ageTimestampRaw}`);
+              } catch (error) {
+                if (error?.status === 404) {
+                  alreadyGone += 1;
+                  core.info(`Workflow run already gone for #${run.runNumber} (${run.name})`);
+                  continue;
+                }
+                throw error;
+              }
             }
 
             await core.summary
@@ -119,6 +131,7 @@ jobs:
                 ['🎯 Cutoff', `\`${cutoffIso}\``],
                 ['🔎 Scanned runs', `${scanned}`],
                 ['🧹 Deleted workflow runs', `${deleted}`],
+                ['📦 Already removed', `${alreadyGone}`],
                 ['🕓 Skipped recent runs', `${skippedRecent}`],
                 ['⚠️ Missing timestamp data', `${skippedMissingTimestamp}`],
               ])

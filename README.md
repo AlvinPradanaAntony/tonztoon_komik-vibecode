@@ -1,15 +1,3 @@
----
-title: TonzToon Komik API
-emoji: 📚
-colorFrom: indigo
-colorTo: purple
-sdk: docker
-app_port: 7860
-pinned: false
-license: mit
-short_description: REST API backend untuk aplikasi pembaca komik TonzToon
----
-
 # 📚 TonzToon Komik — Backend API
 
 REST API backend untuk aplikasi mobile pembaca komik **TonzToon**, dibangun dengan **FastAPI** dan dijalankan di atas **Hugging Face Spaces** menggunakan Docker.

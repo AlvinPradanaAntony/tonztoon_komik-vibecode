@@ -145,6 +145,7 @@ jobs:
           echo "✅ Payload berhasil disinkronkan"
 
       - name: 🧾 Log rsync summary
+        id: rsync-summary
         if: ${{ always() && env.DRY_RUN != 'true' }}
         run: |
           set -euo pipefail
@@ -161,6 +162,8 @@ jobs:
           printf '  - added:   %s\n' "${added}"
           printf '  - deleted: %s\n' "${deleted}"
           echo "✅ Ringkasan rsync selesai"
+          echo "added=${added}" >> "$GITHUB_OUTPUT"
+          echo "deleted=${deleted}" >> "$GITHUB_OUTPUT"
 
       - name: 📤 Push to Hugging Face
         if: env.DRY_RUN != 'true'
@@ -184,8 +187,26 @@ jobs:
 
       - name: ✅ Log completion
         if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          RSYNC_ADDED: ${{ steps.rsync-summary.outputs.added || 'n/a' }}
+          RSYNC_DELETED: ${{ steps.rsync-summary.outputs.deleted || 'n/a' }}
         run: |
           set -euo pipefail
+
+          completed_at="$(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+
+          {
+            echo "## 🚀 Deploy backend summary"
+            echo
+            echo "| Metric | Value |"
+            echo "|---|---|"
+            echo "| Dry run | ${DRY_RUN} |"
+            echo "| Job status | ${JOB_STATUS} |"
+            echo "| Rsync added | ${RSYNC_ADDED} |"
+            echo "| Rsync deleted | ${RSYNC_DELETED} |"
+            echo "| Completed at | ${completed_at} |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
           echo "⏱️ Waktu selesai: $(date -u)"
 

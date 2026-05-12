@@ -55,4 +55,20 @@ jobs:
 
       - name: 📝 Log completion
         if: always()
-        run: echo "Scraper workflow finished at $(date -u)"
+        env:
+          TRIGGER_SOURCE: ${{ github.event.inputs.trigger_source || github.event_name }}
+        run: |
+          set -euo pipefail
+
+          completed_at="$(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+
+          {
+            echo "## 🕷️ Scraper summary"
+            echo
+            echo "| Metric | Value |"
+            echo "|---|---|"
+            echo "| Trigger source | ${TRIGGER_SOURCE} |"
+            echo "| Completed at | ${completed_at} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "Scraper workflow finished at $(date -u)"

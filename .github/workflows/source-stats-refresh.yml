@@ -59,4 +59,26 @@ jobs:
 
       - name: 📝 Log completion
         if: always()
-        run: echo "Source stats workflow finished at $(date -u)"
+        env:
+          TRIGGER_SOURCE: ${{ github.event.inputs.trigger_source || github.event_name }}
+          SOURCE_FILTER: ${{ github.event.inputs.source || '' }}
+        run: |
+          set -euo pipefail
+
+          completed_at="$(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          source_filter="${SOURCE_FILTER:-}"
+          if [ -z "${source_filter}" ]; then
+            source_filter="<all sources>"
+          fi
+
+          {
+            echo "## 📊 Source stats refresh summary"
+            echo
+            echo "| Metric | Value |"
+            echo "|---|---|"
+            echo "| Trigger source | ${TRIGGER_SOURCE} |"
+            echo "| Source filter | ${source_filter} |"
+            echo "| Completed at | ${completed_at} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "Source stats workflow finished at $(date -u)"

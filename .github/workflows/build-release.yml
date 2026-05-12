@@ -257,3 +257,29 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
           generate_release_notes: false
+
+      - name: 🧾 Log release summary
+        if: always()
+        run: |
+          set -euo pipefail
+
+          version="${{ needs.extract-changelog.outputs.version }}"
+          prerelease="false"
+          if [[ "${GITHUB_REF_NAME}" == *-beta* || "${GITHUB_REF_NAME}" == *-rc* ]]; then
+            prerelease="true"
+          fi
+          completed_at="$(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+
+          {
+            echo "## 🚀 Build & publish release summary"
+            echo
+            echo "| Metric | Value |"
+            echo "|---|---|"
+            echo "| Tag | ${GITHUB_REF_NAME} |"
+            echo "| Version | ${version} |"
+            echo "| Prerelease | ${prerelease} |"
+            echo "| Android artifact | tonztoon-v${version}.apk |"
+            echo "| iOS artifact | tonztoon-v${version}.ipa |"
+            echo "| Run number | ${GITHUB_RUN_NUMBER} |"
+            echo "| Completed at | ${completed_at} |"
+          } >> "$GITHUB_STEP_SUMMARY"

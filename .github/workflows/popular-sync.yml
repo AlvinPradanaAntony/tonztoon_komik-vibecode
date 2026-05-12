@@ -59,4 +59,22 @@ jobs:
 
       - name: 📝 Log completion
         if: always()
-        run: echo "Popular sync workflow finished at $(date -u)"
+        env:
+          TRIGGER_SOURCE: ${{ github.event.inputs.trigger_source || github.event_name }}
+          POPULAR_PAGES: ${{ github.event.inputs.popular_pages || '10' }}
+        run: |
+          set -euo pipefail
+
+          completed_at="$(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+
+          {
+            echo "## 🔥 Popular sync summary"
+            echo
+            echo "| Metric | Value |"
+            echo "|---|---|"
+            echo "| Trigger source | ${TRIGGER_SOURCE} |"
+            echo "| Popular pages | ${POPULAR_PAGES} |"
+            echo "| Completed at | ${completed_at} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "Popular sync workflow finished at $(date -u)"
