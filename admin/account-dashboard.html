@@ -4,8 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Tonztoon Account Manager</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <script>
       tailwind.config = {
         theme: {
@@ -26,8 +28,45 @@
       };
     </script>
     <style>
+      :root {
+        color-scheme: light;
+      }
+
       [hidden] {
         display: none !important;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        background: radial-gradient(circle at top left, rgba(15, 118, 110, 0.16), transparent 30rem), linear-gradient(135deg, #eef2f7 0%, #f8fafc 44%, #fff7ed 100%);
+      }
+
+      button,
+      input,
+      select {
+        transition:
+          border-color 160ms ease,
+          background-color 160ms ease,
+          box-shadow 160ms ease,
+          color 160ms ease,
+          opacity 160ms ease,
+          transform 160ms ease;
+      }
+
+      button:not(:disabled):active:not([data-toggle-password]) {
+        transform: translateY(1px);
+      }
+
+      button[data-toggle-password] {
+        transition: none !important;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.58;
       }
 
       .scrollbar-thin::-webkit-scrollbar {
@@ -39,39 +78,177 @@
         background: #cbd5e1;
         border-radius: 999px;
       }
+
+      .glass-panel {
+        background: rgba(255, 255, 255, 0.88);
+        backdrop-filter: blur(18px);
+      }
+
+      .skeleton-row {
+        background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 37%, #f1f5f9 63%);
+        background-size: 400% 100%;
+        animation: shimmer 1.4s ease infinite;
+      }
+
+      .relation-node {
+        transition:
+          border-color 160ms ease,
+          box-shadow 160ms ease,
+          transform 160ms ease;
+      }
+
+      .relation-node:hover {
+        border-color: rgba(15, 118, 110, 0.45);
+        box-shadow: 0 12px 28px rgba(15, 118, 110, 0.12);
+        transform: translateY(-1px);
+      }
+
+      .custom-select-menu {
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(-4px) scale(0.98);
+        transform-origin: top;
+        transition:
+          opacity 140ms ease,
+          transform 140ms ease;
+      }
+
+      .custom-select[data-open="true"] .custom-select-menu {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0) scale(1);
+      }
+
+      .toastify.account-toast {
+        max-width: min(25rem, calc(100vw - 2rem)) !important;
+        border-radius: 22px !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        color: inherit !important;
+        padding: 0 !important;
+      }
+
+      .account-toast-card {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 0.75rem;
+        align-items: start;
+        width: 100%;
+        border: 1px solid rgba(217, 222, 229, 0.92);
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 0 18px 48px rgba(16, 24, 40, 0.16);
+        padding: 0.875rem 2.75rem 0.875rem 0.875rem;
+        backdrop-filter: blur(18px);
+      }
+
+      .account-toast-card[data-tone="success"] {
+        border-color: rgba(16, 185, 129, 0.28);
+      }
+
+      .account-toast-card[data-tone="error"] {
+        border-color: rgba(239, 68, 68, 0.28);
+      }
+
+      .account-toast-icon {
+        display: inline-grid;
+        height: 2rem;
+        width: 2rem;
+        place-items: center;
+        border-radius: 999px;
+      }
+
+      .account-toast-card[data-tone="success"] .account-toast-icon {
+        background: #ecfdf5;
+        color: #047857;
+      }
+
+      .account-toast-card[data-tone="error"] .account-toast-icon {
+        background: #fef2f2;
+        color: #b42318;
+      }
+
+      .account-toast-title {
+        margin: 0;
+        color: #161a1d;
+        font-size: 0.875rem;
+        font-weight: 700;
+        line-height: 1.25rem;
+      }
+
+      .account-toast-message {
+        margin: 0.125rem 0 0;
+        color: #667085;
+        font-size: 0.8125rem;
+        line-height: 1.25rem;
+        overflow-wrap: anywhere;
+      }
+
+      .toastify.account-toast .toast-close {
+        color: #667085 !important;
+        font-size: 1rem;
+        opacity: 0.82;
+        padding: 0 0.25rem;
+        position: absolute;
+        right: 0.875rem;
+        top: 0.875rem;
+      }
+
+      .fallback-toast-region {
+        display: grid;
+        gap: 0.75rem;
+        max-width: min(25rem, calc(100vw - 2rem));
+        position: fixed;
+        right: 1rem;
+        top: 1rem;
+        z-index: 90;
+      }
+
+      @keyframes shimmer {
+        0% {
+          background-position: 100% 0;
+        }
+        100% {
+          background-position: 0 0;
+        }
+      }
     </style>
   </head>
-  <body class="min-h-screen bg-paper text-ink antialiased">
-    <div id="toast" class="fixed right-4 top-4 z-[70] hidden max-w-sm rounded-md border border-line bg-white px-4 py-3 text-sm shadow-soft"></div>
-
+  <body class="min-h-screen text-ink antialiased">
     <section id="loginView" class="grid min-h-screen place-items-center px-4 py-8">
-      <form id="loginForm" class="w-full max-w-md rounded-md border border-line bg-white p-5 shadow-soft">
+      <form id="loginForm" class="glass-panel w-full max-w-md rounded-3xl border border-white/70 p-6 shadow-soft">
         <div class="mb-5">
           <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Admin</p>
           <h1 class="mt-1 text-2xl font-semibold text-ink">Account Manager</h1>
-          <p class="mt-2 text-sm text-muted">Masuk memakai akun Supabase yang punya role admin/owner atau terdaftar di `ADMIN_USER_IDS`.</p>
+          <p class="mt-2 text-sm leading-6 text-muted">Masuk memakai akun Supabase yang punya role admin/owner atau terdaftar di `ADMIN_USER_IDS`.</p>
         </div>
         <label class="block">
           <span class="text-sm font-medium text-ink">Backend API base URL</span>
-          <input id="apiBaseField" class="mt-1 h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" value="http://127.0.0.1:8000" />
+          <input id="apiBaseField" type="url" class="mt-1 h-11 w-full rounded-2xl border border-line bg-white/90 px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" value="http://127.0.0.1:8000" />
         </label>
         <label class="mt-4 block">
           <span class="text-sm font-medium text-ink">Email admin</span>
-          <input id="loginEmailField" type="email" required class="mt-1 h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
+          <input id="loginEmailField" type="email" required class="mt-1 h-11 w-full rounded-2xl border border-line bg-white/90 px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
         </label>
         <label class="mt-4 block">
           <span class="text-sm font-medium text-ink">Password</span>
-          <input id="loginPasswordField" type="password" required minlength="8" class="mt-1 h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
+          <div class="relative mt-1">
+            <input id="loginPasswordField" type="password" required minlength="8" class="h-11 w-full rounded-2xl border border-line bg-white/90 pl-3 pr-10 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
+            <button type="button" data-toggle-password="loginPasswordField" class="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink" title="Lihat password">
+              <i data-lucide="eye" class="eye-icon h-4 w-4"></i>
+              <i data-lucide="eye-off" class="eye-off-icon h-4 w-4 hidden"></i>
+            </button>
+          </div>
         </label>
-        <button id="loginBtn" type="submit" class="mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white hover:bg-teal-800">
+        <button id="loginBtn" type="submit" class="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-brand px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/20">
           <i data-lucide="log-in" class="h-4 w-4"></i>
-          Masuk
+          <span>Masuk</span>
         </button>
       </form>
     </section>
 
     <div id="appView" class="hidden min-h-screen">
-      <header class="border-b border-line bg-white">
+      <header class="sticky top-0 z-30 border-b border-white/70 bg-white/80 backdrop-blur-xl">
         <div class="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div>
             <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Supabase</p>
@@ -79,17 +256,17 @@
             <p id="apiBaseLabel" class="mt-1 break-all text-xs text-muted"></p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
-            <button id="reloadBtn" type="button" class="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-medium text-ink hover:bg-slate-50" title="Muat ulang akun">
+            <button id="reloadBtn" type="button" class="inline-flex h-10 items-center gap-2 rounded-2xl border border-line bg-white/90 px-3 text-sm font-medium text-ink shadow-sm hover:bg-slate-50" title="Muat ulang akun">
               <i data-lucide="refresh-cw" class="h-4 w-4"></i>
-              Reload
+              <span>Reload</span>
             </button>
-            <button id="openCreateBtn" type="button" class="inline-flex h-10 items-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white hover:bg-teal-800" title="Tambah akun">
+            <button id="openCreateBtn" type="button" class="inline-flex h-10 items-center gap-2 rounded-2xl bg-brand px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800" title="Tambah akun">
               <i data-lucide="plus" class="h-4 w-4"></i>
-              Akun
+              <span>Akun</span>
             </button>
-            <button id="logoutBtn" type="button" class="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-medium text-ink hover:bg-slate-50" title="Keluar">
+            <button id="logoutBtn" type="button" class="inline-flex h-10 items-center gap-2 rounded-2xl border border-line bg-white/90 px-3 text-sm font-medium text-ink shadow-sm hover:bg-slate-50" title="Keluar">
               <i data-lucide="log-out" class="h-4 w-4"></i>
-              Logout
+              <span>Logout</span>
             </button>
           </div>
         </div>
@@ -98,35 +275,33 @@
       <main class="mx-auto grid max-w-7xl gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:px-8">
         <section class="min-w-0 space-y-4">
           <div class="grid gap-3 sm:grid-cols-3">
-            <div class="rounded-md border border-line bg-white p-4">
+            <div class="glass-panel rounded-3xl border border-white/70 p-4 shadow-sm">
               <p class="text-sm font-medium text-muted">Total akun</p>
               <p id="totalUsers" class="mt-2 text-3xl font-semibold text-ink">0</p>
             </div>
-            <div class="rounded-md border border-line bg-white p-4">
-              <p class="text-sm font-medium text-muted">Aktif</p>
+            <div class="glass-panel rounded-3xl border border-white/70 p-4 shadow-sm">
+              <p class="text-sm font-medium text-muted">Aktif halaman ini</p>
               <p id="activeUsers" class="mt-2 text-3xl font-semibold text-ink">0</p>
             </div>
-            <div class="rounded-md border border-line bg-white p-4">
-              <p class="text-sm font-medium text-muted">Relasi app</p>
+            <div class="glass-panel rounded-3xl border border-white/70 p-4 shadow-sm">
+              <p class="text-sm font-medium text-muted">Relasi halaman ini</p>
               <p id="relationCount" class="mt-2 text-3xl font-semibold text-ink">0</p>
             </div>
           </div>
 
-          <div class="rounded-md border border-line bg-white">
-            <div class="grid gap-3 border-b border-line p-4 lg:grid-cols-[minmax(220px,1fr)_160px_160px]">
+          <div class="glass-panel overflow-hidden rounded-3xl border border-white/70 shadow-sm">
+            <div class="grid gap-3 border-b border-line/80 p-4 lg:grid-cols-[minmax(220px,1fr)_160px_160px]">
               <label class="relative block">
                 <span class="sr-only">Cari akun</span>
                 <i data-lucide="search" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"></i>
-                <input id="searchInput" type="search" class="h-10 w-full rounded-md border border-line bg-white pl-10 pr-3 text-sm outline-none placeholder:text-slate-400 focus:border-brand focus:ring-2 focus:ring-brand/20" placeholder="Cari nama, email, atau user ID" />
+                <input id="searchInput" type="search" class="h-10 w-full rounded-2xl border border-line bg-white/90 pl-10 pr-3 text-sm outline-none placeholder:text-slate-400 focus:border-brand focus:ring-2 focus:ring-brand/20" placeholder="Cari nama, email, atau user ID" />
               </label>
-              <select id="roleFilter" class="h-10 w-full rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20">
+              <select id="roleFilter" class="h-10 w-full rounded-2xl border border-line bg-white/90 px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20">
                 <option value="all">Semua role</option>
                 <option value="admin">Admin</option>
-                <option value="owner">Owner</option>
-                <option value="creator">Creator</option>
                 <option value="reader">Reader</option>
               </select>
-              <select id="statusFilter" class="h-10 w-full rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20">
+              <select id="statusFilter" class="h-10 w-full rounded-2xl border border-line bg-white/90 px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20">
                 <option value="all">Semua status</option>
                 <option value="active">Aktif</option>
                 <option value="pending">Pending</option>
@@ -134,9 +309,9 @@
               </select>
             </div>
 
-            <div class="overflow-x-auto scrollbar-thin">
-              <table class="min-w-full divide-y divide-line">
-                <thead class="bg-slate-50">
+            <div class="max-h-[30rem] overflow-auto scrollbar-thin">
+              <table class="w-full min-w-[720px] divide-y divide-line">
+                <thead class="bg-slate-50/80">
                   <tr>
                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted">Akun</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted">Role</th>
@@ -152,12 +327,31 @@
               <i data-lucide="user-x" class="mx-auto h-8 w-8 text-muted"></i>
               <p class="mt-3 text-sm font-medium text-ink">Tidak ada akun yang cocok.</p>
             </div>
+            <div class="flex flex-col gap-3 border-t border-line/80 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <p id="paginationSummary" class="text-sm text-muted">0 akun</p>
+              <div class="flex flex-wrap items-center gap-2">
+                <select id="pageSizeSelect" class="h-10 rounded-2xl border border-line bg-white/90 px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20">
+                  <option value="50">50 / halaman</option>
+                  <option value="100">100 / halaman</option>
+                  <option value="200">200 / halaman</option>
+                </select>
+                <button id="prevPageBtn" type="button" class="inline-flex h-10 items-center gap-2 rounded-2xl border border-line bg-white/90 px-3 text-sm font-medium text-ink shadow-sm hover:bg-slate-50">
+                  <i data-lucide="chevron-left" class="h-4 w-4"></i>
+                  <span>Prev</span>
+                </button>
+                <button id="nextPageBtn" type="button" class="inline-flex h-10 items-center gap-2 rounded-2xl border border-line bg-white/90 px-3 text-sm font-medium text-ink shadow-sm hover:bg-slate-50">
+                  <span>Next</span>
+                  <i data-lucide="chevron-right" class="h-4 w-4"></i>
+                </button>
+              </div>
+            </div>
           </div>
+          <section id="relationTableWorkspace" class="hidden scroll-mt-28"></section>
         </section>
 
         <aside class="min-w-0">
-          <div class="sticky top-5 rounded-md border border-line bg-white shadow-soft">
-            <div class="border-b border-line p-4">
+          <div class="glass-panel sticky top-24 rounded-3xl border border-white/70 shadow-soft">
+            <div class="border-b border-line/80 p-4">
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
                   <p class="text-sm font-medium text-muted">Detail akun</p>
@@ -169,9 +363,9 @@
             </div>
             <div class="p-4">
               <div class="grid grid-cols-3 gap-2">
-                <button data-panel-tab="profile" type="button" class="panel-tab h-9 rounded-md border border-brand bg-teal-50 px-2 text-sm font-semibold text-brand">Profil</button>
-                <button data-panel-tab="relations" type="button" class="panel-tab h-9 rounded-md border border-line bg-white px-2 text-sm font-medium text-muted">Relasi</button>
-                <button data-panel-tab="metadata" type="button" class="panel-tab h-9 rounded-md border border-line bg-white px-2 text-sm font-medium text-muted">Metadata</button>
+                <button data-panel-tab="profile" type="button" class="panel-tab h-9 rounded-2xl border border-brand bg-teal-50 px-2 text-sm font-semibold text-brand">Profil</button>
+                <button data-panel-tab="relations" type="button" class="panel-tab h-9 rounded-2xl border border-line bg-white/90 px-2 text-sm font-medium text-muted">Relasi</button>
+                <button data-panel-tab="metadata" type="button" class="panel-tab h-9 rounded-2xl border border-line bg-white/90 px-2 text-sm font-medium text-muted">Metadata</button>
               </div>
               <div id="profilePanel" class="mt-4 space-y-3"></div>
               <div id="relationsPanel" class="mt-4 space-y-4" hidden></div>
@@ -179,15 +373,17 @@
             </div>
           </div>
         </aside>
+
+        <section id="relationDiagramWorkspace" class="hidden scroll-mt-28 lg:col-span-2"></section>
       </main>
     </div>
 
-    <div id="userModal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-950/45 p-4">
-      <div class="w-full max-w-2xl rounded-md bg-white shadow-soft">
+    <div id="userModal" class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
+      <div class="w-full max-w-2xl rounded-3xl bg-white shadow-soft">
         <form id="userForm" class="grid max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto]">
           <div class="flex items-center justify-between border-b border-line p-4">
             <h2 id="modalTitle" class="text-lg font-semibold text-ink">Tambah akun</h2>
-            <button type="button" data-close-modal="userModal" class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted hover:bg-slate-50 hover:text-ink" title="Tutup">
+            <button type="button" data-close-modal="userModal" class="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-line text-muted hover:bg-slate-50 hover:text-ink" title="Tutup">
               <i data-lucide="x" class="h-4 w-4"></i>
             </button>
           </div>
@@ -196,32 +392,36 @@
             <div class="grid gap-4 sm:grid-cols-2">
               <label class="block">
                 <span class="text-sm font-medium text-ink">Email</span>
-                <input id="emailField" type="email" required class="mt-1 h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
+                <input id="emailField" type="email" required class="mt-1 h-10 w-full rounded-2xl border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
               </label>
               <label class="block">
                 <span class="text-sm font-medium text-ink">Password</span>
-                <input id="passwordField" type="password" minlength="8" class="mt-1 h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
+                <div class="relative mt-1">
+                  <input id="passwordField" type="password" minlength="8" class="h-10 w-full rounded-2xl border border-line pl-3 pr-10 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
+                  <button type="button" data-toggle-password="passwordField" class="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink" title="Lihat password">
+                    <i data-lucide="eye" class="eye-icon h-4 w-4"></i>
+                    <i data-lucide="eye-off" class="eye-off-icon h-4 w-4 hidden"></i>
+                  </button>
+                </div>
               </label>
               <label class="block">
                 <span class="text-sm font-medium text-ink">Display name</span>
-                <input id="displayNameField" class="mt-1 h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
+                <input id="displayNameField" type="text" class="mt-1 h-10 w-full rounded-2xl border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
               </label>
               <label class="block">
                 <span class="text-sm font-medium text-ink">Username</span>
-                <input id="usernameField" class="mt-1 h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
+                <input id="usernameField" type="text" class="mt-1 h-10 w-full rounded-2xl border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
               </label>
               <label class="block">
                 <span class="text-sm font-medium text-ink">Account role</span>
-                <select id="accountRoleField" class="mt-1 h-10 w-full rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20">
+                <select id="accountRoleField" class="mt-1 h-10 w-full rounded-2xl border border-line bg-white px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20">
                   <option value="reader">Reader</option>
-                  <option value="creator">Creator</option>
                   <option value="admin">Admin</option>
-                  <option value="owner">Owner</option>
                 </select>
               </label>
               <label class="block">
                 <span class="text-sm font-medium text-ink">Account status</span>
-                <select id="accountStatusField" class="mt-1 h-10 w-full rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20">
+                <select id="accountStatusField" class="mt-1 h-10 w-full rounded-2xl border border-line bg-white px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20">
                   <option value="active">Aktif</option>
                   <option value="pending">Pending</option>
                   <option value="suspended">Suspended</option>
@@ -229,30 +429,31 @@
               </label>
               <label class="block sm:col-span-2">
                 <span class="text-sm font-medium text-ink">Avatar URL</span>
-                <input id="avatarUrlField" type="url" class="mt-1 h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
+                <input id="avatarUrlField" type="url" class="mt-1 h-10 w-full rounded-2xl border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
               </label>
               <label class="flex items-start gap-2 sm:col-span-2">
                 <input id="onboardingField" type="checkbox" class="mt-1 h-4 w-4 rounded border-line text-brand focus:ring-brand" />
                 <span class="text-sm text-ink">Onboarding selesai</span>
               </label>
+              <div id="roleWarning" class="hidden rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 sm:col-span-2"></div>
             </div>
           </div>
           <div class="flex flex-wrap justify-end gap-2 border-t border-line p-4">
-            <button type="button" data-close-modal="userModal" class="h-10 rounded-md border border-line bg-white px-4 text-sm font-medium text-ink hover:bg-slate-50">Batal</button>
-            <button type="submit" class="inline-flex h-10 items-center gap-2 rounded-md bg-brand px-4 text-sm font-semibold text-white hover:bg-teal-800">
+            <button type="button" data-close-modal="userModal" class="h-10 rounded-2xl border border-line bg-white px-4 text-sm font-medium text-ink hover:bg-slate-50">Batal</button>
+            <button id="saveUserBtn" type="submit" class="inline-flex h-10 items-center gap-2 rounded-2xl bg-brand px-4 text-sm font-semibold text-white hover:bg-teal-800">
               <i data-lucide="save" class="h-4 w-4"></i>
-              Simpan
+              <span>Simpan</span>
             </button>
           </div>
         </form>
       </div>
     </div>
 
-    <div id="deleteModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/45 p-4">
-      <div class="w-full max-w-lg rounded-md bg-white shadow-soft">
+    <div id="deleteModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
+      <div class="w-full max-w-lg rounded-3xl bg-white shadow-soft">
         <div class="border-b border-line p-4">
           <div class="flex items-start gap-3">
-            <div class="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-red-50 text-accent">
+            <div class="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-accent">
               <i data-lucide="trash-2" class="h-4 w-4"></i>
             </div>
             <div>
@@ -263,16 +464,16 @@
         </div>
         <div class="p-4">
           <div id="deleteRelations" class="grid gap-2"></div>
-          <label class="mt-4 flex items-start gap-2 rounded-md border border-line bg-slate-50 p-3">
+          <label class="mt-4 flex items-start gap-2 rounded-2xl border border-line bg-slate-50 p-3">
             <input id="confirmCascade" type="checkbox" class="mt-1 h-4 w-4 rounded border-line text-brand focus:ring-brand" />
             <span class="text-sm text-ink">Saya paham akun Supabase Auth dan semua data public.* terkait user ID ini akan dihapus.</span>
           </label>
         </div>
         <div class="flex flex-wrap justify-end gap-2 border-t border-line p-4">
-          <button type="button" data-close-modal="deleteModal" class="h-10 rounded-md border border-line bg-white px-4 text-sm font-medium text-ink hover:bg-slate-50">Batal</button>
-          <button id="confirmDeleteBtn" type="button" disabled class="inline-flex h-10 items-center gap-2 rounded-md bg-slate-300 px-4 text-sm font-semibold text-white transition enabled:bg-accent enabled:hover:bg-red-800">
+          <button type="button" data-close-modal="deleteModal" class="h-10 rounded-2xl border border-line bg-white px-4 text-sm font-medium text-ink hover:bg-slate-50">Batal</button>
+          <button id="confirmDeleteBtn" type="button" disabled class="inline-flex h-10 items-center gap-2 rounded-2xl bg-slate-300 px-4 text-sm font-semibold text-white transition enabled:bg-accent enabled:hover:bg-red-800">
             <i data-lucide="trash-2" class="h-4 w-4"></i>
-            Hapus bersih
+            <span>Hapus bersih</span>
           </button>
         </div>
       </div>
@@ -283,27 +484,51 @@
       const state = {
         apiBase: "http://127.0.0.1:8000",
         token: "",
+        currentUserId: null,
         users: [],
         selectedUserId: null,
         currentPanel: "profile",
+        relationView: "list",
+        selectedRelationKey: null,
         pendingDeleteUserId: null,
         relationPreview: null,
+        relationRequestId: 0,
+        hasLoadedAccounts: false,
+        pagination: {
+          page: 1,
+          perPage: 50,
+          total: 0,
+        },
+        loading: {
+          login: false,
+          accounts: false,
+          save: false,
+          delete: false,
+          relations: false,
+        },
       };
 
       const els = {
-        toast: document.querySelector("#toast"),
         loginView: document.querySelector("#loginView"),
         appView: document.querySelector("#appView"),
         loginForm: document.querySelector("#loginForm"),
+        loginBtn: document.querySelector("#loginBtn"),
         apiBaseField: document.querySelector("#apiBaseField"),
         loginEmailField: document.querySelector("#loginEmailField"),
         loginPasswordField: document.querySelector("#loginPasswordField"),
         apiBaseLabel: document.querySelector("#apiBaseLabel"),
+        reloadBtn: document.querySelector("#reloadBtn"),
+        openCreateBtn: document.querySelector("#openCreateBtn"),
+        logoutBtn: document.querySelector("#logoutBtn"),
         usersTable: document.querySelector("#usersTable"),
         emptyState: document.querySelector("#emptyState"),
         totalUsers: document.querySelector("#totalUsers"),
         activeUsers: document.querySelector("#activeUsers"),
         relationCount: document.querySelector("#relationCount"),
+        pageSizeSelect: document.querySelector("#pageSizeSelect"),
+        prevPageBtn: document.querySelector("#prevPageBtn"),
+        nextPageBtn: document.querySelector("#nextPageBtn"),
+        paginationSummary: document.querySelector("#paginationSummary"),
         searchInput: document.querySelector("#searchInput"),
         roleFilter: document.querySelector("#roleFilter"),
         statusFilter: document.querySelector("#statusFilter"),
@@ -312,11 +537,24 @@
         detailStatus: document.querySelector("#detailStatus"),
         profilePanel: document.querySelector("#profilePanel"),
         relationsPanel: document.querySelector("#relationsPanel"),
+        relationTableWorkspace: document.querySelector("#relationTableWorkspace"),
+        relationDiagramWorkspace: document.querySelector("#relationDiagramWorkspace"),
         metadataPanel: document.querySelector("#metadataPanel"),
         userModal: document.querySelector("#userModal"),
         deleteModal: document.querySelector("#deleteModal"),
         userForm: document.querySelector("#userForm"),
+        saveUserBtn: document.querySelector("#saveUserBtn"),
         modalTitle: document.querySelector("#modalTitle"),
+        editingUserId: document.querySelector("#editingUserId"),
+        emailField: document.querySelector("#emailField"),
+        passwordField: document.querySelector("#passwordField"),
+        displayNameField: document.querySelector("#displayNameField"),
+        usernameField: document.querySelector("#usernameField"),
+        accountRoleField: document.querySelector("#accountRoleField"),
+        accountStatusField: document.querySelector("#accountStatusField"),
+        avatarUrlField: document.querySelector("#avatarUrlField"),
+        onboardingField: document.querySelector("#onboardingField"),
+        roleWarning: document.querySelector("#roleWarning"),
         confirmCascade: document.querySelector("#confirmCascade"),
         confirmDeleteBtn: document.querySelector("#confirmDeleteBtn"),
         deleteMessage: document.querySelector("#deleteMessage"),
@@ -325,6 +563,7 @@
 
       restoreSession();
       bindEvents();
+      initCustomSelects();
       lucide.createIcons();
       if (state.token) {
         showApp();
@@ -335,38 +574,89 @@
 
       function bindEvents() {
         els.loginForm.addEventListener("submit", login);
-        document.querySelector("#logoutBtn").addEventListener("click", logout);
-        document.querySelector("#reloadBtn").addEventListener("click", loadAccounts);
-        document.querySelector("#openCreateBtn").addEventListener("click", openCreateModal);
+        els.logoutBtn.addEventListener("click", logout);
+        els.reloadBtn.addEventListener("click", () => loadAccounts());
+        els.openCreateBtn.addEventListener("click", openCreateModal);
         els.userForm.addEventListener("submit", saveUser);
         els.confirmCascade.addEventListener("change", () => {
-          els.confirmDeleteBtn.disabled = !els.confirmCascade.checked;
+          syncLoadingState();
         });
         els.confirmDeleteBtn.addEventListener("click", deleteUser);
+        els.pageSizeSelect.addEventListener("change", () => {
+          state.pagination.perPage = Number(els.pageSizeSelect.value);
+          state.pagination.page = 1;
+          loadAccounts();
+        });
+        els.prevPageBtn.addEventListener("click", () => {
+          if (state.pagination.page <= 1) return;
+          state.pagination.page -= 1;
+          loadAccounts();
+        });
+        els.nextPageBtn.addEventListener("click", () => {
+          if (state.pagination.page >= totalPages()) return;
+          state.pagination.page += 1;
+          loadAccounts();
+        });
+        els.accountRoleField.addEventListener("change", updateRoleWarning);
+        els.accountStatusField.addEventListener("change", updateRoleWarning);
 
         [els.searchInput, els.roleFilter, els.statusFilter].forEach((input) => {
           input.addEventListener("input", renderUsers);
           input.addEventListener("change", renderUsers);
         });
 
-        document.querySelectorAll("[data-panel-tab]").forEach((tab) => {
-          tab.addEventListener("click", () => setPanel(tab.dataset.panelTab));
-        });
-
         document.addEventListener("click", (event) => {
           const closeTarget = event.target.closest("[data-close-modal]");
           if (closeTarget) closeModal(closeTarget.dataset.closeModal);
 
+          const panelTabTarget = event.target.closest("[data-panel-tab]");
+          if (panelTabTarget) {
+            setPanel(panelTabTarget.dataset.panelTab);
+          }
+
           const actionTarget = event.target.closest("[data-action]");
-          if (!actionTarget) return;
-          const { action, userId } = actionTarget.dataset;
-          if (action === "select") selectUser(userId);
-          if (action === "edit") openEditModal(userId);
-          if (action === "delete") openDeleteModal(userId);
+          if (actionTarget) {
+            const { action, userId } = actionTarget.dataset;
+            if (action === "select") selectUser(userId);
+            if (action === "edit") openEditModal(userId);
+            if (action === "delete") openDeleteModal(userId);
+          }
+
+          const viewTarget = event.target.closest("[data-relation-view]");
+          if (viewTarget) {
+            state.relationView = viewTarget.dataset.relationView;
+            renderRelationsPanel();
+          }
+
+          const relationTarget = event.target.closest("[data-relation-key]");
+          if (relationTarget) {
+            selectRelation(relationTarget.dataset.relationKey);
+          }
+
+          const jumpTarget = event.target.closest("[data-relation-jump]");
+          if (jumpTarget) {
+            document.querySelector(`#relation-${jumpTarget.dataset.relationJump}`)?.scrollIntoView({
+              behavior: "smooth",
+              block: "nearest",
+            });
+          }
+
+          const diagramTarget = event.target.closest("[data-scroll-diagram]");
+          if (diagramTarget) {
+            els.relationDiagramWorkspace.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+
+          const toggleTarget = event.target.closest("[data-toggle-password]");
+          if (toggleTarget) {
+            togglePassword(toggleTarget);
+          }
+
+          if (!event.target.closest(".custom-select")) closeCustomSelects();
         });
 
         document.addEventListener("keydown", (event) => {
           if (event.key !== "Escape") return;
+          closeCustomSelects();
           closeModal("userModal");
           closeModal("deleteModal");
         });
@@ -377,6 +667,7 @@
           const saved = JSON.parse(localStorage.getItem(SESSION_KEY) || "{}");
           state.apiBase = saved.apiBase || state.apiBase;
           state.token = saved.token || "";
+          state.currentUserId = userIdFromToken(state.token);
           els.apiBaseField.value = state.apiBase;
         } catch {
           localStorage.removeItem(SESSION_KEY);
@@ -385,6 +676,80 @@
 
       function persistSession() {
         localStorage.setItem(SESSION_KEY, JSON.stringify({ apiBase: state.apiBase, token: state.token }));
+      }
+
+      function initCustomSelects() {
+        document.querySelectorAll("select").forEach((select) => {
+          if (select.dataset.customSelectReady === "true") return;
+          select.dataset.customSelectReady = "true";
+          select.classList.add("hidden");
+
+          const wrapper = document.createElement("div");
+          wrapper.className = select.classList.contains("w-full") ? "custom-select relative w-full" : "custom-select relative min-w-[144px]";
+          wrapper.dataset.open = "false";
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "custom-select-trigger inline-flex h-10 w-full items-center justify-between gap-2 rounded-2xl border border-line bg-white/90 px-3 text-left text-sm text-ink shadow-sm hover:bg-slate-50 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20";
+          button.innerHTML = `
+            <span class="custom-select-label truncate"></span>
+            <i data-lucide="chevron-down" class="h-4 w-4 shrink-0 text-muted"></i>
+          `;
+
+          const menu = document.createElement("div");
+          menu.className = "custom-select-menu absolute left-0 top-[calc(100%+6px)] z-[80] max-h-64 w-full overflow-y-auto rounded-2xl border border-line bg-white p-1 shadow-soft scrollbar-thin";
+          Array.from(select.options).forEach((option) => {
+            const optionButton = document.createElement("button");
+            optionButton.type = "button";
+            optionButton.dataset.value = option.value;
+            optionButton.className = "custom-select-option flex h-9 w-full items-center justify-between rounded-xl px-3 text-left text-sm text-ink hover:bg-teal-50 hover:text-brand";
+            optionButton.innerHTML = `
+              <span class="truncate">${escapeHtml(option.textContent)}</span>
+              <i data-lucide="check" class="hidden h-4 w-4 shrink-0"></i>
+            `;
+            optionButton.addEventListener("click", () => {
+              select.value = option.value;
+              syncCustomSelect(select);
+              closeCustomSelects();
+              select.dispatchEvent(new Event("input", { bubbles: true }));
+              select.dispatchEvent(new Event("change", { bubbles: true }));
+            });
+            menu.appendChild(optionButton);
+          });
+
+          button.addEventListener("click", () => {
+            const willOpen = wrapper.dataset.open !== "true";
+            closeCustomSelects(wrapper);
+            wrapper.dataset.open = String(willOpen);
+          });
+
+          wrapper.append(button, menu);
+          select.after(wrapper);
+          syncCustomSelect(select);
+        });
+        lucide.createIcons();
+      }
+
+      function syncCustomSelect(select) {
+        const wrapper = select.nextElementSibling?.classList.contains("custom-select") ? select.nextElementSibling : null;
+        if (!wrapper) return;
+        const selected = select.options[select.selectedIndex];
+        wrapper.querySelector(".custom-select-label").textContent = selected?.textContent || "";
+        wrapper.querySelectorAll(".custom-select-option").forEach((optionButton) => {
+          const active = optionButton.dataset.value === select.value;
+          optionButton.classList.toggle("bg-teal-50", active);
+          optionButton.classList.toggle("text-brand", active);
+          optionButton.querySelector("svg, i")?.classList.toggle("hidden", !active);
+        });
+      }
+
+      function syncCustomSelects() {
+        document.querySelectorAll("select[data-custom-select-ready='true']").forEach(syncCustomSelect);
+      }
+
+      function closeCustomSelects(except = null) {
+        document.querySelectorAll(".custom-select").forEach((wrapper) => {
+          if (wrapper !== except) wrapper.dataset.open = "false";
+        });
       }
 
       function showLogin() {
@@ -400,7 +765,9 @@
 
       async function login(event) {
         event.preventDefault();
+        if (state.loading.login) return;
         state.apiBase = trimSlash(els.apiBaseField.value.trim() || "http://127.0.0.1:8000");
+        setLoading("login", true);
         try {
           const payload = await publicFetch("/api/v1/auth/login", {
             method: "POST",
@@ -411,52 +778,84 @@
           });
           state.token = payload.session?.access_token;
           if (!state.token) throw new Error(payload.message || "Login berhasil tetapi token tidak diterima.");
-          persistSession();
-          showApp();
-          await loadAccounts();
-          notify("Login berhasil.");
+
+          state.currentUserId = userIdFromToken(state.token);
+          const hasAccess = await loadAccounts();
+          if (hasAccess) {
+            persistSession();
+            notify("Login berhasil.");
+            showApp();
+          }
         } catch (error) {
           notify(error.message, true);
+        } finally {
+          setLoading("login", false);
         }
       }
 
       function logout() {
         state.token = "";
+        state.currentUserId = null;
         state.users = [];
         state.selectedUserId = null;
+        state.selectedRelationKey = null;
+        state.hasLoadedAccounts = false;
         localStorage.removeItem(SESSION_KEY);
         showLogin();
       }
 
       async function loadAccounts() {
+        if (state.loading.accounts) return false;
+        setLoading("accounts", true);
         try {
-          const payload = await apiFetch("/api/v1/account-manager/accounts?per_page=200");
+          const { page, perPage } = state.pagination;
+          const payload = await apiFetch(`/api/v1/account-manager/accounts?page=${page}&per_page=${perPage}`);
           state.users = payload.users || [];
+          state.pagination.total = Number(payload.total || state.users.length);
+          state.pagination.page = Number(payload.page || page);
+          state.pagination.perPage = Number(payload.per_page || perPage);
+          if (!state.users.length && state.pagination.page > totalPages()) {
+            state.pagination.page = totalPages();
+            state.loading.accounts = false;
+            return await loadAccounts();
+          }
           if (!state.users.some((user) => user.id === state.selectedUserId)) {
             state.selectedUserId = state.users[0]?.id || null;
           }
           state.relationPreview = null;
+          state.selectedRelationKey = null;
+          state.hasLoadedAccounts = true;
           render();
+          return true;
         } catch (error) {
-          notify(error.message, true);
-          if (error.status === 401 || error.status === 403) logout();
+          handleRequestError(error);
+          return false;
+        } finally {
+          setLoading("accounts", false);
         }
       }
 
       async function selectUser(userId) {
         state.selectedUserId = userId;
         state.relationPreview = null;
+        state.selectedRelationKey = null;
         render();
         if (state.currentPanel === "relations") await loadRelations(userId);
       }
 
       async function loadRelations(userId) {
         if (!userId) return;
+        const requestId = ++state.relationRequestId;
+        setLoading("relations", true);
         try {
-          state.relationPreview = await apiFetch(`/api/v1/account-manager/accounts/${userId}/relations`);
+          const preview = await apiFetch(`/api/v1/account-manager/accounts/${userId}/relations`);
+          if (requestId !== state.relationRequestId || userId !== state.selectedUserId) return;
+          state.relationPreview = preview;
           renderRelationsPanel();
         } catch (error) {
-          notify(error.message, true);
+          if (requestId === state.relationRequestId) handleRequestError(error);
+        } finally {
+          if (requestId === state.relationRequestId) setLoading("relations", false);
         }
       }
 
@@ -471,11 +870,16 @@
       async function request(path, options = {}, authorized) {
         const headers = { "Content-Type": "application/json" };
         if (authorized) headers.Authorization = `Bearer ${state.token}`;
-        const response = await fetch(`${state.apiBase}${path}`, {
-          method: options.method || "GET",
-          headers,
-          body: options.body ? JSON.stringify(options.body) : undefined,
-        });
+        let response;
+        try {
+          response = await fetch(`${state.apiBase}${path}`, {
+            method: options.method || "GET",
+            headers,
+            body: options.body ? JSON.stringify(options.body) : undefined,
+          });
+        } catch (error) {
+          throw new Error("Gagal terhubung ke server. Pastikan API URL benar dan server sedang berjalan.");
+        }
         let payload = {};
         try {
           payload = await response.json();
@@ -497,14 +901,33 @@
       function render() {
         renderStats();
         renderUsers();
+        renderPagination();
         renderDetail();
         lucide.createIcons();
+        syncLoadingState();
       }
 
       function renderStats() {
-        els.totalUsers.textContent = state.users.length;
+        els.totalUsers.textContent = state.pagination.total || state.users.length;
         els.activeUsers.textContent = state.users.filter((user) => user.account_status === "active").length;
         els.relationCount.textContent = state.users.reduce((total, user) => total + (user.relation_total || 0), 0);
+      }
+
+      function renderPagination() {
+        const page = state.pagination.page;
+        const pages = totalPages();
+        const total = state.pagination.total || state.users.length;
+        const start = total ? (page - 1) * state.pagination.perPage + 1 : 0;
+        const end = Math.min(page * state.pagination.perPage, total);
+        els.paginationSummary.textContent = `${start}-${end} dari ${total} akun | halaman ${page}/${pages}`;
+        els.pageSizeSelect.value = String(state.pagination.perPage);
+        syncCustomSelect(els.pageSizeSelect);
+        els.prevPageBtn.disabled = page <= 1 || state.loading.accounts;
+        els.nextPageBtn.disabled = page >= pages || state.loading.accounts;
+      }
+
+      function totalPages() {
+        return Math.max(1, Math.ceil((state.pagination.total || state.users.length || 0) / state.pagination.perPage));
       }
 
       function filteredUsers() {
@@ -523,11 +946,17 @@
       function renderUsers() {
         const users = filteredUsers();
         els.usersTable.innerHTML = "";
+        if (state.loading.accounts && !state.hasLoadedAccounts && !state.users.length) {
+          els.emptyState.classList.add("hidden");
+          els.usersTable.innerHTML = tableSkeletonRows();
+          return;
+        }
         els.emptyState.classList.toggle("hidden", users.length > 0);
         users.forEach((user) => {
           const name = displayName(user);
+          const isSelf = user.id === state.currentUserId;
           const row = document.createElement("tr");
-          row.className = user.id === state.selectedUserId ? "bg-teal-50/60" : "hover:bg-slate-50";
+          row.className = user.id === state.selectedUserId ? "bg-teal-50/70" : "hover:bg-slate-50/80";
           row.innerHTML = `
             <td class="px-4 py-3">
               <button type="button" data-action="select" data-user-id="${escapeHtml(user.id)}" class="block max-w-[280px] text-left">
@@ -540,11 +969,11 @@
             <td class="px-4 py-3 text-sm text-ink">${user.relation_total || 0}</td>
             <td class="px-4 py-3">
               <div class="flex justify-end gap-2">
-                <button type="button" data-action="edit" data-user-id="${escapeHtml(user.id)}" class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line text-muted hover:bg-white hover:text-ink" title="Edit akun">
+                <button type="button" data-action="edit" data-user-id="${escapeHtml(user.id)}" class="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-line text-muted hover:bg-white hover:text-ink" title="Edit akun">
                   <i data-lucide="pencil" class="h-4 w-4"></i>
                 </button>
-                <button type="button" data-action="delete" data-user-id="${escapeHtml(user.id)}" class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-red-200 text-accent hover:bg-red-50" title="Hapus akun">
-                  <i data-lucide="trash-2" class="h-4 w-4"></i>
+                <button type="button" ${isSelf ? "disabled" : ""} data-action="delete" data-user-id="${escapeHtml(user.id)}" class="inline-flex h-9 w-9 items-center justify-center rounded-2xl border ${isSelf ? "border-line text-slate-300" : "border-red-200 text-accent hover:bg-red-50"}" title="${isSelf ? "Akun login aktif tidak bisa dihapus" : "Hapus akun"}">
+                  <i data-lucide="${isSelf ? "shield" : "trash-2"}" class="h-4 w-4"></i>
                 </button>
               </div>
             </td>
@@ -560,8 +989,11 @@
           els.detailName.textContent = "Pilih akun";
           els.detailEmail.textContent = "Relasi muncul berdasarkan user ID.";
           els.detailStatus.textContent = "-";
+          els.detailStatus.className = "shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700";
           els.profilePanel.innerHTML = blankPanel("Belum ada akun.");
           els.relationsPanel.innerHTML = "";
+          hideRelationTableWorkspace();
+          hideRelationDiagramWorkspace();
           els.metadataPanel.innerHTML = "";
           return;
         }
@@ -582,15 +1014,14 @@
             ${detailRow("Onboarding", user.profile?.onboarding_completed ? "Selesai" : "Belum")}
           </dl>
         `;
-        renderRelationsPanel();
         els.metadataPanel.innerHTML = `
           <div>
             <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">App metadata</p>
-            <pre class="max-h-56 overflow-auto rounded-md bg-slate-950 p-3 text-xs text-slate-100 scrollbar-thin">${escapeHtml(JSON.stringify(user.app_metadata || {}, null, 2))}</pre>
+            <pre class="max-h-56 overflow-auto rounded-2xl bg-slate-950 p-3 text-xs text-slate-100 scrollbar-thin">${escapeHtml(JSON.stringify(user.app_metadata || {}, null, 2))}</pre>
           </div>
           <div>
             <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">User metadata</p>
-            <pre class="max-h-56 overflow-auto rounded-md bg-slate-950 p-3 text-xs text-slate-100 scrollbar-thin">${escapeHtml(JSON.stringify(user.user_metadata || {}, null, 2))}</pre>
+            <pre class="max-h-56 overflow-auto rounded-2xl bg-slate-950 p-3 text-xs text-slate-100 scrollbar-thin">${escapeHtml(JSON.stringify(user.user_metadata || {}, null, 2))}</pre>
           </div>
         `;
         setPanel(state.currentPanel);
@@ -599,59 +1030,377 @@
       function renderRelationsPanel() {
         const user = selectedUser();
         if (!user) return;
-        const counts = user.relation_counts || {};
-        const preview = state.relationPreview;
-        const sections = Object.entries(counts).map(([key, count]) => {
-          const items = preview?.[key] || [];
-          const rows = items.length
-            ? items.map((item) => relationRow(item.title, item.meta || item.table, item.id)).join("")
-            : `<p class="rounded-md border border-dashed border-line p-3 text-sm text-muted">Preview belum dimuat atau tidak ada data.</p>`;
-          return `
-            <section>
-              <div class="mb-2 flex items-center justify-between gap-2">
-                <h3 class="text-sm font-semibold text-ink">${tableLabel(key)}</h3>
-                <span class="text-xs font-medium text-muted">${count}</span>
-              </div>
-              <div class="grid gap-2">${rows}</div>
-            </section>
-          `;
-        }).join("");
+        const entries = relationEntries(user, state.relationPreview);
+        ensureSelectedRelation(entries);
+        const selectedEntry = selectedRelationEntry(entries);
+        const total = entries.reduce((sum, entry) => sum + entry.count, 0);
+        const activeTables = entries.filter((entry) => entry.count > 0).length;
+        const sections = state.relationView === "diagram" ? renderDiagramPanelHint(entries) : renderRelationList(entries);
         els.relationsPanel.innerHTML = `
-          <button type="button" id="loadRelationsBtn" class="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-medium text-ink hover:bg-slate-50">
-            <i data-lucide="database" class="h-4 w-4"></i>
-            Muat preview relasi
-          </button>
-          ${sections || blankPanel("Tidak ada relasi.")}
+          <div class="grid grid-cols-3 gap-2">
+            ${relationMetric("Total", total)}
+            ${relationMetric("Tabel aktif", activeTables)}
+            ${relationMetric("Preview", state.relationPreview ? "Siap" : "Belum")}
+          </div>
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="grid grid-cols-2 rounded-2xl border border-line bg-white/80 p-1">
+              ${relationViewButton("list", "List", "list")}
+              ${relationViewButton("diagram", "Diagram", "network")}
+            </div>
+            <button type="button" id="loadRelationsBtn" ${state.loading.relations ? "disabled" : ""} class="inline-flex h-9 items-center gap-2 rounded-2xl border border-line bg-white/90 px-3 text-sm font-medium text-ink hover:bg-slate-50">
+              <i data-loading-icon data-lucide="${state.loading.relations ? "loader-2" : "database"}" class="h-4 w-4 ${state.loading.relations ? "animate-spin" : ""}"></i>
+              <span>${state.loading.relations ? "Memuat..." : state.relationPreview ? "Refresh preview" : "Muat preview"}</span>
+            </button>
+          </div>
+          <div class="max-h-[26rem] overflow-y-auto pr-1 scrollbar-thin">
+            <div class="grid gap-3">
+              ${sections || blankPanel("Tidak ada relasi.")}
+            </div>
+          </div>
         `;
+        renderRelationTableWorkspace(selectedEntry);
+        renderRelationDiagramWorkspace(user, entries);
         document.querySelector("#loadRelationsBtn")?.addEventListener("click", () => loadRelations(user.id));
         lucide.createIcons();
+      }
+
+      function tableSkeletonRows() {
+        return Array.from({ length: 4 })
+          .map(
+            () => `
+          <tr>
+            <td class="px-4 py-3"><div class="h-10 rounded-2xl skeleton-row"></div></td>
+            <td class="px-4 py-3"><div class="h-6 rounded-2xl skeleton-row"></div></td>
+            <td class="px-4 py-3"><div class="h-6 rounded-2xl skeleton-row"></div></td>
+            <td class="px-4 py-3"><div class="h-6 rounded-2xl skeleton-row"></div></td>
+            <td class="px-4 py-3"><div class="ml-auto h-9 w-20 rounded-2xl skeleton-row"></div></td>
+          </tr>
+        `,
+          )
+          .join("");
+      }
+
+      function renderRelationTableWorkspace(entry) {
+        if (state.currentPanel !== "relations" || !entry) {
+          hideRelationTableWorkspace();
+          return;
+        }
+        els.relationTableWorkspace.classList.remove("hidden");
+        els.relationTableWorkspace.innerHTML = renderSelectedRelationTable(entry);
+        lucide.createIcons();
+      }
+
+      function hideRelationTableWorkspace() {
+        els.relationTableWorkspace.classList.add("hidden");
+        els.relationTableWorkspace.innerHTML = "";
+      }
+
+      function renderRelationDiagramWorkspace(user, entries) {
+        if (state.currentPanel !== "relations" || state.relationView !== "diagram") {
+          hideRelationDiagramWorkspace();
+          return;
+        }
+        els.relationDiagramWorkspace.classList.remove("hidden");
+        els.relationDiagramWorkspace.innerHTML = renderRelationDiagram(user, entries);
+        lucide.createIcons();
+      }
+
+      function hideRelationDiagramWorkspace() {
+        els.relationDiagramWorkspace.classList.add("hidden");
+        els.relationDiagramWorkspace.innerHTML = "";
+      }
+
+      function relationEntries(user, preview) {
+        return Object.entries(user.relation_counts || {}).map(([key, count]) => {
+          const items = relationItemsFor(user, key, preview);
+          return {
+            key,
+            count: Number(count || 0),
+            label: tableLabel(key),
+            description: tableDescription(key),
+            items,
+          };
+        });
+      }
+
+      function renderRelationList(entries) {
+        return entries
+          .map((entry) => {
+            const active = entry.key === state.selectedRelationKey;
+            return `
+            <section id="relation-${escapeHtml(entry.key)}" class="scroll-mt-24">
+              <button type="button" data-relation-key="${escapeHtml(entry.key)}" class="flex w-full items-start justify-between gap-3 rounded-2xl border ${active ? "border-brand bg-teal-50 shadow-sm" : "border-line bg-white hover:bg-slate-50"} p-3 text-left focus:outline-none focus:ring-2 focus:ring-brand/20">
+                <div class="min-w-0">
+                  <h3 class="text-sm font-semibold text-ink">${escapeHtml(entry.label)}</h3>
+                  <p class="mt-0.5 text-xs leading-5 text-muted">${escapeHtml(entry.description)}</p>
+                  <p class="mt-2 text-xs font-medium ${active ? "text-brand" : "text-muted"}">${active ? "Tampil di tabel bawah" : "Klik untuk melihat data"}</p>
+                </div>
+                <span class="shrink-0 rounded-full ${entry.count ? "bg-teal-50 text-brand" : "bg-slate-100 text-muted"} px-2.5 py-1 text-xs font-semibold">${entry.count}</span>
+              </button>
+            </section>
+          `;
+          })
+          .join("");
+      }
+
+      function renderSelectedRelationTable(entry) {
+        if (!entry) return blankPanel("Pilih tabel relasi untuk melihat datanya.");
+        const previewNeeded = entry.count > 0 && !state.relationPreview && entry.key !== "profiles";
+        const rows = entry.items.length
+          ? entry.items.map((item, index) => relationTableRow(item, entry, index)).join("")
+          : `
+            <tr>
+              <td colspan="4" class="px-3 py-5 text-center text-sm text-muted">
+                ${escapeHtml(previewNeeded ? "Memuat data tabel..." : "Belum ada data untuk tabel ini.")}
+              </td>
+            </tr>
+          `;
+        const sampleNote = entry.count > entry.items.length && entry.items.length ? `<p class="mt-2 text-xs text-muted">Menampilkan ${entry.items.length} preview dari ${entry.count} data.</p>` : "";
+        return `
+          <section class="glass-panel rounded-3xl border border-white/70 p-5 shadow-soft">
+            <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div class="min-w-0">
+                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Data tabel terpilih</p>
+                <h2 class="mt-1 text-xl font-semibold text-ink">${escapeHtml(entry.label)}</h2>
+                <p class="mt-1 max-w-2xl text-sm leading-6 text-muted">${escapeHtml(entry.description)}</p>
+                ${sampleNote}
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="shrink-0 rounded-full ${entry.count ? "bg-teal-50 text-brand" : "bg-slate-100 text-muted"} px-3 py-1.5 text-xs font-semibold">${entry.count} data</span>
+                <button type="button" data-panel-tab="relations" class="inline-flex h-9 items-center gap-2 rounded-2xl border border-line bg-white/90 px-3 text-sm font-medium text-ink hover:bg-slate-50">
+                  <i data-lucide="panel-right" class="h-4 w-4"></i>
+                  <span>Panel relasi</span>
+                </button>
+              </div>
+            </div>
+            <div class="max-h-[24rem] overflow-auto rounded-3xl border border-line bg-white scrollbar-thin">
+              <table class="min-w-[860px] w-full text-left text-sm">
+                <thead class="bg-slate-50 text-[11px] uppercase tracking-wide text-muted">
+                  <tr>
+                    <th class="px-4 py-3 font-semibold">#</th>
+                    <th class="px-4 py-3 font-semibold">UUID / ID</th>
+                    <th class="px-4 py-3 font-semibold">Data</th>
+                    <th class="px-4 py-3 font-semibold">Detail</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-line bg-white">${rows}</tbody>
+              </table>
+            </div>
+          </section>
+        `;
+      }
+
+      function relationTableRow(item, entry, index) {
+        return `
+          <tr>
+            <td class="px-4 py-3 text-xs font-semibold text-muted">${index + 1}</td>
+            <td class="max-w-[240px] px-4 py-3">
+              <span class="block truncate font-mono text-[11px] text-slate-600" title="${escapeHtml(item.id)}">${escapeHtml(item.id || "-")}</span>
+            </td>
+            <td class="max-w-[280px] px-4 py-3">
+              <span class="block truncate font-medium text-ink" title="${escapeHtml(item.title || entry.label)}">${escapeHtml(item.title || entry.label)}</span>
+            </td>
+            <td class="max-w-[320px] px-4 py-3">
+              <span class="block truncate text-xs text-muted" title="${escapeHtml(item.meta || entry.key)}">${escapeHtml(formatRelationMeta(item.meta || entry.key))}</span>
+            </td>
+          </tr>
+        `;
+      }
+
+      function selectRelation(key) {
+        state.selectedRelationKey = key;
+        renderRelationsPanel();
+        if (!els.relationTableWorkspace.classList.contains("hidden")) {
+          els.relationTableWorkspace.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+        const user = selectedUser();
+        if (!user) return;
+        const entry = selectedRelationEntry(relationEntries(user, state.relationPreview));
+        if (entry?.count > 0 && !state.relationPreview && !state.loading.relations) {
+          loadRelations(user.id);
+        }
+      }
+
+      function ensureSelectedRelation(entries) {
+        if (entries.some((entry) => entry.key === state.selectedRelationKey)) return;
+        state.selectedRelationKey = entries.find((entry) => entry.count > 0)?.key || entries[0]?.key || null;
+      }
+
+      function selectedRelationEntry(entries) {
+        return entries.find((entry) => entry.key === state.selectedRelationKey) || entries[0] || null;
+      }
+
+      function renderDiagramPanelHint(entries) {
+        const totalTables = entries.length;
+        const activeTables = entries.filter((entry) => entry.count > 0).length;
+        return `
+          <div class="rounded-2xl border border-line bg-white/75 p-4">
+            <div class="flex items-start gap-3">
+              <div class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-teal-50 text-brand">
+                <i data-lucide="network" class="h-5 w-5"></i>
+              </div>
+              <div class="min-w-0">
+                <p class="text-sm font-semibold text-ink">Diagram tampil di workspace lebar</p>
+                <p class="mt-1 text-xs leading-5 text-muted">Mode diagram dipindahkan ke bawah area tabel supaya node dan garis relasi tidak terpotong di panel kanan.</p>
+              </div>
+            </div>
+            <div class="mt-4 grid grid-cols-2 gap-2">
+              <div class="rounded-2xl bg-slate-50 p-3">
+                <p class="text-[11px] font-semibold uppercase tracking-wide text-muted">Tabel</p>
+                <p class="mt-1 text-lg font-semibold text-ink">${totalTables}</p>
+              </div>
+              <div class="rounded-2xl bg-teal-50 p-3">
+                <p class="text-[11px] font-semibold uppercase tracking-wide text-brand">Aktif</p>
+                <p class="mt-1 text-lg font-semibold text-brand">${activeTables}</p>
+              </div>
+            </div>
+            <button type="button" data-scroll-diagram class="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl bg-brand px-3 text-sm font-semibold text-white hover:bg-teal-800">
+              <i data-lucide="maximize-2" class="h-4 w-4"></i>
+              <span>Lihat diagram</span>
+            </button>
+          </div>
+        `;
+      }
+
+      function renderRelationDiagram(user, entries) {
+        const activeEntries = entries.filter((entry) => entry.count > 0);
+        const inactiveEntries = entries.filter((entry) => entry.count === 0);
+        const ordered = [...activeEntries, ...inactiveEntries];
+        const height = Math.max(560, ordered.length * 90 + 72);
+        const authY = Math.max(18, Math.round(height / 2) - 48);
+        const lines = ordered
+          .map((entry, index) => {
+            const y = 48 + index * 90;
+            const stroke = entry.count ? "#0f766e" : "#cbd5e1";
+            return `<path d="M 292 ${authY + 49} C 430 ${authY + 49}, 520 ${y + 37}, 676 ${y + 37}" stroke="${stroke}" stroke-width="${entry.count ? 2.4 : 1.4}" fill="none" stroke-dasharray="${entry.count ? "0" : "6 6"}" />`;
+          })
+          .join("");
+        const nodes = ordered
+          .map((entry, index) => {
+            const top = 26 + index * 90;
+            const active = entry.key === state.selectedRelationKey;
+            return `
+            <button type="button" data-relation-key="${escapeHtml(entry.key)}" class="relation-node absolute left-[676px] flex h-[74px] w-[360px] items-center justify-between gap-3 rounded-2xl border ${active ? "border-brand bg-brand shadow-md" : entry.count ? "border-brand bg-teal-50" : "border-line bg-white"} p-3 text-left transition-colors" style="top:${top}px">
+              <span class="min-w-0">
+                <span class="block truncate text-sm font-semibold ${active ? "text-white" : entry.count ? "text-brand" : "text-ink"}">${escapeHtml(entry.label)}</span>
+                <span class="block truncate text-xs ${active ? "text-teal-100/90" : "text-muted"}">${escapeHtml(entry.description)}</span>
+              </span>
+              <span class="shrink-0 rounded-full ${active ? "bg-white/20 text-white" : entry.count ? "bg-white text-brand" : "bg-slate-100 text-muted"} px-2.5 py-1 text-xs font-semibold">${entry.count}</span>
+            </button>
+          `;
+          })
+          .join("");
+
+        return `
+          <div class="glass-panel rounded-3xl border border-white/70 p-5 shadow-soft">
+            <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div class="min-w-0">
+                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Relasi aplikasi</p>
+                <h2 class="mt-1 text-xl font-semibold text-ink">Diagram relasi user</h2>
+                <p class="mt-1 text-sm leading-6 text-muted">Klik node tabel untuk menampilkan data tabel terpilih di panel relasi.</p>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <span class="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">${ordered.length} tabel</span>
+                <button type="button" data-relation-view="list" class="inline-flex h-9 items-center gap-2 rounded-2xl border border-line bg-white/90 px-3 text-sm font-medium text-ink hover:bg-slate-50">
+                  <i data-lucide="list" class="h-4 w-4"></i>
+                  <span>Kembali ke list</span>
+                </button>
+              </div>
+            </div>
+            <div class="overflow-auto rounded-3xl border border-line bg-gradient-to-br from-white to-slate-50 p-4 scrollbar-thin">
+              <div class="relative min-w-[1080px]" style="height:${height}px">
+                <svg class="absolute inset-0 h-full w-full" preserveAspectRatio="none" role="img" aria-label="Diagram relasi akun">
+                  ${lines}
+                </svg>
+                <div class="relation-node absolute left-0 flex h-[96px] w-[292px] flex-col justify-center rounded-2xl border border-brand bg-white p-4 shadow-sm" style="top:${authY}px">
+                  <span class="text-xs font-semibold uppercase tracking-wide text-brand">auth.users</span>
+                  <span class="mt-1 truncate text-sm font-semibold text-ink">${escapeHtml(displayName(user))}</span>
+                  <span class="mt-1 truncate font-mono text-[11px] text-muted">${escapeHtml(user.id)}</span>
+                </div>
+                ${nodes}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      function relationMetric(label, value) {
+        return `
+          <div class="rounded-2xl border border-line bg-white/75 p-3">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-muted">${escapeHtml(label)}</p>
+            <p class="mt-1 text-lg font-semibold text-ink">${escapeHtml(value)}</p>
+          </div>
+        `;
+      }
+
+      function relationViewButton(view, label, icon) {
+        const active = state.relationView === view;
+        return `
+          <button type="button" data-relation-view="${view}" class="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl px-3 text-sm ${active ? "bg-brand text-white" : "text-muted hover:bg-slate-50 hover:text-ink"}">
+            <i data-lucide="${icon}" class="h-4 w-4"></i>
+            <span>${label}</span>
+          </button>
+        `;
       }
 
       function setPanel(panel) {
         state.currentPanel = panel;
         document.querySelectorAll(".panel-tab").forEach((tab) => {
           const active = tab.dataset.panelTab === panel;
-          tab.className = active
-            ? "panel-tab h-9 rounded-md border border-brand bg-teal-50 px-2 text-sm font-semibold text-brand"
-            : "panel-tab h-9 rounded-md border border-line bg-white px-2 text-sm font-medium text-muted";
+          tab.className = active ? "panel-tab h-9 rounded-2xl border border-brand bg-teal-50 px-2 text-sm font-semibold text-brand" : "panel-tab h-9 rounded-2xl border border-line bg-white/90 px-2 text-sm font-medium text-muted";
         });
         els.profilePanel.hidden = panel !== "profile";
         els.relationsPanel.hidden = panel !== "relations";
         els.metadataPanel.hidden = panel !== "metadata";
-        if (panel === "relations" && !state.relationPreview && selectedUser()) loadRelations(selectedUser().id);
+        if (panel !== "relations") {
+          hideRelationTableWorkspace();
+          hideRelationDiagramWorkspace();
+        }
+        if (panel === "relations" && selectedUser()) {
+          renderRelationsPanel();
+          if (!state.relationPreview) loadRelations(selectedUser().id);
+        }
       }
 
       function selectedUser() {
         return state.users.find((user) => user.id === state.selectedUserId) || null;
       }
 
+      function relationItemsFor(user, key, preview) {
+        let items = [];
+        if (preview?.[key]?.length) {
+          items = preview[key];
+        } else if (key === "profiles" && user.profile) {
+          items = [
+            {
+              id: user.id,
+              title: user.profile.display_name || user.profile.username || user.email || user.id,
+              meta: user.profile.username || "profiles",
+              table: "profiles",
+            },
+          ];
+        }
+
+        // Ensure profiles table correctly falls back to email if title is raw ID
+        if (key === "profiles") {
+          return items.map((item) => ({
+            ...item,
+            title: item.title === item.id ? user.email || item.title : item.title,
+          }));
+        }
+
+        return items;
+      }
+
       function openCreateModal() {
         els.modalTitle.textContent = "Tambah akun";
         els.userForm.reset();
-        document.querySelector("#editingUserId").value = "";
-        document.querySelector("#passwordField").required = true;
-        document.querySelector("#accountRoleField").value = "reader";
-        document.querySelector("#accountStatusField").value = "active";
+        els.editingUserId.value = "";
+        els.passwordField.required = true;
+        els.accountRoleField.value = "reader";
+        els.accountStatusField.value = "active";
+        syncCustomSelects();
+        updateRoleWarning();
         openModal("userModal");
       }
 
@@ -659,83 +1408,269 @@
         const user = state.users.find((item) => item.id === userId);
         if (!user) return;
         els.modalTitle.textContent = "Edit akun";
-        document.querySelector("#editingUserId").value = user.id;
-        document.querySelector("#emailField").value = user.email || "";
-        document.querySelector("#passwordField").value = "";
-        document.querySelector("#passwordField").required = false;
-        document.querySelector("#displayNameField").value = user.profile?.display_name || user.user_metadata?.display_name || "";
-        document.querySelector("#usernameField").value = user.profile?.username || user.user_metadata?.username || "";
-        document.querySelector("#accountRoleField").value = user.account_role || "reader";
-        document.querySelector("#accountStatusField").value = user.account_status || "active";
-        document.querySelector("#avatarUrlField").value = user.profile?.avatar_url || "";
-        document.querySelector("#onboardingField").checked = Boolean(user.profile?.onboarding_completed);
+        els.editingUserId.value = user.id;
+        els.emailField.value = user.email || "";
+        els.passwordField.value = "";
+        els.passwordField.required = false;
+        els.displayNameField.value = user.profile?.display_name || user.user_metadata?.display_name || "";
+        els.usernameField.value = user.profile?.username || user.user_metadata?.username || "";
+        els.accountRoleField.value = user.account_role || "reader";
+        els.accountStatusField.value = user.account_status || "active";
+        els.avatarUrlField.value = user.profile?.avatar_url || "";
+        els.onboardingField.checked = Boolean(user.profile?.onboarding_completed);
+        syncCustomSelects();
+        updateRoleWarning();
         openModal("userModal");
       }
 
       async function saveUser(event) {
         event.preventDefault();
-        const userId = document.querySelector("#editingUserId").value;
+        if (state.loading.save) return;
+        const userId = els.editingUserId.value;
         const payload = {
-          email: document.querySelector("#emailField").value.trim(),
-          password: document.querySelector("#passwordField").value,
-          display_name: document.querySelector("#displayNameField").value.trim() || null,
-          username: document.querySelector("#usernameField").value.trim() || null,
-          account_role: document.querySelector("#accountRoleField").value,
-          account_status: document.querySelector("#accountStatusField").value,
-          avatar_url: document.querySelector("#avatarUrlField").value.trim() || null,
-          onboarding_completed: document.querySelector("#onboardingField").checked,
+          email: els.emailField.value.trim(),
+          password: els.passwordField.value,
+          display_name: els.displayNameField.value.trim() || null,
+          username: els.usernameField.value.trim() || null,
+          account_role: els.accountRoleField.value,
+          account_status: els.accountStatusField.value,
+          avatar_url: els.avatarUrlField.value.trim() || null,
+          onboarding_completed: els.onboardingField.checked,
         };
         if (userId && !payload.password) delete payload.password;
+        const currentUser = state.users.find((item) => item.id === userId);
+        const willGrantPrivilegedRole = ["admin", "owner"].includes(payload.account_role) && !["admin", "owner"].includes(currentUser?.account_role);
+        const willSuspend = payload.account_status === "suspended" && currentUser?.account_status !== "suspended";
+        if (willGrantPrivilegedRole && !window.confirm("Role ini memberi akses tinggi ke account manager. Lanjutkan menyimpan?")) return;
+        if (willSuspend && !window.confirm("Status suspended akan memblokir login user ini. Lanjutkan?")) return;
 
+        setLoading("save", true);
         try {
-          const saved = userId
-            ? await apiFetch(`/api/v1/account-manager/accounts/${userId}`, { method: "PATCH", body: payload })
-            : await apiFetch("/api/v1/account-manager/accounts", { method: "POST", body: payload });
+          const saved = userId ? await apiFetch(`/api/v1/account-manager/accounts/${userId}`, { method: "PATCH", body: payload }) : await apiFetch("/api/v1/account-manager/accounts", { method: "POST", body: payload });
           closeModal("userModal");
-          await loadAccounts();
+          mergeSavedUser(saved, !userId);
           state.selectedUserId = saved.id;
+          state.relationPreview = null;
           render();
           notify("Akun tersimpan.");
         } catch (error) {
-          notify(error.message, true);
+          handleRequestError(error);
+        } finally {
+          setLoading("save", false);
         }
+      }
+
+      function mergeSavedUser(saved, isCreate = false) {
+        const existingIndex = state.users.findIndex((user) => user.id === saved.id);
+        if (existingIndex >= 0) {
+          state.users[existingIndex] = keepExistingRelationSnapshot(saved, state.users[existingIndex]);
+          return;
+        }
+        state.users = [saved, ...state.users].slice(0, state.pagination.perPage);
+        if (isCreate) {
+          state.pagination.total += 1;
+        } else {
+          state.pagination.total = Math.max(state.pagination.total, state.users.length);
+        }
+      }
+
+      function keepExistingRelationSnapshot(saved, existing) {
+        if (!existing) return saved;
+        const existingTotal = existing.relation_total ?? relationCountTotal(existing.relation_counts);
+        const savedTotal = saved.relation_total ?? relationCountTotal(saved.relation_counts);
+        if (existingTotal < savedTotal) return saved;
+        return {
+          ...saved,
+          relation_counts: existing.relation_counts || saved.relation_counts,
+          relation_total: existingTotal ?? savedTotal ?? 0,
+        };
+      }
+
+      function relationCountTotal(counts) {
+        return Object.values(counts || {}).reduce((total, count) => total + Number(count || 0), 0);
       }
 
       async function openDeleteModal(userId) {
         const user = state.users.find((item) => item.id === userId);
         if (!user) return;
+        if (user.id === state.currentUserId) {
+          notify("Akun yang sedang dipakai login tidak bisa dihapus.", true);
+          return;
+        }
         state.pendingDeleteUserId = userId;
         els.confirmCascade.checked = false;
-        els.confirmDeleteBtn.disabled = true;
+        syncLoadingState();
         els.deleteMessage.textContent = `${displayName(user)} (${user.id}) akan dihapus dari Supabase Auth dan tabel aplikasi.`;
         els.deleteRelations.innerHTML = `<p class="text-sm text-muted">Memuat preview...</p>`;
         openModal("deleteModal");
         try {
           const preview = await apiFetch(`/api/v1/account-manager/accounts/${userId}/delete-preview`);
           els.deleteRelations.innerHTML = Object.entries(preview.relation_counts || {})
-            .map(([key, count]) => `
-              <div class="flex items-center justify-between rounded-md border border-line bg-slate-50 px-3 py-2 text-sm">
+            .map(
+              ([key, count]) => `
+              <div class="flex items-center justify-between rounded-2xl border border-line bg-slate-50 px-3 py-2 text-sm">
                 <span class="font-medium text-ink">${tableLabel(key)}</span>
                 <span class="font-semibold text-muted">${count}</span>
               </div>
-            `)
+            `,
+            )
             .join("");
         } catch (error) {
-          notify(error.message, true);
+          handleRequestError(error);
           closeModal("deleteModal");
         }
       }
 
       async function deleteUser() {
-        if (!state.pendingDeleteUserId || !els.confirmCascade.checked) return;
+        if (!state.pendingDeleteUserId || !els.confirmCascade.checked || state.loading.delete) return;
+        if (state.pendingDeleteUserId === state.currentUserId) {
+          notify("Akun yang sedang dipakai login tidak bisa dihapus.", true);
+          return;
+        }
+        const deletedUserId = state.pendingDeleteUserId;
+        setLoading("delete", true);
         try {
-          await apiFetch(`/api/v1/account-manager/accounts/${state.pendingDeleteUserId}`, { method: "DELETE" });
+          await apiFetch(`/api/v1/account-manager/accounts/${deletedUserId}`, { method: "DELETE" });
           state.pendingDeleteUserId = null;
           closeModal("deleteModal");
-          await loadAccounts();
+          if (!removeDeletedUser(deletedUserId)) {
+            await loadAccounts();
+          }
           notify("Akun dan relasinya sudah dihapus.");
         } catch (error) {
-          notify(error.message, true);
+          handleRequestError(error);
+        } finally {
+          setLoading("delete", false);
+        }
+      }
+
+      function removeDeletedUser(userId) {
+        state.users = state.users.filter((user) => user.id !== userId);
+        state.pagination.total = Math.max(0, state.pagination.total - 1);
+        if (state.selectedUserId === userId) {
+          state.selectedUserId = state.users[0]?.id || null;
+          state.relationPreview = null;
+        }
+        if (!state.users.length && state.pagination.page > 1) {
+          state.pagination.page -= 1;
+          return false;
+        }
+        render();
+        return true;
+      }
+
+      function setLoading(key, value) {
+        state.loading[key] = value;
+        if (key === "relations" && state.currentPanel === "relations" && selectedUser()) {
+          renderRelationsPanel();
+        }
+        if (key === "accounts") {
+          renderUsers();
+        }
+        syncLoadingState();
+      }
+
+      function syncLoadingState() {
+        setButtonLoading(els.loginBtn, state.loading.login, {
+          loadingText: "Memproses...",
+          idleText: "Masuk",
+          loadingIcon: "loader-2",
+          idleIcon: "log-in",
+        });
+        setButtonLoading(els.reloadBtn, state.loading.accounts, {
+          loadingText: "Memuat...",
+          idleText: "Reload",
+          loadingIcon: "loader-2",
+          idleIcon: "refresh-cw",
+        });
+        els.openCreateBtn.disabled = state.loading.accounts || state.loading.save;
+        setButtonLoading(els.saveUserBtn, state.loading.save, {
+          loadingText: "Menyimpan...",
+          idleText: "Simpan",
+          loadingIcon: "loader-2",
+          idleIcon: "save",
+        });
+        setButtonLoading(els.confirmDeleteBtn, state.loading.delete, {
+          loadingText: "Menghapus...",
+          idleText: "Hapus bersih",
+          loadingIcon: "loader-2",
+          idleIcon: "trash-2",
+          disabled: !els.confirmCascade.checked,
+        });
+        renderPagination();
+        lucide.createIcons();
+      }
+
+      function setButtonLoading(button, isLoading, options) {
+        if (!button) return;
+        const icon = button.querySelector("[data-loading-icon], svg, i");
+        const label = button.querySelector("span");
+        button.disabled = Boolean(isLoading || options.disabled);
+        if (label) label.textContent = isLoading ? options.loadingText : options.idleText;
+        if (!icon) return;
+        icon.classList.toggle("animate-spin", Boolean(isLoading));
+        icon.setAttribute("data-lucide", isLoading ? options.loadingIcon : options.idleIcon);
+      }
+
+      function handleRequestError(error) {
+        if (error.status === 401) {
+          notify("Sesi habis. Silakan login ulang.", true);
+          logout();
+          return;
+        }
+        if (error.status === 403) {
+          notify(error.message || "Akun ini tidak memiliki akses account manager.", true);
+          logout();
+          return;
+        }
+        notify(error.message || "Request gagal.", true);
+      }
+
+      function updateRoleWarning() {
+        const role = els.accountRoleField.value;
+        const status = els.accountStatusField.value;
+        const warnings = [];
+        if (["admin", "owner"].includes(role)) warnings.push("Role ini dapat mengakses fitur account manager.");
+        if (status === "suspended") warnings.push("Status suspended akan mengirim ban ke Supabase Auth.");
+        els.roleWarning.textContent = warnings.join(" ");
+        els.roleWarning.classList.toggle("hidden", warnings.length === 0);
+      }
+
+      function userIdFromToken(token) {
+        if (!token) return null;
+        try {
+          const payload = token.split(".")[1] || "";
+          const padded = payload
+            .replace(/-/g, "+")
+            .replace(/_/g, "/")
+            .padEnd(Math.ceil(payload.length / 4) * 4, "=");
+          const decoded = JSON.parse(atob(padded));
+          return decoded.sub || null;
+        } catch {
+          return null;
+        }
+      }
+
+      function togglePassword(button) {
+        const inputId = button.dataset.togglePassword;
+        const input = document.getElementById(inputId);
+        if (!input) return;
+
+        const isPassword = input.type === "password";
+        input.type = isPassword ? "text" : "password";
+
+        // Toggle icons visibility
+        const eyeIcon = button.querySelector(".eye-icon");
+        const eyeOffIcon = button.querySelector(".eye-off-icon");
+
+        if (isPassword) {
+          eyeIcon.classList.add("hidden");
+          eyeOffIcon.classList.remove("hidden");
+          button.title = "Sembunyikan password";
+        } else {
+          eyeIcon.classList.remove("hidden");
+          eyeOffIcon.classList.add("hidden");
+          button.title = "Lihat password";
         }
       }
 
@@ -751,12 +1686,59 @@
       }
 
       function notify(message, isError = false) {
-        els.toast.textContent = message;
-        els.toast.className = `fixed right-4 top-4 z-[70] max-w-sm rounded-md border px-4 py-3 text-sm shadow-soft ${
-          isError ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"
-        }`;
-        clearTimeout(notify.timer);
-        notify.timer = setTimeout(() => els.toast.classList.add("hidden"), 4500);
+        const toastNode = createToastNode(message, isError);
+        if (window.Toastify) {
+          Toastify({
+            node: toastNode,
+            duration: isError ? 6200 : 4200,
+            close: true,
+            gravity: "top",
+            position: "right",
+            stopOnFocus: true,
+            className: "account-toast",
+            ariaLive: isError ? "assertive" : "polite",
+            style: {
+              background: "transparent",
+              boxShadow: "none",
+            },
+          }).showToast();
+          lucide.createIcons();
+          return;
+        }
+        showFallbackToast(toastNode, isError);
+      }
+
+      function createToastNode(message, isError = false) {
+        const node = document.createElement("div");
+        const tone = isError ? "error" : "success";
+        node.className = "account-toast-card";
+        node.dataset.tone = tone;
+        node.innerHTML = `
+          <span class="account-toast-icon">
+            <i data-lucide="${isError ? "alert-circle" : "check-circle-2"}" class="h-4 w-4"></i>
+          </span>
+          <span class="min-w-0">
+            <p class="account-toast-title">${isError ? "Terjadi kendala" : "Berhasil"}</p>
+            <p class="account-toast-message"></p>
+          </span>
+        `;
+        node.querySelector(".account-toast-message").textContent = message;
+        return node;
+      }
+
+      function showFallbackToast(toastNode, isError = false) {
+        let region = document.querySelector("#fallbackToastRegion");
+        if (!region) {
+          region = document.createElement("div");
+          region.id = "fallbackToastRegion";
+          region.className = "fallback-toast-region";
+          document.body.appendChild(region);
+        }
+        toastNode.setAttribute("role", "status");
+        toastNode.setAttribute("aria-live", isError ? "assertive" : "polite");
+        region.prepend(toastNode);
+        lucide.createIcons();
+        setTimeout(() => toastNode.remove(), isError ? 6200 : 4200);
       }
 
       function displayName(user) {
@@ -777,7 +1759,7 @@
       }
 
       function blankPanel(text) {
-        return `<div class="rounded-md border border-dashed border-line p-5 text-center text-sm text-muted">${escapeHtml(text)}</div>`;
+        return `<div class="rounded-2xl border border-dashed border-line p-5 text-center text-sm text-muted">${escapeHtml(text)}</div>`;
       }
 
       function detailRow(label, value, mono = false) {
@@ -789,20 +1771,15 @@
         `;
       }
 
-      function relationRow(title, meta, badge) {
-        return `
-          <div class="flex items-center justify-between gap-3 rounded-md border border-line bg-white p-3">
-            <div class="min-w-0">
-              <p class="truncate text-sm font-semibold text-ink">${escapeHtml(title)}</p>
-              <p class="truncate text-xs text-muted">${escapeHtml(meta)}</p>
-            </div>
-            <span class="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">${escapeHtml(badge)}</span>
-          </div>
-        `;
+      function formatRelationMeta(value) {
+        if (!value) return "-";
+        const parsed = new Date(value);
+        if (!Number.isNaN(parsed.getTime()) && String(value).includes("T")) return formatDate(value);
+        return value;
       }
 
       function roleLabel(role) {
-        return { admin: "Admin", owner: "Owner", creator: "Creator", reader: "Reader" }[role] || role || "-";
+        return { admin: "Admin", reader: "Reader" }[role] || role || "-";
       }
 
       function statusLabel(status) {
@@ -819,18 +1796,37 @@
       }
 
       function tableLabel(key) {
-        return {
-          profiles: "Profiles",
-          reader_preferences: "Reader Preferences",
-          user_reading_stats: "Reading Stats",
-          user_bookmarks: "Bookmarks",
-          user_collections: "Collections",
-          user_collection_comics: "Collection Items",
-          user_progress: "Progress",
-          user_history_entries: "History",
-          user_favorite_scenes: "Favorite Scenes",
-          user_download_entries: "Downloads",
-        }[key] || key;
+        return (
+          {
+            profiles: "Profiles",
+            reader_preferences: "Reader Preferences",
+            user_reading_stats: "Reading Stats",
+            user_bookmarks: "Bookmarks",
+            user_collections: "Collections",
+            user_collection_comics: "Collection Items",
+            user_progress: "Progress",
+            user_history_entries: "History",
+            user_favorite_scenes: "Favorite Scenes",
+            user_download_entries: "Downloads",
+          }[key] || key
+        );
+      }
+
+      function tableDescription(key) {
+        return (
+          {
+            profiles: "Profil publik dan onboarding user.",
+            reader_preferences: "Preferensi reader default milik user.",
+            user_reading_stats: "Akumulasi statistik baca per user.",
+            user_bookmarks: "Komik yang disimpan sebagai bookmark.",
+            user_collections: "Koleksi pribadi yang dibuat user.",
+            user_collection_comics: "Item komik di dalam koleksi user.",
+            user_progress: "Progress baca per komik dan chapter.",
+            user_history_entries: "Riwayat baca terakhir user.",
+            user_favorite_scenes: "Scene favorit yang ditandai user.",
+            user_download_entries: "Daftar chapter/komik yang diunduh.",
+          }[key] || "Data aplikasi yang terhubung ke user ID."
+        );
       }
 
       function formatDate(value) {

@@ -7,12 +7,13 @@ tidak pernah bocor ke HTML/JavaScript browser.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Any
 
 import httpx
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, literal, select, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_supabase_auth_base_url, settings
@@ -42,6 +43,7 @@ from app.schemas import (
 from app.services.profile_service import normalize_username
 
 _UNSET = object()
+logger = logging.getLogger(__name__)
 
 
 class AccountManagerConfigurationError(RuntimeError):
@@ -111,14 +113,21 @@ async def _request_admin(
     auth_base = _require_admin_config()
     expected_statuses = expected_statuses or {200}
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.request(
-            method,
-            f"{auth_base}{path}",
-            headers=_admin_headers(),
-            json=json,
-            params=params,
-        )
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        try:
+            response = await client.request(
+                method,
+                f"{auth_base}{path}",
+                headers=_admin_headers(),
+                json=json,
+                params=params,
+            )
+        except httpx.TimeoutException as exc:
+            logger.error(f"Supabase Admin request timeout ({method} {path})")
+            raise AccountManagerRequestError(
+                f"Request to Supabase Auth timed out after 60s: {str(exc)}",
+                status_code=504
+            ) from exc
 
     if response.status_code not in expected_statuses:
         raise AccountManagerRequestError(
@@ -178,31 +187,149 @@ async def _get_profiles_by_user_id(
     return {profile.id: profile for profile in result.scalars().all()}
 
 
-async def _count_where(db: AsyncSession, model: Any, criterion: Any) -> int:
-    result = await db.execute(select(func.count()).select_from(model).where(criterion))
-    return int(result.scalar_one() or 0)
+async def _apply_group_counts(
+    db: AsyncSession,
+    counts_by_user_id: dict[uuid.UUID, AccountRelationCounts],
+    *,
+    model: Any,
+    user_column: Any,
+    field_name: str,
+) -> None:
+    user_ids = list(counts_by_user_id)
+    result = await db.execute(
+        select(user_column, func.count())
+        .select_from(model)
+        .where(user_column.in_(user_ids))
+        .group_by(user_column),
+    )
+    for user_id, count in result.all():
+        normalized_user_id = uuid.UUID(str(user_id))
+        if normalized_user_id in counts_by_user_id:
+            setattr(counts_by_user_id[normalized_user_id], field_name, int(count or 0))
+
+
+async def get_relation_counts_by_user_ids(
+    db: AsyncSession,
+    user_ids: list[uuid.UUID],
+) -> dict[uuid.UUID, AccountRelationCounts]:
+    counts_by_user_id = {user_id: AccountRelationCounts() for user_id in user_ids}
+    if not counts_by_user_id:
+        return {}
+
+    await _apply_group_counts(
+        db,
+        counts_by_user_id,
+        model=Profile,
+        user_column=Profile.id,
+        field_name="profiles",
+    )
+    await _apply_group_counts(
+        db,
+        counts_by_user_id,
+        model=ReaderPreference,
+        user_column=ReaderPreference.user_id,
+        field_name="reader_preferences",
+    )
+    await _apply_group_counts(
+        db,
+        counts_by_user_id,
+        model=UserReadingStat,
+        user_column=UserReadingStat.user_id,
+        field_name="user_reading_stats",
+    )
+    await _apply_group_counts(
+        db,
+        counts_by_user_id,
+        model=UserBookmark,
+        user_column=UserBookmark.user_id,
+        field_name="user_bookmarks",
+    )
+    await _apply_group_counts(
+        db,
+        counts_by_user_id,
+        model=UserCollection,
+        user_column=UserCollection.user_id,
+        field_name="user_collections",
+    )
+    collection_items = await db.execute(
+        select(UserCollection.user_id, func.count(UserCollectionComic.id))
+        .select_from(UserCollectionComic)
+        .join(UserCollection, UserCollectionComic.collection_id == UserCollection.id)
+        .where(UserCollection.user_id.in_(list(counts_by_user_id)))
+        .group_by(UserCollection.user_id),
+    )
+    for user_id, count in collection_items.all():
+        normalized_user_id = uuid.UUID(str(user_id))
+        if normalized_user_id in counts_by_user_id:
+            counts_by_user_id[normalized_user_id].user_collection_comics = int(count or 0)
+    await _apply_group_counts(
+        db,
+        counts_by_user_id,
+        model=UserProgress,
+        user_column=UserProgress.user_id,
+        field_name="user_progress",
+    )
+    await _apply_group_counts(
+        db,
+        counts_by_user_id,
+        model=UserHistoryEntry,
+        user_column=UserHistoryEntry.user_id,
+        field_name="user_history_entries",
+    )
+    await _apply_group_counts(
+        db,
+        counts_by_user_id,
+        model=UserFavoriteScene,
+        user_column=UserFavoriteScene.user_id,
+        field_name="user_favorite_scenes",
+    )
+    await _apply_group_counts(
+        db,
+        counts_by_user_id,
+        model=UserDownloadEntry,
+        user_column=UserDownloadEntry.user_id,
+        field_name="user_download_entries",
+    )
+    return counts_by_user_id
 
 
 async def get_relation_counts(db: AsyncSession, user_id: uuid.UUID) -> AccountRelationCounts:
     collection_ids = select(UserCollection.id).where(UserCollection.user_id == user_id)
-    collection_items = await db.execute(
-        select(func.count())
+    query = union_all(
+        select(literal("profiles"), func.count()).select_from(Profile).where(Profile.id == user_id),
+        select(literal("reader_preferences"), func.count())
+        .select_from(ReaderPreference)
+        .where(ReaderPreference.user_id == user_id),
+        select(literal("user_reading_stats"), func.count())
+        .select_from(UserReadingStat)
+        .where(UserReadingStat.user_id == user_id),
+        select(literal("user_bookmarks"), func.count())
+        .select_from(UserBookmark)
+        .where(UserBookmark.user_id == user_id),
+        select(literal("user_collections"), func.count())
+        .select_from(UserCollection)
+        .where(UserCollection.user_id == user_id),
+        select(literal("user_collection_comics"), func.count())
         .select_from(UserCollectionComic)
         .where(UserCollectionComic.collection_id.in_(collection_ids)),
+        select(literal("user_progress"), func.count())
+        .select_from(UserProgress)
+        .where(UserProgress.user_id == user_id),
+        select(literal("user_history_entries"), func.count())
+        .select_from(UserHistoryEntry)
+        .where(UserHistoryEntry.user_id == user_id),
+        select(literal("user_favorite_scenes"), func.count())
+        .select_from(UserFavoriteScene)
+        .where(UserFavoriteScene.user_id == user_id),
+        select(literal("user_download_entries"), func.count())
+        .select_from(UserDownloadEntry)
+        .where(UserDownloadEntry.user_id == user_id),
     )
-
-    return AccountRelationCounts(
-        profiles=await _count_where(db, Profile, Profile.id == user_id),
-        reader_preferences=await _count_where(db, ReaderPreference, ReaderPreference.user_id == user_id),
-        user_reading_stats=await _count_where(db, UserReadingStat, UserReadingStat.user_id == user_id),
-        user_bookmarks=await _count_where(db, UserBookmark, UserBookmark.user_id == user_id),
-        user_collections=await _count_where(db, UserCollection, UserCollection.user_id == user_id),
-        user_collection_comics=int(collection_items.scalar_one() or 0),
-        user_progress=await _count_where(db, UserProgress, UserProgress.user_id == user_id),
-        user_history_entries=await _count_where(db, UserHistoryEntry, UserHistoryEntry.user_id == user_id),
-        user_favorite_scenes=await _count_where(db, UserFavoriteScene, UserFavoriteScene.user_id == user_id),
-        user_download_entries=await _count_where(db, UserDownloadEntry, UserDownloadEntry.user_id == user_id),
-    )
+    result = await db.execute(query)
+    counts = AccountRelationCounts()
+    for field_name, count in result.all():
+        setattr(counts, field_name, int(count or 0))
+    return counts
 
 
 def _build_profile_data(profile: Profile | None) -> AccountProfileData | None:
@@ -223,12 +350,21 @@ async def build_account_user(
     raw_user: dict[str, Any],
     *,
     profile: Profile | None = None,
+    relation_counts: AccountRelationCounts | None = None,
 ) -> AccountManagerUser:
     user_id = uuid.UUID(str(raw_user["id"]))
     app_metadata = raw_user.get("app_metadata") or {}
     user_metadata = raw_user.get("user_metadata") or {}
-    counts = await get_relation_counts(db, user_id)
+    counts = relation_counts or await get_relation_counts(db, user_id)
+    
+    # 1. Resolve role dari metadata
     account_role = _metadata_role(app_metadata, _metadata_role(user_metadata, "reader"))
+    
+    # 2. Jika akun di-bypass lewat ADMIN_USER_IDS, paksa ia menjadi admin
+    admin_ids_csv = settings.ADMIN_USER_IDS or ""
+    allowed_admin_ids = {uid.strip() for uid in admin_ids_csv.split(",") if uid.strip()}
+    if str(user_id) in allowed_admin_ids and account_role == "reader":
+        account_role = "admin"
 
     return AccountManagerUser(
         id=user_id,
@@ -264,8 +400,17 @@ async def list_accounts(
     raw_users = payload.get("users") or payload.get("data", {}).get("users") or []
     user_ids = [uuid.UUID(str(user["id"])) for user in raw_users]
     profiles = await _get_profiles_by_user_id(db, user_ids)
+    relation_counts_by_user_id = await get_relation_counts_by_user_ids(db, user_ids)
     users = [
-        await build_account_user(db, raw_user, profile=profiles.get(uuid.UUID(str(raw_user["id"]))))
+        await build_account_user(
+            db,
+            raw_user,
+            profile=profiles.get(uuid.UUID(str(raw_user["id"]))),
+            relation_counts=relation_counts_by_user_id.get(
+                uuid.UUID(str(raw_user["id"])),
+                AccountRelationCounts(),
+            ),
+        )
         for raw_user in raw_users
     ]
 
@@ -339,7 +484,12 @@ async def create_account(
         except AccountManagerRequestError:
             pass
         raise
-    return await build_account_user(db, raw_user, profile=profile)
+    return await build_account_user(
+        db,
+        raw_user,
+        profile=profile,
+        relation_counts=AccountRelationCounts(profiles=1, reader_preferences=1),
+    )
 
 
 async def update_account(
@@ -398,7 +548,12 @@ async def update_account(
         if "onboarding_completed" in fields_set
         else _UNSET,
     )
-    return await build_account_user(db, raw_user, profile=profile)
+    return await build_account_user(
+        db,
+        raw_user,
+        profile=profile,
+        relation_counts=await get_relation_counts(db, user_id),
+    )
 
 
 async def assert_username_available(
@@ -472,17 +627,75 @@ async def get_relation_preview(
     *,
     limit: int = 5,
 ) -> AccountRelationPreview:
+    def chapter_label(row: Any) -> str | None:
+        chapter = getattr(row, "chapter", None)
+        if chapter is None:
+            return None
+        title = getattr(chapter, "title", None)
+        number = getattr(chapter, "chapter_number", None)
+        if title:
+            return title
+        if number is not None:
+            return f"Chapter {number:g}"
+        return None
+
+    def comic_title(row: Any) -> str | None:
+        comic = getattr(row, "comic", None)
+        return getattr(comic, "title", None) if comic is not None else None
+
+    def preview_title(row: Any, table: str, title_attr: str) -> str:
+        if table == "reader_preferences":
+            return "Preferensi reader"
+        if table == "user_reading_stats":
+            return "Statistik membaca"
+        if table in {
+            "user_bookmarks",
+            "user_progress",
+            "user_history_entries",
+            "user_favorite_scenes",
+            "user_download_entries",
+        }:
+            return comic_title(row) or tableLabelFallback(table)
+        return str(getattr(row, title_attr, tableLabelFallback(table)))
+
+    def preview_meta(row: Any, table: str) -> str | None:
+        if table == "reader_preferences":
+            mode = getattr(row, "default_reading_mode", None) or "mode default"
+            direction = getattr(row, "reading_direction", None) or "arah default"
+            auto_next = "auto next aktif" if getattr(row, "auto_next", False) else "auto next nonaktif"
+            return f"{mode} • {direction.upper()} • {auto_next}"
+        if table == "user_reading_stats":
+            seconds = int(getattr(row, "total_reading_seconds", 0) or 0)
+            minutes = max(0, round(seconds / 60))
+            return f"{minutes} menit total membaca"
+        if table in {"user_progress", "user_history_entries"}:
+            chapter = chapter_label(row)
+            completed = "Selesai" if getattr(row, "is_completed", False) else "Belum selesai"
+            return f"{chapter or 'Chapter terakhir'} • {completed}"
+        if table == "user_bookmarks":
+            return "Bookmark komik"
+        if table == "user_favorite_scenes":
+            chapter = chapter_label(row)
+            page = getattr(row, "page_item_index", None)
+            return f"{chapter or 'Chapter'} • Halaman {page}" if page is not None else chapter
+        if table == "user_download_entries":
+            chapter = chapter_label(row)
+            status = getattr(row, "status", None) or "pending"
+            return f"{chapter or 'Chapter'} • {status}"
+        return str(getattr(row, "updated_at", None) or getattr(row, "created_at", None) or "") or None
+
+    def tableLabelFallback(table: str) -> str:
+        return table.replace("_", " ").title()
+
     async def rows(model: Any, criterion: Any, table: str, title_attr: str = "id") -> list[AccountRelationPreviewItem]:
         result = await db.execute(select(model).where(criterion).limit(limit))
         items = []
         for row in result.scalars().all():
-            title = str(getattr(row, title_attr, getattr(row, "id", "")))
-            meta = getattr(row, "status", None) or getattr(row, "updated_at", None) or getattr(row, "created_at", None)
             items.append(
                 AccountRelationPreviewItem(
                     id=str(getattr(row, "id", user_id)),
-                    title=title,
-                    meta=str(meta) if meta is not None else None,
+                    title=preview_title(row, table, title_attr),
+                    meta=preview_meta(row, table),
                     table=table,
                 ),
             )
@@ -490,10 +703,24 @@ async def get_relation_preview(
 
     collection_ids = select(UserCollection.id).where(UserCollection.user_id == user_id)
     collection_items_result = await db.execute(
-        select(UserCollectionComic).where(UserCollectionComic.collection_id.in_(collection_ids)).limit(limit),
+        select(UserCollectionComic, UserCollection.name)
+        .join(UserCollection, UserCollectionComic.collection_id == UserCollection.id)
+        .where(UserCollectionComic.collection_id.in_(collection_ids))
+        .limit(limit),
     )
+    profile_result = await db.execute(select(Profile).where(Profile.id == user_id).limit(1))
+    profiles = [
+        AccountRelationPreviewItem(
+            id=str(profile.id),
+            title=profile.display_name or profile.username or str(profile.id),
+            meta=profile.username or "profiles",
+            table="profiles",
+        )
+        for profile in profile_result.scalars().all()
+    ]
 
     return AccountRelationPreview(
+        profiles=profiles,
         reader_preferences=await rows(ReaderPreference, ReaderPreference.user_id == user_id, "reader_preferences", "user_id"),
         user_reading_stats=await rows(UserReadingStat, UserReadingStat.user_id == user_id, "user_reading_stats", "user_id"),
         user_bookmarks=await rows(UserBookmark, UserBookmark.user_id == user_id, "user_bookmarks", "comic_id"),
@@ -501,11 +728,11 @@ async def get_relation_preview(
         user_collection_comics=[
             AccountRelationPreviewItem(
                 id=str(item.id),
-                title=f"Collection {item.collection_id}",
-                meta=f"Comic {item.comic_id}",
+                title=comic_title(item) or "Komik koleksi",
+                meta=f"Koleksi {collection_name}",
                 table="user_collection_comics",
             )
-            for item in collection_items_result.scalars().all()
+            for item, collection_name in collection_items_result.all()
         ],
         user_progress=await rows(UserProgress, UserProgress.user_id == user_id, "user_progress", "comic_id"),
         user_history_entries=await rows(UserHistoryEntry, UserHistoryEntry.user_id == user_id, "user_history_entries", "comic_id"),
@@ -518,25 +745,44 @@ async def delete_account_clean(
     db: AsyncSession,
     user_id: uuid.UUID,
 ) -> AccountDeleteResponse:
+    # 1. Fetch counts first (untuk response)
     counts = await get_relation_counts(db, user_id)
-    await _request_admin(
-        "DELETE",
-        f"/admin/users/{user_id}",
-        expected_statuses={200, 204},
-    )
 
-    collection_ids = select(UserCollection.id).where(UserCollection.user_id == user_id)
-    await db.execute(delete(UserCollectionComic).where(UserCollectionComic.collection_id.in_(collection_ids)))
-    await db.execute(delete(UserDownloadEntry).where(UserDownloadEntry.user_id == user_id))
-    await db.execute(delete(UserFavoriteScene).where(UserFavoriteScene.user_id == user_id))
-    await db.execute(delete(UserHistoryEntry).where(UserHistoryEntry.user_id == user_id))
-    await db.execute(delete(UserProgress).where(UserProgress.user_id == user_id))
-    await db.execute(delete(UserBookmark).where(UserBookmark.user_id == user_id))
-    await db.execute(delete(UserCollection).where(UserCollection.user_id == user_id))
-    await db.execute(delete(UserReadingStat).where(UserReadingStat.user_id == user_id))
-    await db.execute(delete(ReaderPreference).where(ReaderPreference.user_id == user_id))
-    await db.execute(delete(Profile).where(Profile.id == user_id))
-    await db.commit()
+    # 2. Hapus dari Supabase Auth TERLEBIH DAHULU (di luar transaksi DB).
+    # Ini mencegah transaksi DB terbuka terlalu lama (60s+) yang menyebabkan timeout.
+    # Kita sertakan 404 sebagai expected agar jika user sudah tidak ada di Supabase,
+    # kita tetap lanjut menghapus record di DB kita.
+    try:
+        await _request_admin(
+            "DELETE",
+            f"/admin/users/{user_id}",
+            expected_statuses={200, 204, 404},
+        )
+    except Exception as exc:
+        logger.exception(f"Gagal menghapus user dari Supabase Auth: {user_id}")
+        # Jika hapus dari Supabase gagal total (bukan 404), kita stop di sini
+        # agar tidak menghapus data lokal jika identitas aslinya masih ada.
+        raise
+
+    # 3. Hapus data lokal dalam transaksi yang cepat
+    try:
+        # UserCollectionComic akan terhapus otomatis oleh CASCADE saat UserCollection dihapus,
+        # tapi kita bisa hapus manual jika ingin eksplisit. Di sini kita hapus koleksi langsung.
+        await db.execute(delete(UserDownloadEntry).where(UserDownloadEntry.user_id == user_id))
+        await db.execute(delete(UserFavoriteScene).where(UserFavoriteScene.user_id == user_id))
+        await db.execute(delete(UserHistoryEntry).where(UserHistoryEntry.user_id == user_id))
+        await db.execute(delete(UserProgress).where(UserProgress.user_id == user_id))
+        await db.execute(delete(UserBookmark).where(UserBookmark.user_id == user_id))
+        await db.execute(delete(UserCollection).where(UserCollection.user_id == user_id))
+        await db.execute(delete(UserReadingStat).where(UserReadingStat.user_id == user_id))
+        await db.execute(delete(ReaderPreference).where(ReaderPreference.user_id == user_id))
+        await db.execute(delete(Profile).where(Profile.id == user_id))
+
+        await db.commit()
+    except Exception:
+        logger.exception(f"Error saat membersihkan data lokal untuk user {user_id}")
+        await db.rollback()
+        raise
 
     return AccountDeleteResponse(
         deleted_user_id=user_id,

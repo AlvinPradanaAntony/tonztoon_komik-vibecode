@@ -160,12 +160,13 @@ async def get_account_delete_preview(
         _raise_service_error(exc)
 
     profile_result = await db.execute(select(Profile).where(Profile.id == user_id))
+    counts = await get_relation_counts(db, user_id)
     user = await build_account_user(
         db,
         raw_user,
         profile=profile_result.scalars().first(),
+        relation_counts=counts,
     )
-    counts = await get_relation_counts(db, user_id)
     return AccountDeletePreviewResponse(
         user=user,
         relation_counts=counts,
@@ -193,3 +194,10 @@ async def delete_account(
         raise_api_error(status.HTTP_500_INTERNAL_SERVER_ERROR, str(exc))
     except AccountManagerRequestError as exc:
         _raise_service_error(exc)
+    except Exception as exc:
+        raise_api_error(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "Gagal menghapus akun. Cek log backend untuk detail.",
+            code="account_manager_delete_failed",
+            extra={"detail": str(exc)} if settings.APP_DEBUG else None,
+        )

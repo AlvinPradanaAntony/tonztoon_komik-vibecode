@@ -39,13 +39,19 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS — izinkan Flutter app mengakses API
+# CORS — izinkan app lokal, admin HTML file://, dan frontend development mengakses API.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: restrict untuk production
+    allow_origins=[
+        "null",
+        "http://127.0.0.1:8000",
+        "http://localhost:8000",
+    ],
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Include all API routes

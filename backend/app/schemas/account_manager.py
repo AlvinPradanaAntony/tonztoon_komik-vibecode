@@ -53,6 +53,7 @@ class AccountRelationPreviewItem(BaseModel):
 class AccountRelationPreview(BaseModel):
     """Preview data terkait user."""
 
+    profiles: list[AccountRelationPreviewItem] = Field(default_factory=list)
     reader_preferences: list[AccountRelationPreviewItem] = Field(default_factory=list)
     user_reading_stats: list[AccountRelationPreviewItem] = Field(default_factory=list)
     user_bookmarks: list[AccountRelationPreviewItem] = Field(default_factory=list)
