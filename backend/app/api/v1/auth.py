@@ -4,7 +4,7 @@ Supabase Auth API routes.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, File, UploadFile, status
 from fastapi.security import HTTPAuthorizationCredentials
 
 from app.api.deps import bearer_scheme, get_current_auth_user
@@ -19,6 +19,8 @@ from app.schemas import (
     AuthPasswordRecoveryVerifyRequest,
     AuthPasswordResetResponse,
     AuthPasswordUpdateRequest,
+    AuthSecurityOverviewResponse,
+    AuthSecuritySessionResponse,
     ProfileResponse,
     ProfileUpdateRequest,
     AuthRefreshRequest,
@@ -38,6 +40,7 @@ from app.services.auth_service import (
     verify_email_signup,
     verify_password_recovery,
 )
+from app.services.avatar_storage_service import AvatarStorageError, upload_avatar
 from app.services.profile_service import (
     build_profile_response,
     ensure_profile_for_auth_user,
@@ -50,6 +53,19 @@ router = APIRouter()
 
 def _raise_auth_service_error(exc: AuthRequestError) -> None:
     raise_api_error(exc.status_code, exc.message, code=exc.code)
+
+
+def _claim_bool(claims: dict[str, object], key: str) -> bool | None:
+    value = claims.get(key)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes"}:
+            return True
+        if normalized in {"false", "0", "no"}:
+            return False
+    return None
 
 
 @router.post("/register", response_model=AuthSessionResponse, status_code=status.HTTP_201_CREATED)
@@ -227,6 +243,48 @@ async def me(auth_user: AuthenticatedUser = Depends(get_current_auth_user)):
     return auth_user
 
 
+@router.get("/security", response_model=AuthSecurityOverviewResponse)
+async def security_overview(
+    auth_user: AuthenticatedUser = Depends(get_current_auth_user),
+):
+    """Ringkasan security account berdasarkan access token aktif."""
+    claims = auth_user.raw_claims
+    app_metadata = claims.get("app_metadata")
+    user_metadata = claims.get("user_metadata")
+    if not isinstance(app_metadata, dict):
+        app_metadata = {}
+    if not isinstance(user_metadata, dict):
+        user_metadata = {}
+
+    provider = app_metadata.get("provider")
+    if not isinstance(provider, str) or not provider.strip():
+        providers = app_metadata.get("providers")
+        if isinstance(providers, list) and providers:
+            provider = str(providers[0])
+        else:
+            provider = None
+
+    email_verified_claim = _claim_bool(claims, "email_verified")
+    if email_verified_claim is None:
+        email_verified_claim = _claim_bool(user_metadata, "email_verified")
+    email_verified = (
+        email_verified_claim
+        if email_verified_claim is not None
+        else bool(auth_user.email and not auth_user.is_anonymous)
+    )
+
+    return AuthSecurityOverviewResponse(
+        email=auth_user.email,
+        email_verified=email_verified,
+        provider=provider,
+        current_session=AuthSecuritySessionResponse(
+            session_id=auth_user.session_id,
+            issued_at=auth_user.issued_at,
+            expires_at=auth_user.expires_at,
+        ),
+    )
+
+
 @router.get("/profile", response_model=ProfileResponse)
 async def get_profile_me(
     auth_user: AuthenticatedUser = Depends(get_current_auth_user),
@@ -252,4 +310,34 @@ async def patch_profile_me(
         profile = await update_profile(db, auth_user.user_id, payload)
     except ValueError as exc:
         raise_api_error(status.HTTP_409_CONFLICT, str(exc))
+    return build_profile_response(profile)
+
+
+@router.post("/profile/avatar", response_model=ProfileResponse)
+async def upload_profile_avatar(
+    file: UploadFile = File(...),
+    auth_user: AuthenticatedUser = Depends(get_current_auth_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload, optimize, and attach avatar image for current user profile."""
+    content_type = (file.content_type or "").lower()
+    if content_type and not content_type.startswith("image/"):
+        raise_api_error(
+            status.HTTP_400_BAD_REQUEST,
+            "File avatar harus berupa gambar.",
+        )
+
+    content = await file.read()
+    try:
+        avatar_url = await upload_avatar(user_id=auth_user.user_id, content=content)
+        profile = await update_profile(
+            db,
+            auth_user.user_id,
+            ProfileUpdateRequest(avatar_url=avatar_url),
+        )
+    except AvatarStorageError as exc:
+        raise_api_error(exc.status_code, exc.message)
+    except ValueError as exc:
+        raise_api_error(status.HTTP_409_CONFLICT, str(exc))
+
     return build_profile_response(profile)

@@ -284,6 +284,7 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
                         _ChapterPanel(
                           chapters: detail.chapters,
                           detail: detail,
+                          downloadState: downloadState,
                           loading: chaptersAsync.isLoading,
                           error: chaptersError,
                           onRetry: () =>
@@ -1612,6 +1613,7 @@ class _ChapterPanel extends StatelessWidget {
   const _ChapterPanel({
     required this.chapters,
     required this.detail,
+    required this.downloadState,
     required this.loading,
     required this.onRetry,
     this.error,
@@ -1619,6 +1621,7 @@ class _ChapterPanel extends StatelessWidget {
 
   final List<_ChapterUi> chapters;
   final _ComicDetailUi detail;
+  final _ComicDownloadState downloadState;
   final bool loading;
   final Object? error;
   final VoidCallback onRetry;
@@ -1697,6 +1700,9 @@ class _ChapterPanel extends StatelessWidget {
                       itemBuilder: (context, index) {
                         return _ChapterRow(
                           chapter: chapters[index],
+                          offline: downloadState.offlineChapterNumbers.contains(
+                            chapters[index].chapterNumber,
+                          ),
                           onTap: () {
                             _openReader(context, detail, chapters[index]);
                           },
@@ -1772,9 +1778,14 @@ class _ChapterRowShimmer extends StatelessWidget {
 }
 
 class _ChapterRow extends StatelessWidget {
-  const _ChapterRow({required this.chapter, required this.onTap});
+  const _ChapterRow({
+    required this.chapter,
+    required this.offline,
+    required this.onTap,
+  });
 
   final _ChapterUi chapter;
+  final bool offline;
   final VoidCallback onTap;
 
   @override
@@ -1815,6 +1826,18 @@ class _ChapterRow extends StatelessWidget {
                   ],
                 ),
               ),
+              if (offline) ...[
+                const SizedBox(width: 8),
+                Tooltip(
+                  message: 'Tersedia offline',
+                  child: Icon(
+                    TonztoonIcons.badgeCheckFilled,
+                    size: 18,
+                    color: colorScheme.secondary,
+                  ),
+                ),
+              ],
+              const SizedBox(width: 8),
               const Icon(TonztoonIcons.chevronRight, size: 18),
             ],
           ),
@@ -2039,6 +2062,7 @@ class _ComicDownloadState {
     required this.offlineCount,
     required this.queuedCount,
     required this.syncedCount,
+    required this.offlineChapterNumbers,
     required this.knownChapterNumbers,
   });
 
@@ -2050,6 +2074,7 @@ class _ComicDownloadState {
   }) {
     final comicKey = _comicKey(comic.sourceName, comic.slug);
     final knownChapterNumbers = <double>{};
+    final offlineChapterNumbers = <double>{};
     final offlineCount = (offlineChapters ?? const <OfflineChapter>[])
         .where(
           (chapter) =>
@@ -2058,6 +2083,7 @@ class _ComicDownloadState {
         )
         .where((chapter) {
           if (chapter.isCompleted) {
+            offlineChapterNumbers.add(chapter.chapterNumber);
             knownChapterNumbers.add(chapter.chapterNumber);
             return true;
           }
@@ -2086,6 +2112,7 @@ class _ComicDownloadState {
       offlineCount: offlineCount,
       queuedCount: queuedCount,
       syncedCount: syncedEntries.length,
+      offlineChapterNumbers: offlineChapterNumbers,
       knownChapterNumbers: knownChapterNumbers,
     );
   }
@@ -2093,6 +2120,7 @@ class _ComicDownloadState {
   final int offlineCount;
   final int queuedCount;
   final int syncedCount;
+  final Set<double> offlineChapterNumbers;
   final Set<double> knownChapterNumbers;
 
   IconData get icon {

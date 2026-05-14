@@ -9,6 +9,7 @@ import 'package:tonztoon_comic/src/core/storage.dart';
 import 'package:tonztoon_comic/src/core/token_store.dart';
 import 'package:tonztoon_comic/src/features/auth/auth_screen.dart';
 import 'package:tonztoon_comic/src/features/comic/comic_detail_screen.dart';
+import 'package:tonztoon_comic/src/features/notifications/notifications_screen.dart';
 import 'package:tonztoon_comic/src/features/reader/reader_screen.dart';
 import 'package:tonztoon_comic/src/models/comic.dart';
 import 'package:tonztoon_comic/src/models/library.dart';
@@ -91,6 +92,79 @@ void main() {
     expect(find.byType(ResetPasswordScreen), findsOneWidget);
     expect(find.text('Buat password baru'), findsOneWidget);
   });
+
+  testWidgets('opens notifications route with real empty state', (
+    tester,
+  ) async {
+    final container = _testContainer();
+    addTearDown(container.dispose);
+    final router = container.read(routerProvider);
+    router.go('/notifications');
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const TonztoonApp(),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byType(NotificationsScreen), findsOneWidget);
+    expect(find.text('Notifikasi'), findsOneWidget);
+    expect(find.text('Belum ada notifikasi'), findsOneWidget);
+  });
+
+  testWidgets(
+    'password recovery app bar back opens auth fallback from deep link',
+    (tester) async {
+      final container = _testContainer();
+      addTearDown(container.dispose);
+      final router = container.read(routerProvider);
+      router.go(
+        'tonztoon://auth/callback#access_token=access-token&refresh_token=refresh-token&expires_at=1778337092&type=recovery',
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const TonztoonApp(),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byTooltip('Kembali'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AuthScreen), findsOneWidget);
+      expect(find.byType(ResetPasswordScreen), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'password recovery system back opens auth fallback from deep link',
+    (tester) async {
+      final container = _testContainer();
+      addTearDown(container.dispose);
+      final router = container.read(routerProvider);
+      router.go(
+        'tonztoon://auth/callback#access_token=access-token&refresh_token=refresh-token&expires_at=1778337092&type=recovery',
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const TonztoonApp(),
+        ),
+      );
+      await tester.pump();
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AuthScreen), findsOneWidget);
+      expect(find.byType(ResetPasswordScreen), findsNothing);
+    },
+  );
 
   testWidgets('opens comic detail and reader deep links', (tester) async {
     final container = _testContainer();

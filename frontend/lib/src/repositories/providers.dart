@@ -6,11 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/api_client.dart';
 import '../core/app_navigation.dart';
+import '../core/avatar_image.dart';
 import '../core/config.dart';
 import '../core/download_notification_service.dart';
 import '../core/storage.dart';
 import '../core/token_store.dart';
 import '../models/auth.dart';
+import '../models/app_notification.dart';
 import '../models/comic.dart';
 import '../models/library.dart';
 import '../models/progress.dart';
@@ -18,6 +20,7 @@ import '../models/source_info.dart';
 import 'auth_repository.dart';
 import 'catalog_repository.dart';
 import 'library_repository.dart';
+import 'notification_repository.dart';
 import 'offline_repository.dart';
 import 'progress_repository.dart';
 
@@ -240,9 +243,20 @@ final offlineRepositoryProvider = Provider<OfflineRepository>((ref) {
   );
 });
 
+final notificationRepositoryProvider = Provider<NotificationRepository>((ref) {
+  return NotificationRepository(ref.watch(localStoreProvider));
+});
+
 final authControllerProvider = NotifierProvider<AuthController, AuthState>(
   AuthController.new,
 );
+
+final authSecurityOverviewProvider = FutureProvider<AuthSecurityOverview>((
+  ref,
+) {
+  ref.watch(authControllerProvider);
+  return ref.watch(authRepositoryProvider).getSecurityOverview();
+});
 
 class AuthController extends Notifier<AuthState> {
   @override
@@ -263,10 +277,16 @@ class AuthController extends Notifier<AuthState> {
     String email,
     String password,
     String? displayName,
+    String? username,
   ) async {
     state = await ref
         .read(authRepositoryProvider)
-        .register(email: email, password: password, displayName: displayName);
+        .register(
+          email: email,
+          password: password,
+          displayName: displayName,
+          username: username,
+        );
   }
 
   Future<void> verifyPasswordRecovery(String email, String tokenHash) async {
@@ -297,6 +317,31 @@ class AuthController extends Notifier<AuthState> {
 
   Future<void> updatePassword(String password) {
     return ref.read(authRepositoryProvider).updatePassword(password: password);
+  }
+
+  Future<void> updateProfile({String? displayName, String? avatarUrl}) async {
+    final currentUser = state.user;
+    if (currentUser == null) return;
+    state = await ref
+        .read(authRepositoryProvider)
+        .updateProfile(
+          currentUser: currentUser,
+          displayName: displayName,
+          avatarUrl: avatarUrl,
+        );
+  }
+
+  Future<void> uploadAvatar(OptimizedAvatar avatar) async {
+    final currentUser = state.user;
+    if (currentUser == null) return;
+    state = await ref
+        .read(authRepositoryProvider)
+        .uploadAvatar(
+          currentUser: currentUser,
+          bytes: avatar.bytes,
+          fileName: avatar.fileName,
+          contentType: avatar.contentType,
+        );
   }
 
   Future<void> logout() async {
@@ -365,10 +410,14 @@ final homeDataProvider = FutureProvider<HomeData>((ref) async {
     repository.getPopular(selected.id),
     progressRepository.getContinueReading(),
   ]);
+  final latest = results[0] as List<ComicSummary>;
+  unawaited(
+    ref.read(notificationsProvider.notifier).recordLatestChapterUpdates(latest),
+  );
   return HomeData(
     sources: sources,
     selectedSource: selected,
-    latest: results[0] as List<ComicSummary>,
+    latest: latest,
     popular: results[1] as List<ComicSummary>,
     continueReading: results[2] as List<ReadingProgress>,
   );
@@ -520,6 +569,50 @@ final downloadsProvider = FutureProvider<List<DownloadEntry>>((ref) {
   return ref.watch(libraryRepositoryProvider).getDownloads();
 });
 
+final notificationsProvider =
+    AsyncNotifierProvider<NotificationsController, List<AppNotification>>(
+      NotificationsController.new,
+    );
+
+final unreadNotificationsCountProvider = Provider<int>((ref) {
+  final notifications = ref.watch(notificationsProvider).asData?.value;
+  if (notifications == null) return 0;
+  return notifications.where((item) => item.unread).length;
+});
+
+class NotificationsController extends AsyncNotifier<List<AppNotification>> {
+  @override
+  Future<List<AppNotification>> build() {
+    return ref.watch(notificationRepositoryProvider).getNotifications();
+  }
+
+  Future<void> add(AppNotification notification) async {
+    state = AsyncData(
+      await ref.read(notificationRepositoryProvider).add(notification),
+    );
+  }
+
+  Future<void> markRead(String id) async {
+    state = AsyncData(
+      await ref.read(notificationRepositoryProvider).markRead(id),
+    );
+  }
+
+  Future<void> markAllRead() async {
+    state = AsyncData(
+      await ref.read(notificationRepositoryProvider).markAllRead(),
+    );
+  }
+
+  Future<void> recordLatestChapterUpdates(List<ComicSummary> comics) async {
+    state = AsyncData(
+      await ref
+          .read(notificationRepositoryProvider)
+          .recordLatestChapterUpdates(comics),
+    );
+  }
+}
+
 final offlineChaptersProvider = FutureProvider<List<OfflineChapter>>((ref) {
   return ref.watch(offlineRepositoryProvider).getOfflineChapters();
 });
@@ -592,6 +685,11 @@ class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
       }
     }
     if (batch != null) {
+      await _upsertRemainingDownloadStatuses(
+        batch,
+        status: 'cancelled',
+        lastError: 'Cancelled by user.',
+      );
       final cancelledBatch = batch.copyWith(
         status: 'cancelled',
         clearCurrentChapterNumber: true,
@@ -603,6 +701,7 @@ class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
             .read(downloadNotificationServiceProvider)
             .showCancelled(cancelledBatch),
       );
+      unawaited(_addNotificationForCancelled(cancelledBatch));
     }
   }
 
@@ -651,6 +750,7 @@ class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
                 .read(downloadNotificationServiceProvider)
                 .showCancelled(cancelledBatch),
           );
+          unawaited(_addNotificationForCancelled(cancelledBatch));
           return;
         }
         final chapterNumber = batch.chapterNumbers[chapterIndex];
@@ -662,6 +762,11 @@ class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
               chapterNumber,
             );
         if (existing?.isCompleted == true) {
+          await _upsertDownloadStatus(
+            batch.comic,
+            chapterNumber,
+            status: 'completed',
+          );
           batch = batch.copyWith(
             completedChapters: chapterIndex + 1,
             progressValue: (chapterIndex + 1) / batch.totalChapters,
@@ -677,6 +782,11 @@ class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
           currentChapterNumber: chapterNumber,
           completedChapters: chapterIndex,
           progressValue: chapterIndex / batch.totalChapters,
+        );
+        await _upsertDownloadStatus(
+          batch.comic,
+          chapterNumber,
+          status: 'downloading',
         );
         await _saveBatch(batch);
         unawaited(
@@ -729,6 +839,12 @@ class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
             );
         if (token.isCancelled || downloaded.status == 'cancelled') {
           if (_deletedBatchIds.contains(initialBatch.id)) return;
+          await _upsertDownloadStatus(
+            batch.comic,
+            chapterNumber,
+            status: 'cancelled',
+            lastError: 'Cancelled by user.',
+          );
           final cancelledBatch = batch.copyWith(
             status: 'cancelled',
             clearCurrentChapterNumber: true,
@@ -740,12 +856,24 @@ class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
                 .read(downloadNotificationServiceProvider)
                 .showCancelled(cancelledBatch),
           );
+          unawaited(_addNotificationForCancelled(cancelledBatch));
           return;
         }
         if (!downloaded.isCompleted) {
+          await _upsertDownloadStatus(
+            batch.comic,
+            chapterNumber,
+            status: downloaded.status,
+            lastError: downloaded.lastError,
+          );
           throw ApiException(downloaded.lastError ?? 'Download gagal.');
         }
 
+        await _upsertDownloadStatus(
+          batch.comic,
+          chapterNumber,
+          status: 'completed',
+        );
         batch = batch.copyWith(
           completedChapters: chapterIndex + 1,
           progressValue: (chapterIndex + 1) / batch.totalChapters,
@@ -769,9 +897,15 @@ class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
             .read(downloadNotificationServiceProvider)
             .showCompleted(completedBatch),
       );
+      unawaited(_addNotificationForCompleted(completedBatch));
     } on DioException catch (error) {
       final cancelled = CancelToken.isCancel(error);
       if (cancelled && _deletedBatchIds.contains(initialBatch.id)) return;
+      await _upsertRemainingDownloadStatuses(
+        batch,
+        status: cancelled ? 'cancelled' : 'failed',
+        lastError: error.message ?? error.toString(),
+      );
       final failedBatch = batch.copyWith(
         status: cancelled ? 'cancelled' : 'failed',
         clearCurrentChapterNumber: true,
@@ -787,7 +921,17 @@ class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
                   .read(downloadNotificationServiceProvider)
                   .showFailed(failedBatch),
       );
+      unawaited(
+        cancelled
+            ? _addNotificationForCancelled(failedBatch)
+            : _addNotificationForFailed(failedBatch),
+      );
     } catch (error) {
+      await _upsertRemainingDownloadStatuses(
+        batch,
+        status: 'failed',
+        lastError: error.toString(),
+      );
       final failedBatch = batch.copyWith(
         status: 'failed',
         clearCurrentChapterNumber: true,
@@ -797,11 +941,52 @@ class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
       unawaited(
         ref.read(downloadNotificationServiceProvider).showFailed(failedBatch),
       );
+      unawaited(_addNotificationForFailed(failedBatch));
     } finally {
       _cancelTokens.remove(initialBatch.id);
       _deletedBatchIds.remove(initialBatch.id);
       ref.invalidate(offlineChaptersProvider);
       ref.invalidate(downloadsProvider);
+    }
+  }
+
+  Future<void> _upsertDownloadStatus(
+    LibraryComicRef comic,
+    double chapterNumber, {
+    required String status,
+    String? lastError,
+  }) async {
+    try {
+      await ref
+          .read(libraryRepositoryProvider)
+          .upsertDownloadEntryStatus(
+            comic: comic,
+            chapterNumber: chapterNumber,
+            status: status,
+            lastError: lastError,
+          );
+      ref.invalidate(downloadsProvider);
+    } catch (_) {
+      // Offline files remain the source of truth for local reading.
+    }
+  }
+
+  Future<void> _upsertRemainingDownloadStatuses(
+    OfflineDownloadBatch batch, {
+    required String status,
+    String? lastError,
+  }) async {
+    final startIndex = batch.completedChapters.clamp(
+      0,
+      batch.chapterNumbers.length,
+    );
+    for (var index = startIndex; index < batch.chapterNumbers.length; index++) {
+      await _upsertDownloadStatus(
+        batch.comic,
+        batch.chapterNumbers[index],
+        status: status,
+        lastError: lastError,
+      );
     }
   }
 
@@ -816,6 +1001,24 @@ class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
     }
     current.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     state = AsyncData(current);
+  }
+
+  Future<void> _addNotificationForCompleted(OfflineDownloadBatch batch) {
+    return ref
+        .read(notificationsProvider.notifier)
+        .add(ref.read(notificationRepositoryProvider).downloadCompleted(batch));
+  }
+
+  Future<void> _addNotificationForFailed(OfflineDownloadBatch batch) {
+    return ref
+        .read(notificationsProvider.notifier)
+        .add(ref.read(notificationRepositoryProvider).downloadFailed(batch));
+  }
+
+  Future<void> _addNotificationForCancelled(OfflineDownloadBatch batch) {
+    return ref
+        .read(notificationsProvider.notifier)
+        .add(ref.read(notificationRepositoryProvider).downloadCancelled(batch));
   }
 }
 

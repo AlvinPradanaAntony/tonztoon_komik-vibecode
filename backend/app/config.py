@@ -41,6 +41,10 @@ class Settings(BaseSettings):
         default="",
         description="Supabase Storage bucket for cached comic cover images",
     )
+    SUPABASE_AVATAR_BUCKET: str = Field(
+        default="avatars",
+        description="Supabase Storage bucket for user profile avatars",
+    )
     SUPABASE_JWT_SECRET: str = Field(
         default="",
         description="Legacy JWT secret fallback for HS256 token verification",

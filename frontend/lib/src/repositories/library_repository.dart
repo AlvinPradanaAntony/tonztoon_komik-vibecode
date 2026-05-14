@@ -63,18 +63,13 @@ class LibraryRepository {
   Future<List<LibraryComicRef>> getBookmarks() async {
     if (await _isLoggedIn) {
       final response = await _api.get<List<dynamic>>('/library/bookmarks');
-      return (response.data ?? const [])
-          .whereType<Map>()
-          .map(
-            (json) {
-              final comicRaw = json['comic'];
-              final comic = comicRaw is Map
-                  ? Map<String, dynamic>.from(comicRaw)
-                  : const <String, dynamic>{};
-              return LibraryComicRef.fromJson(comic);
-            },
-          )
-          .toList();
+      return (response.data ?? const []).whereType<Map>().map((json) {
+        final comicRaw = json['comic'];
+        final comic = comicRaw is Map
+            ? Map<String, dynamic>.from(comicRaw)
+            : const <String, dynamic>{};
+        return LibraryComicRef.fromJson(comic);
+      }).toList();
     }
     return _localBookmarks().values.toList();
   }
@@ -109,7 +104,10 @@ class LibraryRepository {
       final response = await _api.get<List<dynamic>>('/library/collections');
       return (response.data ?? const [])
           .whereType<Map>()
-          .map((item) => CollectionSummary.fromJson(Map<String, dynamic>.from(item)))
+          .map(
+            (item) =>
+                CollectionSummary.fromJson(Map<String, dynamic>.from(item)),
+          )
           .toList();
     }
     return _localCollections()
@@ -333,7 +331,9 @@ class LibraryRepository {
       );
       return (response.data ?? const [])
           .whereType<Map>()
-          .map((item) => FavoriteScene.fromJson(Map<String, dynamic>.from(item)))
+          .map(
+            (item) => FavoriteScene.fromJson(Map<String, dynamic>.from(item)),
+          )
           .toList();
     }
     return _localFavoriteScenes();
@@ -406,7 +406,11 @@ class LibraryRepository {
       final response = await _api.get<List<dynamic>>('/library/history');
       return (response.data ?? const [])
           .whereType<Map>()
-          .map((item) => ReadingProgress.fromLibraryJson(Map<String, dynamic>.from(item)))
+          .map(
+            (item) => ReadingProgress.fromLibraryJson(
+              Map<String, dynamic>.from(item),
+            ),
+          )
           .toList();
     }
     return _store.progress.values
@@ -421,7 +425,9 @@ class LibraryRepository {
       final response = await _api.get<List<dynamic>>('/library/downloads');
       return (response.data ?? const [])
           .whereType<Map>()
-          .map((item) => DownloadEntry.fromJson(Map<String, dynamic>.from(item)))
+          .map(
+            (item) => DownloadEntry.fromJson(Map<String, dynamic>.from(item)),
+          )
           .toList();
     }
     return _localDownloads();
@@ -462,6 +468,55 @@ class LibraryRepository {
           status: 'pending',
         ),
       );
+    }
+    await _store.library.put(
+      'downloads',
+      downloads.map((download) => download.toJson()).toList(),
+    );
+  }
+
+  Future<void> upsertDownloadEntryStatus({
+    required LibraryComicRef comic,
+    required double chapterNumber,
+    required String status,
+    String? lastError,
+  }) async {
+    if (await _isLoggedIn) {
+      final data = <String, dynamic>{
+        'source_name': comic.sourceName,
+        'comic_slug': comic.slug,
+        'chapter_number': chapterNumber,
+        'status': status,
+      };
+      if (lastError != null) {
+        data['last_error'] = lastError;
+      }
+      await _api.put<Map<String, dynamic>>(
+        '/library/downloads/${comic.sourceName}/comics/${comic.slug}/chapters/$chapterNumber',
+        data: data,
+      );
+      return;
+    }
+
+    final downloads = _localDownloads();
+    final index = downloads.indexWhere(
+      (item) =>
+          item.comic.key == comic.key && item.chapterNumber == chapterNumber,
+    );
+    final nextId = downloads.isEmpty
+        ? 1
+        : downloads.map((item) => item.id).reduce((a, b) => a > b ? a : b) + 1;
+    final entry = DownloadEntry(
+      id: index >= 0 ? downloads[index].id : nextId,
+      comic: comic,
+      chapterNumber: chapterNumber,
+      status: status,
+      lastError: lastError,
+    );
+    if (index >= 0) {
+      downloads[index] = entry;
+    } else {
+      downloads.add(entry);
     }
     await _store.library.put(
       'downloads',

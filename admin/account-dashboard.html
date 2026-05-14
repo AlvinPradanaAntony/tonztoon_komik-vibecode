@@ -314,8 +314,12 @@
                 <thead class="bg-slate-50/80">
                   <tr>
                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted">Akun</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted">Username</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted">Role</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted">Status</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted">Email Confirmed</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted">Last Sign In</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted">Onboarding</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted">Relasi</th>
                     <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted">Aksi</th>
                   </tr>
@@ -955,17 +959,27 @@
         users.forEach((user) => {
           const name = displayName(user);
           const isSelf = user.id === state.currentUserId;
+          const rawAvatar = user.profile?.avatar_url || user.user_metadata?.avatar_url;
+          const avatarUrl = rawAvatar ? rawAvatar : `https://ui-avatars.com/api/?name=${encodeURIComponent(name || "User")}&background=random`;
+
           const row = document.createElement("tr");
           row.className = user.id === state.selectedUserId ? "bg-teal-50/70" : "hover:bg-slate-50/80";
           row.innerHTML = `
             <td class="px-4 py-3">
-              <button type="button" data-action="select" data-user-id="${escapeHtml(user.id)}" class="block max-w-[280px] text-left">
-                <span class="block truncate text-sm font-semibold text-ink">${escapeHtml(name)}</span>
-                <span class="block truncate text-xs text-muted">${escapeHtml(user.email || "-")}</span>
+              <button type="button" data-action="select" data-user-id="${escapeHtml(user.id)}" class="flex items-center gap-3 text-left">
+                <img src="${escapeHtml(avatarUrl)}" alt="Avatar" class="h-8 w-8 rounded-full object-cover shrink-0 bg-slate-100 border border-line">
+                <div class="block max-w-[200px]">
+                  <span class="block truncate text-sm font-semibold text-ink">${escapeHtml(name)}</span>
+                  <span class="block truncate text-xs text-muted">${escapeHtml(user.email || "-")}</span>
+                </div>
               </button>
             </td>
+            <td class="px-4 py-3 text-sm text-ink">${escapeHtml(user.profile?.username || "-")}</td>
             <td class="px-4 py-3 text-sm text-ink">${escapeHtml(roleLabel(user.account_role))}</td>
             <td class="px-4 py-3"><span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass(user.account_status)}">${escapeHtml(statusLabel(user.account_status))}</span></td>
+            <td class="px-4 py-3 text-sm text-ink">${user.email_confirmed_at ? formatDate(user.email_confirmed_at) : "Belum"}</td>
+            <td class="px-4 py-3 text-sm text-ink">${user.last_sign_in_at ? formatDate(user.last_sign_in_at) : "-"}</td>
+            <td class="px-4 py-3"><span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${user.profile?.onboarding_completed ? "bg-teal-50 text-brand" : "bg-slate-100 text-slate-700"}">${user.profile?.onboarding_completed ? "Selesai" : "Belum"}</span></td>
             <td class="px-4 py-3 text-sm text-ink">${user.relation_total || 0}</td>
             <td class="px-4 py-3">
               <div class="flex justify-end gap-2">
@@ -1070,6 +1084,10 @@
             () => `
           <tr>
             <td class="px-4 py-3"><div class="h-10 rounded-2xl skeleton-row"></div></td>
+            <td class="px-4 py-3"><div class="h-6 rounded-2xl skeleton-row"></div></td>
+            <td class="px-4 py-3"><div class="h-6 rounded-2xl skeleton-row"></div></td>
+            <td class="px-4 py-3"><div class="h-6 rounded-2xl skeleton-row"></div></td>
+            <td class="px-4 py-3"><div class="h-6 rounded-2xl skeleton-row"></div></td>
             <td class="px-4 py-3"><div class="h-6 rounded-2xl skeleton-row"></div></td>
             <td class="px-4 py-3"><div class="h-6 rounded-2xl skeleton-row"></div></td>
             <td class="px-4 py-3"><div class="h-6 rounded-2xl skeleton-row"></div></td>

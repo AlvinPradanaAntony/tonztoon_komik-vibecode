@@ -167,16 +167,18 @@ async def register_with_email_password(
     data_options: dict[str, Any] = {}
     if payload.display_name:
         data_options["display_name"] = payload.display_name
+    if payload.username:
+        data_options["username"] = payload.username
     if data_options:
         body["data"] = data_options
 
     redirect_to = payload.email_redirect_to or settings.SUPABASE_AUTH_REDIRECT_URL
-    if redirect_to:
-        body["email_redirect_to"] = redirect_to
+    params = {"redirect_to": redirect_to} if redirect_to else None
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(
             f"{auth_base}/signup",
+            params=params,
             headers=_build_public_headers(),
             json=body,
         )

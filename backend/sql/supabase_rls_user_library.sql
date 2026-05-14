@@ -480,14 +480,16 @@ begin
     set search_path = public
     as $fn$
     begin
-      insert into public.profiles (id, display_name)
+      insert into public.profiles (id, display_name, username, normalized_username)
       values (
         new.id,
         coalesce(
           new.raw_user_meta_data->>'display_name',
           new.raw_user_meta_data->>'full_name',
           new.raw_user_meta_data->>'name'
-        )
+        ),
+        nullif(lower(trim(both '_' from regexp_replace(replace(coalesce(new.raw_user_meta_data->>'username', ''), '-', '_'), '[[:space:]]+', '_', 'g'))), ''),
+        nullif(lower(trim(both '_' from regexp_replace(replace(coalesce(new.raw_user_meta_data->>'username', ''), '-', '_'), '[[:space:]]+', '_', 'g'))), '')
       )
       on conflict (id) do nothing;
 

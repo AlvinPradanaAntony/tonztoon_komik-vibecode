@@ -1,3 +1,7 @@
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
+
 import '../core/api_client.dart';
 import '../core/storage.dart';
 import '../core/token_store.dart';
@@ -19,11 +23,25 @@ class AuthRepository {
     try {
       final response = await _api.get<Map<String, dynamic>>('/auth/me');
       final user = AuthUser.fromJson(response.data ?? const {});
-      await _store.auth.put('user', {'id': user.id, 'email': user.email});
-      return AuthState.authenticated(user);
+      final profileUser = await _profileUser(user);
+      await _store.auth.put('user', profileUser.toJson());
+      return AuthState.authenticated(profileUser);
+    } on ApiException catch (error) {
+      final cached = _cachedUserState();
+      if (error.statusCode == 401) {
+        final refreshToken = await _tokenStore.readRefreshToken();
+        if (refreshToken != null && refreshToken.isNotEmpty && cached != null) {
+          return cached;
+        }
+        await _tokenStore.clear();
+        await _store.auth.clear();
+        return const AuthState.guest(message: 'Session expired.');
+      }
+      if (cached != null) return cached;
+      return AuthState.guest(message: error.message);
     } catch (_) {
-      await _tokenStore.clear();
-      return const AuthState.guest(message: 'Session expired.');
+      return _cachedUserState() ??
+          const AuthState.guest(message: 'Unable to restore session.');
     }
   }
 
@@ -43,6 +61,7 @@ class AuthRepository {
     required String email,
     required String password,
     String? displayName,
+    String? username,
   }) async {
     final response = await _api.post<Map<String, dynamic>>(
       '/auth/register',
@@ -51,6 +70,8 @@ class AuthRepository {
         'password': password,
         if (displayName != null && displayName.trim().isNotEmpty)
           'display_name': displayName.trim(),
+        if (username != null && username.trim().isNotEmpty)
+          'username': username.trim(),
       },
     );
     final session = AuthSession.fromJson(response.data ?? const {});
@@ -115,6 +136,60 @@ class AuthRepository {
     );
   }
 
+  Future<AuthSecurityOverview> getSecurityOverview() async {
+    final response = await _api.get<Map<String, dynamic>>('/auth/security');
+    return AuthSecurityOverview.fromJson(response.data ?? const {});
+  }
+
+  Future<AuthState> updateProfile({
+    required AuthUser currentUser,
+    String? displayName,
+    String? avatarUrl,
+  }) async {
+    final data = <String, dynamic>{};
+    if (displayName != null) data['display_name'] = displayName;
+    if (avatarUrl != null) data['avatar_url'] = avatarUrl;
+
+    final response = await _api.patch<Map<String, dynamic>>(
+      '/auth/profile',
+      data: data,
+    );
+    final profile = AuthUser.fromJson(response.data ?? const {});
+    final updated = currentUser.copyWith(
+      displayName: profile.displayName,
+      username: profile.username,
+      avatarUrl: profile.avatarUrl,
+    );
+    await _store.auth.put('user', updated.toJson());
+    return AuthState.authenticated(updated);
+  }
+
+  Future<AuthState> uploadAvatar({
+    required AuthUser currentUser,
+    required Uint8List bytes,
+    required String fileName,
+    required String contentType,
+  }) async {
+    final response = await _api.post<Map<String, dynamic>>(
+      '/auth/profile/avatar',
+      data: FormData.fromMap({
+        'file': MultipartFile.fromBytes(
+          bytes,
+          filename: fileName,
+          contentType: DioMediaType.parse(contentType),
+        ),
+      }),
+    );
+    final profile = AuthUser.fromJson(response.data ?? const {});
+    final updated = currentUser.copyWith(
+      displayName: profile.displayName,
+      username: profile.username,
+      avatarUrl: profile.avatarUrl,
+    );
+    await _store.auth.put('user', updated.toJson());
+    return AuthState.authenticated(updated);
+  }
+
   Future<void> logout() async {
     try {
       await _api.post<Map<String, dynamic>>('/auth/logout');
@@ -138,10 +213,31 @@ class AuthRepository {
         expiresAt: session.expiresAt,
       ),
     );
-    await _store.auth.put('user', {
-      'id': session.user!.id,
-      'email': session.user!.email,
-    });
-    return AuthState.authenticated(session.user!);
+    final user = await _profileUser(session.user!);
+    await _store.auth.put('user', user.toJson());
+    return AuthState.authenticated(user);
+  }
+
+  Future<AuthUser> _profileUser(AuthUser user) async {
+    try {
+      final response = await _api.get<Map<String, dynamic>>('/auth/profile');
+      final profile = AuthUser.fromJson(response.data ?? const {});
+      return user.copyWith(
+        displayName: profile.displayName,
+        username: profile.username,
+        avatarUrl: profile.avatarUrl,
+      );
+    } catch (_) {
+      return user;
+    }
+  }
+
+  AuthState? _cachedUserState() {
+    final raw = _store.auth.get('user');
+    if (raw is! Map) return null;
+
+    final user = AuthUser.fromJson(Map<String, dynamic>.from(raw));
+    if (user.id.isEmpty) return null;
+    return AuthState.authenticated(user);
   }
 }

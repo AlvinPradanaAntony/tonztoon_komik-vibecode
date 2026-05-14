@@ -4,6 +4,9 @@ import 'package:go_router/go_router.dart';
 final appRootNavigatorKey = GlobalKey<NavigatorState>();
 
 const libraryDownloadsLocation = '/library?tab=downloads';
+const libraryBookmarksLocation = '/library';
+const libraryCollectionsLocation = '/library?tab=collections';
+const libraryScenesLocation = '/library?tab=scenes';
 
 bool _pendingDownloadsNavigation = false;
 

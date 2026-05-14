@@ -1,20 +1,32 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/app_icons.dart';
+import '../../models/app_notification.dart';
+import '../../repositories/providers.dart';
 
-class NotificationsScreen extends StatefulWidget {
+class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
 
   @override
-  State<NotificationsScreen> createState() => _NotificationsScreenState();
+  ConsumerState<NotificationsScreen> createState() =>
+      _NotificationsScreenState();
 }
 
-class _NotificationsScreenState extends State<NotificationsScreen> {
+class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   String _selectedFilter = 'Semua';
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final notificationsAsync = ref.watch(notificationsProvider);
+    final notifications = notificationsAsync.asData?.value ?? const [];
+    final visibleNotifications = _visibleNotifications(
+      notifications,
+      _selectedFilter,
+    );
+    final unreadCount = notifications.where((item) => item.unread).length;
 
     return Scaffold(
       appBar: AppBar(
@@ -24,7 +36,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           padding: const EdgeInsets.only(left: 8),
           child: IconButton(
             tooltip: 'Kembali',
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => context.canPop() ? context.pop() : context.go('/'),
             icon: const Icon(TonztoonIcons.arrowBack),
           ),
         ),
@@ -32,41 +44,70 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           Padding(
             padding: const EdgeInsets.only(right: 10),
             child: TextButton(
-              onPressed: () {},
+              onPressed: unreadCount == 0 ? null : _markAllRead,
               child: const Text('Tandai dibaca'),
             ),
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
-        children: [
-          const _NotificationSummary(),
-          const SizedBox(height: 18),
-          _FilterStrip(
-            selectedFilter: _selectedFilter,
-            onChanged: (value) => setState(() => _selectedFilter = value),
-          ),
-          const SizedBox(height: 20),
-          _SectionHeader(
-            title: _selectedFilter == 'Semua'
-                ? 'Terbaru'
-                : 'Kategori $_selectedFilter',
-            count: _visibleNotifications(_selectedFilter).length,
-          ),
-          const SizedBox(height: 10),
-          for (final item in _visibleNotifications(_selectedFilter)) ...[
-            _NotificationTile(item: item),
-            const SizedBox(height: 12),
+      body: notificationsAsync.when(
+        data: (_) => ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+          children: [
+            _NotificationSummary(unreadCount: unreadCount),
+            const SizedBox(height: 18),
+            _FilterStrip(
+              selectedFilter: _selectedFilter,
+              onChanged: (value) => setState(() => _selectedFilter = value),
+            ),
+            const SizedBox(height: 20),
+            _SectionHeader(
+              title: _selectedFilter == 'Semua'
+                  ? 'Terbaru'
+                  : 'Kategori $_selectedFilter',
+              count: visibleNotifications.length,
+            ),
+            const SizedBox(height: 10),
+            if (visibleNotifications.isEmpty)
+              _NotificationEmptyState(filter: _selectedFilter)
+            else
+              for (final item in visibleNotifications) ...[
+                _NotificationTile(
+                  item: item,
+                  onTap: () => _openNotification(item),
+                ),
+                const SizedBox(height: 12),
+              ],
           ],
-        ],
+        ),
+        loading: () => const _NotificationsLoading(),
+        error: (error, stackTrace) => _NotificationsError(
+          message: error.toString(),
+          onRetry: () => ref.invalidate(notificationsProvider),
+        ),
       ),
     );
+  }
+
+  Future<void> _markAllRead() {
+    return ref.read(notificationsProvider.notifier).markAllRead();
+  }
+
+  Future<void> _openNotification(AppNotification item) async {
+    if (item.unread) {
+      await ref.read(notificationsProvider.notifier).markRead(item.id);
+    }
+    if (!mounted) return;
+    final route = item.actionRoute;
+    if (route == null || route.isEmpty) return;
+    context.go(route);
   }
 }
 
 class _NotificationSummary extends StatelessWidget {
-  const _NotificationSummary();
+  const _NotificationSummary({required this.unreadCount});
+
+  final int unreadCount;
 
   @override
   Widget build(BuildContext context) {
@@ -111,7 +152,12 @@ class _NotificationSummary extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('3 notifikasi baru', style: theme.textTheme.titleLarge),
+                  Text(
+                    unreadCount == 0
+                        ? 'Tidak ada notifikasi baru'
+                        : '$unreadCount notifikasi baru',
+                    style: theme.textTheme.titleLarge,
+                  ),
                   const SizedBox(height: 4),
                   Text(
                     'Update chapter, aktivitas pustaka, dan rekomendasi bacaan.',
@@ -201,20 +247,22 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _NotificationTile extends StatelessWidget {
-  const _NotificationTile({required this.item});
+  const _NotificationTile({required this.item, required this.onTap});
 
-  final _NotificationItem item;
+  final AppNotification item;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final style = _notificationStyle(item);
 
     return Material(
       color: colorScheme.surface,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        onTap: () {},
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: DecoratedBox(
           decoration: BoxDecoration(
@@ -230,7 +278,7 @@ class _NotificationTile extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _NotificationIcon(item: item),
+                _NotificationIcon(icon: style.icon, accent: style.accent),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -272,7 +320,7 @@ class _NotificationTile extends StatelessWidget {
                       Row(
                         children: [
                           Text(
-                            item.time,
+                            _relativeTime(item.createdAt),
                             style: theme.textTheme.labelSmall?.copyWith(
                               color: colorScheme.secondary,
                               fontWeight: FontWeight.w900,
@@ -295,20 +343,21 @@ class _NotificationTile extends StatelessWidget {
 }
 
 class _NotificationIcon extends StatelessWidget {
-  const _NotificationIcon({required this.item});
+  const _NotificationIcon({required this.icon, required this.accent});
 
-  final _NotificationItem item;
+  final IconData icon;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: item.accent.withValues(alpha: 0.16),
+        color: accent.withValues(alpha: 0.16),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Padding(
         padding: const EdgeInsets.all(10),
-        child: Icon(item.icon, size: 20, color: item.accent),
+        child: Icon(icon, size: 20, color: accent),
       ),
     );
   }
@@ -341,68 +390,176 @@ class _CategoryPill extends StatelessWidget {
   }
 }
 
-List<_NotificationItem> _visibleNotifications(String filter) {
-  if (filter == 'Semua') return _notifications;
-  return _notifications
+class _NotificationEmptyState extends StatelessWidget {
+  const _NotificationEmptyState({required this.filter});
+
+  final String filter;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        border: Border.all(color: colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 28),
+        child: Column(
+          children: [
+            Icon(TonztoonIcons.bell, color: colorScheme.onSurfaceVariant),
+            const SizedBox(height: 10),
+            Text(
+              filter == 'Semua'
+                  ? 'Belum ada notifikasi'
+                  : 'Belum ada notifikasi $filter',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Aktivitas nyata seperti status download akan muncul di sini.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationsLoading extends StatelessWidget {
+  const _NotificationsLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+      children: const [
+        _LoadingCard(height: 96),
+        SizedBox(height: 18),
+        Row(
+          children: [
+            _LoadingCard(width: 78, height: 34),
+            SizedBox(width: 8),
+            _LoadingCard(width: 78, height: 34),
+            SizedBox(width: 8),
+            _LoadingCard(width: 92, height: 34),
+          ],
+        ),
+        SizedBox(height: 20),
+        _LoadingCard(width: 170, height: 24),
+        SizedBox(height: 10),
+        _LoadingCard(height: 92),
+        SizedBox(height: 12),
+        _LoadingCard(height: 92),
+      ],
+    );
+  }
+}
+
+class _LoadingCard extends StatelessWidget {
+  const _LoadingCard({this.width = double.infinity, required this.height});
+
+  final double width;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: SizedBox(width: width, height: height),
+    );
+  }
+}
+
+class _NotificationsError extends StatelessWidget {
+  const _NotificationsError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(TonztoonIcons.warning, size: 34),
+            const SizedBox(height: 12),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Coba lagi'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+List<AppNotification> _visibleNotifications(
+  List<AppNotification> notifications,
+  String filter,
+) {
+  if (filter == 'Semua') return notifications;
+  return notifications
       .where((item) => item.category == filter)
       .toList(growable: false);
 }
 
-class _NotificationItem {
-  const _NotificationItem({
-    required this.title,
-    required this.message,
-    required this.time,
-    required this.category,
-    required this.icon,
-    required this.accent,
-    required this.unread,
-  });
-
-  final String title;
-  final String message;
-  final String time;
-  final String category;
-  final IconData icon;
-  final Color accent;
-  final bool unread;
+_NotificationStyle _notificationStyle(AppNotification item) {
+  return switch (item.kind) {
+    'download_completed' => const _NotificationStyle(
+      icon: TonztoonIcons.download,
+      accent: Color(0xFF3A86FF),
+    ),
+    'download_failed' => const _NotificationStyle(
+      icon: TonztoonIcons.warning,
+      accent: Color(0xFFEF4444),
+    ),
+    'download_cancelled' => const _NotificationStyle(
+      icon: TonztoonIcons.close,
+      accent: Color(0xFF64748B),
+    ),
+    'recommendation' => const _NotificationStyle(
+      icon: TonztoonIcons.autoAwesome,
+      accent: Color(0xFFFFD60A),
+    ),
+    'chapter_update' => const _NotificationStyle(
+      icon: TonztoonIcons.bookOpen,
+      accent: Color(0xFFFF9D00),
+    ),
+    _ => const _NotificationStyle(
+      icon: TonztoonIcons.bell,
+      accent: Color(0xFF22C55E),
+    ),
+  };
 }
 
-const _notifications = [
-  _NotificationItem(
-    title: 'Solo Leveling selesai diunduh',
-    message: 'Chapter 179 sudah siap dibaca offline dari pustaka kamu.',
-    time: '2 menit lalu',
-    category: 'Pustaka',
-    icon: TonztoonIcons.download,
-    accent: Color(0xFF3A86FF),
-    unread: true,
-  ),
-  _NotificationItem(
-    title: 'Chapter baru tersedia',
-    message: 'Omniscient Reader\'s Viewpoint Chapter 200 baru saja rilis.',
-    time: '18 menit lalu',
-    category: 'Update',
-    icon: TonztoonIcons.bookOpen,
-    accent: Color(0xFFFF9D00),
-    unread: true,
-  ),
-  _NotificationItem(
-    title: 'Rekomendasi untuk kamu',
-    message: 'Coba manga aksi supernatural dengan pacing cepat minggu ini.',
-    time: '1 jam lalu',
-    category: 'Rekomendasi',
-    icon: TonztoonIcons.autoAwesome,
-    accent: Color(0xFFFFD60A),
-    unread: true,
-  ),
-  _NotificationItem(
-    title: 'Bookmark tersinkron',
-    message: 'Koleksi Favorit Utama sudah diperbarui di perangkat ini.',
-    time: 'Kemarin',
-    category: 'Pustaka',
-    icon: TonztoonIcons.bookmarkAdded,
-    accent: Color(0xFF22C55E),
-    unread: false,
-  ),
-];
+String _relativeTime(DateTime value) {
+  final diff = DateTime.now().difference(value);
+  if (diff.inMinutes < 1) return 'Baru saja';
+  if (diff.inMinutes < 60) return '${diff.inMinutes} menit lalu';
+  if (diff.inHours < 24) return '${diff.inHours} jam lalu';
+  if (diff.inDays == 1) return 'Kemarin';
+  if (diff.inDays < 7) return '${diff.inDays} hari lalu';
+  return '${value.day}/${value.month}/${value.year}';
+}
+
+class _NotificationStyle {
+  const _NotificationStyle({required this.icon, required this.accent});
+
+  final IconData icon;
+  final Color accent;
+}

@@ -6,6 +6,27 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
+## [1.5.3] - 2026-05-15
+
+### Added
+- Upload avatar profil dengan optimasi gambar WebP dan penyimpanan Supabase Storage.
+- Ringkasan keamanan akun untuk status email, provider login, dan sesi aktif.
+- Sistem notifikasi berbasis repository dengan filter, penanda sudah dibaca, dan navigasi aksi.
+- Pane bersama untuk favorite scenes dan offline downloads agar bisa dipakai di halaman Library maupun Settings.
+
+### Changed
+- Form registrasi kini menyimpan nama akun dan username sejak awal pembuatan akun.
+- Cache auth dan profil pengguna kini membawa display name, username, dan avatar agar sesi lebih stabil saat restore.
+- Halaman Settings/Profile diperluas untuk edit profil, avatar, koleksi tersimpan, favorite scenes, downloads, security, dan push notification coming soon.
+- Reader dan halaman detail komik menampilkan serta membaca chapter offline dengan indikator status unduhan.
+
+### Fixed
+- Refresh token API kini memakai satu proses refresh bersama dan melakukan refresh lebih awal sebelum token kedaluwarsa.
+- Restore sesi auth lebih toleran terhadap error jaringan dengan fallback ke cache lokal saat token refresh masih tersedia.
+- Trigger profil Supabase kini ikut menormalisasi username dari metadata saat user baru dibuat.
+
+---
+
 ## [1.5.2] - 2026-05-11
 
 ### Added

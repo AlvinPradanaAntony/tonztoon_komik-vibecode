@@ -61,9 +61,6 @@ async def ensure_profile_for_auth_user(
     berjalan di environment non-Supabase murni.
     """
     profile = await get_profile(db, user_id)
-    if profile is not None:
-        return profile
-
     user_metadata = user_metadata or {}
     display_name = (
         user_metadata.get("display_name")
@@ -71,6 +68,20 @@ async def ensure_profile_for_auth_user(
         or user_metadata.get("name")
     )
     username = normalize_username(user_metadata.get("username"))
+
+    if profile is not None:
+        updated = False
+        if profile.display_name is None and display_name:
+            profile.display_name = display_name
+            updated = True
+        if profile.username is None and username:
+            profile.username = username
+            profile.normalized_username = username
+            updated = True
+        if updated:
+            await db.commit()
+            await db.refresh(profile)
+        return profile
 
     profile = Profile(
         id=user_id,

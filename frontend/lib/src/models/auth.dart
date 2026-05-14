@@ -1,20 +1,81 @@
+const Object _authUserUnset = Object();
+
 class AuthUser {
-  const AuthUser({required this.id, this.email, this.displayName});
+  const AuthUser({
+    required this.id,
+    this.email,
+    this.displayName,
+    this.username,
+    this.avatarUrl,
+  });
 
   factory AuthUser.fromJson(Map<String, dynamic> json) {
+    final userMetadata = json['user_metadata'] as Map<String, dynamic>?;
+    final rawClaims = json['raw_claims'] as Map<String, dynamic>?;
+    final rawClaimsMetadata =
+        rawClaims?['user_metadata'] as Map<String, dynamic>?;
     return AuthUser(
       id: json['id'] as String? ?? json['user_id'] as String? ?? '',
       email: json['email'] as String?,
       displayName:
           json['display_name'] as String? ??
+          userMetadata?['display_name'] as String? ??
+          rawClaimsMetadata?['display_name'] as String? ??
           json['name'] as String? ??
+          userMetadata?['name'] as String? ??
+          rawClaimsMetadata?['name'] as String? ??
           json['full_name'] as String?,
+      username:
+          json['username'] as String? ??
+          userMetadata?['username'] as String? ??
+          rawClaimsMetadata?['username'] as String?,
+      avatarUrl:
+          json['avatar_url'] as String? ??
+          userMetadata?['avatar_url'] as String? ??
+          rawClaimsMetadata?['avatar_url'] as String? ??
+          json['picture'] as String? ??
+          userMetadata?['picture'] as String? ??
+          rawClaimsMetadata?['picture'] as String?,
     );
   }
 
   final String id;
   final String? email;
   final String? displayName;
+  final String? username;
+  final String? avatarUrl;
+
+  AuthUser copyWith({
+    String? id,
+    Object? email = _authUserUnset,
+    Object? displayName = _authUserUnset,
+    Object? username = _authUserUnset,
+    Object? avatarUrl = _authUserUnset,
+  }) {
+    return AuthUser(
+      id: id ?? this.id,
+      email: email == _authUserUnset ? this.email : email as String?,
+      displayName: displayName == _authUserUnset
+          ? this.displayName
+          : displayName as String?,
+      username: username == _authUserUnset
+          ? this.username
+          : username as String?,
+      avatarUrl: avatarUrl == _authUserUnset
+          ? this.avatarUrl
+          : avatarUrl as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'email': email,
+      'display_name': displayName,
+      'username': username,
+      'avatar_url': avatarUrl,
+    };
+  }
 }
 
 class AuthSession {
@@ -62,3 +123,54 @@ class AuthState {
 }
 
 enum AuthStatus { booting, guest, authenticated }
+
+class AuthSecurityOverview {
+  const AuthSecurityOverview({
+    required this.emailVerified,
+    required this.currentSession,
+    this.email,
+    this.provider,
+  });
+
+  factory AuthSecurityOverview.fromJson(Map<String, dynamic> json) {
+    return AuthSecurityOverview(
+      email: json['email'] as String?,
+      emailVerified: json['email_verified'] as bool? ?? false,
+      provider: json['provider'] as String?,
+      currentSession: AuthSecuritySession.fromJson(
+        Map<String, dynamic>.from(
+          json['current_session'] as Map? ?? const <String, dynamic>{},
+        ),
+      ),
+    );
+  }
+
+  final String? email;
+  final bool emailVerified;
+  final String? provider;
+  final AuthSecuritySession currentSession;
+}
+
+class AuthSecuritySession {
+  const AuthSecuritySession({this.sessionId, this.issuedAt, this.expiresAt});
+
+  factory AuthSecuritySession.fromJson(Map<String, dynamic> json) {
+    return AuthSecuritySession(
+      sessionId: json['session_id'] as String?,
+      issuedAt: json['issued_at'] as int?,
+      expiresAt: json['expires_at'] as int?,
+    );
+  }
+
+  final String? sessionId;
+  final int? issuedAt;
+  final int? expiresAt;
+
+  DateTime? get issuedAtDate => _secondsToDate(issuedAt);
+  DateTime? get expiresAtDate => _secondsToDate(expiresAt);
+
+  static DateTime? _secondsToDate(int? seconds) {
+    if (seconds == null || seconds <= 0) return null;
+    return DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
+  }
+}

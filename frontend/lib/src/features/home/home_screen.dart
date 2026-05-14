@@ -35,6 +35,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final homeAsync = ref.watch(homeDataProvider);
     final continueReadingAsync = ref.watch(continueReadingProvider);
     final auth = ref.watch(authControllerProvider);
+    final unreadNotifications = ref.watch(unreadNotificationsCountProvider);
     _maybePromptMigration(auth);
 
     return Scaffold(
@@ -54,7 +55,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ? () => _openNotifications(context)
                   : () => context.push('/auth'),
               icon: auth.isAuthenticated
-                  ? const _NotificationBellBadge(count: 3)
+                  ? _NotificationBellBadge(count: unreadNotifications)
                   : const Icon(TonztoonIcons.accountCircle),
             ),
           ),

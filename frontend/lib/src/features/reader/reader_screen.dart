@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -617,11 +618,15 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     for (final index in indexes) {
       if (index < 0 || index >= _activePages.length) continue;
       if (!_requestedPrefetchIndexes.add(index)) continue;
+      final imageUrl = _activePages[index].imageUrl;
+      final filePath = _localFilePath(imageUrl);
       providers.add(
-        CachedNetworkImageProvider(
-          _activePages[index].imageUrl,
-          cacheManager: ReaderImageCacheManager.instance,
-        ),
+        filePath == null
+            ? CachedNetworkImageProvider(
+                imageUrl,
+                cacheManager: ReaderImageCacheManager.instance,
+              )
+            : FileImage(File(filePath)),
       );
     }
     if (providers.isEmpty) return;
@@ -965,7 +970,9 @@ class _ReaderPageState extends State<_ReaderPage> {
     if (_retrying) return;
     setState(() => _retrying = true);
     try {
-      await ReaderImageCacheManager.instance.removeFile(url);
+      if (_localFilePath(url) == null) {
+        await ReaderImageCacheManager.instance.removeFile(url);
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -979,6 +986,8 @@ class _ReaderPageState extends State<_ReaderPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final imageUrl = widget.page.imageUrl;
+    final filePath = _localFilePath(imageUrl);
     final decoration = widget.paged
         ? BoxDecoration(
             color: widget.page.background,
@@ -992,41 +1001,35 @@ class _ReaderPageState extends State<_ReaderPage> {
             ],
           )
         : BoxDecoration(color: widget.page.background);
-    final image = CachedNetworkImage(
-      key: ValueKey('${widget.page.imageUrl}|$_retrySerial'),
-      imageUrl: widget.page.imageUrl,
-      cacheManager: ReaderImageCacheManager.instance,
-      width: double.infinity,
-      fit: widget.paged ? BoxFit.contain : BoxFit.fitWidth,
-      placeholder: (context, url) =>
-          _ImageSkeleton(height: widget.paged ? double.infinity : 360),
-      errorWidget: (context, url, error) => SizedBox(
-        height: widget.paged ? double.infinity : 260,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.cloud_off_rounded,
-                size: 42,
-                color: Theme.of(context).colorScheme.outline,
-              ),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: _retrying ? null : () => _retryImage(url),
-                icon: _retrying
-                    ? const SizedBox.square(
-                        dimension: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.refresh_rounded),
-                label: Text('Retry page ${widget.page.number}'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    final fit = widget.paged ? BoxFit.contain : BoxFit.fitWidth;
+    final image = filePath == null
+        ? CachedNetworkImage(
+            key: ValueKey('$imageUrl|$_retrySerial'),
+            imageUrl: imageUrl,
+            cacheManager: ReaderImageCacheManager.instance,
+            width: double.infinity,
+            fit: fit,
+            placeholder: (context, url) =>
+                _ImageSkeleton(height: widget.paged ? double.infinity : 360),
+            errorWidget: (context, url, error) => _ReaderPageError(
+              pageNumber: widget.page.number,
+              paged: widget.paged,
+              retrying: _retrying,
+              onRetry: () => _retryImage(url),
+            ),
+          )
+        : Image.file(
+            File(filePath),
+            key: ValueKey('$filePath|$_retrySerial'),
+            width: double.infinity,
+            fit: fit,
+            errorBuilder: (context, error, stackTrace) => _ReaderPageError(
+              pageNumber: widget.page.number,
+              paged: widget.paged,
+              retrying: _retrying,
+              onRetry: () => _retryImage(imageUrl),
+            ),
+          );
 
     if (widget.paged) {
       return DecoratedBox(
@@ -1051,6 +1054,50 @@ class _ReaderPageState extends State<_ReaderPage> {
         image: image,
         actionsVisible: widget.actionsVisible,
         onDownload: widget.onDownload,
+      ),
+    );
+  }
+}
+
+class _ReaderPageError extends StatelessWidget {
+  const _ReaderPageError({
+    required this.pageNumber,
+    required this.paged,
+    required this.retrying,
+    required this.onRetry,
+  });
+
+  final int pageNumber;
+  final bool paged;
+  final bool retrying;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: paged ? double.infinity : 260,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.cloud_off_rounded,
+              size: 42,
+              color: Theme.of(context).colorScheme.outline,
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: retrying ? null : onRetry,
+              icon: retrying
+                  ? const SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.refresh_rounded),
+              label: Text('Retry page $pageNumber'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1477,6 +1524,12 @@ List<_ReaderPageUi> _pagesFromChapter(ChapterPayload payload) {
         ),
       )
       .toList();
+}
+
+String? _localFilePath(String imageUrl) {
+  final uri = Uri.tryParse(imageUrl);
+  if (uri == null || uri.scheme != 'file') return null;
+  return uri.toFilePath();
 }
 
 class _ReaderErrorView extends StatelessWidget {

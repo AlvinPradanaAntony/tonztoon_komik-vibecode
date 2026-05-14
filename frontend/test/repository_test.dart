@@ -7,10 +7,12 @@ import 'package:tonztoon_comic/src/core/api_client.dart';
 import 'package:tonztoon_comic/src/core/config.dart';
 import 'package:tonztoon_comic/src/core/storage.dart';
 import 'package:tonztoon_comic/src/core/token_store.dart';
+import 'package:tonztoon_comic/src/models/library.dart';
 import 'package:tonztoon_comic/src/models/comic.dart';
 import 'package:tonztoon_comic/src/models/progress.dart';
 import 'package:tonztoon_comic/src/repositories/auth_repository.dart';
 import 'package:tonztoon_comic/src/repositories/catalog_repository.dart';
+import 'package:tonztoon_comic/src/repositories/notification_repository.dart';
 import 'package:tonztoon_comic/src/repositories/progress_repository.dart';
 
 void main() {
@@ -167,6 +169,63 @@ void main() {
 
     await repository.requestPasswordReset(email: 'reader@tonztoon.app');
   });
+
+  test('notification repository persists download notifications', () async {
+    final repository = NotificationRepository(store);
+    final batch = OfflineDownloadBatch.create(
+      id: 'batch-1',
+      comic: const ComicSummary(
+        title: 'Solo Leveling',
+        slug: 'solo-leveling',
+        sourceName: 'komiku',
+      ),
+      chapterNumbers: const [179],
+    );
+
+    await repository.add(repository.downloadCompleted(batch));
+    var notifications = await repository.getNotifications();
+
+    expect(notifications, hasLength(1));
+    expect(notifications.single.title, 'Download selesai');
+    expect(notifications.single.unread, isTrue);
+    expect(notifications.single.actionRoute, '/library?tab=downloads');
+
+    notifications = await repository.markAllRead();
+    expect(notifications.single.unread, isFalse);
+  });
+
+  test(
+    'notification repository records chapter update notifications',
+    () async {
+      final repository = NotificationRepository(store);
+      const comic = ComicSummary(
+        title: 'Omniscient Reader',
+        slug: 'omniscient-reader',
+        sourceName: 'komiku',
+        latestChapterNumber: 200,
+      );
+
+      var notifications = await repository.recordLatestChapterUpdates([comic]);
+      expect(notifications, isEmpty);
+
+      notifications = await repository.recordLatestChapterUpdates([
+        const ComicSummary(
+          title: 'Omniscient Reader',
+          slug: 'omniscient-reader',
+          sourceName: 'komiku',
+          latestChapterNumber: 201,
+        ),
+      ]);
+
+      expect(notifications, hasLength(1));
+      expect(notifications.single.category, 'Update');
+      expect(notifications.single.kind, 'chapter_update');
+      expect(
+        notifications.single.actionRoute,
+        '/comic/komiku/omniscient-reader',
+      );
+    },
+  );
 
   test('progress repository saves guest progress locally', () async {
     final repository = ProgressRepository(

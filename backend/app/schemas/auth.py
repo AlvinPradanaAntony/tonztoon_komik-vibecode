@@ -17,6 +17,7 @@ class AuthRegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=128)
     display_name: str | None = Field(default=None, max_length=120)
+    username: str | None = Field(default=None, max_length=50)
     email_redirect_to: str | None = Field(default=None, max_length=500)
 
     @field_validator("display_name")
@@ -25,6 +26,14 @@ class AuthRegisterRequest(BaseModel):
         if value is None:
             return None
         normalized = " ".join(value.split()).strip()
+        return normalized or None
+
+    @field_validator("username")
+    @classmethod
+    def normalize_username(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = "_".join(value.replace("-", "_").split()).strip("_").lower()
         return normalized or None
 
 
@@ -129,6 +138,23 @@ class AuthenticatedUser(BaseModel):
     session_id: UUID | None = None
     is_anonymous: bool | None = None
     raw_claims: dict[str, Any] = Field(default_factory=dict)
+
+
+class AuthSecuritySessionResponse(BaseModel):
+    """Session aktif berdasarkan access token saat ini."""
+
+    session_id: UUID | None = None
+    issued_at: int | None = None
+    expires_at: int | None = None
+
+
+class AuthSecurityOverviewResponse(BaseModel):
+    """Ringkasan security account untuk halaman Privacy & Security."""
+
+    email: EmailStr | None = None
+    email_verified: bool = False
+    provider: str | None = None
+    current_session: AuthSecuritySessionResponse
 
 
 class ProfileResponse(BaseModel):

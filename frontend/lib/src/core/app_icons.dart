@@ -51,6 +51,8 @@ class TonztoonIcons {
   static const IconData warning = LucideIcons.triangleAlert;
   static const IconData slidersHorizontal = LucideIcons.slidersHorizontal;
   static const IconData messageSquare = LucideIcons.messageSquare;
+  static const IconData image = LucideIcons.image;
+  static const IconData camera = LucideIcons.camera;
   static const IconData bookMarked = LucideIcons.bookMarked;
   static const IconData calendar = LucideIcons.calendar;
   static const IconData clock = LucideIcons.clock;

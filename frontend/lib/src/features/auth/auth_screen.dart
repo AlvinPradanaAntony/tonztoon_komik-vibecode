@@ -17,19 +17,22 @@ class AuthScreen extends ConsumerStatefulWidget {
 
 class _AuthScreenState extends ConsumerState<AuthScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _displayNameController = TextEditingController();
+  final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
 
   bool _registerMode = false;
-  bool _rememberMe = true;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _submitting = false;
 
   @override
   void dispose() {
+    _displayNameController.dispose();
+    _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -68,14 +71,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   palette: palette,
                   registerMode: _registerMode,
                   submitting: _submitting,
+                  displayNameController: _displayNameController,
+                  usernameController: _usernameController,
                   emailController: _emailController,
                   passwordController: _passwordController,
                   confirmPasswordController: _confirmPasswordController,
-                  rememberMe: _rememberMe,
                   obscurePassword: _obscurePassword,
                   obscureConfirmPassword: _obscureConfirmPassword,
-                  onRememberChanged: (value) =>
-                      setState(() => _rememberMe = value ?? false),
                   onTogglePassword: () =>
                       setState(() => _obscurePassword = !_obscurePassword),
                   onToggleConfirmPassword: () => setState(
@@ -86,6 +88,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                     _formKey.currentState?.reset();
                     setState(() {
                       _registerMode = !_registerMode;
+                      _displayNameController.clear();
+                      _usernameController.clear();
                       _confirmPasswordController.clear();
                     });
                   },
@@ -120,7 +124,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         await controller.register(
           _emailController.text.trim(),
           _passwordController.text,
-          null,
+          _displayNameController.text.trim(),
+          _usernameController.text.trim(),
         );
       } else {
         await controller.login(
@@ -159,6 +164,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     _formKey.currentState?.reset();
     setState(() {
       _registerMode = false;
+      _displayNameController.clear();
+      _usernameController.clear();
       _passwordController.clear();
       _confirmPasswordController.clear();
       _obscurePassword = true;
@@ -272,13 +279,13 @@ class _AuthCard extends StatelessWidget {
     required this.palette,
     required this.registerMode,
     required this.submitting,
+    required this.displayNameController,
+    required this.usernameController,
     required this.emailController,
     required this.passwordController,
     required this.confirmPasswordController,
-    required this.rememberMe,
     required this.obscurePassword,
     required this.obscureConfirmPassword,
-    required this.onRememberChanged,
     required this.onTogglePassword,
     required this.onToggleConfirmPassword,
     required this.onSubmit,
@@ -292,13 +299,13 @@ class _AuthCard extends StatelessWidget {
   final _AuthPalette palette;
   final bool registerMode;
   final bool submitting;
+  final TextEditingController displayNameController;
+  final TextEditingController usernameController;
   final TextEditingController emailController;
   final TextEditingController passwordController;
   final TextEditingController confirmPasswordController;
-  final bool rememberMe;
   final bool obscurePassword;
   final bool obscureConfirmPassword;
-  final ValueChanged<bool?> onRememberChanged;
   final VoidCallback onTogglePassword;
   final VoidCallback onToggleConfirmPassword;
   final VoidCallback onSubmit;
@@ -331,6 +338,35 @@ class _AuthCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              AnimatedSize(
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOutCubic,
+                alignment: Alignment.topCenter,
+                child: registerMode
+                    ? Column(
+                        children: [
+                          _AuthField(
+                            label: 'Nama akun',
+                            controller: displayNameController,
+                            palette: palette,
+                            prefixIcon: TonztoonIcons.user,
+                            enabled: !submitting,
+                            validator: _validateDisplayName,
+                          ),
+                          const SizedBox(height: 16),
+                          _AuthField(
+                            label: 'Username',
+                            controller: usernameController,
+                            palette: palette,
+                            prefixIcon: TonztoonIcons.badge,
+                            enabled: !submitting,
+                            validator: _validateUsername,
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                      )
+                    : const SizedBox.shrink(),
+              ),
               _AuthField(
                 label: 'Email',
                 controller: emailController,
@@ -397,30 +433,19 @@ class _AuthCard extends StatelessWidget {
                     : const SizedBox.shrink(),
               ),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  Checkbox(
-                    value: rememberMe,
-                    onChanged: submitting ? null : onRememberChanged,
-                    visualDensity: VisualDensity.compact,
-                    shape: const CircleBorder(),
-                  ),
-                  Text(
-                    'Remember me',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: palette.text,
-                      fontWeight: FontWeight.w700,
+              if (!registerMode) ...[
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: submitting ? null : onForgotPassword,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
                     ),
+                    child: const Text('Lupa password?'),
                   ),
-                  const Spacer(),
-                  if (!registerMode)
-                    TextButton(
-                      onPressed: submitting ? null : onForgotPassword,
-                      child: const Text('Lupa password?'),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 14),
+                ),
+                const SizedBox(height: 14),
+              ],
               SizedBox(
                 width: double.infinity,
                 child: _AuthSubmitButton(
@@ -494,6 +519,24 @@ class _AuthCard extends StatelessWidget {
 
   String? _validatePassword(String? value) {
     if ((value ?? '').isEmpty) return 'Password wajib diisi.';
+    return null;
+  }
+
+  String? _validateDisplayName(String? value) {
+    final displayName = value?.trim() ?? '';
+    if (displayName.isEmpty) return 'Nama akun wajib diisi.';
+    if (displayName.length > 120) return 'Nama akun maksimal 120 karakter.';
+    return null;
+  }
+
+  String? _validateUsername(String? value) {
+    final username = value?.trim() ?? '';
+    if (username.isEmpty) return 'Username wajib diisi.';
+    if (username.length > 50) return 'Username maksimal 50 karakter.';
+    final valid = RegExp(r'^[A-Za-z0-9._-]+$').hasMatch(username);
+    if (!valid) {
+      return 'Username hanya boleh berisi huruf, angka, titik, dash, atau underscore.';
+    }
     return null;
   }
 
@@ -1134,110 +1177,127 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
     final palette = _AuthPalette.fromTheme(Theme.of(context));
     final theme = Theme.of(context);
 
-    return Scaffold(
-      backgroundColor: palette.background,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 8),
-          child: IconButton(
-            tooltip: 'Kembali',
-            onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(TonztoonIcons.arrowBack),
+    return PopScope(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _leaveRecovery();
+      },
+      child: Scaffold(
+        backgroundColor: palette.background,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          leading: Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: IconButton(
+              tooltip: 'Kembali',
+              onPressed: _leaveRecovery,
+              icon: const Icon(TonztoonIcons.arrowBack),
+            ),
           ),
         ),
-      ),
-      body: SafeArea(
-        top: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(22, 8, 22, 28),
-              children: [
-                Image.asset(AppAssets.logoAppLarge, height: 42),
-                const SizedBox(height: 26),
-                Text(
-                  _completed ? 'Password diperbarui' : 'Buat password baru',
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    color: palette.text,
-                    fontWeight: FontWeight.w900,
-                    height: 1.06,
+        body: SafeArea(
+          top: false,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 460),
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(22, 8, 22, 28),
+                children: [
+                  Image.asset(AppAssets.logoAppLarge, height: 42),
+                  const SizedBox(height: 26),
+                  Text(
+                    _completed ? 'Password diperbarui' : 'Buat password baru',
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      color: palette.text,
+                      fontWeight: FontWeight.w900,
+                      height: 1.06,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _completed
-                      ? 'Kamu bisa lanjut memakai akun TonzToon dengan password baru.'
-                      : 'Gunakan password baru untuk menyelesaikan proses pemulihan akun.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: palette.muted,
-                    height: 1.4,
-                    fontWeight: FontWeight.w600,
+                  const SizedBox(height: 8),
+                  Text(
+                    _completed
+                        ? 'Kamu bisa lanjut memakai akun TonzToon dengan password baru.'
+                        : 'Gunakan password baru untuk menyelesaikan proses pemulihan akun.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: palette.muted,
+                      height: 1.4,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 26),
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: palette.surface,
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(color: palette.border),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(
-                          alpha: palette.shadowAlpha,
-                        ),
-                        blurRadius: 24,
-                        offset: const Offset(0, 12),
-                      ),
-                    ],
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
-                    child: _completed
-                        ? _ResetPasswordSuccess(palette: palette)
-                        : _ResetPasswordForm(
-                            formKey: _formKey,
-                            palette: palette,
-                            emailController: _emailController,
-                            passwordController: _passwordController,
-                            confirmPasswordController:
-                                _confirmPasswordController,
-                            needsEmail: _needsEmailForTokenHash,
-                            submitting: _submitting,
-                            errorMessage: _errorMessage,
-                            obscurePassword: _obscurePassword,
-                            obscureConfirmPassword: _obscureConfirmPassword,
-                            onTogglePassword: () => setState(
-                              () => _obscurePassword = !_obscurePassword,
-                            ),
-                            onToggleConfirmPassword: () => setState(
-                              () => _obscureConfirmPassword =
-                                  !_obscureConfirmPassword,
-                            ),
-                            onSubmit: _submit,
+                  const SizedBox(height: 26),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: palette.surface,
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: palette.border),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(
+                            alpha: palette.shadowAlpha,
                           ),
+                          blurRadius: 24,
+                          offset: const Offset(0, 12),
+                        ),
+                      ],
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
+                      child: _completed
+                          ? _ResetPasswordSuccess(palette: palette)
+                          : _ResetPasswordForm(
+                              formKey: _formKey,
+                              palette: palette,
+                              emailController: _emailController,
+                              passwordController: _passwordController,
+                              confirmPasswordController:
+                                  _confirmPasswordController,
+                              needsEmail: _needsEmailForTokenHash,
+                              submitting: _submitting,
+                              errorMessage: _errorMessage,
+                              obscurePassword: _obscurePassword,
+                              obscureConfirmPassword: _obscureConfirmPassword,
+                              onTogglePassword: () => setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              ),
+                              onToggleConfirmPassword: () => setState(
+                                () => _obscureConfirmPassword =
+                                    !_obscureConfirmPassword,
+                              ),
+                              onSubmit: _submit,
+                            ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 18),
-                TextButton.icon(
-                  onPressed: () => context.go(
-                    ref.read(authControllerProvider).isAuthenticated
-                        ? '/settings'
-                        : '/auth',
+                  const SizedBox(height: 18),
+                  TextButton.icon(
+                    onPressed: _goToAuthFallback,
+                    icon: const Icon(TonztoonIcons.login, size: 18),
+                    label: Text(_completed ? 'Lanjut ke akun' : 'Kembali'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: palette.accent,
+                      textStyle: theme.textTheme.labelLarge,
+                    ),
                   ),
-                  icon: const Icon(TonztoonIcons.login, size: 18),
-                  label: Text(_completed ? 'Lanjut ke akun' : 'Kembali'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: palette.accent,
-                    textStyle: theme.textTheme.labelLarge,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  void _leaveRecovery() {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+    _goToAuthFallback();
+  }
+
+  void _goToAuthFallback() {
+    context.go(
+      ref.read(authControllerProvider).isAuthenticated ? '/settings' : '/auth',
     );
   }
 

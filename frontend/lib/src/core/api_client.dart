@@ -17,6 +17,7 @@ class TonztoonApi {
   static const Duration connectionTimeout = Duration(seconds: 20);
   static const Duration sendTimeout = Duration(seconds: 20);
   static const Duration receiveTimeout = Duration(seconds: 60);
+  static const Duration tokenRefreshLeeway = Duration(minutes: 2);
 
   TonztoonApi({
     required AppConfig config,
@@ -41,13 +42,30 @@ class TonztoonApi {
 
   final TokenStore _tokenStore;
   final Dio dio;
-  bool _refreshing = false;
+  Future<String?>? _refreshFuture;
 
   Future<void> _onRequest(
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    final token = await _tokenStore.readAccessToken();
+    var token = await _tokenStore.readAccessToken();
+    final refreshToken = await _tokenStore.readRefreshToken();
+    final expiresAt = await _tokenStore.readExpiresAt();
+
+    if (refreshToken != null &&
+        refreshToken.isNotEmpty &&
+        _canRefreshForPath(options.path) &&
+        _shouldRefresh(expiresAt)) {
+      try {
+        token = await _refreshAccessToken(refreshToken) ?? token;
+      } on DioException catch (error) {
+        if (_isInvalidRefresh(error)) {
+          await _tokenStore.clear();
+          token = null;
+        }
+      }
+    }
+
     if (token != null && token.isNotEmpty) {
       options.headers['Authorization'] = 'Bearer $token';
     }
@@ -64,53 +82,86 @@ class TonztoonApi {
 
     if (status != 401 ||
         refreshToken == null ||
-        _refreshing ||
-        path.contains('/auth/refresh') ||
-        path.contains('/auth/login')) {
+        refreshToken.isEmpty ||
+        !_canRefreshForPath(path)) {
       handler.next(error);
       return;
     }
 
     try {
-      _refreshing = true;
-      final refreshDio = Dio(
-        BaseOptions(
-          baseUrl: dio.options.baseUrl,
-          connectTimeout: connectionTimeout,
-          sendTimeout: sendTimeout,
-          receiveTimeout: receiveTimeout,
-          headers: {'Accept': 'application/json'},
-        ),
-      );
-      final refreshResponse = await refreshDio.post<Map<String, dynamic>>(
-        '/auth/refresh',
-        data: {'refresh_token': refreshToken},
-      );
-      final session = refreshResponse.data?['session'] as Map<String, dynamic>?;
-      final accessToken = session?['access_token'] as String?;
+      final accessToken = await _refreshAccessToken(refreshToken);
       if (accessToken == null) {
         await _tokenStore.clear();
         handler.next(error);
         return;
       }
-      await _tokenStore.save(
-        TokenPair(
-          accessToken: accessToken,
-          refreshToken: session?['refresh_token'] as String?,
-          expiresAt: session?['expires_at'] as int?,
-        ),
-      );
 
       final retryOptions = error.requestOptions;
       retryOptions.headers['Authorization'] = 'Bearer $accessToken';
       final response = await dio.fetch<dynamic>(retryOptions);
       handler.resolve(response);
-    } catch (_) {
-      await _tokenStore.clear();
+    } on DioException catch (refreshError) {
+      if (_isInvalidRefresh(refreshError)) {
+        await _tokenStore.clear();
+      }
       handler.next(error);
-    } finally {
-      _refreshing = false;
+    } catch (_) {
+      handler.next(error);
     }
+  }
+
+  bool _canRefreshForPath(String path) {
+    return !path.contains('/auth/refresh') && !path.contains('/auth/login');
+  }
+
+  bool _shouldRefresh(int? expiresAt) {
+    if (expiresAt == null) return false;
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    return expiresAt - now <= tokenRefreshLeeway.inSeconds;
+  }
+
+  bool _isInvalidRefresh(DioException error) {
+    return switch (error.response?.statusCode) {
+      400 || 401 || 403 => true,
+      _ => false,
+    };
+  }
+
+  Future<String?> _refreshAccessToken(String refreshToken) {
+    final currentRefresh = _refreshFuture;
+    if (currentRefresh != null) return currentRefresh;
+
+    final refresh = _performRefresh(refreshToken);
+    _refreshFuture = refresh.whenComplete(() => _refreshFuture = null);
+    return _refreshFuture!;
+  }
+
+  Future<String?> _performRefresh(String refreshToken) async {
+    final refreshDio = Dio(
+      BaseOptions(
+        baseUrl: dio.options.baseUrl,
+        connectTimeout: connectionTimeout,
+        sendTimeout: sendTimeout,
+        receiveTimeout: receiveTimeout,
+        headers: {'Accept': 'application/json'},
+      ),
+    );
+    final refreshResponse = await refreshDio.post<Map<String, dynamic>>(
+      '/auth/refresh',
+      data: {'refresh_token': refreshToken},
+    );
+    final session = refreshResponse.data?['session'] as Map<String, dynamic>?;
+    final accessToken = session?['access_token'] as String?;
+    if (accessToken == null || accessToken.isEmpty) return null;
+
+    await _tokenStore.save(
+      TokenPair(
+        accessToken: accessToken,
+        refreshToken: session?['refresh_token'] as String?,
+        expiresAt: session?['expires_at'] as int?,
+      ),
+    );
+    return accessToken;
   }
 
   Future<Response<T>> get<T>(

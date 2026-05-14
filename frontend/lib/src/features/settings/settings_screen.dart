@@ -1,16 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../../core/avatar_image.dart';
+import '../../core/app_navigation.dart';
 import '../../core/app_icons.dart';
 import '../../models/auth.dart';
-import '../../models/comic.dart';
 import '../../models/library.dart';
 import '../../repositories/providers.dart';
 import '../../widgets/app_async_view.dart';
-import '../../widgets/app_surface_ink.dart';
-import '../../widgets/comic_cover.dart';
-import '../comic/comic_detail_screen.dart';
+import '../../widgets/app_loading_placeholder.dart';
+import '../library/library_shared_panes.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({
@@ -29,7 +34,6 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  bool _pushNotifications = true;
   late final Future<PackageInfo> _packageInfoFuture;
 
   @override
@@ -56,6 +60,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       body: AppAsyncView<ReaderPreferences>(
         value: prefs,
         onRetry: () => ref.invalidate(readerPreferencesProvider),
+        loadingBuilder: (context) =>
+            _SettingsLoadingPlaceholder(isSignedIn: widget.isSignedIn),
         builder: (readerPrefs) => ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 132),
           children: [
@@ -78,37 +84,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                   ),
                   const _SettingsDivider(),
-                  _SettingsRow(
-                    icon: TonztoonIcons.bookmark,
-                    title: 'Saved Collections',
-                    subtitle: 'Manage synced reading shelves',
-                    onTap: () => _openAccountFlow(
-                      context,
-                      const _SavedCollectionsScreen(),
-                    ),
-                  ),
+                  const _SavedCollectionsSettingsRow(),
                   const _SettingsDivider(),
-                  _SettingsRow(
-                    icon: TonztoonIcons.heart,
-                    title: 'My Favorites',
-                    subtitle: 'Comics and scenes you saved',
-                    onTap: () =>
-                        _openAccountFlow(context, const _MyFavoritesScreen()),
-                  ),
+                  const _FavoriteScenesSettingsRow(),
+                  const _SettingsDivider(),
+                  const _MyDownloadsSettingsRow(),
                   const _SettingsDivider(),
                   _SettingsRow(
                     icon: TonztoonIcons.bell,
                     title: 'Push Notifications',
-                    subtitle: 'New chapters and reading reminders',
+                    subtitle: 'Belum aktif, coming soon',
                     onTap: () => _openAccountFlow(
                       context,
                       const _PushNotificationsScreen(),
                     ),
-                    trailing: Switch.adaptive(
-                      value: _pushNotifications,
-                      onChanged: (value) =>
-                          setState(() => _pushNotifications = value),
-                    ),
+                    trailing: const _ComingSoonSwitchTrailing(),
                   ),
                 ],
               ),
@@ -237,71 +227,282 @@ void _openAccountFlow(BuildContext context, Widget page) {
   ).push(MaterialPageRoute<void>(builder: (context) => page));
 }
 
-Future<String?> _showProfileCollectionDialog(BuildContext context) {
-  var value = '';
-
+Future<String?> _showProfileTextDialog(
+  BuildContext context, {
+  required String title,
+  required String label,
+  required String initialValue,
+  required Future<void> Function(String value) onSubmit,
+  String? helperText,
+  TextInputType? keyboardType,
+  int? maxLength,
+  bool allowEmpty = false,
+  String emptyError = 'Field ini wajib diisi.',
+}) {
   return showDialog<String>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Koleksi baru'),
-      content: TextField(
-        autofocus: true,
-        textInputAction: TextInputAction.done,
-        decoration: const InputDecoration(
-          labelText: 'Nama koleksi',
-          hintText: 'Contoh: Rekomendasi minggu ini',
-        ),
-        onChanged: (text) => value = text,
-        onSubmitted: (text) => Navigator.of(context).pop(text),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Batal'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(value),
-          child: const Text('Buat'),
-        ),
-      ],
+    builder: (context) => _ProfileTextDialog(
+      title: title,
+      label: label,
+      initialValue: initialValue,
+      onSubmit: onSubmit,
+      helperText: helperText,
+      keyboardType: keyboardType,
+      maxLength: maxLength,
+      allowEmpty: allowEmpty,
+      emptyError: emptyError,
     ),
   );
 }
 
-class _ProfileHeader extends StatelessWidget {
+class _ProfileTextDialog extends StatefulWidget {
+  const _ProfileTextDialog({
+    required this.title,
+    required this.label,
+    required this.initialValue,
+    required this.onSubmit,
+    required this.allowEmpty,
+    required this.emptyError,
+    this.helperText,
+    this.keyboardType,
+    this.maxLength,
+  });
+
+  final String title;
+  final String label;
+  final String initialValue;
+  final Future<void> Function(String value) onSubmit;
+  final String? helperText;
+  final TextInputType? keyboardType;
+  final int? maxLength;
+  final bool allowEmpty;
+  final String emptyError;
+
+  @override
+  State<_ProfileTextDialog> createState() => _ProfileTextDialogState();
+}
+
+class _ProfileTextDialogState extends State<_ProfileTextDialog> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  late final TextEditingController _controller;
+  bool _saving = false;
+  String? _errorText;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_saving,
+      child: AlertDialog(
+        title: Text(widget.title),
+        content: Form(
+          key: _formKey,
+          child: TextFormField(
+            controller: _controller,
+            autofocus: true,
+            enabled: !_saving,
+            keyboardType: widget.keyboardType,
+            maxLength: widget.maxLength,
+            textInputAction: TextInputAction.done,
+            decoration: InputDecoration(
+              labelText: widget.label,
+              helperText: widget.helperText,
+              errorText: _errorText,
+            ),
+            validator: (value) {
+              final text = value?.trim() ?? '';
+              if (!widget.allowEmpty && text.isEmpty) return widget.emptyError;
+              return null;
+            },
+            onFieldSubmitted: (_) => _submit(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: _saving ? null : () => Navigator.of(context).pop(),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: _saving ? null : _submit,
+            child: _saving
+                ? const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 8),
+                      Text('Simpan'),
+                    ],
+                  )
+                : const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
+    if (_saving) return;
+    if (_formKey.currentState?.validate() != true) return;
+    setState(() {
+      _saving = true;
+      _errorText = null;
+    });
+    final value = _controller.text.trim();
+    try {
+      await widget.onSubmit(value);
+      if (!mounted) return;
+      Navigator.of(context).pop(value);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _errorText = 'Gagal menyimpan: $error';
+      });
+    }
+  }
+}
+
+class _ProfileHeader extends ConsumerStatefulWidget {
   const _ProfileHeader({required this.auth});
 
   final AuthState auth;
 
   @override
+  ConsumerState<_ProfileHeader> createState() => _ProfileHeaderState();
+}
+
+class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
+  bool _saving = false;
+  final AvatarImagePicker _avatarPicker = AvatarImagePicker();
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final name = _displayName(auth);
+    final name = _displayName(widget.auth);
     final initials = _initials(name);
+    final avatarUrl = widget.auth.user?.avatarUrl?.trim();
 
     return Column(
       children: [
-        Container(
-          width: 88,
-          height: 88,
-          decoration: BoxDecoration(
-            color: colorScheme.surface,
-            shape: BoxShape.circle,
-            border: Border.all(color: colorScheme.tertiary, width: 2),
-          ),
-          child: Center(
-            child: Text(
-              initials,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                color: colorScheme.primary,
-                fontWeight: FontWeight.w900,
+        SizedBox(
+          width: 100,
+          height: 100,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned.fill(
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: ClipOval(
+                          child: ColoredBox(
+                            color: colorScheme.surface,
+                            child: avatarUrl == null || avatarUrl.isEmpty
+                                ? Center(
+                                    child: Text(
+                                      initials,
+                                      style: theme.textTheme.headlineSmall
+                                          ?.copyWith(
+                                            color: colorScheme.primary,
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                    ),
+                                  )
+                                : Image.network(
+                                    avatarUrl,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    fit: BoxFit.cover,
+                                    alignment: Alignment.center,
+                                    loadingBuilder:
+                                        (context, child, loadingProgress) {
+                                          if (loadingProgress == null) {
+                                            return child;
+                                          }
+                                          return const _ProfileAvatarImageShimmer();
+                                        },
+                                    errorBuilder:
+                                        (context, error, stackTrace) => Center(
+                                          child: Text(
+                                            initials,
+                                            style: theme.textTheme.headlineSmall
+                                                ?.copyWith(
+                                                  color: colorScheme.primary,
+                                                  fontWeight: FontWeight.w900,
+                                                ),
+                                          ),
+                                        ),
+                                  ),
+                          ),
+                        ),
+                      ),
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: colorScheme.tertiary,
+                                width: 2,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
+              Positioned(
+                right: 8,
+                bottom: 8,
+                child: _ProfileEditButton(
+                  tooltip: 'Ubah foto profil',
+                  busy: _saving,
+                  onPressed: _editAvatar,
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 12),
-        Text(name, style: theme.textTheme.titleLarge),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(
+                name,
+                style: theme.textTheme.titleLarge,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 4),
+            _ProfileEditButton(
+              tooltip: 'Ubah display name',
+              variant: _ProfileEditButtonVariant.inline,
+              busy: _saving,
+              onPressed: _editDisplayName,
+            ),
+          ],
+        ),
         const SizedBox(height: 6),
         DecoratedBox(
           decoration: BoxDecoration(
@@ -320,6 +521,114 @@ class _ProfileHeader extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Future<void> _editDisplayName() async {
+    final current = widget.auth.user?.displayName?.trim();
+    final name = await _showProfileTextDialog(
+      context,
+      title: 'Edit display name',
+      label: 'Display name',
+      initialValue: current?.isNotEmpty == true
+          ? current!
+          : _displayName(widget.auth),
+      maxLength: 120,
+      emptyError: 'Display name wajib diisi.',
+      onSubmit: (value) => ref
+          .read(authControllerProvider.notifier)
+          .updateProfile(displayName: value),
+    );
+    if (!mounted || name == null) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(content: Text('Profil berhasil diperbarui.')),
+      );
+  }
+
+  Future<void> _editAvatar() async {
+    final source = await _showAvatarSourceSheet(context);
+    if (!mounted || source == null) return;
+
+    setState(() => _saving = true);
+    var uploadDialogShown = false;
+    try {
+      final avatar = await _avatarPicker.pick(
+        context,
+        source,
+        onSelected: () {
+          if (!mounted) return;
+          _showAvatarUploadDialog(context);
+          uploadDialogShown = true;
+        },
+      );
+      if (!mounted || avatar == null) return;
+      await ref.read(authControllerProvider.notifier).uploadAvatar(avatar);
+      if (!mounted) return;
+      if (uploadDialogShown) {
+        Navigator.of(context, rootNavigator: true).pop();
+        uploadDialogShown = false;
+      }
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Foto profil berhasil diperbarui.')),
+        );
+    } catch (error) {
+      if (!mounted) return;
+      if (uploadDialogShown) {
+        Navigator.of(context, rootNavigator: true).pop();
+        uploadDialogShown = false;
+      }
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text('Gagal mengunggah foto profil: $error')),
+        );
+    } finally {
+      if (mounted && uploadDialogShown) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _showAvatarUploadDialog(BuildContext context) {
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) =>
+            const PopScope(canPop: false, child: _AvatarUploadDialog()),
+      ),
+    );
+  }
+
+  Future<ImageSource?> _showAvatarSourceSheet(BuildContext context) {
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(TonztoonIcons.image),
+                title: const Text('Pilih dari galeri'),
+                onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+              ),
+              ListTile(
+                leading: const Icon(TonztoonIcons.camera),
+                title: const Text('Ambil foto'),
+                onTap: () => Navigator.of(context).pop(ImageSource.camera),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -348,22 +657,115 @@ class _ProfileHeader extends StatelessWidget {
   }
 }
 
+class _ProfileEditButton extends StatelessWidget {
+  const _ProfileEditButton({
+    required this.tooltip,
+    required this.onPressed,
+    this.busy = false,
+    this.variant = _ProfileEditButtonVariant.avatar,
+  });
+
+  final String tooltip;
+  final VoidCallback onPressed;
+  final bool busy;
+  final _ProfileEditButtonVariant variant;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isInline = variant == _ProfileEditButtonVariant.inline;
+    final size = isInline ? 24.0 : 30.0;
+    final iconSize = isInline ? 12.0 : 14.0;
+
+    return Material(
+      color: isInline
+          ? colorScheme.surfaceContainerHighest
+          : colorScheme.primary,
+      shape: const CircleBorder(),
+      elevation: isInline ? 0 : 1,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: busy ? null : onPressed,
+        child: Tooltip(
+          message: tooltip,
+          child: SizedBox.square(
+            dimension: size,
+            child: Icon(
+              TonztoonIcons.pencil,
+              size: iconSize,
+              color: isInline
+                  ? colorScheme.onSurfaceVariant
+                  : colorScheme.onPrimary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+enum _ProfileEditButtonVariant { avatar, inline }
+
+class _ProfileAvatarImageShimmer extends StatelessWidget {
+  const _ProfileAvatarImageShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    return const AppShimmer(
+      child: AppShimmerBlock(
+        width: double.infinity,
+        height: double.infinity,
+        borderRadius: 999,
+      ),
+    );
+  }
+}
+
+class _AvatarUploadDialog extends StatelessWidget {
+  const _AvatarUploadDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      content: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox.square(
+            dimension: 22,
+            child: CircularProgressIndicator(strokeWidth: 2.4),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              'Mengunggah foto profil...',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ProfileStats extends ConsumerWidget {
   const _ProfileStats();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final bookmarks = ref.watch(bookmarksProvider);
-    final scenes = ref.watch(favoriteScenesProvider);
     final readingTime = ref.watch(readingTimeProvider);
-    final favoriteCount = _favoriteCountLabel(bookmarks, scenes);
+    final bookmarkCount = _bookmarkCountLabel(bookmarks);
     final activeTime = _readingTimeLabel(readingTime);
 
     return _SettingsSection(
       child: Row(
         children: [
           Expanded(
-            child: _StatBlock(value: favoriteCount, label: 'Favourite'),
+            child: _StatBlock(
+              value: bookmarkCount,
+              label: 'Bookmark',
+              onTap: () => context.go(libraryBookmarksLocation),
+            ),
           ),
           const SizedBox(height: 42, child: VerticalDivider(width: 1)),
           Expanded(
@@ -374,16 +776,11 @@ class _ProfileStats extends ConsumerWidget {
     );
   }
 
-  String _favoriteCountLabel(
-    AsyncValue<List<LibraryComicRef>> bookmarks,
-    AsyncValue<List<FavoriteScene>> scenes,
-  ) {
+  String _bookmarkCountLabel(AsyncValue<List<LibraryComicRef>> bookmarks) {
     final bookmarkCount = bookmarks.asData?.value.length;
-    final sceneCount = scenes.asData?.value.length;
-    if (bookmarkCount == null || sceneCount == null) return '...';
-    final total = bookmarkCount + sceneCount;
-    if (total > 999) return '999+';
-    return '$total';
+    if (bookmarkCount == null) return '...';
+    if (bookmarkCount > 999) return '999+';
+    return '$bookmarkCount';
   }
 }
 
@@ -451,18 +848,78 @@ String _readingTimeLabel(Duration duration) {
   return '${duration.inSeconds}s';
 }
 
+class _FavoriteScenesSettingsRow extends ConsumerWidget {
+  const _FavoriteScenesSettingsRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scenes = ref.watch(favoriteScenesProvider);
+    final count = scenes.asData?.value.length;
+
+    return _SettingsRow(
+      icon: TonztoonIcons.heart,
+      title: 'My Favorites',
+      subtitle: count == null
+          ? 'Favorite comic scenes only'
+          : '$count scene komik favorit',
+      onTap: () => _openAccountFlow(context, const _MyFavoritesScreen()),
+    );
+  }
+}
+
+class _SavedCollectionsSettingsRow extends ConsumerWidget {
+  const _SavedCollectionsSettingsRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final collections = ref.watch(collectionsProvider);
+    final count = collections.asData?.value.length;
+
+    return _SettingsRow(
+      icon: TonztoonIcons.bookmark,
+      title: 'Saved Collections',
+      subtitle: count == null
+          ? 'Synced reading shelves'
+          : '$count koleksi tersinkron',
+      onTap: () => context.go(libraryCollectionsLocation),
+    );
+  }
+}
+
+class _MyDownloadsSettingsRow extends ConsumerWidget {
+  const _MyDownloadsSettingsRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final offline = ref.watch(offlineChaptersProvider);
+    final readyCount = offline.asData?.value
+        .where((chapter) => chapter.isCompleted)
+        .length;
+
+    return _SettingsRow(
+      icon: TonztoonIcons.download,
+      title: 'My Downloads',
+      subtitle: readyCount == null
+          ? 'Offline chapters ready on this device'
+          : '$readyCount chapter tersedia offline',
+      onTap: () => _openAccountFlow(context, const _MyDownloadsScreen()),
+    );
+  }
+}
+
 class _StatBlock extends StatelessWidget {
-  const _StatBlock({required this.value, required this.label});
+  const _StatBlock({required this.value, required this.label, this.onTap});
 
   final String value;
   final String label;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Column(
+    final content = Column(
       children: [
         Text(
           value,
@@ -481,76 +938,187 @@ class _StatBlock extends StatelessWidget {
         ),
       ],
     );
+    if (onTap == null) return content;
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: content,
+        ),
+      ),
+    );
   }
 }
 
-class _PrivacySecurityScreen extends StatelessWidget {
+class _PrivacySecurityScreen extends ConsumerWidget {
   const _PrivacySecurityScreen();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final security = ref.watch(authSecurityOverviewProvider);
+
     return _AccountFlowScaffold(
       title: 'Privacy & Security',
-      children: const [
-        _SecurityScoreCard(),
-        SizedBox(height: 18),
-        _SectionLabel(text: 'Account Protection'),
-        SizedBox(height: 8),
-        _SettingsSection(
-          children: [
-            _SettingsRow(
-              icon: TonztoonIcons.mail,
-              title: 'Email Verification',
-              subtitle: 'reader@tonztoon.app verified',
-              trailing: _StatusBadge(label: 'Verified'),
-            ),
-            _SettingsDivider(),
-            _SettingsRow(
-              icon: TonztoonIcons.keyRound,
-              title: 'Change Password',
-              subtitle: 'Last changed 2 months ago',
-            ),
-            _SettingsDivider(),
-            _SettingsRow(
-              icon: TonztoonIcons.shieldCheck,
-              title: 'Two-step Verification',
-              subtitle: 'Add an extra layer before signing in',
-              trailing: _StatusBadge(label: 'On'),
-            ),
-          ],
-        ),
-        SizedBox(height: 20),
-        _SectionLabel(text: 'Active Sessions'),
-        SizedBox(height: 8),
-        _SettingsSection(
-          children: [
-            _DeviceRow(
-              title: 'Android Phone',
-              subtitle: 'Current device - Jakarta',
-              icon: Icons.phone_android_rounded,
-              active: true,
-            ),
-            _SettingsDivider(),
-            _DeviceRow(
-              title: 'Chrome Browser',
-              subtitle: 'Last active yesterday',
-              icon: Icons.desktop_windows_rounded,
-              active: false,
-            ),
-          ],
+      children: [
+        security.when(
+          loading: () => const _PrivacySecurityLoading(),
+          error: (error, stackTrace) => _PrivacySecurityError(
+            message: '$error',
+            onRetry: () => ref.invalidate(authSecurityOverviewProvider),
+          ),
+          data: (overview) => _PrivacySecurityContent(overview: overview),
         ),
       ],
     );
   }
 }
 
+class _PrivacySecurityContent extends ConsumerWidget {
+  const _PrivacySecurityContent({required this.overview});
+
+  final AuthSecurityOverview overview;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final email = overview.email?.trim();
+    final emailSubtitle = email == null || email.isEmpty
+        ? 'Email tidak tersedia'
+        : email;
+    final provider = overview.provider?.trim();
+    final session = overview.currentSession;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SecurityScoreCard(overview: overview),
+        const SizedBox(height: 18),
+        const _SectionLabel(text: 'Account Protection'),
+        const SizedBox(height: 8),
+        _SettingsSection(
+          children: [
+            _SettingsRow(
+              icon: TonztoonIcons.mail,
+              title: 'Email Verification',
+              subtitle: emailSubtitle,
+              trailing: _StatusBadge(
+                label: overview.emailVerified ? 'Verified' : 'Unverified',
+              ),
+            ),
+            const _SettingsDivider(),
+            _SettingsRow(
+              icon: TonztoonIcons.keyRound,
+              title: 'Change Password',
+              subtitle: provider == null || provider == 'email'
+                  ? 'Update password akun TonzToon'
+                  : 'Login provider: $provider',
+              onTap: () => _showChangePasswordDialog(context, ref),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        const _SectionLabel(text: 'Active Session'),
+        const SizedBox(height: 8),
+        _SettingsSection(
+          children: [
+            _DeviceRow(
+              title: 'Current session',
+              subtitle: _sessionSubtitle(session),
+              icon: Icons.phone_android_rounded,
+              active: true,
+            ),
+            const _SettingsDivider(),
+            _SettingsRow(
+              icon: TonztoonIcons.logout,
+              title: 'Logout Current Session',
+              subtitle: 'Revoke this device session now',
+              onTap: () => _logoutCurrentSession(context, ref),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  static String _sessionSubtitle(AuthSecuritySession session) {
+    final expires = session.expiresAtDate;
+    if (expires == null) return 'Sesi aktif saat ini';
+    return 'Aktif sampai ${DateFormat('dd MMM yyyy, HH:mm').format(expires)}';
+  }
+
+  Future<void> _showChangePasswordDialog(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final changed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _ChangePasswordDialog(
+        onSubmit: (password) =>
+            ref.read(authControllerProvider.notifier).updatePassword(password),
+      ),
+    );
+    if (!context.mounted || changed != true) return;
+    ref.invalidate(authSecurityOverviewProvider);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(content: Text('Password berhasil diperbarui.')),
+      );
+  }
+
+  Future<void> _logoutCurrentSession(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout sesi ini?'),
+        content: const Text('Anda perlu login lagi untuk memakai akun ini.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+    if (!context.mounted || confirmed != true) return;
+
+    await ref.read(authControllerProvider.notifier).logout();
+    ref.invalidate(homeDataProvider);
+    if (!context.mounted) return;
+    Navigator.of(context).pop();
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('Logout berhasil.')));
+  }
+}
+
 class _SecurityScoreCard extends StatelessWidget {
-  const _SecurityScoreCard();
+  const _SecurityScoreCard({required this.overview});
+
+  final AuthSecurityOverview overview;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final title = overview.emailVerified
+        ? 'Security looks good'
+        : 'Email verification needed';
+    final message = overview.emailVerified
+        ? 'Email akun terverifikasi dan sesi aktif terlindungi.'
+        : 'Verifikasi email Anda agar pemulihan akun lebih aman.';
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -578,15 +1146,9 @@ class _SecurityScoreCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Security looks good',
-                    style: theme.textTheme.titleMedium,
-                  ),
+                  Text(title, style: theme.textTheme.titleMedium),
                   const SizedBox(height: 4),
-                  Text(
-                    '2-step verification and verified email are active.',
-                    style: theme.textTheme.bodySmall,
-                  ),
+                  Text(message, style: theme.textTheme.bodySmall),
                 ],
               ),
             ),
@@ -597,146 +1159,221 @@ class _SecurityScoreCard extends StatelessWidget {
   }
 }
 
-class _SavedCollectionsScreen extends StatefulWidget {
-  const _SavedCollectionsScreen();
+class _ChangePasswordDialog extends StatefulWidget {
+  const _ChangePasswordDialog({required this.onSubmit});
+
+  final Future<void> Function(String password) onSubmit;
 
   @override
-  State<_SavedCollectionsScreen> createState() =>
-      _SavedCollectionsScreenState();
+  State<_ChangePasswordDialog> createState() => _ChangePasswordDialogState();
 }
 
-class _SavedCollectionsScreenState extends State<_SavedCollectionsScreen> {
-  late final List<_ProfileCollection> _collections = List.of(
-    _profileCollections,
-  );
+class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmController = TextEditingController();
+  bool _saving = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirm = true;
+  String? _errorText;
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    _confirmController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return _AccountFlowScaffold(
-      title: 'Saved Collections',
-      action: IconButton(
-        tooltip: 'Tambah koleksi',
-        onPressed: _createCollection,
-        icon: const Icon(TonztoonIcons.plus),
+    return PopScope(
+      canPop: !_saving,
+      child: AlertDialog(
+        title: const Text('Change Password'),
+        content: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _passwordController,
+                enabled: !_saving,
+                autofocus: true,
+                obscureText: _obscurePassword,
+                textInputAction: TextInputAction.next,
+                decoration: InputDecoration(
+                  labelText: 'Password baru',
+                  errorText: _errorText,
+                  suffixIcon: IconButton(
+                    tooltip: _obscurePassword
+                        ? 'Tampilkan password'
+                        : 'Sembunyikan password',
+                    onPressed: _saving
+                        ? null
+                        : () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
+                    icon: Icon(
+                      _obscurePassword
+                          ? TonztoonIcons.eye
+                          : TonztoonIcons.eyeOff,
+                    ),
+                  ),
+                ),
+                validator: (value) {
+                  final password = value ?? '';
+                  if (password.length < 8) {
+                    return 'Password minimal 8 karakter.';
+                  }
+                  if (password.length > 128) {
+                    return 'Password maksimal 128 karakter.';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _confirmController,
+                enabled: !_saving,
+                obscureText: _obscureConfirm,
+                textInputAction: TextInputAction.done,
+                decoration: InputDecoration(
+                  labelText: 'Konfirmasi password',
+                  suffixIcon: IconButton(
+                    tooltip: _obscureConfirm
+                        ? 'Tampilkan password'
+                        : 'Sembunyikan password',
+                    onPressed: _saving
+                        ? null
+                        : () => setState(
+                            () => _obscureConfirm = !_obscureConfirm,
+                          ),
+                    icon: Icon(
+                      _obscureConfirm
+                          ? TonztoonIcons.eye
+                          : TonztoonIcons.eyeOff,
+                    ),
+                  ),
+                ),
+                validator: (value) {
+                  if (value != _passwordController.text) {
+                    return 'Konfirmasi password tidak sama.';
+                  }
+                  return null;
+                },
+                onFieldSubmitted: (_) => _submit(),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: _saving ? null : () => Navigator.of(context).pop(false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: _saving ? null : _submit,
+            child: _saving
+                ? const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 8),
+                      Text('Simpan'),
+                    ],
+                  )
+                : const Text('Simpan'),
+          ),
+        ],
       ),
-      children: [
-        const _SectionLabel(text: 'Collections'),
-        const SizedBox(height: 8),
-        if (_collections.isEmpty)
-          const _ProfileCollectionEmptyState()
-        else
-          for (final collection in _collections) ...[
-            _CollectionFlowTile(collection: collection),
-            const SizedBox(height: 12),
-          ],
-      ],
     );
   }
 
-  Future<void> _createCollection() async {
-    final title = await _showProfileCollectionDialog(context);
-    if (!mounted || title == null || title.trim().isEmpty) return;
+  Future<void> _submit() async {
+    if (_saving) return;
+    if (_formKey.currentState?.validate() != true) return;
 
     setState(() {
-      _collections.insert(
-        0,
-        _ProfileCollection(
-          title: title.trim(),
-          subtitle: 'Koleksi sinkron baru',
-          comics: const [],
-        ),
-      );
+      _saving = true;
+      _errorText = null;
     });
+    try {
+      await widget.onSubmit(_passwordController.text);
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _errorText = 'Gagal menyimpan: $error';
+      });
+    }
   }
 }
 
-class _CollectionDetailScreen extends StatelessWidget {
-  const _CollectionDetailScreen({required this.collection});
-
-  final _ProfileCollection collection;
+class _PrivacySecurityLoading extends StatelessWidget {
+  const _PrivacySecurityLoading();
 
   @override
   Widget build(BuildContext context) {
-    return _AccountFlowScaffold(
-      title: collection.title,
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(collection.subtitle, style: Theme.of(context).textTheme.bodySmall),
-        const SizedBox(height: 16),
-        for (final comic in collection.comics) ...[
-          _ComicMiniTile(comic: comic),
-          const SizedBox(height: 12),
-        ],
+        AppShimmer(
+          child: AppShimmerBlock(
+            width: double.infinity,
+            height: 90,
+            borderRadius: 18,
+          ),
+        ),
+        SizedBox(height: 18),
+        _SectionLabel(text: 'Account Protection'),
+        SizedBox(height: 8),
+        _SettingsSectionSkeleton(rowCount: 2),
+        SizedBox(height: 20),
+        _SectionLabel(text: 'Active Session'),
+        SizedBox(height: 8),
+        _SettingsSectionSkeleton(rowCount: 2),
       ],
     );
   }
 }
 
-class _CollectionFlowTile extends StatelessWidget {
-  const _CollectionFlowTile({required this.collection});
+class _PrivacySecurityError extends StatelessWidget {
+  const _PrivacySecurityError({required this.message, required this.onRetry});
 
-  final _ProfileCollection collection;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppSurfaceInk(
-      onTap: () => _openAccountFlow(
-        context,
-        _CollectionDetailScreen(collection: collection),
-      ),
-      child: Row(
-        children: [
-          _CoverStack(comics: collection.comics),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  collection.title,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  collection.subtitle,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-          const Icon(TonztoonIcons.chevronRight),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProfileCollectionEmptyState extends StatelessWidget {
-  const _ProfileCollectionEmptyState();
+  final String message;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 36),
-      child: Column(
-        children: [
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHighest,
-              shape: BoxShape.circle,
+    return _SettingsSection(
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          children: [
+            Icon(TonztoonIcons.warning, color: colorScheme.error),
+            const SizedBox(height: 8),
+            Text(
+              'Gagal memuat pengaturan keamanan.',
+              style: theme.textTheme.titleSmall,
             ),
-            child: const Padding(
-              padding: EdgeInsets.all(18),
-              child: Icon(TonztoonIcons.bookmark, size: 32),
+            const SizedBox(height: 4),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall,
             ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Belum ada koleksi tersimpan.',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-        ],
+            const SizedBox(height: 12),
+            OutlinedButton(onPressed: onRetry, child: const Text('Coba lagi')),
+          ],
+        ),
       ),
     );
   }
@@ -747,52 +1384,54 @@ class _MyFavoritesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('My Favorites'),
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Comics'),
-              Tab(text: 'Scenes'),
-            ],
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('My Favorites'),
+        actions: [
+          IconButton(
+            tooltip: 'Buka tab Scene di Pustaka',
+            onPressed: () => context.go(libraryScenesLocation),
+            icon: const Icon(TonztoonIcons.library),
           ),
-        ),
-        body: TabBarView(
-          children: [
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text('Belum ada komik favorit.'),
-              ),
-            ),
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text('Belum ada scene favorit.'),
-              ),
-            ),
-          ],
-        ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: const FavoriteScenesPane(
+        padding: EdgeInsets.fromLTRB(16, 12, 16, 28),
+        allowDelete: false,
       ),
     );
   }
 }
 
-class _PushNotificationsScreen extends StatefulWidget {
-  const _PushNotificationsScreen();
+class _MyDownloadsScreen extends StatelessWidget {
+  const _MyDownloadsScreen();
 
   @override
-  State<_PushNotificationsScreen> createState() =>
-      _PushNotificationsScreenState();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('My Downloads'),
+        actions: [
+          IconButton(
+            tooltip: 'Buka tab Unduhan di Pustaka',
+            onPressed: () => context.go(libraryDownloadsLocation),
+            icon: const Icon(TonztoonIcons.library),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: const OfflineDownloadsPane(
+        padding: EdgeInsets.fromLTRB(16, 12, 16, 28),
+        readyOnly: true,
+        allowDelete: false,
+      ),
+    );
+  }
 }
 
-class _PushNotificationsScreenState extends State<_PushNotificationsScreen> {
-  bool _newChapters = true;
-  bool _librarySync = true;
-  bool _recommendations = false;
-  bool _quietHours = true;
+class _PushNotificationsScreen extends StatelessWidget {
+  const _PushNotificationsScreen();
 
   @override
   Widget build(BuildContext context) {
@@ -809,30 +1448,21 @@ class _PushNotificationsScreenState extends State<_PushNotificationsScreen> {
               icon: TonztoonIcons.bookOpen,
               title: 'New Chapters',
               subtitle: 'Notify when followed comics update',
-              trailing: Switch.adaptive(
-                value: _newChapters,
-                onChanged: (value) => setState(() => _newChapters = value),
-              ),
+              trailing: const _DisabledSwitch(),
             ),
             const _SettingsDivider(),
             _SettingsRow(
               icon: TonztoonIcons.library,
               title: 'Library Sync',
               subtitle: 'Collections, bookmarks, and offline status',
-              trailing: Switch.adaptive(
-                value: _librarySync,
-                onChanged: (value) => setState(() => _librarySync = value),
-              ),
+              trailing: const _DisabledSwitch(),
             ),
             const _SettingsDivider(),
             _SettingsRow(
               icon: TonztoonIcons.autoAwesome,
               title: 'Recommendations',
               subtitle: 'New picks based on your taste',
-              trailing: Switch.adaptive(
-                value: _recommendations,
-                onChanged: (value) => setState(() => _recommendations = value),
-              ),
+              trailing: const _DisabledSwitch(),
             ),
           ],
         ),
@@ -845,10 +1475,7 @@ class _PushNotificationsScreenState extends State<_PushNotificationsScreen> {
               icon: TonztoonIcons.clock,
               title: 'Quiet Hours',
               subtitle: 'Pause alerts between 22:00 - 07:00',
-              trailing: Switch.adaptive(
-                value: _quietHours,
-                onChanged: (value) => setState(() => _quietHours = value),
-              ),
+              trailing: const _DisabledSwitch(),
             ),
           ],
         ),
@@ -869,15 +1496,22 @@ class _NotificationPreviewCard extends StatelessWidget {
         color: colorScheme.secondary.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(18),
       ),
-      child: const Padding(
-        padding: EdgeInsets.all(16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
         child: Row(
-          children: [
+          children: const [
             _IconBubble(icon: TonztoonIcons.bell),
             SizedBox(width: 12),
             Expanded(
-              child: Text(
-                'Chapter baru, sinkron pustaka, dan rekomendasi akan tampil sebagai kartu ringkas.',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _StatusBadge(label: 'Coming soon'),
+                  SizedBox(height: 8),
+                  Text(
+                    'Pengaturan push notification belum terhubung ke sistem notifikasi.',
+                  ),
+                ],
               ),
             ),
           ],
@@ -939,97 +1573,41 @@ class _StatusBadge extends StatelessWidget {
   }
 }
 
-class _ComicMiniTile extends StatelessWidget {
-  const _ComicMiniTile({required this.comic});
-
-  final ComicSummary comic;
+class _ComingSoonSwitchTrailing extends StatelessWidget {
+  const _ComingSoonSwitchTrailing();
 
   @override
   Widget build(BuildContext context) {
-    return AppSurfaceInk(
-      onTap: () => _openAccountFlow(context, ComicDetailScreen(comic: comic)),
-      child: Row(
-        children: [
-          ComicCover(imageUrl: comic.coverImageUrl, width: 54, height: 76),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  comic.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  [
-                    if (comic.type != null) comic.type!,
-                    if (comic.latestChapterNumber != null)
-                      'Ch ${formatChapterNumber(comic.latestChapterNumber!)}',
-                  ].join(' - '),
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-          const Icon(TonztoonIcons.chevronRight),
-        ],
-      ),
+    return const Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _StatusBadge(label: 'Coming soon'),
+        SizedBox(width: 8),
+        _DisabledSwitch(),
+      ],
     );
   }
 }
 
-class _CoverStack extends StatelessWidget {
-  const _CoverStack({required this.comics});
-
-  final List<ComicSummary> comics;
+class _DisabledSwitch extends StatelessWidget {
+  const _DisabledSwitch();
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 78,
-      height: 72,
-      child: Stack(
-        children: [
-          for (var index = 0; index < comics.take(3).length; index++)
-            Positioned(
-              left: index * 16,
-              top: index * 5,
-              child: ComicCover(
-                imageUrl: comics[index].coverImageUrl,
-                width: 42,
-                height: 58,
-              ),
-            ),
-        ],
-      ),
-    );
+    return Switch.adaptive(value: false, onChanged: null);
   }
 }
 
 class _AccountFlowScaffold extends StatelessWidget {
-  const _AccountFlowScaffold({
-    required this.title,
-    required this.children,
-    this.action,
-  });
+  const _AccountFlowScaffold({required this.title, required this.children});
 
   final String title;
   final List<Widget> children;
-  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        actions: [
-          if (action != null)
-            Padding(padding: const EdgeInsets.only(right: 10), child: action!),
-        ],
-      ),
+      appBar: AppBar(title: Text(title)),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
         children: children,
@@ -1037,20 +1615,6 @@ class _AccountFlowScaffold extends StatelessWidget {
     );
   }
 }
-
-class _ProfileCollection {
-  const _ProfileCollection({
-    required this.title,
-    required this.subtitle,
-    required this.comics,
-  });
-
-  final String title;
-  final String subtitle;
-  final List<ComicSummary> comics;
-}
-
-final _profileCollections = <_ProfileCollection>[];
 
 class _PreferencesSection extends StatelessWidget {
   const _PreferencesSection({
@@ -1324,6 +1888,196 @@ class _AppVersionSection extends StatelessWidget {
     if (buildNumber.isEmpty) return 'v$version';
     if (version.isEmpty) return 'Build $buildNumber';
     return 'v$version ($buildNumber)';
+  }
+}
+
+class _SettingsLoadingPlaceholder extends StatelessWidget {
+  const _SettingsLoadingPlaceholder({required this.isSignedIn});
+
+  final bool isSignedIn;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 132),
+      children: [
+        if (isSignedIn) ...[
+          const _ProfileHeaderSkeleton(),
+          const SizedBox(height: 18),
+          const _ProfileStatsSkeleton(),
+          const SizedBox(height: 24),
+          const _SectionLabelSkeleton(width: 74),
+          const SizedBox(height: 8),
+          const _SettingsSectionSkeleton(rowCount: 4, includeSwitch: true),
+          const SizedBox(height: 24),
+        ] else ...[
+          const _SettingsSectionSkeleton(rowCount: 1, compact: true),
+          const SizedBox(height: 24),
+        ],
+        const _SectionLabelSkeleton(width: 96),
+        const SizedBox(height: 8),
+        _SettingsSectionSkeleton(rowCount: isSignedIn ? 8 : 9),
+        if (isSignedIn) ...[
+          const SizedBox(height: 24),
+          const _SettingsButtonSkeleton(),
+        ],
+        const SizedBox(height: 24),
+        const _SectionLabelSkeleton(width: 54),
+        const SizedBox(height: 8),
+        const _SettingsSectionSkeleton(rowCount: 1, compact: true),
+      ],
+    );
+  }
+}
+
+class _ProfileHeaderSkeleton extends StatelessWidget {
+  const _ProfileHeaderSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const AppShimmer(
+      child: Column(
+        children: [
+          AppShimmerBlock(width: 88, height: 88, borderRadius: 44),
+          SizedBox(height: 12),
+          AppShimmerBlock(width: 170, height: 24),
+          SizedBox(height: 8),
+          AppShimmerBlock(width: 70, height: 24, borderRadius: 18),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileStatsSkeleton extends StatelessWidget {
+  const _ProfileStatsSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      child: AppShimmer(
+        child: Row(
+          children: [
+            Expanded(child: _StatBlockSkeleton()),
+            SizedBox(width: 28),
+            Expanded(child: _StatBlockSkeleton()),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatBlockSkeleton extends StatelessWidget {
+  const _StatBlockSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      children: [
+        AppShimmerBlock(width: 44, height: 26),
+        SizedBox(height: 4),
+        AppShimmerBlock(width: 68, height: 13),
+      ],
+    );
+  }
+}
+
+class _SectionLabelSkeleton extends StatelessWidget {
+  const _SectionLabelSkeleton({required this.width});
+
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppShimmer(child: AppShimmerBlock(width: width, height: 16));
+  }
+}
+
+class _SettingsSectionSkeleton extends StatelessWidget {
+  const _SettingsSectionSkeleton({
+    required this.rowCount,
+    this.compact = false,
+    this.includeSwitch = false,
+  });
+
+  final int rowCount;
+  final bool compact;
+  final bool includeSwitch;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (var index = 0; index < rowCount; index++) ...[
+          _SettingsRowSkeleton(
+            compact: compact,
+            trailingWide: includeSwitch && index == rowCount - 1,
+          ),
+          if (index != rowCount - 1) const SizedBox(height: 16),
+        ],
+      ],
+    );
+  }
+}
+
+class _SettingsRowSkeleton extends StatelessWidget {
+  const _SettingsRowSkeleton({this.compact = false, this.trailingWide = false});
+
+  final bool compact;
+  final bool trailingWide;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+      child: AppShimmer(
+        child: Row(
+          children: [
+            const AppShimmerBlock(width: 35, height: 35, borderRadius: 10),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AppShimmerBlock(
+                    width: compact ? 132 : double.infinity,
+                    height: 16,
+                  ),
+                  if (!compact) ...[
+                    const SizedBox(height: 6),
+                    const AppShimmerBlock(width: 210, height: 12),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            AppShimmerBlock(
+              width: trailingWide ? 52 : 18,
+              height: trailingWide ? 28 : 18,
+              borderRadius: trailingWide ? 14 : 9,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsButtonSkeleton extends StatelessWidget {
+  const _SettingsButtonSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const AppShimmer(
+      child: AppShimmerBlock(
+        width: double.infinity,
+        height: 50,
+        borderRadius: 18,
+      ),
+    );
   }
 }
 
