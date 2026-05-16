@@ -37,16 +37,10 @@ def upgrade() -> None:
             server_default="ltr",
         ),
         sa.Column(
-            "auto_next",
-            sa.Boolean(),
-            nullable=False,
-            server_default=sa.text("true"),
-        ),
-        sa.Column(
             "mark_read_on_complete",
             sa.Boolean(),
             nullable=False,
-            server_default=sa.text("true"),
+            server_default=sa.text("false"),
         ),
         sa.Column(
             "default_binge_mode",

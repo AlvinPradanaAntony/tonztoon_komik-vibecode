@@ -59,17 +59,11 @@ class ReaderPreference(Base):
         default="ltr",
         server_default="ltr",
     )
-    auto_next: Mapped[bool] = mapped_column(
-        Boolean,
-        nullable=False,
-        default=True,
-        server_default="true",
-    )
     mark_read_on_complete: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
-        default=True,
-        server_default="true",
+        default=False,
+        server_default="false",
     )
     default_binge_mode: Mapped[bool] = mapped_column(
         Boolean,
@@ -257,6 +251,48 @@ class UserProgress(Base):
         nullable=False,
         server_default=func.now(),
         onupdate=func.now(),
+    )
+
+    comic = relationship("Comic", lazy="joined")
+    chapter = relationship("Chapter", lazy="joined")
+
+
+class UserCompletedChapter(Base):
+    """Chapter yang pernah selesai dibaca oleh user."""
+
+    __tablename__ = "user_completed_chapters"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "comic_id",
+            "chapter_id",
+            name="uq_user_completed_chapter",
+        ),
+        Index(
+            "ix_user_completed_chapters_user_comic",
+            "user_id",
+            "comic_id",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    comic_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("comics.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    chapter_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("chapters.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    completed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
     )
 
     comic = relationship("Comic", lazy="joined")

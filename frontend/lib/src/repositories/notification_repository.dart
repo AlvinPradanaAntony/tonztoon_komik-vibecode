@@ -8,6 +8,7 @@ class NotificationRepository {
 
   static const _storageKey = 'app_notifications';
   static const _latestChapterSeenKey = 'notification_latest_chapters_seen';
+  static const progressSyncFailedId = 'sync:progress:failed';
   static const _maxNotifications = 120;
 
   final LocalStore _store;
@@ -49,6 +50,14 @@ class NotificationRepository {
         _readNotifications()
             .map((item) => item.copyWith(unread: false))
             .toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    await _writeNotifications(notifications);
+    return notifications;
+  }
+
+  Future<List<AppNotification>> remove(String id) async {
+    final notifications =
+        _readNotifications().where((item) => item.id != id).toList()
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     await _writeNotifications(notifications);
     return notifications;
@@ -127,6 +136,18 @@ class NotificationRepository {
       title: 'Download dibatalkan',
       message: '${batch.comic.title} tidak jadi diunduh.',
       kind: 'download_cancelled',
+    );
+  }
+
+  AppNotification progressSyncFailed() {
+    return AppNotification(
+      id: progressSyncFailedId,
+      title: 'Progress belum tersinkron',
+      message:
+          'Progress tersimpan di perangkat ini dan akan dicoba lagi saat kamu lanjut membaca.',
+      category: 'Pustaka',
+      kind: 'progress_sync_failed',
+      createdAt: DateTime.now(),
     );
   }
 

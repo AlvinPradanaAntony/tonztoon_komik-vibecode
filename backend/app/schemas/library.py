@@ -65,8 +65,7 @@ class ReaderPreferenceUpdateRequest(BaseModel):
 
     default_reading_mode: READING_MODE = "vertical"
     reading_direction: READING_DIRECTION = "ltr"
-    auto_next: bool = True
-    mark_read_on_complete: bool = True
+    mark_read_on_complete: bool = False
     default_binge_mode: bool = False
 
 
@@ -98,6 +97,10 @@ class ProgressUpsertRequest(ChapterSelector):
     last_read_page_item_index: int | None = Field(default=None, ge=0)
     total_page_items: int | None = Field(default=None, ge=0)
     is_completed: bool = False
+
+
+class CompletedChapterImportRequest(ChapterSelector):
+    """Chapter yang pernah selesai dibaca saat import snapshot lokal."""
 
 
 class ProgressResponse(BaseModel):
@@ -292,6 +295,7 @@ class LibraryComicStateResponse(BaseModel):
     collections: list[CollectionSummaryResponse] = Field(default_factory=list)
     progress: ProgressResponse | None = None
     history: HistoryItemResponse | None = None
+    completed_chapter_numbers: list[float] = Field(default_factory=list)
     favorite_scene_count: int = Field(default=0, ge=0)
     download_status_counts: dict[str, int] = Field(default_factory=dict)
     download_entries: list[DownloadEntryResponse] = Field(default_factory=list)
@@ -318,6 +322,9 @@ class LibrarySyncImportRequest(BaseModel):
     bookmarks: list[ComicSelector] = Field(default_factory=list)
     collections: list[SyncCollectionImport] = Field(default_factory=list)
     progress: list[ProgressUpsertRequest] = Field(default_factory=list)
+    completed_chapters: list[CompletedChapterImportRequest] = Field(
+        default_factory=list
+    )
     favorite_scenes: list[FavoriteSceneCreateRequest] = Field(default_factory=list)
     downloads: list[DownloadEntryUpsertRequest] = Field(default_factory=list)
     reader_preferences: ReaderPreferenceUpdateRequest | None = None
@@ -331,6 +338,7 @@ class LibrarySyncImportResponse(BaseModel):
     collections_upserted: int = Field(default=0, ge=0)
     collection_items_upserted: int = Field(default=0, ge=0)
     progress_upserted: int = Field(default=0, ge=0)
+    completed_chapters_upserted: int = Field(default=0, ge=0)
     favorite_scenes_upserted: int = Field(default=0, ge=0)
     downloads_upserted: int = Field(default=0, ge=0)
     reader_preferences_updated: bool = False

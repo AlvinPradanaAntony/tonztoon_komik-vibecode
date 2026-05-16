@@ -32,6 +32,7 @@ class AccountRelationCounts(BaseModel):
     user_collections: int = 0
     user_collection_comics: int = 0
     user_progress: int = 0
+    user_completed_chapters: int = 0
     user_history_entries: int = 0
     user_favorite_scenes: int = 0
     user_download_entries: int = 0
@@ -60,6 +61,7 @@ class AccountRelationPreview(BaseModel):
     user_collections: list[AccountRelationPreviewItem] = Field(default_factory=list)
     user_collection_comics: list[AccountRelationPreviewItem] = Field(default_factory=list)
     user_progress: list[AccountRelationPreviewItem] = Field(default_factory=list)
+    user_completed_chapters: list[AccountRelationPreviewItem] = Field(default_factory=list)
     user_history_entries: list[AccountRelationPreviewItem] = Field(default_factory=list)
     user_favorite_scenes: list[AccountRelationPreviewItem] = Field(default_factory=list)
     user_download_entries: list[AccountRelationPreviewItem] = Field(default_factory=list)

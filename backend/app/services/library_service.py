@@ -20,6 +20,7 @@ from app.models import (
     UserBookmark,
     UserCollection,
     UserCollectionComic,
+    UserCompletedChapter,
     UserDownloadEntry,
     UserFavoriteScene,
     UserHistoryEntry,
@@ -28,6 +29,7 @@ from app.models import (
 )
 from app.schemas.library import (
     BookmarkResponse,
+    CompletedChapterImportRequest,
     CollectionResponse,
     CollectionSummaryResponse,
     DownloadBatchRequest,
@@ -102,7 +104,6 @@ def build_reader_preferences_response(preference: ReaderPreference) -> ReaderPre
     return ReaderPreferenceResponse(
         default_reading_mode=preference.default_reading_mode,
         reading_direction=preference.reading_direction,
-        auto_next=preference.auto_next,
         mark_read_on_complete=preference.mark_read_on_complete,
         default_binge_mode=preference.default_binge_mode,
         updated_at=preference.updated_at,
@@ -323,7 +324,6 @@ async def update_reader_preferences(
 
     preference.default_reading_mode = payload.default_reading_mode
     preference.reading_direction = payload.reading_direction
-    preference.auto_next = payload.auto_next
     preference.mark_read_on_complete = payload.mark_read_on_complete
     preference.default_binge_mode = payload.default_binge_mode
     preference.updated_at = _utcnow()
@@ -684,6 +684,26 @@ async def upsert_progress(
     progress.last_read_at = _utcnow()
     progress.updated_at = progress.last_read_at
 
+    if payload.is_completed:
+        completed_statement = (
+            insert(UserCompletedChapter)
+            .values(
+                user_id=user_id,
+                comic_id=chapter.comic_id,
+                chapter_id=chapter.id,
+                completed_at=progress.last_read_at,
+            )
+            .on_conflict_do_update(
+                index_elements=[
+                    UserCompletedChapter.user_id,
+                    UserCompletedChapter.comic_id,
+                    UserCompletedChapter.chapter_id,
+                ],
+                set_={"completed_at": progress.last_read_at},
+            )
+        )
+        await db.execute(completed_statement)
+
     await upsert_history_from_progress(db, user_id, chapter, payload)
 
     await db.commit()
@@ -697,6 +717,40 @@ async def upsert_progress(
         )
     )
     return progress_result.scalars().first()
+
+
+async def mark_chapter_completed(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    payload: CompletedChapterImportRequest,
+) -> None:
+    """Tandai chapter selesai tanpa mengubah posisi continue reading."""
+    chapter = await resolve_chapter_or_raise(
+        db,
+        payload.source_name,
+        payload.comic_slug,
+        payload.chapter_number,
+    )
+    now = _utcnow()
+    completed_statement = (
+        insert(UserCompletedChapter)
+        .values(
+            user_id=user_id,
+            comic_id=chapter.comic_id,
+            chapter_id=chapter.id,
+            completed_at=now,
+        )
+        .on_conflict_do_update(
+            index_elements=[
+                UserCompletedChapter.user_id,
+                UserCompletedChapter.comic_id,
+                UserCompletedChapter.chapter_id,
+            ],
+            set_={"completed_at": now},
+        )
+    )
+    await db.execute(completed_statement)
+    await db.commit()
 
 
 async def list_continue_reading(
@@ -1111,6 +1165,17 @@ async def get_library_state_for_comic(
     download_entries = download_rows.scalars().all()
     download_status_counts = dict(Counter(entry.status for entry in download_entries))
 
+    completed_rows = await db.execute(
+        select(Chapter.chapter_number)
+        .join(UserCompletedChapter, UserCompletedChapter.chapter_id == Chapter.id)
+        .where(
+            UserCompletedChapter.user_id == user_id,
+            UserCompletedChapter.comic_id == comic.id,
+        )
+        .order_by(Chapter.chapter_number.desc())
+    )
+    completed_chapter_numbers = [float(number) for number in completed_rows.scalars().all()]
+
     return LibraryComicStateResponse(
         comic=build_comic_ref(comic, base_url=base_url),
         bookmarked=bookmark is not None,
@@ -1125,6 +1190,7 @@ async def get_library_state_for_comic(
             if history is not None
             else None
         ),
+        completed_chapter_numbers=completed_chapter_numbers,
         favorite_scene_count=favorite_scene_count or 0,
         download_status_counts=download_status_counts,
         download_entries=[
@@ -1174,6 +1240,10 @@ async def import_library_snapshot(
     for progress_payload in payload.progress:
         await upsert_progress(db, user_id, progress_payload)
         response.progress_upserted += 1
+
+    for completed_payload in payload.completed_chapters:
+        await mark_chapter_completed(db, user_id, completed_payload)
+        response.completed_chapters_upserted += 1
 
     for scene_payload in payload.favorite_scenes:
         await upsert_favorite_scene(db, user_id, scene_payload)

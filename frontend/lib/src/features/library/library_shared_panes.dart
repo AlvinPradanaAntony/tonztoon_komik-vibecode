@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -471,10 +473,10 @@ class _SceneCard extends ConsumerWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: 0.72),
-                    ],
+                    colors: List.generate(9, (index) {
+                      final p = index / 8;
+                      return Colors.black.withValues(alpha: math.pow(p, 1.5).toDouble());
+                    }),
                   ),
                 ),
               ),
@@ -610,12 +612,10 @@ Future<void> _showScenePreview(BuildContext context, FavoriteScene scene) {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    stops: const [0.0, 0.75, 1.0],
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: 0.88),
-                      Colors.black,
-                    ],
+                    colors: List.generate(9, (index) {
+                      final p = index / 8;
+                      return Colors.black.withValues(alpha: math.pow(p, 1.5).toDouble());
+                    }),
                   ),
                 ),
                 child: SafeArea(

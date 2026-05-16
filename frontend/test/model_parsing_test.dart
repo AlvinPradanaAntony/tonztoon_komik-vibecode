@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tonztoon_comic/src/models/comic.dart';
+import 'package:tonztoon_comic/src/models/library.dart';
 import 'package:tonztoon_comic/src/models/progress.dart';
 import 'package:tonztoon_comic/src/models/source_info.dart';
 import 'package:tonztoon_comic/src/widgets/comic_card.dart';
@@ -83,5 +84,51 @@ void main() {
       'total_page_items': 80,
       'is_completed': false,
     });
+  });
+
+  test('reader preferences use default binge mode payload', () {
+    final prefs = ReaderPreferences.fromJson(const {
+      'default_reading_mode': 'paged',
+      'reading_direction': 'rtl',
+      'mark_read_on_complete': false,
+      'default_binge_mode': true,
+    });
+
+    expect(prefs.defaultReadingMode, 'paged');
+    expect(prefs.readingDirection, 'rtl');
+    expect(prefs.markReadOnComplete, isFalse);
+    expect(prefs.defaultBingeMode, isTrue);
+    expect(prefs.toJson(), {
+      'default_reading_mode': 'paged',
+      'reading_direction': 'rtl',
+      'mark_read_on_complete': false,
+      'default_binge_mode': true,
+    });
+    expect(prefs.toJson(), isNot(contains('auto_next')));
+  });
+
+  test('reader preferences default switches are off', () {
+    const prefs = ReaderPreferences();
+
+    expect(prefs.markReadOnComplete, isFalse);
+    expect(prefs.defaultBingeMode, isFalse);
+    expect(prefs.toJson()['mark_read_on_complete'], isFalse);
+    expect(prefs.toJson()['default_binge_mode'], isFalse);
+  });
+
+  test('library comic state parses multiple completed chapters', () {
+    final state = LibraryComicState.fromJson(const {
+      'comic': {
+        'id': 1,
+        'title': 'Lookism',
+        'slug': 'lookism',
+        'source_name': 'komiku',
+      },
+      'bookmarked': false,
+      'collections': [],
+      'completed_chapter_numbers': [1, 2.5, 3],
+    });
+
+    expect(state.completedChapterNumbers, [1.0, 2.5, 3.0]);
   });
 }

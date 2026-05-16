@@ -15,6 +15,7 @@ import '../../models/library.dart';
 import '../../repositories/providers.dart';
 import '../../widgets/app_async_view.dart';
 import '../../widgets/app_loading_placeholder.dart';
+import '../../widgets/guest_migration_dialog.dart';
 import '../library/library_shared_panes.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -62,100 +63,115 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         onRetry: () => ref.invalidate(readerPreferencesProvider),
         loadingBuilder: (context) =>
             _SettingsLoadingPlaceholder(isSignedIn: widget.isSignedIn),
-        builder: (readerPrefs) => ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 132),
-          children: [
-            if (widget.isSignedIn) ...[
-              _ProfileHeader(auth: auth),
-              const SizedBox(height: 18),
-              const _ProfileStats(),
-              const SizedBox(height: 24),
-              const _SectionLabel(text: 'Account'),
+        builder: (readerPrefs) {
+          final migrationSummary = widget.isSignedIn
+              ? ref.read(libraryRepositoryProvider).getGuestMigrationSummary()
+              : null;
+          final showMigrationRow =
+              migrationSummary != null && !migrationSummary.isEmpty;
+
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 132),
+            children: [
+              if (widget.isSignedIn) ...[
+                _ProfileHeader(auth: auth),
+                const SizedBox(height: 18),
+                const _ProfileStats(),
+                const SizedBox(height: 24),
+                const _SectionLabel(text: 'Account'),
+                const SizedBox(height: 8),
+                _SettingsSection(
+                  children: [
+                    _SettingsRow(
+                      icon: TonztoonIcons.settings2,
+                      title: 'Privacy & Security',
+                      subtitle: 'Password, devices, and account access',
+                      onTap: () => _openAccountFlow(
+                        context,
+                        const _PrivacySecurityScreen(),
+                      ),
+                    ),
+                    if (showMigrationRow) ...[
+                      const _SettingsDivider(),
+                      _SettingsRow(
+                        icon: TonztoonIcons.cloudUpload,
+                        title: 'Sync Migration Data',
+                        subtitle: _migrationRowSubtitle(migrationSummary),
+                        onTap: _syncMigrationData,
+                      ),
+                    ],
+                    const _SettingsDivider(),
+                    const _SavedCollectionsSettingsRow(),
+                    const _SettingsDivider(),
+                    const _FavoriteScenesSettingsRow(),
+                    const _SettingsDivider(),
+                    const _MyDownloadsSettingsRow(),
+                    const _SettingsDivider(),
+                    _SettingsRow(
+                      icon: TonztoonIcons.bell,
+                      title: 'Push Notifications',
+                      subtitle: 'Belum aktif, coming soon',
+                      onTap: () => _openAccountFlow(
+                        context,
+                        const _PushNotificationsScreen(),
+                      ),
+                      trailing: const _ComingSoonSwitchTrailing(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+              ] else ...[
+                const _GuestReadingTimeCard(),
+                const SizedBox(height: 24),
+              ],
+              const _SectionLabel(text: 'Preferences'),
               const SizedBox(height: 8),
-              _SettingsSection(
-                children: [
-                  _SettingsRow(
-                    icon: TonztoonIcons.settings2,
-                    title: 'Privacy & Security',
-                    subtitle: 'Password, devices, and account access',
-                    onTap: () => _openAccountFlow(
-                      context,
-                      const _PrivacySecurityScreen(),
-                    ),
-                  ),
-                  const _SettingsDivider(),
-                  const _SavedCollectionsSettingsRow(),
-                  const _SettingsDivider(),
-                  const _FavoriteScenesSettingsRow(),
-                  const _SettingsDivider(),
-                  const _MyDownloadsSettingsRow(),
-                  const _SettingsDivider(),
-                  _SettingsRow(
-                    icon: TonztoonIcons.bell,
-                    title: 'Push Notifications',
-                    subtitle: 'Belum aktif, coming soon',
-                    onTap: () => _openAccountFlow(
-                      context,
-                      const _PushNotificationsScreen(),
-                    ),
-                    trailing: const _ComingSoonSwitchTrailing(),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-            ] else ...[
-              const _GuestReadingTimeCard(),
-              const SizedBox(height: 24),
-            ],
-            const _SectionLabel(text: 'Preferences'),
-            const SizedBox(height: 8),
-            _PreferencesSection(
-              prefs: readerPrefs,
-              themeMode: themeMode,
-              isSignedIn: widget.isSignedIn,
-              onNightModeChanged: (enabled) =>
-                  _setThemeMode(enabled ? ThemeMode.dark : ThemeMode.light),
-              onThemeChanged: (value) =>
-                  _setThemeMode(_themeModeFromLabel(value)),
-              onReaderModeChanged: (value) => _savePrefs(
-                readerPrefs.copyWith(
-                  defaultReadingMode: value == 'Paged' ? 'paged' : 'vertical',
-                ),
-              ),
-              onDirectionChanged: (value) => _savePrefs(
-                readerPrefs.copyWith(readingDirection: value.toLowerCase()),
-              ),
-              onAutoNextChanged: (value) =>
-                  _savePrefs(readerPrefs.copyWith(autoNext: value)),
-              onMarkReadChanged: (value) =>
-                  _savePrefs(readerPrefs.copyWith(markReadOnComplete: value)),
-              onBingeModeChanged: (value) =>
-                  _savePrefs(readerPrefs.copyWith(defaultBingeMode: value)),
-              onClearCache: _clearCache,
-              onOpenAuth: widget.onOpenAuth,
-            ),
-            if (widget.isSignedIn) ...[
-              const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: _logout,
-                icon: const Icon(TonztoonIcons.logout, size: 18),
-                label: const Text('Logout'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(48, 50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
+              _PreferencesSection(
+                prefs: readerPrefs,
+                themeMode: themeMode,
+                isSignedIn: widget.isSignedIn,
+                onNightModeChanged: (enabled) =>
+                    _setThemeMode(enabled ? ThemeMode.dark : ThemeMode.light),
+                onThemeChanged: (value) =>
+                    _setThemeMode(_themeModeFromLabel(value)),
+                onReaderModeChanged: (value) => _savePrefs(
+                  readerPrefs.copyWith(
+                    defaultReadingMode: value == 'Paged' ? 'paged' : 'vertical',
                   ),
                 ),
+                onDirectionChanged: (value) => _savePrefs(
+                  readerPrefs.copyWith(readingDirection: value.toLowerCase()),
+                ),
+                onBingeModeChanged: (value) =>
+                    _savePrefs(readerPrefs.copyWith(defaultBingeMode: value)),
+                onMarkReadChanged: (value) =>
+                    _savePrefs(readerPrefs.copyWith(markReadOnComplete: value)),
+                onClearCache: _clearCache,
+                onOpenAuth: widget.onOpenAuth,
               ),
+              if (widget.isSignedIn) ...[
+                const SizedBox(height: 24),
+                FilledButton.icon(
+                  onPressed: _logout,
+                  icon: const Icon(TonztoonIcons.logout, size: 18),
+                  label: const Text('Logout'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(48, 50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 24),
+              const _SectionLabel(text: 'About'),
+              const SizedBox(height: 8),
+              _AppVersionSection(packageInfoFuture: _packageInfoFuture),
             ],
-            const SizedBox(height: 24),
-            const _SectionLabel(text: 'About'),
-            const SizedBox(height: 8),
-            _AppVersionSection(packageInfoFuture: _packageInfoFuture),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -194,6 +210,81 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Logout berhasil.')));
+  }
+
+  String _migrationRowSubtitle(GuestMigrationSummary summary) {
+    final itemCount = guestMigrationItemCount(summary);
+    return '$itemCount item guest siap disinkronkan';
+  }
+
+  Future<void> _syncMigrationData() async {
+    final repo = ref.read(libraryRepositoryProvider);
+    final summary = repo.getGuestMigrationSummary();
+    if (summary.isEmpty) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Tidak ada data guest untuk migrasi.')),
+        );
+      return;
+    }
+
+    final action = await showGuestMigrationDialog(
+      context,
+      summary: summary,
+      title: 'Sync Migration Data',
+      message:
+          'Data guest lokal berikut akan dipindahkan ke akun cloud Anda. Data lokal akan dibersihkan setelah sinkron berhasil.',
+    );
+    if (!mounted || action != GuestMigrationDialogAction.migrate) return;
+
+    var loadingShown = false;
+    try {
+      _showMigrationLoadingDialog();
+      loadingShown = true;
+      await repo.importLocalSnapshotToCloud();
+      _refreshMigratedData();
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      loadingShown = false;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Data guest berhasil disinkronkan.')),
+        );
+    } catch (error) {
+      if (!mounted) return;
+      if (loadingShown) {
+        Navigator.of(context, rootNavigator: true).pop();
+        loadingShown = false;
+      }
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text('Migrasi gagal: $error')));
+    }
+  }
+
+  void _refreshMigratedData() {
+    ref.invalidate(homeDataProvider);
+    ref.invalidate(bookmarksProvider);
+    ref.invalidate(collectionsProvider);
+    ref.invalidate(favoriteScenesProvider);
+    ref.invalidate(downloadsProvider);
+    ref.invalidate(historyProvider);
+    ref.invalidate(readingTimeProvider);
+    unawaited(ref.read(readingTimeProvider.notifier).refreshFromCloud());
+    setState(() {});
+  }
+
+  void _showMigrationLoadingDialog() {
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) =>
+            const PopScope(canPop: false, child: GuestMigrationLoadingDialog()),
+      ),
+    );
   }
 
   ThemeMode _themeModeFromLabel(String label) {
@@ -1625,9 +1716,8 @@ class _PreferencesSection extends StatelessWidget {
     required this.onThemeChanged,
     required this.onReaderModeChanged,
     required this.onDirectionChanged,
-    required this.onAutoNextChanged,
-    required this.onMarkReadChanged,
     required this.onBingeModeChanged,
+    required this.onMarkReadChanged,
     required this.onClearCache,
     required this.onOpenAuth,
   });
@@ -1639,9 +1729,8 @@ class _PreferencesSection extends StatelessWidget {
   final ValueChanged<String> onThemeChanged;
   final ValueChanged<String> onReaderModeChanged;
   final ValueChanged<String> onDirectionChanged;
-  final ValueChanged<bool> onAutoNextChanged;
-  final ValueChanged<bool> onMarkReadChanged;
   final ValueChanged<bool> onBingeModeChanged;
+  final ValueChanged<bool> onMarkReadChanged;
   final VoidCallback onClearCache;
   final VoidCallback onOpenAuth;
 
@@ -1695,11 +1784,11 @@ class _PreferencesSection extends StatelessWidget {
         const _SettingsDivider(),
         _SettingsRow(
           icon: TonztoonIcons.skipForward,
-          title: 'Auto-next Chapter',
-          subtitle: 'Continue when a chapter ends',
+          title: 'Binge Mode',
+          subtitle: 'Auto-next chapter dan continuous reading',
           trailing: Switch.adaptive(
-            value: prefs.autoNext,
-            onChanged: onAutoNextChanged,
+            value: prefs.defaultBingeMode,
+            onChanged: onBingeModeChanged,
           ),
         ),
         const _SettingsDivider(),
@@ -1710,16 +1799,6 @@ class _PreferencesSection extends StatelessWidget {
           trailing: Switch.adaptive(
             value: prefs.markReadOnComplete,
             onChanged: onMarkReadChanged,
-          ),
-        ),
-        const _SettingsDivider(),
-        _SettingsRow(
-          icon: TonztoonIcons.localFireDepartment,
-          title: 'Binge Mode Default',
-          subtitle: 'Keep the reader focused for long sessions',
-          trailing: Switch.adaptive(
-            value: prefs.defaultBingeMode,
-            onChanged: onBingeModeChanged,
           ),
         ),
         const _SettingsDivider(),
@@ -1909,7 +1988,7 @@ class _SettingsLoadingPlaceholder extends StatelessWidget {
           const SizedBox(height: 24),
           const _SectionLabelSkeleton(width: 74),
           const SizedBox(height: 8),
-          const _SettingsSectionSkeleton(rowCount: 4, includeSwitch: true),
+          const _SettingsSectionSkeleton(rowCount: 6, includeSwitch: true),
           const SizedBox(height: 24),
         ] else ...[
           const _SettingsSectionSkeleton(rowCount: 1, compact: true),

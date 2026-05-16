@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -8,7 +9,6 @@ import '../../core/app_icons.dart';
 import 'section/comic_section_screen.dart';
 import '../../models/auth.dart';
 import '../../models/comic.dart';
-import '../../models/library.dart';
 import '../../models/progress.dart';
 import '../../models/source_info.dart';
 import '../../repositories/providers.dart';
@@ -17,6 +17,7 @@ import '../../widgets/app_loading_placeholder.dart';
 import '../../widgets/comic_card.dart';
 import '../../widgets/comic_cover.dart';
 import '../../widgets/comic_filter_sort_sheet.dart';
+import '../../widgets/guest_migration_dialog.dart';
 
 /// [HomeScreen] adalah halaman beranda aplikasi komik.
 /// Menampilkan rekomendasi dan update terbaru.
@@ -186,32 +187,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Future<void> _showMigrationDialog() async {
     final repo = ref.read(libraryRepositoryProvider);
     final summary = repo.getGuestMigrationSummary();
-    final action = await showDialog<String>(
-      context: context,
+    final action = await showGuestMigrationDialog(
+      context,
+      summary: summary,
+      title: 'Sinkronkan data guest?',
+      message:
+          'Data dari mode guest berikut bisa dipindahkan ke akun cloud. File offline tetap tersimpan di perangkat ini.',
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('Sinkronkan data guest?'),
-        content: _GuestMigrationDialogContent(summary: summary),
-        actions: [
-          TextButton(
-            onPressed: () => context.pop('skip'),
-            child: const Text('Lewati'),
-          ),
-          FilledButton(
-            onPressed: () => context.pop('migrate'),
-            child: const Text('Migrasi & Sinkronkan'),
-          ),
-        ],
-      ),
+      secondaryLabel: 'Lewati',
+      secondaryAction: GuestMigrationDialogAction.skip,
     );
     if (!mounted || action == null) return;
 
-    if (action == 'skip') {
+    if (action == GuestMigrationDialogAction.skip) {
       await repo.skipMigration();
       return;
     }
 
+    var loadingShown = false;
     try {
+      _showMigrationLoadingDialog();
+      loadingShown = true;
       await repo.importLocalSnapshotToCloud();
       ref.invalidate(homeDataProvider);
       ref.invalidate(bookmarksProvider);
@@ -222,89 +218,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ref.invalidate(readingTimeProvider);
       unawaited(ref.read(readingTimeProvider.notifier).refreshFromCloud());
       if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      loadingShown = false;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Data guest berhasil disinkronkan.')),
       );
     } catch (error) {
       _migrationPromptShown = false;
       if (!mounted) return;
+      if (loadingShown) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Migrasi gagal: $error')));
     }
   }
-}
 
-class _GuestMigrationDialogContent extends StatelessWidget {
-  const _GuestMigrationDialogContent({required this.summary});
-
-  final GuestMigrationSummary summary;
-
-  @override
-  Widget build(BuildContext context) {
-    final items = [
-      _MigrationSummaryItem('Bookmark', summary.bookmarks),
-      _MigrationSummaryItem('Koleksi', summary.collections),
-      _MigrationSummaryItem('Progress baca', summary.progress),
-      _MigrationSummaryItem('Scene favorit', summary.favoriteScenes),
-      _MigrationSummaryItem('Antrean download', summary.downloads),
-      if (summary.hasReaderPreferences)
-        const _MigrationSummaryItem('Preferensi reader', 1),
-      if (summary.readingTimeSeconds > 0)
-        _MigrationSummaryItem(
-          'Waktu baca',
-          (summary.readingTimeSeconds / 60).ceil(),
-          suffix: 'menit',
-        ),
-    ];
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Data dari mode guest berikut bisa dipindahkan ke akun cloud. File offline tetap tersimpan di perangkat ini.',
-        ),
-        const SizedBox(height: 14),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Column(
-              children: [
-                for (final item in items)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      children: [
-                        Expanded(child: Text(item.label)),
-                        Text(
-                          item.suffix == null
-                              ? '${item.value}'
-                              : '${item.value} ${item.suffix}',
-                          style: Theme.of(context).textTheme.labelLarge,
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ],
+  void _showMigrationLoadingDialog() {
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) =>
+            const PopScope(canPop: false, child: GuestMigrationLoadingDialog()),
+      ),
     );
   }
-}
-
-class _MigrationSummaryItem {
-  const _MigrationSummaryItem(this.label, this.value, {this.suffix});
-
-  final String label;
-  final int value;
-  final String? suffix;
 }
 
 class _HomeLoadingPlaceholder extends StatelessWidget {
@@ -1012,16 +952,21 @@ class _RecommendationBanner extends StatelessWidget {
               fit: StackFit.expand,
               children: [
                 ComicCover(imageUrl: comic.coverImageUrl, borderRadius: 18),
+                Positioned.fill(
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 2, sigmaY: 2),
+                    child: const SizedBox.shrink(),
+                  ),
+                ),
                 DecoratedBox(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.centerLeft,
                       end: Alignment.centerRight,
-                      colors: [
-                        Colors.black.withValues(alpha: 0.82),
-                        Colors.black.withValues(alpha: 0.58),
-                        Colors.black.withValues(alpha: 0.22),
-                      ],
+                      colors: List.generate(9, (index) {
+                        final p = index / 8;
+                        return Colors.black.withValues(alpha: 0.84 * (1 - p * p));
+                      }),
                     ),
                   ),
                 ),

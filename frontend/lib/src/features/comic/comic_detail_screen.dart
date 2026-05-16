@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
@@ -109,6 +110,8 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
     final libraryStateAsync = ref.watch(libraryComicStateProvider(comic));
     final libraryState = libraryStateAsync.asData?.value;
     final progress = progressAsync.asData?.value ?? libraryState?.progress;
+    final completedChapterNumbers =
+        libraryState?.completedChapterNumbers.toSet() ?? const <double>{};
     final downloadState = _ComicDownloadState.from(
       comic: comic,
       libraryState: libraryState,
@@ -159,7 +162,7 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
                 stretch: true,
                 elevation: 0,
                 centerTitle: true,
-                titleSpacing: 0,
+                titleSpacing: 16,
                 surfaceTintColor: Colors.transparent,
                 foregroundColor: Colors.white,
                 backgroundColor: Colors.transparent,
@@ -169,6 +172,7 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
                     child: _GlassIconButton(
                       tooltip: 'Kembali',
                       icon: TonztoonIcons.arrowBack,
+                      progress: _toolbarProgress,
                       onPressed: () =>
                           context.canPop() ? context.pop() : context.go('/'),
                     ),
@@ -208,6 +212,7 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
                       icon: libraryState?.bookmarked == true
                           ? TonztoonIcons.bookmarkFilled
                           : TonztoonIcons.bookmark,
+                      progress: _toolbarProgress,
                       onPressed: () => _toggleBookmark(comic, libraryState),
                     ),
                   ),
@@ -283,12 +288,19 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
                         const SizedBox(height: 24),
                         _ChapterPanel(
                           chapters: detail.chapters,
-                          detail: detail,
                           downloadState: downloadState,
+                          progress: progress,
+                          completedChapterNumbers: completedChapterNumbers,
                           loading: chaptersAsync.isLoading,
                           error: chaptersError,
                           onRetry: () =>
                               ref.invalidate(chaptersProvider(request)),
+                          onOpenChapter: (chapter) => _openReaderAndRefresh(
+                            comic,
+                            request,
+                            detail,
+                            chapter,
+                          ),
                         ),
                       ],
                     ),
@@ -309,19 +321,38 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
               ? null
               : () => _showDownloadSheet(comic, chapterItems, downloadState),
           onManageCollections: () => _showCollectionSheet(comic, libraryState),
-          onContinueReading: () => _continueReading(detail, progress),
+          onContinueReading: () =>
+              _continueReading(comic, request, detail, progress),
         ),
       ),
     );
   }
 
-  void _continueReading(_ComicDetailUi detail, ReadingProgress? progress) {
+  void _continueReading(
+    ComicSummary comic,
+    ComicRequest request,
+    _ComicDetailUi detail,
+    ReadingProgress? progress,
+  ) {
     final chapter = _continueChapter(detail, progress);
     if (chapter == null) {
       _showSnack('Chapter belum tersedia.');
       return;
     }
-    _openReader(context, detail, chapter);
+    _openReaderAndRefresh(comic, request, detail, chapter);
+  }
+
+  Future<void> _openReaderAndRefresh(
+    ComicSummary comic,
+    ComicRequest request,
+    _ComicDetailUi detail,
+    _ChapterUi chapter,
+  ) async {
+    await _openReader(context, detail, chapter);
+    if (!mounted) return;
+    ref.invalidate(progressProvider(request));
+    ref.invalidate(libraryComicStateProvider(comic));
+    ref.invalidate(continueReadingProvider);
   }
 
   Future<void> _toggleBookmark(
@@ -972,18 +1003,16 @@ class _DetailHero extends StatelessWidget {
       children: [
         ClipRect(
           child: ImageFiltered(
-            imageFilter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-            child: ComicCover(
-              imageUrl: detail.coverImageUrl,
-              borderRadius: 0,
-              fit: BoxFit.cover,
-              fallbackIconSize: 36,
+            imageFilter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+            child: Transform.scale(
+              scale: 1.1, // Scale up to hide blur bleed/white edges at the boundaries
+              child: ComicCover(
+                imageUrl: detail.coverImageUrl,
+                borderRadius: 0,
+                fit: BoxFit.cover,
+                fallbackIconSize: 36,
+              ),
             ),
-          ),
-        ),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: colorScheme.scrim.withValues(alpha: 0.18),
           ),
         ),
         DecoratedBox(
@@ -991,12 +1020,15 @@ class _DetailHero extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [
-                Colors.black.withValues(alpha: 0.22),
-                Colors.black.withValues(alpha: 0.54),
-                colorScheme.surfaceContainerLowest,
-              ],
-              stops: const [0, 0.56, 1],
+              colors: List.generate(9, (index) {
+                final p = index / 8;
+                final curve = math.pow(p, 1.5).toDouble();
+                return Color.lerp(
+                  Colors.black.withValues(alpha: 0.42),
+                  colorScheme.surfaceContainerLowest,
+                  curve,
+                )!;
+              }),
             ),
           ),
         ),
@@ -1486,7 +1518,7 @@ class _CollapsingToolbarTint extends StatelessWidget {
               value: statusBarStyle,
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.86 * value),
+                  color: color.withValues(alpha: value),
                   border: Border(
                     bottom: BorderSide(
                       color: Colors.black.withValues(alpha: 0.08 * value),
@@ -1612,19 +1644,23 @@ class _QuickStats extends StatelessWidget {
 class _ChapterPanel extends StatelessWidget {
   const _ChapterPanel({
     required this.chapters,
-    required this.detail,
     required this.downloadState,
+    required this.progress,
+    required this.completedChapterNumbers,
     required this.loading,
     required this.onRetry,
+    required this.onOpenChapter,
     this.error,
   });
 
   final List<_ChapterUi> chapters;
-  final _ComicDetailUi detail;
   final _ComicDownloadState downloadState;
+  final ReadingProgress? progress;
+  final Set<double> completedChapterNumbers;
   final bool loading;
   final Object? error;
   final VoidCallback onRetry;
+  final ValueChanged<_ChapterUi> onOpenChapter;
 
   @override
   Widget build(BuildContext context) {
@@ -1703,9 +1739,12 @@ class _ChapterPanel extends StatelessWidget {
                           offline: downloadState.offlineChapterNumbers.contains(
                             chapters[index].chapterNumber,
                           ),
-                          onTap: () {
-                            _openReader(context, detail, chapters[index]);
-                          },
+                          readState: _chapterReadState(
+                            chapters[index],
+                            progress,
+                            completedChapterNumbers,
+                          ),
+                          onTap: () => onOpenChapter(chapters[index]),
                         );
                       },
                       separatorBuilder: (context, index) => Divider(
@@ -1781,11 +1820,13 @@ class _ChapterRow extends StatelessWidget {
   const _ChapterRow({
     required this.chapter,
     required this.offline,
+    required this.readState,
     required this.onTap,
   });
 
   final _ChapterUi chapter;
   final bool offline;
+  final _ChapterReadState readState;
   final VoidCallback onTap;
 
   @override
@@ -1823,6 +1864,10 @@ class _ChapterRow extends StatelessWidget {
                     Text(chapter.title, style: theme.textTheme.titleSmall),
                     const SizedBox(height: 3),
                     Text(chapter.subtitle, style: theme.textTheme.bodySmall),
+                    if (readState != _ChapterReadState.none) ...[
+                      const SizedBox(height: 7),
+                      _ChapterReadBadge(state: readState),
+                    ],
                   ],
                 ),
               ),
@@ -1839,6 +1884,70 @@ class _ChapterRow extends StatelessWidget {
               ],
               const SizedBox(width: 8),
               const Icon(TonztoonIcons.chevronRight, size: 18),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+enum _ChapterReadState { none, current, completed }
+
+_ChapterReadState _chapterReadState(
+  _ChapterUi chapter,
+  ReadingProgress? progress,
+  Set<double> completedChapterNumbers,
+) {
+  if (completedChapterNumbers.contains(chapter.chapterNumber)) {
+    return _ChapterReadState.completed;
+  }
+  if (progress == null || progress.chapterNumber != chapter.chapterNumber) {
+    return _ChapterReadState.none;
+  }
+  return progress.isCompleted
+      ? _ChapterReadState.completed
+      : _ChapterReadState.current;
+}
+
+class _ChapterReadBadge extends StatelessWidget {
+  const _ChapterReadBadge({required this.state});
+
+  final _ChapterReadState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final completed = state == _ChapterReadState.completed;
+    final color = completed ? colorScheme.tertiary : colorScheme.primary;
+    final label = completed ? 'Selesai dibaca' : 'Terakhir dibaca';
+    final icon = completed ? TonztoonIcons.bookMarked : TonztoonIcons.clock;
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withValues(alpha: 0.22)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 13, color: color),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
             ],
           ),
         ),
@@ -1892,7 +2001,7 @@ class _BottomReadBar extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
         decoration: BoxDecoration(
-          color: colorScheme.surface.withValues(alpha: 0.92),
+          color: colorScheme.surfaceContainerLowest,
           border: Border(top: BorderSide(color: colorScheme.outlineVariant)),
           boxShadow: [
             BoxShadow(
@@ -2162,7 +2271,7 @@ _ChapterUi? _continueChapter(_ComicDetailUi detail, ReadingProgress? progress) {
   );
 }
 
-void _openReader(
+Future<void> _openReader(
   BuildContext context,
   _ComicDetailUi detail,
   _ChapterUi chapter,
@@ -2174,7 +2283,7 @@ void _openReader(
     coverImageUrl: detail.coverImageUrl,
     type: detail.type,
   );
-  context.push(
+  return context.push<void>(
     '/reader/${Uri.encodeComponent(comicRouteSource(comic))}/${Uri.encodeComponent(comicRouteSlug(comic))}/${formatChapterNumber(chapter.chapterNumber)}',
     extra: comic,
   );
@@ -2387,28 +2496,42 @@ class _GlassIconButton extends StatelessWidget {
     required this.tooltip,
     required this.icon,
     required this.onPressed,
+    required this.progress,
   });
 
   final String tooltip;
   final IconData icon;
   final VoidCallback onPressed;
+  final ValueListenable<double> progress;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.34),
-        shape: BoxShape.circle,
-      ),
-      child: IconButton(
-        tooltip: tooltip,
-        onPressed: onPressed,
-        icon: Icon(icon),
-        style: IconButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          foregroundColor: Colors.white,
-        ),
-      ),
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return ValueListenableBuilder<double>(
+      valueListenable: progress,
+      builder: (context, value, child) {
+        // When value = 0 (expanded), bg alpha is 0.34. When value = 1 (collapsed), bg alpha is 0.
+        final bgAlpha = 0.34 * (1.0 - value);
+        // Fade icon color from White to onSurface for contrast
+        final iconColor = Color.lerp(Colors.white, colorScheme.onSurface, value);
+
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: bgAlpha),
+            shape: BoxShape.circle,
+          ),
+          child: IconButton(
+            tooltip: tooltip,
+            onPressed: onPressed,
+            icon: Icon(icon),
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              foregroundColor: iconColor,
+            ),
+          ),
+        );
+      },
     );
   }
 }

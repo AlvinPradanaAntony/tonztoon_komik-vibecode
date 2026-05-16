@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -12,6 +13,7 @@ import 'package:tonztoon_comic/src/models/comic.dart';
 import 'package:tonztoon_comic/src/models/progress.dart';
 import 'package:tonztoon_comic/src/repositories/auth_repository.dart';
 import 'package:tonztoon_comic/src/repositories/catalog_repository.dart';
+import 'package:tonztoon_comic/src/repositories/library_repository.dart';
 import 'package:tonztoon_comic/src/repositories/notification_repository.dart';
 import 'package:tonztoon_comic/src/repositories/progress_repository.dart';
 
@@ -249,6 +251,449 @@ void main() {
 
     expect(store.progress.get('komiku|lookism'), isA<Map>());
   });
+
+  test('guest progress is counted as migratable local data', () async {
+    final tokenStore = MemoryTokenStore();
+    final progressRepository = ProgressRepository(
+      _failingApi(),
+      tokenStore,
+      store,
+    );
+    final libraryRepository = LibraryRepository(
+      _failingApi(),
+      tokenStore,
+      store,
+    );
+
+    await progressRepository.saveProgress(
+      ReadingProgress.fromReader(
+        comic: const ComicSummary(
+          title: 'Lookism',
+          slug: 'lookism',
+          sourceName: 'komiku',
+        ),
+        chapterNumber: 12,
+        readingMode: 'vertical',
+        pageItemIndex: 4,
+        totalPageItems: 20,
+      ),
+    );
+
+    final summary = libraryRepository.getGuestMigrationSummary();
+
+    expect(summary.progress, 1);
+    expect(summary.isEmpty, isFalse);
+  });
+
+  test('guest progress tracks multiple completed chapters locally', () async {
+    final progressRepository = ProgressRepository(
+      _failingApi(),
+      MemoryTokenStore(),
+      store,
+    );
+    final libraryRepository = LibraryRepository(
+      _failingApi(),
+      MemoryTokenStore(),
+      store,
+    );
+    const comic = ComicSummary(
+      title: 'Lookism',
+      slug: 'lookism',
+      sourceName: 'komiku',
+    );
+
+    await progressRepository.saveProgress(
+      ReadingProgress.fromReader(
+        comic: comic,
+        chapterNumber: 12,
+        readingMode: 'vertical',
+        pageItemIndex: 19,
+        totalPageItems: 20,
+        isCompleted: true,
+      ),
+    );
+    await progressRepository.saveProgress(
+      ReadingProgress.fromReader(
+        comic: comic,
+        chapterNumber: 13,
+        readingMode: 'vertical',
+        pageItemIndex: 21,
+        totalPageItems: 22,
+        isCompleted: true,
+      ),
+    );
+
+    final state = await libraryRepository.getComicState(comic);
+
+    expect(state.completedChapterNumbers, [12.0, 13.0]);
+  });
+
+  test(
+    'logged-in progress remains visible locally when cloud sync fails',
+    () async {
+      final tokenStore = MemoryTokenStore();
+      await tokenStore.save(const TokenPair(accessToken: 'access-token'));
+      final progressRepository = ProgressRepository(
+        _failingApi(),
+        tokenStore,
+        store,
+      );
+      final libraryRepository = LibraryRepository(
+        _failingApi(),
+        tokenStore,
+        store,
+      );
+      const comic = ComicSummary(
+        title: 'Lookism',
+        slug: 'lookism',
+        sourceName: 'komiku',
+      );
+
+      await progressRepository.saveProgress(
+        ReadingProgress.fromReader(
+          comic: comic,
+          chapterNumber: 14,
+          readingMode: 'vertical',
+          pageItemIndex: 19,
+          totalPageItems: 20,
+          isCompleted: true,
+        ),
+      );
+
+      final state = await libraryRepository.getComicState(comic);
+
+      expect(state.progress?.chapterNumber, 14);
+      expect(state.progress?.isCompleted, isTrue);
+      expect(state.completedChapterNumbers, [14.0]);
+    },
+  );
+
+  test(
+    'logged-in progress cache is not counted as guest migration data',
+    () async {
+      final tokenStore = MemoryTokenStore();
+      await tokenStore.save(const TokenPair(accessToken: 'access-token'));
+      final progressRepository = ProgressRepository(
+        _failingApi(),
+        tokenStore,
+        store,
+      );
+      final libraryRepository = LibraryRepository(
+        _failingApi(),
+        tokenStore,
+        store,
+      );
+
+      await progressRepository.saveProgress(
+        ReadingProgress.fromReader(
+          comic: const ComicSummary(
+            title: 'Lookism',
+            slug: 'lookism',
+            sourceName: 'komiku',
+          ),
+          chapterNumber: 14,
+          readingMode: 'vertical',
+          pageItemIndex: 19,
+          totalPageItems: 20,
+          isCompleted: true,
+        ),
+      );
+
+      final summary = libraryRepository.getGuestMigrationSummary();
+
+      expect(summary.progress, 0);
+      expect(summary.isEmpty, isTrue);
+    },
+  );
+
+  test(
+    'guest progress after logout is counted even when auth cache existed',
+    () async {
+      final tokenStore = MemoryTokenStore();
+      await tokenStore.save(const TokenPair(accessToken: 'access-token'));
+      final progressRepository = ProgressRepository(
+        _failingApi(),
+        tokenStore,
+        store,
+      );
+      final libraryRepository = LibraryRepository(
+        _failingApi(),
+        tokenStore,
+        store,
+      );
+      const comic = ComicSummary(
+        title: 'Lookism',
+        slug: 'lookism',
+        sourceName: 'komiku',
+      );
+
+      await progressRepository.saveProgress(
+        ReadingProgress.fromReader(
+          comic: comic,
+          chapterNumber: 14,
+          readingMode: 'vertical',
+          pageItemIndex: 19,
+          totalPageItems: 20,
+          isCompleted: true,
+        ),
+      );
+      await tokenStore.clear();
+      await progressRepository.saveProgress(
+        ReadingProgress.fromReader(
+          comic: comic,
+          chapterNumber: 15,
+          readingMode: 'vertical',
+          pageItemIndex: 4,
+          totalPageItems: 20,
+        ),
+      );
+
+      final summary = libraryRepository.getGuestMigrationSummary();
+
+      expect(summary.progress, 1);
+      expect(summary.isEmpty, isFalse);
+    },
+  );
+
+  test(
+    'progress cloud sync failure creates one deduped notification',
+    () async {
+      final tokenStore = MemoryTokenStore();
+      await tokenStore.save(const TokenPair(accessToken: 'access-token'));
+      final notificationRepository = NotificationRepository(store);
+      final progressRepository = ProgressRepository(
+        _failingApi(),
+        tokenStore,
+        store,
+        notificationRepository: notificationRepository,
+      );
+      const comic = ComicSummary(
+        title: 'Lookism',
+        slug: 'lookism',
+        sourceName: 'komiku',
+      );
+      final progress = ReadingProgress.fromReader(
+        comic: comic,
+        chapterNumber: 14,
+        readingMode: 'vertical',
+        pageItemIndex: 19,
+        totalPageItems: 20,
+        isCompleted: true,
+      );
+
+      await progressRepository.saveProgress(progress);
+      await progressRepository.saveProgress(progress);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      final notifications = await notificationRepository.getNotifications();
+
+      expect(notifications, hasLength(1));
+      expect(
+        notifications.single.id,
+        NotificationRepository.progressSyncFailedId,
+      );
+      expect(notifications.single.kind, 'progress_sync_failed');
+      expect(notifications.single.unread, isTrue);
+    },
+  );
+
+  test('logged-in progress cloud sync is drained sequentially', () async {
+    final tokenStore = MemoryTokenStore();
+    await tokenStore.save(const TokenPair(accessToken: 'access-token'));
+    var activeRequests = 0;
+    var maxActiveRequests = 0;
+    var completedRequests = 0;
+    final allRequestsDone = Completer<void>();
+    final dio = Dio(BaseOptions(baseUrl: 'https://api.test'));
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          if (options.method == 'PUT' &&
+              options.path.startsWith('/library/progress/')) {
+            activeRequests++;
+            if (activeRequests > maxActiveRequests) {
+              maxActiveRequests = activeRequests;
+            }
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+            activeRequests--;
+            completedRequests++;
+            if (completedRequests == 3 && !allRequestsDone.isCompleted) {
+              allRequestsDone.complete();
+            }
+            handler.resolve(
+              Response<Object?>(
+                requestOptions: options,
+                statusCode: 200,
+                data: const {},
+              ),
+            );
+            return;
+          }
+          handler.reject(DioException(requestOptions: options));
+        },
+      ),
+    );
+    final progressRepository = ProgressRepository(
+      TonztoonApi(
+        config: const AppConfig(apiBaseUrl: 'https://api.test'),
+        tokenStore: tokenStore,
+        dio: dio,
+      ),
+      tokenStore,
+      store,
+    );
+    const comic = ComicSummary(
+      title: 'Lookism',
+      slug: 'lookism',
+      sourceName: 'komiku',
+    );
+
+    await Future.wait([
+      progressRepository.saveProgress(
+        ReadingProgress.fromReader(
+          comic: comic,
+          chapterNumber: 14,
+          readingMode: 'vertical',
+          pageItemIndex: 19,
+          totalPageItems: 20,
+          isCompleted: true,
+        ),
+      ),
+      progressRepository.saveProgress(
+        ReadingProgress.fromReader(
+          comic: comic,
+          chapterNumber: 15,
+          readingMode: 'vertical',
+          pageItemIndex: 19,
+          totalPageItems: 20,
+          isCompleted: true,
+        ),
+      ),
+      progressRepository.saveProgress(
+        ReadingProgress.fromReader(
+          comic: comic,
+          chapterNumber: 16,
+          readingMode: 'vertical',
+          pageItemIndex: 19,
+          totalPageItems: 20,
+          isCompleted: true,
+        ),
+      ),
+    ]);
+    await allRequestsDone.future.timeout(const Duration(seconds: 1));
+
+    expect(completedRequests, 3);
+    expect(maxActiveRequests, 1);
+  });
+
+  test('logged-in comic state merges local completed chapter cache', () async {
+    final tokenStore = MemoryTokenStore();
+    await tokenStore.save(const TokenPair(accessToken: 'access-token'));
+    const comic = ComicSummary(
+      title: 'Lookism',
+      slug: 'lookism',
+      sourceName: 'komiku',
+    );
+    final progressRepository = ProgressRepository(
+      _failingApi(),
+      tokenStore,
+      store,
+    );
+    await progressRepository.saveProgress(
+      ReadingProgress.fromReader(
+        comic: comic,
+        chapterNumber: 14,
+        readingMode: 'vertical',
+        pageItemIndex: 19,
+        totalPageItems: 20,
+        isCompleted: true,
+      ),
+    );
+    final libraryRepository = LibraryRepository(
+      _apiWithResponses({
+        'GET /library/state/komiku/comics/lookism': {
+          'comic': {
+            'title': 'Lookism',
+            'slug': 'lookism',
+            'source_name': 'komiku',
+          },
+          'bookmarked': false,
+          'collections': [],
+          'completed_chapter_numbers': [],
+        },
+      }),
+      tokenStore,
+      store,
+    );
+
+    final state = await libraryRepository.getComicState(comic);
+
+    expect(state.completedChapterNumbers, [14.0]);
+    expect(state.progress?.chapterNumber, 14);
+  });
+
+  test(
+    'logged-in reader preferences cache is not counted as guest migration data',
+    () async {
+      final tokenStore = MemoryTokenStore();
+      await tokenStore.save(const TokenPair(accessToken: 'access-token'));
+      final repository = LibraryRepository(
+        _apiWithResponses({
+          'PUT /library/reader-preferences': {
+            'default_reading_mode': 'paged',
+            'reading_direction': 'rtl',
+            'mark_read_on_complete': true,
+            'default_binge_mode': true,
+          },
+        }),
+        tokenStore,
+        store,
+      );
+
+      await repository.saveReaderPreferences(
+        const ReaderPreferences(
+          defaultReadingMode: 'paged',
+          readingDirection: 'rtl',
+          markReadOnComplete: true,
+          defaultBingeMode: true,
+        ),
+      );
+
+      final summary = repository.getGuestMigrationSummary();
+
+      expect(summary.hasReaderPreferences, isFalse);
+      expect(summary.isEmpty, isTrue);
+    },
+  );
+
+  test(
+    'library repository saves reader preferences without auto_next',
+    () async {
+      final repository = LibraryRepository(
+        _failingApi(),
+        MemoryTokenStore(),
+        store,
+      );
+      const prefs = ReaderPreferences(
+        defaultReadingMode: 'paged',
+        readingDirection: 'rtl',
+        markReadOnComplete: false,
+        defaultBingeMode: true,
+      );
+
+      await repository.saveReaderPreferences(prefs);
+
+      final stored = store.settings.get('reader_preferences');
+      expect(stored, isA<Map>());
+      expect(stored, {
+        'default_reading_mode': 'paged',
+        'reading_direction': 'rtl',
+        'mark_read_on_complete': false,
+        'default_binge_mode': true,
+      });
+      expect(stored, isNot(contains('auto_next')));
+    },
+  );
 }
 
 TonztoonApi _apiWithResponses(Map<String, Object?> responses) {

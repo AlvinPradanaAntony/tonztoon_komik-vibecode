@@ -4,6 +4,7 @@ import '../core/token_store.dart';
 import '../models/comic.dart';
 import '../models/library.dart';
 import '../models/progress.dart';
+import 'local_state_metadata.dart';
 
 class LibraryRepository {
   LibraryRepository(this._api, this._tokenStore, this._store);
@@ -21,12 +22,53 @@ class LibraryRepository {
 
   Future<LibraryComicState> getComicState(ComicSummary comic) async {
     if (await _isLoggedIn) {
-      final response = await _api.get<Map<String, dynamic>>(
-        '/library/state/${comic.sourceName}/comics/${comic.slug}',
-      );
-      return LibraryComicState.fromJson(response.data ?? const {});
+      try {
+        final response = await _api.get<Map<String, dynamic>>(
+          '/library/state/${comic.sourceName}/comics/${comic.slug}',
+        );
+        return _mergeLocalComicState(
+          LibraryComicState.fromJson(response.data ?? const {}),
+          comic,
+        );
+      } catch (_) {
+        return _localComicState(comic);
+      }
     }
 
+    return _localComicState(comic);
+  }
+
+  LibraryComicState _mergeLocalComicState(
+    LibraryComicState remote,
+    ComicSummary comic,
+  ) {
+    final local = _localComicState(comic);
+    final completedChapterNumbers = <double>{
+      ...remote.completedChapterNumbers,
+      ...local.completedChapterNumbers,
+    }.toList()..sort();
+    final remoteProgress = remote.progress;
+    final localProgress = local.progress;
+    final progress =
+        localProgress != null &&
+            (remoteProgress == null ||
+                localProgress.lastReadAt.isAfter(remoteProgress.lastReadAt))
+        ? localProgress
+        : remoteProgress;
+
+    return LibraryComicState(
+      comic: remote.comic,
+      bookmarked: remote.bookmarked,
+      collections: remote.collections,
+      progress: progress,
+      completedChapterNumbers: completedChapterNumbers,
+      favoriteSceneCount: remote.favoriteSceneCount,
+      downloadStatusCounts: remote.downloadStatusCounts,
+      downloadEntries: remote.downloadEntries,
+    );
+  }
+
+  LibraryComicState _localComicState(ComicSummary comic) {
     final bookmark = _localBookmarks()[comic.key] != null;
     final collections = _localCollections()
         .where(
@@ -50,6 +92,10 @@ class LibraryRepository {
       progress: progressRaw is Map
           ? ReadingProgress.fromLocalJson(progressRaw)
           : null,
+      completedChapterNumbers: _localCompletedChapterNumbers(
+        comic.sourceName,
+        comic.slug,
+      ),
       favoriteSceneCount: _localFavoriteScenes()
           .where((scene) => scene.comic.key == comic.key)
           .length,
@@ -553,6 +599,7 @@ class LibraryRepository {
         );
         final prefs = ReaderPreferences.fromJson(response.data ?? const {});
         await _store.settings.put('reader_preferences', prefs.toJson());
+        await LocalStateMetadata.markReaderPreferencesAuthenticated(_store);
         return prefs;
       } catch (_) {
         return _localReaderPreferences();
@@ -564,14 +611,19 @@ class LibraryRepository {
   Future<ReaderPreferences> saveReaderPreferences(
     ReaderPreferences prefs,
   ) async {
+    final loggedIn = await _isLoggedIn;
     await _store.settings.put('reader_preferences', prefs.toJson());
-    if (await _isLoggedIn) {
+    if (loggedIn) {
+      await LocalStateMetadata.markReaderPreferencesAuthenticated(_store);
       final response = await _api.put<Map<String, dynamic>>(
         '/library/reader-preferences',
         data: prefs.toJson(),
       );
-      return ReaderPreferences.fromJson(response.data ?? prefs.toJson());
+      final saved = ReaderPreferences.fromJson(response.data ?? prefs.toJson());
+      await _store.settings.put('reader_preferences', saved.toJson());
+      return saved;
     }
+    await LocalStateMetadata.clearReaderPreferencesOwner(_store);
     return prefs;
   }
 
@@ -605,13 +657,16 @@ class LibraryRepository {
   }
 
   GuestMigrationSummary getGuestMigrationSummary() {
+    final readerPrefs = _store.settings.get('reader_preferences');
     return GuestMigrationSummary(
       bookmarks: _localBookmarks().length,
       collections: _localCollections().length,
-      progress: _store.progress.length,
+      progress: _localGuestProgressEntries().length,
       favoriteScenes: _localFavoriteScenes().length,
       downloads: _localDownloads().length,
-      hasReaderPreferences: _store.settings.get('reader_preferences') is Map,
+      hasReaderPreferences:
+          readerPrefs is Map &&
+          !LocalStateMetadata.isReaderPreferencesAuthenticated(_store),
       readingTimeSeconds: _guestReadingSeconds(),
     );
   }
@@ -652,11 +707,12 @@ class LibraryRepository {
           },
         )
         .toList();
-    final progress = _store.progress.values
-        .whereType<Map<dynamic, dynamic>>()
-        .map(ReadingProgress.fromLocalJson)
+    final guestProgressEntries = _localGuestProgressEntries();
+    final progress = guestProgressEntries
+        .map((entry) => ReadingProgress.fromLocalJson(entry.value))
         .map((item) => item.toProgressPayload())
         .toList();
+    final completedChapters = _localCompletedChapterImports();
     final scenes = _localFavoriteScenes()
         .map(
           (scene) => {
@@ -681,6 +737,9 @@ class LibraryRepository {
         )
         .toList();
     final readerPrefs = _store.settings.get('reader_preferences');
+    final shouldImportReaderPrefs =
+        readerPrefs is Map &&
+        !LocalStateMetadata.isReaderPreferencesAuthenticated(_store);
     final readingSeconds = _guestReadingSeconds();
 
     await _api.post<Map<String, dynamic>>(
@@ -689,20 +748,25 @@ class LibraryRepository {
         'bookmarks': bookmarks,
         'collections': collections,
         'progress': progress,
+        'completed_chapters': completedChapters,
         'favorite_scenes': scenes,
         'downloads': downloads,
-        if (readerPrefs is Map)
+        if (shouldImportReaderPrefs)
           'reader_preferences': Map<String, dynamic>.from(readerPrefs),
         if (readingSeconds > 0) 'reading_time_seconds': readingSeconds,
       },
     );
 
-    await _store.progress.clear();
+    await _deleteGuestProgressEntries(guestProgressEntries);
+    await _deleteImportedCompletedChapters(completedChapters);
     await _store.library.delete('bookmarks');
     await _store.library.delete('collections');
     await _store.library.delete('favorite_scenes');
     await _store.library.delete('downloads');
-    await _store.settings.delete('reader_preferences');
+    if (shouldImportReaderPrefs) {
+      await _store.settings.delete('reader_preferences');
+      await LocalStateMetadata.clearReaderPreferencesOwner(_store);
+    }
     await _store.settings.delete(_guestReadingTimeKey);
     await _store.settings.delete('guest_cloud_migration_skipped');
   }
@@ -775,6 +839,112 @@ class LibraryRepository {
       counts[item.status] = (counts[item.status] ?? 0) + 1;
     }
     return counts;
+  }
+
+  List<double> _localCompletedChapterNumbers(String sourceName, String slug) {
+    final raw = _store.progress.get(
+      ReadingProgress.completedChaptersKey(sourceName, slug),
+    );
+    if (raw is! List) return const [];
+    final numbers =
+        raw.whereType<num>().map((value) => value.toDouble()).toSet().toList()
+          ..sort();
+    return numbers;
+  }
+
+  List<MapEntry<dynamic, Map<dynamic, dynamic>>> _localGuestProgressEntries() {
+    return _store.progress
+        .toMap()
+        .entries
+        .where((entry) {
+          if (entry.value is! Map<dynamic, dynamic>) return false;
+          return !LocalStateMetadata.isAuthenticatedProgressCache(
+            _store,
+            entry.key.toString(),
+          );
+        })
+        .map((entry) {
+          return MapEntry(entry.key, entry.value as Map<dynamic, dynamic>);
+        })
+        .toList();
+  }
+
+  Future<void> _deleteGuestProgressEntries(
+    List<MapEntry<dynamic, Map<dynamic, dynamic>>> entries,
+  ) async {
+    for (final entry in entries) {
+      await _store.progress.delete(entry.key);
+    }
+  }
+
+  List<Map<String, Object>> _localCompletedChapterImports() {
+    final imports = <Map<String, Object>>[];
+    for (final entry in _store.progress.toMap().entries) {
+      final key = entry.key.toString();
+      if (!key.startsWith('completed_chapters|')) continue;
+      final parts = key.split('|');
+      if (parts.length < 3 || entry.value is! List) continue;
+      final sourceName = parts[1];
+      final comicSlug = parts.sublist(2).join('|');
+      for (final number in (entry.value as List).whereType<num>()) {
+        final chapterNumber = number.toDouble();
+        if (LocalStateMetadata.isAuthenticatedCompletedChapterCache(
+          _store,
+          sourceName,
+          comicSlug,
+          chapterNumber,
+        )) {
+          continue;
+        }
+        imports.add({
+          'source_name': sourceName,
+          'comic_slug': comicSlug,
+          'chapter_number': chapterNumber,
+        });
+      }
+    }
+    return imports;
+  }
+
+  Future<void> _deleteImportedCompletedChapters(
+    List<Map<String, Object>> imports,
+  ) async {
+    final importedKeys = imports
+        .map(
+          (item) => LocalStateMetadata.completedChapterKey(
+            item['source_name'] as String,
+            item['comic_slug'] as String,
+            item['chapter_number'] as double,
+          ),
+        )
+        .toSet();
+    if (importedKeys.isEmpty) return;
+
+    for (final entry in _store.progress.toMap().entries) {
+      final key = entry.key.toString();
+      if (!key.startsWith('completed_chapters|') || entry.value is! List) {
+        continue;
+      }
+      final parts = key.split('|');
+      if (parts.length < 3) continue;
+      final sourceName = parts[1];
+      final comicSlug = parts.sublist(2).join('|');
+      final remaining = (entry.value as List).whereType<num>().where((number) {
+        return !importedKeys.contains(
+          LocalStateMetadata.completedChapterKey(
+            sourceName,
+            comicSlug,
+            number.toDouble(),
+          ),
+        );
+      }).toList();
+
+      if (remaining.isEmpty) {
+        await _store.progress.delete(entry.key);
+      } else {
+        await _store.progress.put(entry.key, remaining);
+      }
+    }
   }
 
   ReaderPreferences _localReaderPreferences() {

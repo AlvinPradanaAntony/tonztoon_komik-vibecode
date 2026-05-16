@@ -71,6 +71,14 @@ begin
     end if;
 
     if not exists (
+      select 1 from pg_constraint where conname = 'fk_user_completed_chapters_user'
+    ) then
+      alter table public.user_completed_chapters
+        add constraint fk_user_completed_chapters_user
+        foreign key (user_id) references auth.users(id) on delete cascade;
+    end if;
+
+    if not exists (
       select 1 from pg_constraint where conname = 'fk_user_favorite_scenes_user'
     ) then
       alter table public.user_favorite_scenes
@@ -109,6 +117,9 @@ alter table public.user_collection_comics force row level security;
 
 alter table public.user_progress enable row level security;
 alter table public.user_progress force row level security;
+
+alter table public.user_completed_chapters enable row level security;
+alter table public.user_completed_chapters force row level security;
 
 alter table public.user_history_entries enable row level security;
 alter table public.user_history_entries force row level security;
@@ -154,6 +165,11 @@ drop policy if exists "user_progress_select_own" on public.user_progress;
 drop policy if exists "user_progress_insert_own" on public.user_progress;
 drop policy if exists "user_progress_update_own" on public.user_progress;
 drop policy if exists "user_progress_delete_own" on public.user_progress;
+
+drop policy if exists "user_completed_chapters_select_own" on public.user_completed_chapters;
+drop policy if exists "user_completed_chapters_insert_own" on public.user_completed_chapters;
+drop policy if exists "user_completed_chapters_update_own" on public.user_completed_chapters;
+drop policy if exists "user_completed_chapters_delete_own" on public.user_completed_chapters;
 
 drop policy if exists "user_history_entries_select_own" on public.user_history_entries;
 drop policy if exists "user_history_entries_insert_own" on public.user_history_entries;
@@ -383,6 +399,32 @@ with check ((select auth.uid()) is not null and (select auth.uid()) = user_id);
 
 create policy "user_progress_delete_own"
 on public.user_progress
+for delete
+to authenticated
+using ((select auth.uid()) is not null and (select auth.uid()) = user_id);
+
+-- user_completed_chapters
+create policy "user_completed_chapters_select_own"
+on public.user_completed_chapters
+for select
+to authenticated
+using ((select auth.uid()) is not null and (select auth.uid()) = user_id);
+
+create policy "user_completed_chapters_insert_own"
+on public.user_completed_chapters
+for insert
+to authenticated
+with check ((select auth.uid()) is not null and (select auth.uid()) = user_id);
+
+create policy "user_completed_chapters_update_own"
+on public.user_completed_chapters
+for update
+to authenticated
+using ((select auth.uid()) is not null and (select auth.uid()) = user_id)
+with check ((select auth.uid()) is not null and (select auth.uid()) = user_id);
+
+create policy "user_completed_chapters_delete_own"
+on public.user_completed_chapters
 for delete
 to authenticated
 using ((select auth.uid()) is not null and (select auth.uid()) = user_id);

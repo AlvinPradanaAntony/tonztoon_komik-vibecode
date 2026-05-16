@@ -422,25 +422,23 @@ class ReaderPreferences {
   const ReaderPreferences({
     this.defaultReadingMode = 'vertical',
     this.readingDirection = 'ltr',
-    this.autoNext = true,
-    this.markReadOnComplete = true,
+    this.markReadOnComplete = false,
     this.defaultBingeMode = false,
   });
 
   factory ReaderPreferences.fromJson(Map<dynamic, dynamic> json) {
+    final defaultBingeMode = json['default_binge_mode'];
     return ReaderPreferences(
       defaultReadingMode: json['default_reading_mode'] as String? ?? 'vertical',
       readingDirection: json['reading_direction'] as String? ?? 'ltr',
-      autoNext: json['auto_next'] as bool? ?? true,
-      markReadOnComplete: json['mark_read_on_complete'] as bool? ?? true,
-      defaultBingeMode: json['default_binge_mode'] as bool? ?? false,
+      markReadOnComplete: json['mark_read_on_complete'] as bool? ?? false,
+      defaultBingeMode: defaultBingeMode is bool ? defaultBingeMode : false,
     );
   }
 
   Map<String, dynamic> toJson() => {
     'default_reading_mode': defaultReadingMode,
     'reading_direction': readingDirection,
-    'auto_next': autoNext,
     'mark_read_on_complete': markReadOnComplete,
     'default_binge_mode': defaultBingeMode,
   };
@@ -448,14 +446,12 @@ class ReaderPreferences {
   ReaderPreferences copyWith({
     String? defaultReadingMode,
     String? readingDirection,
-    bool? autoNext,
     bool? markReadOnComplete,
     bool? defaultBingeMode,
   }) {
     return ReaderPreferences(
       defaultReadingMode: defaultReadingMode ?? this.defaultReadingMode,
       readingDirection: readingDirection ?? this.readingDirection,
-      autoNext: autoNext ?? this.autoNext,
       markReadOnComplete: markReadOnComplete ?? this.markReadOnComplete,
       defaultBingeMode: defaultBingeMode ?? this.defaultBingeMode,
     );
@@ -463,7 +459,6 @@ class ReaderPreferences {
 
   final String defaultReadingMode;
   final String readingDirection;
-  final bool autoNext;
   final bool markReadOnComplete;
   final bool defaultBingeMode;
 }
@@ -474,6 +469,7 @@ class LibraryComicState {
     required this.bookmarked,
     required this.collections,
     this.progress,
+    this.completedChapterNumbers = const [],
     this.favoriteSceneCount = 0,
     this.downloadStatusCounts = const {},
     this.downloadEntries = const [],
@@ -493,18 +489,28 @@ class LibraryComicState {
       bookmarked: json['bookmarked'] as bool? ?? false,
       collections: ((json['collections'] as List?) ?? const [])
           .whereType<Map>()
-          .map((item) => CollectionSummary.fromJson(Map<String, dynamic>.from(item)))
+          .map(
+            (item) =>
+                CollectionSummary.fromJson(Map<String, dynamic>.from(item)),
+          )
           .toList(),
       progress: progressMap != null
           ? ReadingProgress.fromLibraryJson(progressMap)
           : null,
+      completedChapterNumbers:
+          ((json['completed_chapter_numbers'] as List?) ?? const [])
+              .whereType<num>()
+              .map((value) => value.toDouble())
+              .toList(),
       favoriteSceneCount: json['favorite_scene_count'] as int? ?? 0,
       downloadStatusCounts: Map<String, int>.from(
         json['download_status_counts'] as Map? ?? {},
       ),
       downloadEntries: ((json['download_entries'] as List?) ?? const [])
           .whereType<Map>()
-          .map((item) => DownloadEntry.fromJson(Map<String, dynamic>.from(item)))
+          .map(
+            (item) => DownloadEntry.fromJson(Map<String, dynamic>.from(item)),
+          )
           .toList(),
     );
   }
@@ -513,6 +519,7 @@ class LibraryComicState {
   final bool bookmarked;
   final List<CollectionSummary> collections;
   final ReadingProgress? progress;
+  final List<double> completedChapterNumbers;
   final int favoriteSceneCount;
   final Map<String, int> downloadStatusCounts;
   final List<DownloadEntry> downloadEntries;

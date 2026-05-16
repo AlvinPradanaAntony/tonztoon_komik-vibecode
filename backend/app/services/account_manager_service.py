@@ -23,6 +23,7 @@ from app.models import (
     UserBookmark,
     UserCollection,
     UserCollectionComic,
+    UserCompletedChapter,
     UserDownloadEntry,
     UserFavoriteScene,
     UserHistoryEntry,
@@ -272,6 +273,13 @@ async def get_relation_counts_by_user_ids(
     await _apply_group_counts(
         db,
         counts_by_user_id,
+        model=UserCompletedChapter,
+        user_column=UserCompletedChapter.user_id,
+        field_name="user_completed_chapters",
+    )
+    await _apply_group_counts(
+        db,
+        counts_by_user_id,
         model=UserHistoryEntry,
         user_column=UserHistoryEntry.user_id,
         field_name="user_history_entries",
@@ -315,6 +323,9 @@ async def get_relation_counts(db: AsyncSession, user_id: uuid.UUID) -> AccountRe
         select(literal("user_progress"), func.count())
         .select_from(UserProgress)
         .where(UserProgress.user_id == user_id),
+        select(literal("user_completed_chapters"), func.count())
+        .select_from(UserCompletedChapter)
+        .where(UserCompletedChapter.user_id == user_id),
         select(literal("user_history_entries"), func.count())
         .select_from(UserHistoryEntry)
         .where(UserHistoryEntry.user_id == user_id),
@@ -651,6 +662,7 @@ async def get_relation_preview(
         if table in {
             "user_bookmarks",
             "user_progress",
+            "user_completed_chapters",
             "user_history_entries",
             "user_favorite_scenes",
             "user_download_entries",
@@ -662,8 +674,12 @@ async def get_relation_preview(
         if table == "reader_preferences":
             mode = getattr(row, "default_reading_mode", None) or "mode default"
             direction = getattr(row, "reading_direction", None) or "arah default"
-            auto_next = "auto next aktif" if getattr(row, "auto_next", False) else "auto next nonaktif"
-            return f"{mode} • {direction.upper()} • {auto_next}"
+            binge_mode = (
+                "binge mode aktif"
+                if getattr(row, "default_binge_mode", False)
+                else "binge mode nonaktif"
+            )
+            return f"{mode} • {direction.upper()} • {binge_mode}"
         if table == "user_reading_stats":
             seconds = int(getattr(row, "total_reading_seconds", 0) or 0)
             minutes = max(0, round(seconds / 60))
@@ -672,6 +688,9 @@ async def get_relation_preview(
             chapter = chapter_label(row)
             completed = "Selesai" if getattr(row, "is_completed", False) else "Belum selesai"
             return f"{chapter or 'Chapter terakhir'} • {completed}"
+        if table == "user_completed_chapters":
+            chapter = chapter_label(row)
+            return f"{chapter or 'Chapter'} • Selesai dibaca"
         if table == "user_bookmarks":
             return "Bookmark komik"
         if table == "user_favorite_scenes":
@@ -734,10 +753,36 @@ async def get_relation_preview(
             )
             for item, collection_name in collection_items_result.all()
         ],
-        user_progress=await rows(UserProgress, UserProgress.user_id == user_id, "user_progress", "comic_id"),
-        user_history_entries=await rows(UserHistoryEntry, UserHistoryEntry.user_id == user_id, "user_history_entries", "comic_id"),
-        user_favorite_scenes=await rows(UserFavoriteScene, UserFavoriteScene.user_id == user_id, "user_favorite_scenes", "comic_id"),
-        user_download_entries=await rows(UserDownloadEntry, UserDownloadEntry.user_id == user_id, "user_download_entries", "comic_id"),
+        user_progress=await rows(
+            UserProgress,
+            UserProgress.user_id == user_id,
+            "user_progress",
+            "comic_id",
+        ),
+        user_completed_chapters=await rows(
+            UserCompletedChapter,
+            UserCompletedChapter.user_id == user_id,
+            "user_completed_chapters",
+            "comic_id",
+        ),
+        user_history_entries=await rows(
+            UserHistoryEntry,
+            UserHistoryEntry.user_id == user_id,
+            "user_history_entries",
+            "comic_id",
+        ),
+        user_favorite_scenes=await rows(
+            UserFavoriteScene,
+            UserFavoriteScene.user_id == user_id,
+            "user_favorite_scenes",
+            "comic_id",
+        ),
+        user_download_entries=await rows(
+            UserDownloadEntry,
+            UserDownloadEntry.user_id == user_id,
+            "user_download_entries",
+            "comic_id",
+        ),
     )
 
 
@@ -771,6 +816,7 @@ async def delete_account_clean(
         await db.execute(delete(UserDownloadEntry).where(UserDownloadEntry.user_id == user_id))
         await db.execute(delete(UserFavoriteScene).where(UserFavoriteScene.user_id == user_id))
         await db.execute(delete(UserHistoryEntry).where(UserHistoryEntry.user_id == user_id))
+        await db.execute(delete(UserCompletedChapter).where(UserCompletedChapter.user_id == user_id))
         await db.execute(delete(UserProgress).where(UserProgress.user_id == user_id))
         await db.execute(delete(UserBookmark).where(UserBookmark.user_id == user_id))
         await db.execute(delete(UserCollection).where(UserCollection.user_id == user_id))

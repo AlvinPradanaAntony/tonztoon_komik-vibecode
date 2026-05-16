@@ -225,6 +225,8 @@ final progressRepositoryProvider = Provider<ProgressRepository>((ref) {
     ref.watch(apiProvider),
     ref.watch(tokenStoreProvider),
     ref.watch(localStoreProvider),
+    notificationRepository: ref.watch(notificationRepositoryProvider),
+    onNotificationsChanged: () => ref.invalidate(notificationsProvider),
   );
 });
 

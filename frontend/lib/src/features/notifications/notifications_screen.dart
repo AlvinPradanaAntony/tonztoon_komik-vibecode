@@ -50,41 +50,49 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           ),
         ],
       ),
-      body: notificationsAsync.when(
-        data: (_) => ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
-          children: [
-            _NotificationSummary(unreadCount: unreadCount),
-            const SizedBox(height: 18),
-            _FilterStrip(
-              selectedFilter: _selectedFilter,
-              onChanged: (value) => setState(() => _selectedFilter = value),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: notificationsAsync.when(
+              data: (_) => ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 128),
+                children: [
+                  _NotificationSummary(unreadCount: unreadCount),
+                  const SizedBox(height: 18),
+                  _FilterStrip(
+                    selectedFilter: _selectedFilter,
+                    onChanged: (value) =>
+                        setState(() => _selectedFilter = value),
+                  ),
+                  const SizedBox(height: 20),
+                  _SectionHeader(
+                    title: _selectedFilter == 'Semua'
+                        ? 'Terbaru'
+                        : 'Kategori $_selectedFilter',
+                    count: visibleNotifications.length,
+                  ),
+                  const SizedBox(height: 10),
+                  if (visibleNotifications.isEmpty)
+                    _NotificationEmptyState(filter: _selectedFilter)
+                  else
+                    for (final item in visibleNotifications) ...[
+                      _NotificationTile(
+                        item: item,
+                        onTap: () => _openNotification(item),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                ],
+              ),
+              loading: () => const _NotificationsLoading(),
+              error: (error, stackTrace) => _NotificationsError(
+                message: error.toString(),
+                onRetry: () => ref.invalidate(notificationsProvider),
+              ),
             ),
-            const SizedBox(height: 20),
-            _SectionHeader(
-              title: _selectedFilter == 'Semua'
-                  ? 'Terbaru'
-                  : 'Kategori $_selectedFilter',
-              count: visibleNotifications.length,
-            ),
-            const SizedBox(height: 10),
-            if (visibleNotifications.isEmpty)
-              _NotificationEmptyState(filter: _selectedFilter)
-            else
-              for (final item in visibleNotifications) ...[
-                _NotificationTile(
-                  item: item,
-                  onTap: () => _openNotification(item),
-                ),
-                const SizedBox(height: 12),
-              ],
-          ],
-        ),
-        loading: () => const _NotificationsLoading(),
-        error: (error, stackTrace) => _NotificationsError(
-          message: error.toString(),
-          onRetry: () => ref.invalidate(notificationsProvider),
-        ),
+          ),
+          _NotificationsBottomFade(background: theme.scaffoldBackgroundColor),
+        ],
       ),
     );
   }
@@ -101,6 +109,38 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final route = item.actionRoute;
     if (route == null || route.isEmpty) return;
     context.go(route);
+  }
+}
+
+class _NotificationsBottomFade extends StatelessWidget {
+  const _NotificationsBottomFade({required this.background});
+
+  final Color background;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      height: 120,
+      child: IgnorePointer(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              stops: const [0.0, 0.6, 1.0],
+              colors: [
+                background.withValues(alpha: 0.0),
+                background.withValues(alpha: 0.9),
+                background,
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -436,7 +476,7 @@ class _NotificationsLoading extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 128),
       children: const [
         _LoadingCard(height: 96),
         SizedBox(height: 18),
@@ -539,6 +579,10 @@ _NotificationStyle _notificationStyle(AppNotification item) {
     'chapter_update' => const _NotificationStyle(
       icon: TonztoonIcons.bookOpen,
       accent: Color(0xFFFF9D00),
+    ),
+    'progress_sync_failed' => const _NotificationStyle(
+      icon: TonztoonIcons.warning,
+      accent: Color(0xFFEF4444),
     ),
     _ => const _NotificationStyle(
       icon: TonztoonIcons.bell,

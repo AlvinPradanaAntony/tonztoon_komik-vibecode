@@ -92,6 +92,10 @@ class ReadingProgress {
     return '$sourceName|$comicSlug';
   }
 
+  static String completedChaptersKey(String sourceName, String comicSlug) {
+    return 'completed_chapters|$sourceName|$comicSlug';
+  }
+
   String get storageKey => key(sourceName, comicSlug);
 
   Map<String, dynamic> toLocalJson() => {
