@@ -26,4 +26,28 @@ class LocalStore {
   final Box<dynamic> progress;
   final Box<dynamic> library;
   final Box<dynamic> cache;
+
+  Future<void> clearUserScopedData() async {
+    await Future.wait([
+      auth.clear(),
+      progress.clear(),
+      library.clear(),
+      _clearUserScopedSettings(),
+    ]);
+  }
+
+  Future<void> _clearUserScopedSettings() async {
+    final keys = settings.keys
+        .where(
+          (key) =>
+              key == 'reader_preferences' ||
+              key == 'reader_preferences_owner' ||
+              key == 'guest_cloud_migration_skipped' ||
+              key == 'auth_progress_cache_keys' ||
+              key == 'auth_completed_chapter_cache_keys' ||
+              key.toString().startsWith('reading_time_total_seconds'),
+        )
+        .toList();
+    await Future.wait(keys.map(settings.delete));
+  }
 }

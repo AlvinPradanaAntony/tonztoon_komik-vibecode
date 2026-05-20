@@ -1,4 +1,4 @@
-# tonztoon_comic
+# tonztoon
 
 A new Flutter project.
 

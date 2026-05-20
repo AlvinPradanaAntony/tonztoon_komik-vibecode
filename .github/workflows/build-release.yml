@@ -135,6 +135,44 @@ jobs:
       - name: Analyze project
         run: flutter analyze --no-fatal-infos
 
+      - name: Restore Android release signing files
+        env:
+          ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+
+          for secret_name in \
+            ANDROID_UPLOAD_KEYSTORE_BASE64 \
+            ANDROID_KEYSTORE_PASSWORD \
+            ANDROID_KEY_PASSWORD \
+            ANDROID_KEY_ALIAS
+          do
+            if [ -z "${!secret_name}" ]; then
+              echo "❌ $secret_name secret kosong"
+              exit 1
+            fi
+          done
+
+          mkdir -p android/app
+          printf '%s' "$ANDROID_UPLOAD_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+
+          cat > android/key.properties <<EOF
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyPassword=$ANDROID_KEY_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          storeFile=upload-keystore.jks
+          EOF
+
+          if [ ! -s android/app/upload-keystore.jks ]; then
+            echo "❌ android/app/upload-keystore.jks gagal dibuat"
+            exit 1
+          fi
+
+          echo "✅ Android release signing files siap"
+
       - name: Build APK (release)
         run: |
           flutter build apk --release \
@@ -147,6 +185,10 @@ jobs:
           VERSION="${{ needs.extract-changelog.outputs.version }}"
           mv build/app/outputs/flutter-apk/app-release.apk \
              build/app/outputs/flutter-apk/tonztoon-v${VERSION}.apk
+
+      - name: Remove Android release signing files
+        if: always()
+        run: rm -f android/key.properties android/app/upload-keystore.jks
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

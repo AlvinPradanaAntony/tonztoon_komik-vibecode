@@ -8,6 +8,7 @@ class CatalogRepository {
 
   final TonztoonApi _api;
   final LocalStore _store;
+  static const _genresCacheKey = 'genres';
 
   Future<List<SourceInfo>> getSources() async {
     const cacheKey = 'sources';
@@ -46,7 +47,23 @@ class CatalogRepository {
   }
 
   Future<List<Genre>> getGenres() async {
-    const cacheKey = 'genres';
+    final cached = getCachedGenres();
+    if (cached.isNotEmpty) return cached;
+
+    return refreshGenres();
+  }
+
+  List<Genre> getCachedGenres() {
+    final cached = _store.cache.get(_genresCacheKey);
+    if (cached is! List) return const [];
+    return cached
+        .whereType<Map<dynamic, dynamic>>()
+        .map((item) => Genre.fromJson(Map<String, dynamic>.from(item)))
+        .where((genre) => genre.name.trim().isNotEmpty)
+        .toList();
+  }
+
+  Future<List<Genre>> refreshGenres() async {
     try {
       final response = await _api.get<List<dynamic>>('/genres');
       final items = (response.data ?? const [])
@@ -54,38 +71,41 @@ class CatalogRepository {
           .map((item) => Genre.fromJson(Map<String, dynamic>.from(item)))
           .where((genre) => genre.name.trim().isNotEmpty)
           .toList();
-      await _store.cache.put(
-        cacheKey,
-        items
-            .map(
-              (genre) => {
-                'id': genre.id,
-                'name': genre.name,
-                'slug': genre.slug,
-              },
-            )
-            .toList(),
-      );
+      await _store.cache.put(_genresCacheKey, _encodeGenres(items));
       return items;
     } catch (_) {
-      final cached = _store.cache.get(cacheKey);
-      if (cached is List) {
-        return cached
-            .whereType<Map<dynamic, dynamic>>()
-            .map((item) => Genre.fromJson(Map<String, dynamic>.from(item)))
-            .where((genre) => genre.name.trim().isNotEmpty)
-            .toList();
-      }
-      rethrow;
+      return getCachedGenres();
     }
   }
 
-  Future<List<ComicSummary>> getLatest(String sourceName) {
-    return _getComicList('/sources/$sourceName/comics/latest');
+  List<Map<String, dynamic>> _encodeGenres(List<Genre> genres) {
+    return genres
+        .map(
+          (genre) => {'id': genre.id, 'name': genre.name, 'slug': genre.slug},
+        )
+        .toList();
   }
 
-  Future<List<ComicSummary>> getPopular(String sourceName) {
-    return _getComicList('/sources/$sourceName/comics/popular');
+  Future<List<ComicSummary>> getLatest(
+    String sourceName, {
+    int page = 1,
+    int pageSize = 20,
+  }) {
+    return _getComicList(
+      '/sources/$sourceName/comics/latest',
+      queryParameters: {'page': page, 'page_size': pageSize},
+    );
+  }
+
+  Future<List<ComicSummary>> getPopular(
+    String sourceName, {
+    int page = 1,
+    int pageSize = 20,
+  }) {
+    return _getComicList(
+      '/sources/$sourceName/comics/popular',
+      queryParameters: {'page': page, 'page_size': pageSize},
+    );
   }
 
   Future<SourceComicPage> getSourceComics({
@@ -197,7 +217,9 @@ class CatalogRepository {
       await _store.cache.put(cacheKey, data);
       return data
           .whereType<Map>()
-          .map((item) => ChapterListItem.fromJson(Map<String, dynamic>.from(item)))
+          .map(
+            (item) => ChapterListItem.fromJson(Map<String, dynamic>.from(item)),
+          )
           .toList();
     } catch (_) {
       final cached = _store.cache.get(cacheKey);

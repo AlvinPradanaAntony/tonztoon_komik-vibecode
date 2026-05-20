@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_assets.dart';
 import '../../core/api_client.dart';
 import '../../core/app_icons.dart';
+import '../../core/app_snackbar.dart';
 import '../../repositories/providers.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
@@ -41,63 +43,69 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = _AuthPalette.fromTheme(Theme.of(context));
+    final theme = Theme.of(context);
+    final palette = _AuthPalette.fromTheme(theme);
+    final overlayStyle = _authSystemOverlayStyle(theme);
 
-    return Scaffold(
-      backgroundColor: palette.background,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 8),
-          child: IconButton(
-            tooltip: 'Kembali',
-            onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(TonztoonIcons.arrowBack),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlayStyle,
+      child: Scaffold(
+        backgroundColor: palette.background,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          systemOverlayStyle: overlayStyle,
+          leading: Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: IconButton(
+              tooltip: 'Kembali',
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(TonztoonIcons.arrowBack),
+            ),
           ),
         ),
-      ),
-      body: SafeArea(
-        top: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(22, 8, 22, 28),
-              children: [
-                _AuthHeader(registerMode: _registerMode, palette: palette),
-                const SizedBox(height: 26),
-                _AuthCard(
-                  formKey: _formKey,
-                  palette: palette,
-                  registerMode: _registerMode,
-                  submitting: _submitting,
-                  displayNameController: _displayNameController,
-                  usernameController: _usernameController,
-                  emailController: _emailController,
-                  passwordController: _passwordController,
-                  confirmPasswordController: _confirmPasswordController,
-                  obscurePassword: _obscurePassword,
-                  obscureConfirmPassword: _obscureConfirmPassword,
-                  onTogglePassword: () =>
-                      setState(() => _obscurePassword = !_obscurePassword),
-                  onToggleConfirmPassword: () => setState(
-                    () => _obscureConfirmPassword = !_obscureConfirmPassword,
+        body: SafeArea(
+          top: false,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 460),
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(22, 8, 22, 28),
+                children: [
+                  _AuthHeader(registerMode: _registerMode, palette: palette),
+                  const SizedBox(height: 26),
+                  _AuthCard(
+                    formKey: _formKey,
+                    palette: palette,
+                    registerMode: _registerMode,
+                    submitting: _submitting,
+                    displayNameController: _displayNameController,
+                    usernameController: _usernameController,
+                    emailController: _emailController,
+                    passwordController: _passwordController,
+                    confirmPasswordController: _confirmPasswordController,
+                    obscurePassword: _obscurePassword,
+                    obscureConfirmPassword: _obscureConfirmPassword,
+                    onTogglePassword: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
+                    onToggleConfirmPassword: () => setState(
+                      () => _obscureConfirmPassword = !_obscureConfirmPassword,
+                    ),
+                    onSubmit: _submitEmail,
+                    onToggleMode: () {
+                      _formKey.currentState?.reset();
+                      setState(() {
+                        _registerMode = !_registerMode;
+                        _displayNameController.clear();
+                        _usernameController.clear();
+                        _confirmPasswordController.clear();
+                      });
+                    },
+                    onForgotPassword: () => _openForgotPassword(context),
+                    onGoogle: _continueGoogle,
+                    onGuest: () => context.go('/'),
                   ),
-                  onSubmit: _submitEmail,
-                  onToggleMode: () {
-                    _formKey.currentState?.reset();
-                    setState(() {
-                      _registerMode = !_registerMode;
-                      _displayNameController.clear();
-                      _usernameController.clear();
-                      _confirmPasswordController.clear();
-                    });
-                  },
-                  onForgotPassword: () => _openForgotPassword(context),
-                  onGoogle: _continueGoogle,
-                  onGuest: () => context.go('/'),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -201,19 +209,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     required String title,
     required String message,
   }) {
-    return showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
+    return _showAuthFailureDialog(context, title: title, message: message);
   }
 
   String _authErrorMessage(Object error) {
@@ -223,14 +219,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   }
 
   void _continueGoogle() {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text('Google sign-in belum tersambung ke backend.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+    showAppSnackBar(
+      context,
+      message: 'Google sign-in belum tersambung ke backend.',
+      type: AppSnackBarType.help,
+    );
   }
 }
 
@@ -271,6 +264,26 @@ class _AuthHeader extends StatelessWidget {
       ],
     );
   }
+}
+
+Future<void> _showAuthFailureDialog(
+  BuildContext context, {
+  required String title,
+  required String message,
+}) {
+  return showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(title),
+      content: Text(message),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('OK'),
+        ),
+      ],
+    ),
+  );
 }
 
 class _AuthCard extends StatelessWidget {
@@ -643,59 +656,64 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = _AuthPalette.fromTheme(Theme.of(context));
     final theme = Theme.of(context);
+    final palette = _AuthPalette.fromTheme(theme);
+    final overlayStyle = _authSystemOverlayStyle(theme);
 
-    return Scaffold(
-      backgroundColor: palette.background,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 8),
-          child: IconButton(
-            tooltip: 'Kembali',
-            onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(TonztoonIcons.arrowBack),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlayStyle,
+      child: Scaffold(
+        backgroundColor: palette.background,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          systemOverlayStyle: overlayStyle,
+          leading: Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: IconButton(
+              tooltip: 'Kembali',
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(TonztoonIcons.arrowBack),
+            ),
           ),
         ),
-      ),
-      body: SafeArea(
-        top: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(22, 8, 22, 28),
-              children: [
-                _ForgotPasswordHeader(
-                  palette: palette,
-                  instructionSent: _instructionSent,
-                ),
-                const SizedBox(height: 26),
-                _ForgotPasswordCard(
-                  formKey: _formKey,
-                  palette: palette,
-                  emailController: _emailController,
-                  instructionSent: _instructionSent,
-                  submitting: _submitting,
-                  errorMessage: _errorMessage,
-                  onSubmit: _submit,
-                  onEditEmail: () => setState(() {
-                    _instructionSent = false;
-                    _errorMessage = null;
-                  }),
-                ),
-                const SizedBox(height: 18),
-                TextButton.icon(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(TonztoonIcons.chevronLeft, size: 18),
-                  label: const Text('Kembali ke login'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: palette.accent,
-                    textStyle: theme.textTheme.labelLarge,
+        body: SafeArea(
+          top: false,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 460),
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(22, 8, 22, 28),
+                children: [
+                  _ForgotPasswordHeader(
+                    palette: palette,
+                    instructionSent: _instructionSent,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 26),
+                  _ForgotPasswordCard(
+                    formKey: _formKey,
+                    palette: palette,
+                    emailController: _emailController,
+                    instructionSent: _instructionSent,
+                    submitting: _submitting,
+                    errorMessage: _errorMessage,
+                    onSubmit: _submit,
+                    onEditEmail: () => setState(() {
+                      _instructionSent = false;
+                      _errorMessage = null;
+                    }),
+                  ),
+                  const SizedBox(height: 18),
+                  TextButton.icon(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(TonztoonIcons.chevronLeft, size: 18),
+                    label: const Text('Kembali ke login'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: palette.accent,
+                      textStyle: theme.textTheme.labelLarge,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -720,7 +738,13 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       setState(() => _instructionSent = true);
     } catch (error) {
       if (!mounted) return;
-      setState(() => _errorMessage = _authErrorMessage(error));
+      final message = _authErrorMessage(error);
+      setState(() => _errorMessage = message);
+      await _showAuthFailureDialog(
+        context,
+        title: 'Reset password gagal',
+        message: message,
+      );
     } finally {
       if (mounted) {
         setState(() => _submitting = false);
@@ -1174,111 +1198,116 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = _AuthPalette.fromTheme(Theme.of(context));
     final theme = Theme.of(context);
+    final palette = _AuthPalette.fromTheme(theme);
+    final overlayStyle = _authSystemOverlayStyle(theme);
 
-    return PopScope(
-      canPop: context.canPop(),
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        _leaveRecovery();
-      },
-      child: Scaffold(
-        backgroundColor: palette.background,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          leading: Padding(
-            padding: const EdgeInsets.only(left: 8),
-            child: IconButton(
-              tooltip: 'Kembali',
-              onPressed: _leaveRecovery,
-              icon: const Icon(TonztoonIcons.arrowBack),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlayStyle,
+      child: PopScope(
+        canPop: context.canPop(),
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return;
+          _leaveRecovery();
+        },
+        child: Scaffold(
+          backgroundColor: palette.background,
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            systemOverlayStyle: overlayStyle,
+            leading: Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: IconButton(
+                tooltip: 'Kembali',
+                onPressed: _leaveRecovery,
+                icon: const Icon(TonztoonIcons.arrowBack),
+              ),
             ),
           ),
-        ),
-        body: SafeArea(
-          top: false,
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 460),
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(22, 8, 22, 28),
-                children: [
-                  Image.asset(AppAssets.logoAppLarge, height: 42),
-                  const SizedBox(height: 26),
-                  Text(
-                    _completed ? 'Password diperbarui' : 'Buat password baru',
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      color: palette.text,
-                      fontWeight: FontWeight.w900,
-                      height: 1.06,
+          body: SafeArea(
+            top: false,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 460),
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(22, 8, 22, 28),
+                  children: [
+                    Image.asset(AppAssets.logoAppLarge, height: 42),
+                    const SizedBox(height: 26),
+                    Text(
+                      _completed ? 'Password diperbarui' : 'Buat password baru',
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        color: palette.text,
+                        fontWeight: FontWeight.w900,
+                        height: 1.06,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _completed
-                        ? 'Kamu bisa lanjut memakai akun TonzToon dengan password baru.'
-                        : 'Gunakan password baru untuk menyelesaikan proses pemulihan akun.',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: palette.muted,
-                      height: 1.4,
-                      fontWeight: FontWeight.w600,
+                    const SizedBox(height: 8),
+                    Text(
+                      _completed
+                          ? 'Kamu bisa lanjut memakai akun TonzToon dengan password baru.'
+                          : 'Gunakan password baru untuk menyelesaikan proses pemulihan akun.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: palette.muted,
+                        height: 1.4,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 26),
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: palette.surface,
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(color: palette.border),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(
-                            alpha: palette.shadowAlpha,
-                          ),
-                          blurRadius: 24,
-                          offset: const Offset(0, 12),
-                        ),
-                      ],
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
-                      child: _completed
-                          ? _ResetPasswordSuccess(palette: palette)
-                          : _ResetPasswordForm(
-                              formKey: _formKey,
-                              palette: palette,
-                              emailController: _emailController,
-                              passwordController: _passwordController,
-                              confirmPasswordController:
-                                  _confirmPasswordController,
-                              needsEmail: _needsEmailForTokenHash,
-                              submitting: _submitting,
-                              errorMessage: _errorMessage,
-                              obscurePassword: _obscurePassword,
-                              obscureConfirmPassword: _obscureConfirmPassword,
-                              onTogglePassword: () => setState(
-                                () => _obscurePassword = !_obscurePassword,
-                              ),
-                              onToggleConfirmPassword: () => setState(
-                                () => _obscureConfirmPassword =
-                                    !_obscureConfirmPassword,
-                              ),
-                              onSubmit: _submit,
+                    const SizedBox(height: 26),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: palette.surface,
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(color: palette.border),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(
+                              alpha: palette.shadowAlpha,
                             ),
+                            blurRadius: 24,
+                            offset: const Offset(0, 12),
+                          ),
+                        ],
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
+                        child: _completed
+                            ? _ResetPasswordSuccess(palette: palette)
+                            : _ResetPasswordForm(
+                                formKey: _formKey,
+                                palette: palette,
+                                emailController: _emailController,
+                                passwordController: _passwordController,
+                                confirmPasswordController:
+                                    _confirmPasswordController,
+                                needsEmail: _needsEmailForTokenHash,
+                                submitting: _submitting,
+                                errorMessage: _errorMessage,
+                                obscurePassword: _obscurePassword,
+                                obscureConfirmPassword: _obscureConfirmPassword,
+                                onTogglePassword: () => setState(
+                                  () => _obscurePassword = !_obscurePassword,
+                                ),
+                                onToggleConfirmPassword: () => setState(
+                                  () => _obscureConfirmPassword =
+                                      !_obscureConfirmPassword,
+                                ),
+                                onSubmit: _submit,
+                              ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 18),
-                  TextButton.icon(
-                    onPressed: _goToAuthFallback,
-                    icon: const Icon(TonztoonIcons.login, size: 18),
-                    label: Text(_completed ? 'Lanjut ke akun' : 'Kembali'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: palette.accent,
-                      textStyle: theme.textTheme.labelLarge,
+                    const SizedBox(height: 18),
+                    TextButton.icon(
+                      onPressed: _goToAuthFallback,
+                      icon: const Icon(TonztoonIcons.login, size: 18),
+                      label: Text(_completed ? 'Lanjut ke akun' : 'Kembali'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: palette.accent,
+                        textStyle: theme.textTheme.labelLarge,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -1320,7 +1349,13 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
       setState(() => _completed = true);
     } catch (error) {
       if (!mounted) return;
-      setState(() => _errorMessage = _authErrorMessage(error));
+      final message = _authErrorMessage(error);
+      setState(() => _errorMessage = message);
+      await _showAuthFailureDialog(
+        context,
+        title: 'Password gagal diperbarui',
+        message: message,
+      );
     } finally {
       if (mounted) {
         setState(() => _submitting = false);
@@ -1566,68 +1601,72 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = _AuthPalette.fromTheme(Theme.of(context));
     final theme = Theme.of(context);
+    final palette = _AuthPalette.fromTheme(theme);
+    final overlayStyle = _authSystemOverlayStyle(theme);
 
-    return Scaffold(
-      backgroundColor: palette.background,
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: palette.surface,
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: palette.border),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _ResetIconBadge(
-                        icon: _errorMessage == null
-                            ? TonztoonIcons.shieldCheck
-                            : TonztoonIcons.warning,
-                        palette: palette,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        _errorMessage == null
-                            ? _loadingTitle
-                            : 'Callback auth gagal',
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          color: palette.text,
-                          fontWeight: FontWeight.w900,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlayStyle,
+      child: Scaffold(
+        backgroundColor: palette.background,
+        body: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: palette.surface,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: palette.border),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _ResetIconBadge(
+                          icon: _errorMessage == null
+                              ? TonztoonIcons.shieldCheck
+                              : TonztoonIcons.warning,
+                          palette: palette,
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _errorMessage ?? _loadingMessage,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: palette.muted,
-                          height: 1.4,
-                        ),
-                      ),
-                      if (_errorMessage == null) ...[
-                        const SizedBox(height: 18),
-                        const LinearProgressIndicator(),
-                      ] else ...[
-                        const SizedBox(height: 18),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            onPressed: () => context.go('/auth'),
-                            icon: const Icon(TonztoonIcons.login),
-                            label: const Text('Kembali ke login'),
+                        const SizedBox(height: 16),
+                        Text(
+                          _errorMessage == null
+                              ? _loadingTitle
+                              : 'Callback auth gagal',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            color: palette.text,
+                            fontWeight: FontWeight.w900,
                           ),
                         ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _errorMessage ?? _loadingMessage,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: palette.muted,
+                            height: 1.4,
+                          ),
+                        ),
+                        if (_errorMessage == null) ...[
+                          const SizedBox(height: 18),
+                          const LinearProgressIndicator(),
+                        ] else ...[
+                          const SizedBox(height: 18),
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.icon(
+                              onPressed: () => context.go('/auth'),
+                              icon: const Icon(TonztoonIcons.login),
+                              label: const Text('Kembali ke login'),
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -1876,4 +1915,19 @@ class _AuthPalette {
       shadowAlpha: isDark ? 0.30 : 0.08,
     );
   }
+}
+
+SystemUiOverlayStyle _authSystemOverlayStyle(ThemeData theme) {
+  final isDark = theme.brightness == Brightness.dark;
+  return SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+    statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+    systemNavigationBarColor: theme.scaffoldBackgroundColor,
+    systemNavigationBarIconBrightness: isDark
+        ? Brightness.light
+        : Brightness.dark,
+    systemNavigationBarDividerColor: Colors.transparent,
+    systemNavigationBarContrastEnforced: false,
+  );
 }

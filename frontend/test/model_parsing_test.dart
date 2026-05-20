@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tonztoon_comic/src/models/comic.dart';
-import 'package:tonztoon_comic/src/models/library.dart';
-import 'package:tonztoon_comic/src/models/progress.dart';
-import 'package:tonztoon_comic/src/models/source_info.dart';
-import 'package:tonztoon_comic/src/widgets/comic_card.dart';
+import 'package:tonztoon/src/models/comic.dart';
+import 'package:tonztoon/src/models/library.dart';
+import 'package:tonztoon/src/models/progress.dart';
+import 'package:tonztoon/src/models/source_info.dart';
+import 'package:tonztoon/src/widgets/comic_card.dart';
 
 void main() {
   test('comic summary parses backend list item shape', () {

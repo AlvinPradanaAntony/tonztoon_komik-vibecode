@@ -7,9 +7,9 @@ import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../../core/app_icons.dart';
+import '../../core/app_snackbar.dart';
 import '../../models/comic.dart';
 import '../../repositories/providers.dart';
-import '../../widgets/app_async_view.dart';
 import '../../widgets/comic_card.dart';
 import '../../widgets/comic_cover.dart';
 import '../../widgets/comic_filter_sort_sheet.dart';
@@ -26,6 +26,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   static const _sheetEnterDuration = Duration(milliseconds: 300);
   static const _sheetExitDuration = Duration(milliseconds: 220);
   static const _searchDelay = Duration(milliseconds: 420);
+  static const _searchControlsHeight = 78.0;
+  static const _searchFilterStripHeight = 50.0;
+  static const _searchContentGap = 22.0;
+  static const _searchFadeOverflow = 26.0;
+  static const _searchBottomPadding = 132.0;
 
   final TextEditingController _searchController = TextEditingController();
   Timer? _searchDebounce;
@@ -50,6 +55,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final query = _searchController.text.trim();
     final searchAsync = ref.watch(searchResultsProvider);
     final isLoading = _isSearching && !searchAsync.hasValue;
+    final controlsHeight =
+        _searchControlsHeight +
+        (_isFilteringResults ? _searchFilterStripHeight : 0);
+    final listTopPadding = controlsHeight + _searchContentGap;
 
     return Scaffold(
       appBar: AppBar(
@@ -68,80 +77,150 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 132),
+      body: Stack(
         children: [
-          _SearchBox(
-            controller: _searchController,
-            onChanged: _handleSearchChanged,
-            onClear: _clearSearch,
-            onFilter: _showFilterSheet,
-            filterActive:
-                _filterButtonActive ||
-                _isFilteringResults ||
-                _filters.hasActiveFilters,
-          ),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 160),
-            child: _isFilteringResults
-                ? const Padding(
-                    key: ValueKey('search-filter-processing'),
-                    padding: EdgeInsets.only(top: 12),
-                    child: _SearchFilterProcessingStrip(),
-                  )
-                : const SizedBox.shrink(),
-          ),
-          const SizedBox(height: 22),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 220),
-            child: isLoading
-                ? _SearchLoadingPlaceholder(
-                    key: ValueKey('search-loading-$_gridView'),
-                    gridView: _gridView,
-                  )
-                : query.isEmpty
-                ? const _SearchEmptyState(
-                    key: ValueKey('search-empty-initial'),
-                    icon: TonztoonIcons.search,
-                    title: 'Cari komik',
-                    message:
-                        'Masukkan judul, author, genre, atau sumber untuk mulai mencari.',
-                  )
-                : AppAsyncView<List<ComicSummary>>(
-                    key: ValueKey('search-async-$query-$_gridView'),
-                    value: searchAsync,
-                    onRetry: () => unawaited(_retrySearch()),
-                    loadingBuilder: (context) => _SearchLoadingPlaceholder(
-                      key: ValueKey('search-async-loading-$_gridView'),
-                      gridView: _gridView,
-                    ),
-                    builder: (items) {
-                      final results = _visibleResults(_searchPool(items));
-                      return results.isEmpty
-                          ? _SearchEmptyState(
-                              key: const ValueKey('search-empty-results'),
-                              icon: TonztoonIcons.search,
-                              title: 'Tidak ada hasil',
-                              message:
-                                  'Tidak ada komik yang cocok untuk "$query".',
-                            )
-                          : Column(
-                              key: ValueKey('search-results-$_gridView-$query'),
-                              children: [
-                                _ResultHeader(
-                                  query: query,
-                                  resultCount: results.length,
-                                ),
-                                const SizedBox(height: 12),
-                                _gridView
-                                    ? _ResultGrid(comics: results)
-                                    : _ResultList(comics: results),
-                              ],
-                            );
-                    },
+          Positioned.fill(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final availableStateHeight =
+                    constraints.maxHeight -
+                    listTopPadding -
+                    _searchBottomPadding;
+                final stateHeight = availableStateHeight > 220
+                    ? availableStateHeight
+                    : 220.0;
+
+                return ListView(
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    listTopPadding,
+                    16,
+                    _searchBottomPadding,
                   ),
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  children: [
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      child: _buildSearchContent(
+                        query: query,
+                        searchAsync: searchAsync,
+                        isLoading: isLoading,
+                        stateHeight: stateHeight,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            height: listTopPadding + _searchFadeOverflow,
+            child: const IgnorePointer(child: _SearchTopFade()),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            child: _SearchStickyControls(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _SearchBox(
+                    controller: _searchController,
+                    onChanged: _handleSearchChanged,
+                    onClear: _clearSearch,
+                    onFilter: _showFilterSheet,
+                    filterActive:
+                        _filterButtonActive ||
+                        _isFilteringResults ||
+                        _filters.hasActiveFilters,
+                  ),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 160),
+                    child: _isFilteringResults
+                        ? const Padding(
+                            key: ValueKey('search-filter-processing'),
+                            padding: EdgeInsets.only(top: 12),
+                            child: _SearchFilterProcessingStrip(),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSearchContent({
+    required String query,
+    required AsyncValue<List<ComicSummary>> searchAsync,
+    required bool isLoading,
+    required double stateHeight,
+  }) {
+    if (isLoading) {
+      return _SearchLoadingPlaceholder(
+        key: ValueKey('search-loading-$_gridView'),
+        gridView: _gridView,
+      );
+    }
+
+    if (query.isEmpty) {
+      return _SearchCenteredState(
+        key: const ValueKey('search-empty-initial'),
+        height: stateHeight,
+        child: const _SearchEmptyState(
+          icon: TonztoonIcons.search,
+          title: 'Cari komik',
+          message:
+              'Masukkan judul, author, genre, atau sumber untuk mulai mencari.',
+        ),
+      );
+    }
+
+    return searchAsync.when(
+      data: (items) {
+        final results = _visibleResults(_searchPool(items));
+        if (results.isEmpty) {
+          return _SearchCenteredState(
+            key: const ValueKey('search-empty-results'),
+            height: stateHeight,
+            child: _SearchEmptyState(
+              icon: TonztoonIcons.search,
+              title: 'Tidak ada hasil',
+              message: 'Tidak ada komik yang cocok untuk "$query".',
+            ),
+          );
+        }
+
+        return Column(
+          key: ValueKey('search-results-$_gridView-$query'),
+          children: [
+            _ResultHeader(query: query, resultCount: results.length),
+            const SizedBox(height: 12),
+            _gridView
+                ? _ResultGrid(comics: results)
+                : _ResultList(comics: results),
+          ],
+        );
+      },
+      loading: () => _SearchLoadingPlaceholder(
+        key: ValueKey('search-async-loading-$_gridView'),
+        gridView: _gridView,
+      ),
+      error: (error, stackTrace) => _SearchCenteredState(
+        key: ValueKey('search-error-$query'),
+        height: stateHeight,
+        child: _SearchErrorState(
+          message: error.toString(),
+          onRetry: () => unawaited(_retrySearch()),
+        ),
       ),
     );
   }
@@ -239,9 +318,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       await ref.read(searchResultsProvider.future);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text('Pencarian gagal: $error')));
+      showAppSnackBar(
+        context,
+        message: 'Pencarian gagal: $error',
+        type: AppSnackBarType.failure,
+      );
     } finally {
       if (mounted) {
         setState(() => _isSearching = false);
@@ -254,15 +335,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (!mounted) return;
 
     setState(() => _filterButtonActive = true);
-    final genreOptions = await _loadGenreOptions();
-    if (!mounted) return;
+    final cachedGenreOptions = _cachedGenreOptions();
 
     final result = await showComicFilterSortSheet(
       context: context,
       initialState: _filters,
       title: 'Filter dan Sorting',
       resetSort: ComicSortOption.relevance,
-      genreOptions: genreOptions,
+      genreOptions: cachedGenreOptions.isEmpty ? null : cachedGenreOptions,
+      genreOptionsRefreshFuture: _refreshGenreOptions(),
       constraints: BoxConstraints(
         maxHeight: MediaQuery.sizeOf(context).height * 0.78,
       ),
@@ -287,16 +368,33 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
   }
 
-  Future<List<String>> _loadGenreOptions() async {
+  List<String> _cachedGenreOptions() {
+    final genres = ref.read(catalogRepositoryProvider).getCachedGenres();
+    return _genreNames(genres);
+  }
+
+  Future<List<String>> _refreshGenreOptions() async {
     try {
-      final genres = await ref.read(genresProvider.future);
-      return genres
-          .map((genre) => genre.name.trim())
-          .where((name) => name.isNotEmpty)
-          .toList(growable: false);
-    } catch (_) {
+      final genres = await ref.read(catalogRepositoryProvider).refreshGenres();
+      ref.invalidate(genresProvider);
+      return _genreNames(genres);
+    } catch (error) {
+      if (mounted) {
+        showAppSnackBar(
+          context,
+          message: 'Gagal memuat genre: $error',
+          type: AppSnackBarType.failure,
+        );
+      }
       return const [];
     }
+  }
+
+  List<String> _genreNames(List<Genre> genres) {
+    return genres
+        .map((genre) => genre.name.trim())
+        .where((name) => name.isNotEmpty)
+        .toList(growable: false);
   }
 
   Future<void> _dismissKeyboardBeforeSheet() async {
@@ -308,6 +406,44 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (keyboardWasVisible) {
       await Future<void>.delayed(_keyboardDismissDuration);
     }
+  }
+}
+
+class _SearchStickyControls extends StatelessWidget {
+  const _SearchStickyControls({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+      child: child,
+    );
+  }
+}
+
+class _SearchTopFade extends StatelessWidget {
+  const _SearchTopFade();
+
+  @override
+  Widget build(BuildContext context) {
+    final background = Theme.of(context).scaffoldBackgroundColor;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          stops: const [0.0, 0.58, 1.0],
+          colors: [
+            background,
+            background.withValues(alpha: 0.9),
+            background.withValues(alpha: 0.0),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -420,9 +556,27 @@ class _SearchBox extends StatelessWidget {
   }
 }
 
+class _SearchCenteredState extends StatelessWidget {
+  const _SearchCenteredState({
+    super.key,
+    required this.height,
+    required this.child,
+  });
+
+  final double height;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: height,
+      child: Center(child: child),
+    );
+  }
+}
+
 class _SearchEmptyState extends StatelessWidget {
   const _SearchEmptyState({
-    super.key,
     required this.icon,
     required this.title,
     required this.message,
@@ -437,40 +591,68 @@ class _SearchEmptyState extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 64),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHighest,
-              shape: BoxShape.circle,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Icon(icon, size: 38, color: colorScheme.secondary),
-            ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: colorScheme.surfaceContainerHighest,
+            shape: BoxShape.circle,
           ),
-          const SizedBox(height: 14),
-          Text(
-            title,
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Icon(icon, size: 38, color: colorScheme.secondary),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: theme.textTheme.titleLarge,
+        ),
+        const SizedBox(height: 7),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 320),
+          child: Text(
+            message,
             textAlign: TextAlign.center,
-            style: theme.textTheme.titleLarge,
-          ),
-          const SizedBox(height: 7),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 320),
-            child: Text(
-              message,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-                height: 1.38,
-              ),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              height: 1.38,
             ),
           ),
-        ],
+        ),
+      ],
+    );
+  }
+}
+
+class _SearchErrorState extends StatelessWidget {
+  const _SearchErrorState({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Transform.translate(
+        offset: const Offset(0, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off_rounded, size: 40),
+            const SizedBox(height: 12),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -582,7 +764,7 @@ class _SearchGridShimmer extends StatelessWidget {
         crossAxisCount: 2,
         mainAxisSpacing: 14,
         crossAxisSpacing: 12,
-        childAspectRatio: 0.51,
+        childAspectRatio: 0.47,
       ),
       itemBuilder: (context, index) => const _SearchGridCardShimmer(),
     );
@@ -757,7 +939,7 @@ class _ResultGrid extends StatelessWidget {
         crossAxisCount: 2,
         mainAxisSpacing: 14,
         crossAxisSpacing: 12,
-        childAspectRatio: 0.51,
+        childAspectRatio: 0.47,
       ),
       itemBuilder: (context, index) {
         final comic = comics[index];

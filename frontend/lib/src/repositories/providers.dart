@@ -217,6 +217,8 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
     ref.watch(apiProvider),
     ref.watch(tokenStoreProvider),
     ref.watch(localStoreProvider),
+    clearOfflineFiles: () =>
+        ref.read(offlineRepositoryProvider).clearAllOfflineChapters(),
   );
 });
 
@@ -227,6 +229,9 @@ final progressRepositoryProvider = Provider<ProgressRepository>((ref) {
     ref.watch(localStoreProvider),
     notificationRepository: ref.watch(notificationRepositoryProvider),
     onNotificationsChanged: () => ref.invalidate(notificationsProvider),
+    onContinueReadingChanged: () {
+      ref.read(continueReadingRefreshSignalProvider.notifier).bump();
+    },
   );
 });
 
@@ -348,8 +353,8 @@ class AuthController extends Notifier<AuthState> {
 
   Future<void> logout() async {
     await ref.read(authRepositoryProvider).logout();
+    ref.invalidate(readerPreferencesProvider);
     state = const AuthState.guest();
-    ref.invalidate(continueReadingProvider);
   }
 }
 
@@ -396,6 +401,7 @@ class HomeData {
 }
 
 final homeDataProvider = FutureProvider<HomeData>((ref) async {
+  ref.watch(authControllerProvider);
   final repository = ref.watch(catalogRepositoryProvider);
   final progressRepository = ref.watch(progressRepositoryProvider);
   final sources = await repository.getSources();
@@ -462,14 +468,31 @@ final progressProvider = FutureProvider.family<ReadingProgress?, ComicRequest>((
   ref,
   request,
 ) {
+  ref.watch(authControllerProvider);
   return ref
       .watch(progressRepositoryProvider)
       .getProgress(request.sourceName, request.slug);
 });
 
 final continueReadingProvider = FutureProvider<List<ReadingProgress>>((ref) {
+  ref.watch(authControllerProvider);
+  ref.watch(continueReadingRefreshSignalProvider);
   return ref.watch(progressRepositoryProvider).getContinueReading();
 });
+
+final continueReadingRefreshSignalProvider =
+    NotifierProvider<ContinueReadingRefreshSignalController, int>(
+      ContinueReadingRefreshSignalController.new,
+    );
+
+class ContinueReadingRefreshSignalController extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void bump() {
+    state++;
+  }
+}
 
 class ChapterRequest extends ComicRequest {
   const ChapterRequest(super.sourceName, super.slug, this.chapterNumber);

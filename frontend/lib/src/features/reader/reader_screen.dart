@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_icons.dart';
+import '../../core/app_snackbar.dart';
 import '../../core/reader_image_cache.dart';
 import '../../models/comic.dart';
 import '../../models/library.dart';
@@ -53,10 +55,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   static const _nearbyChapterWindow = 5.0;
   static const _nearbyStatusPollInterval = Duration(seconds: 4);
   static const _nearbyStatusMaxPolls = 20;
-  static const _progressSaveDelay = Duration(milliseconds: 900);
+  static const _progressSaveDelay = Duration(milliseconds: 500);
+  static const _imagePrefetchCooldown = Duration(seconds: 20);
+  static const _imagePrefetchHistoryLifetime = Duration(seconds: 60);
 
-  final _scrollController = ScrollController();
-  final _pageController = PageController();
+  ScrollController _scrollController = ScrollController();
+  PageController _pageController = PageController();
   final ValueNotifier<int> _currentPage = ValueNotifier<int>(0);
   final Stopwatch _readingStopwatch = Stopwatch();
   late final ReadingTimeController _readingTimeController;
@@ -65,10 +69,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   bool _pagedMode = false;
   bool _didApplyReaderPreferences = false;
   bool _restored = false;
+  bool _isRestoringPosition = false;
+  bool _readerScaffoldShown = false;
   bool _nearbyWatcherStarted = false;
   Timer? _imagePrefetchTimer;
   Timer? _initialPreloadTimeoutTimer;
   Timer? _nearbyReadyTimer;
+  Timer? _nearbyReadyNoticeTimer;
   Timer? _progressSaveTimer;
   Timer? _autoNextTimer;
   int _nearbyReadyPolls = 0;
@@ -85,10 +92,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   bool _autoNextArmed = false;
   bool _autoNextTriggered = false;
   bool _continuousLoadingNext = false;
+  String? _nearbyReadyNoticeMessage;
   final Set<double> _continuousLoadedChapterNumbers = <double>{};
   final Set<double> _continuousLoadingChapterNumbers = <double>{};
   final Set<double> _continuousUnavailableChapterNumbers = <double>{};
-  final Set<int> _requestedPrefetchIndexes = <int>{};
+  final Map<String, DateTime> _recentPrefetchRequests = <String, DateTime>{};
   final Set<double> _announcedNearbyReadyChapters = <double>{};
   final Map<double, int> _knownNearbyPageCounts = <double, int>{};
   final Map<String, GlobalKey> _verticalPageKeys = <String, GlobalKey>{};
@@ -130,6 +138,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     _imagePrefetchTimer?.cancel();
     _initialPreloadTimeoutTimer?.cancel();
     _nearbyReadyTimer?.cancel();
+    _nearbyReadyNoticeTimer?.cancel();
     _progressSaveTimer?.cancel();
     _autoNextTimer?.cancel();
     super.dispose();
@@ -161,6 +170,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       _pagedMode = false;
       _didApplyReaderPreferences = false;
       _restored = false;
+      _isRestoringPosition = false;
+      _readerScaffoldShown = false;
       _nearbyWatcherStarted = false;
       _autoNextArmed = false;
       _autoNextTriggered = false;
@@ -169,17 +180,19 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       _activeChapterNumber = widget.chapterNumber;
       _activeChapterTitle = widget.chapterTitle;
       _nearbyReadyPolls = 0;
+      _nearbyReadyNoticeMessage = null;
       _initialPreloadKey = null;
       _initialPreloadFuture = null;
       _continuousLoadedChapterNumbers.clear();
       _continuousLoadingChapterNumbers.clear();
       _continuousUnavailableChapterNumbers.clear();
-      _requestedPrefetchIndexes.clear();
+      _recentPrefetchRequests.clear();
       _announcedNearbyReadyChapters.clear();
       _knownNearbyPageCounts.clear();
       _imagePrefetchTimer?.cancel();
       _initialPreloadTimeoutTimer?.cancel();
       _nearbyReadyTimer?.cancel();
+      _nearbyReadyNoticeTimer?.cancel();
       _progressSaveTimer?.cancel();
       _autoNextTimer?.cancel();
       if (_scrollController.hasClients) {
@@ -195,6 +208,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     if (!_scrollController.hasClients || _pagedMode || _activePages.isEmpty) {
       return;
     }
+    // Suppress progress recording while restoring scroll position to avoid
+    // overwriting the saved progress with the intermediate scroll position.
+    if (_isRestoringPosition) return;
+
     final userScrolling =
         _scrollController.position.userScrollDirection != ScrollDirection.idle;
     final visiblePage = _visibleVerticalPagePosition();
@@ -351,10 +368,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       return;
     }
     if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        next * MediaQuery.sizeOf(context).height * 0.82,
-        duration: const Duration(milliseconds: 260),
-        curve: Curves.easeOutCubic,
+      unawaited(
+        _animateToVerticalPageIndex(
+          next,
+          duration: const Duration(milliseconds: 260),
+        ),
       );
     }
   }
@@ -381,27 +399,21 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
           .then((_) {
             ref.invalidate(favoriteScenesProvider);
             if (!mounted) return;
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(
-                SnackBar(
-                  content: Text('Page ${page.number} tersimpan ke Scene.'),
-                  behavior: SnackBarBehavior.floating,
-                  duration: const Duration(seconds: 2),
-                ),
-              );
+            showAppSnackBar(
+              context,
+              message: 'Page ${page.number} tersimpan ke Scene.',
+              type: AppSnackBarType.success,
+              duration: const Duration(seconds: 2),
+            );
           })
           .catchError((Object error) {
             if (!mounted) return;
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(
-                SnackBar(
-                  content: Text(error.toString()),
-                  behavior: SnackBarBehavior.floating,
-                  duration: const Duration(seconds: 2),
-                ),
-              );
+            showAppSnackBar(
+              context,
+              message: error.toString(),
+              type: AppSnackBarType.failure,
+              duration: const Duration(seconds: 2),
+            );
           }),
     );
   }
@@ -575,22 +587,115 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     _currentPage.value = pageIndex;
     _pagedMode = progress.readingMode == 'paged';
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (_pagedMode) {
+    if (_pagedMode) {
+      // Paged mode: jump after the PageView attaches.
+      _isRestoringPosition = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          _isRestoringPosition = false;
+          return;
+        }
         if (_pageController.hasClients) {
           _pageController.jumpToPage(pageIndex);
         }
+        _isRestoringPosition = false;
+      });
+      return;
+    }
+
+    if (!_scrollController.hasClients) {
+      // Fast path: the ListView hasn't attached yet (we're inside the
+      // FutureBuilder builder that is about to build it for the first time).
+      // Recreate the controller with initialScrollOffset so Flutter renders
+      // the list starting directly at the saved position — no visible jump.
+      _recreateScrollControllerAt(_progressScrollOffset(pageIndex));
+      _schedulePreciseScrollRestoration(pageIndex);
+      return;
+    }
+
+    _restoreAttachedVerticalPosition(pageIndex);
+  }
+
+  void _restoreAttachedVerticalPosition(int pageIndex) {
+    final targetOffset = _progressScrollOffset(pageIndex);
+    _isRestoringPosition = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        _isRestoringPosition = false;
         return;
       }
-      if (!_scrollController.hasClients) return;
-      final targetOffset =
-          progress.scrollOffset ??
-          pageIndex * MediaQuery.sizeOf(context).height * 0.82;
-      _scrollController.jumpTo(
-        targetOffset.clamp(0, _scrollController.position.maxScrollExtent),
-      );
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(
+          targetOffset.clamp(0, _scrollController.position.maxScrollExtent),
+        );
+        _schedulePreciseScrollRestoration(pageIndex);
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _isRestoringPosition = false;
+      });
     });
+  }
+
+  /// Disposes the current [ScrollController] and creates a fresh one that
+  /// starts at [initialOffset]. The progress listener is re-attached so the
+  /// rest of the code is unaware of the swap.
+  void _recreateScrollControllerAt(double initialOffset) {
+    _scrollController.removeListener(_syncVerticalProgress);
+    _scrollController.dispose();
+    _scrollController = ScrollController(initialScrollOffset: initialOffset);
+    _scrollController.addListener(_syncVerticalProgress);
+  }
+
+  void _recreatePageControllerAt(int pageIndex) {
+    _pageController.dispose();
+    _pageController = PageController(initialPage: pageIndex);
+  }
+
+  /// Schedules a multi-frame check to align the target page index perfectly
+  /// with the top of the viewport using [Scrollable.ensureVisible] as soon
+  /// as its render context is available.
+  void _schedulePreciseScrollRestoration(int pageIndex) {
+    if (_activePages.isEmpty ||
+        pageIndex < 0 ||
+        pageIndex >= _activePages.length) {
+      return;
+    }
+
+    var attempts = 0;
+    void checkAndAlign() {
+      if (!mounted) return;
+      final page = _activePages[pageIndex];
+      final pageContext =
+          _verticalPageKeys[_verticalPageKey(page)]?.currentContext;
+
+      if (pageContext != null) {
+        final renderBox = pageContext.findRenderObject() as RenderBox?;
+        if (renderBox != null && renderBox.attached) {
+          // Suppress sync vertical progress to avoid saving intermediate scrolls
+          _isRestoringPosition = true;
+          Scrollable.ensureVisible(
+            pageContext,
+            alignment: 0.0,
+            duration: Duration.zero, // Snap instantly
+          );
+          // Wait one frame after alignment to let it settle before unsuppressing
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _isRestoringPosition = false;
+            }
+          });
+          return;
+        }
+      }
+
+      attempts++;
+      if (attempts < 15) {
+        // Try again in the next frame to allow lazy list items to build and lay out
+        WidgetsBinding.instance.addPostFrameCallback((_) => checkAndAlign());
+      }
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => checkAndAlign());
   }
 
   @override
@@ -619,12 +724,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
         savedProgress?.chapterNumber == widget.chapterNumber
         ? savedProgress
         : null;
-    if (!_didApplyReaderPreferences &&
-        (readerPrefs != null || matchingProgress != null)) {
-      _pagedMode =
-          matchingProgress?.readingMode == 'paged' ||
-          (matchingProgress == null &&
-              readerPrefs?.defaultReadingMode == 'paged');
+    if (!_restored && matchingProgress != null) {
+      _pagedMode = matchingProgress.readingMode == 'paged';
+      _didApplyReaderPreferences = true;
+    } else if (!_didApplyReaderPreferences && readerPrefs != null) {
+      _pagedMode = readerPrefs.defaultReadingMode == 'paged';
       _didApplyReaderPreferences = true;
     }
     final theme = Theme.of(context);
@@ -644,12 +748,23 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       systemNavigationBarDividerColor: Colors.transparent,
       systemNavigationBarContrastEnforced: false,
     );
+    const preparingOverlayStyle = SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      statusBarBrightness: Brightness.dark,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarIconBrightness: Brightness.light,
+      systemNavigationBarDividerColor: Colors.transparent,
+      systemNavigationBarContrastEnforced: false,
+    );
 
     if (payload == null && chapterAsync.isLoading) {
       return _buildBackAwareRoute(
-        Scaffold(
+        _PreparingReaderScaffold(
+          overlayStyle: preparingOverlayStyle,
           backgroundColor: readerBackground,
-          body: const _PreparingChapterView(),
+          comicSummary: _comicSummary,
+          chapterTitle: widget.chapterTitle,
         ),
       );
     }
@@ -681,17 +796,41 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       );
     }
 
+    final waitingForInitialProgress =
+        !_readerScaffoldShown &&
+        !_restored &&
+        progress.isLoading &&
+        savedProgress == null;
+    if (waitingForInitialProgress) {
+      return _buildBackAwareRoute(
+        _PreparingReaderScaffold(
+          overlayStyle: preparingOverlayStyle,
+          backgroundColor: readerBackground,
+          comicSummary: _comicSummary,
+          chapterTitle: widget.chapterTitle,
+        ),
+      );
+    }
+
     return _buildBackAwareRoute(
       FutureBuilder<void>(
-        future: _ensureInitialPreload(_initialChapterPages()),
+        future: _ensureInitialPreload(_initialChapterPages(), matchingProgress),
         builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return Scaffold(
+          // Position restore can happen synchronously before the first reader
+          // frame, but keep the loading screen until the target image window has
+          // been decoded/cached. Otherwise continue-reading opens on a correct
+          // anchor with a blank reserved image area.
+          if (snapshot.connectionState != ConnectionState.done &&
+              !_readerScaffoldShown) {
+            return _PreparingReaderScaffold(
+              overlayStyle: preparingOverlayStyle,
               backgroundColor: readerBackground,
-              body: const _PreparingChapterView(),
+              comicSummary: _comicSummary,
+              chapterTitle: widget.chapterTitle,
             );
           }
 
+          _readerScaffoldShown = true;
           _restorePosition(matchingProgress);
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _autoNextArmed = true;
@@ -708,6 +847,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
             scrollController: _scrollController,
             activePages: _activePages,
             continuousLoadingNext: _continuousLoadingNext,
+            nearbyReadyMessage: _nearbyReadyNoticeMessage,
             readerPrefs: readerPrefs,
             overlayVisible: _overlayVisible,
             currentPage: _currentPage,
@@ -943,9 +1083,37 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     _currentPage.value = targetIndex;
     _updateActiveChapter(_activePages[targetIndex]);
     if (!_scrollController.hasClients) return;
-    await _scrollController.animateTo(
-      targetIndex * MediaQuery.sizeOf(context).height * 0.82,
+    await _animateToVerticalPageIndex(
+      targetIndex,
       duration: const Duration(milliseconds: 320),
+    );
+  }
+
+  Future<void> _animateToVerticalPageIndex(
+    int pageIndex, {
+    required Duration duration,
+  }) async {
+    if (!_scrollController.hasClients || _activePages.isEmpty) return;
+    final targetIndex = pageIndex.clamp(0, _activePages.length - 1);
+    final page = _activePages[targetIndex];
+    final pageContext =
+        _verticalPageKeys[_verticalPageKey(page)]?.currentContext;
+
+    if (pageContext != null) {
+      await Scrollable.ensureVisible(
+        pageContext,
+        alignment: 0,
+        duration: duration,
+        curve: Curves.easeOutCubic,
+      );
+      return;
+    }
+
+    final fallbackOffset =
+        targetIndex * MediaQuery.sizeOf(context).height * 0.82;
+    await _scrollController.animateTo(
+      fallbackOffset.clamp(0, _scrollController.position.maxScrollExtent),
+      duration: duration,
       curve: Curves.easeOutCubic,
     );
   }
@@ -1020,28 +1188,108 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     );
   }
 
-  Future<void> _ensureInitialPreload(List<_ReaderPageUi> pages) {
+  Future<void> _ensureInitialPreload(
+    List<_ReaderPageUi> pages,
+    ReadingProgress? matchingProgress,
+  ) {
+    final restoreIndex = matchingProgress == null
+        ? null
+        : (matchingProgress.pageIndex ??
+                      matchingProgress.lastReadPageItemIndex ??
+                      0)
+                  .clamp(0, math.max(0, pages.length - 1))
+              as int;
+
+    // Run the synchronous restoration IMMEDIATELY!
+    // This sets up the controller and flags synchronously, allowing the first
+    // frame to layout exactly at the saved position and bypass the loading gate.
+    if (restoreIndex != null && !_restored) {
+      _currentPage.value = restoreIndex;
+      if (_pagedMode) {
+        _recreatePageControllerAt(restoreIndex);
+        _restored = true;
+      } else if (!_scrollController.hasClients) {
+        _recreateScrollControllerAt(_progressScrollOffset(restoreIndex));
+        _schedulePreciseScrollRestoration(restoreIndex);
+        _restored = true;
+      } else {
+        _restoreAttachedVerticalPosition(restoreIndex);
+        _restored = true;
+      }
+    }
+
     final key =
-        '${widget.sourceName}|${widget.slug}|${widget.chapterNumber}|${pages.length}';
+        '${widget.sourceName}|${widget.slug}|${widget.chapterNumber}|${pages.length}|${restoreIndex ?? 'none'}';
     if (_initialPreloadKey == key && _initialPreloadFuture != null) {
       return _initialPreloadFuture!;
     }
     _initialPreloadKey = key;
-    _initialPreloadFuture = _preloadIndexes(
-      Iterable<int>.generate(math.min(3, pages.length)),
-      timeout: const Duration(seconds: 6),
+    _initialPreloadFuture = _prepareInitialReaderAfterFirstFrame(
+      pages,
+      restoreIndex,
     );
     return _initialPreloadFuture!;
+  }
+
+  Future<void> _prepareInitialReaderAfterFirstFrame(
+    List<_ReaderPageUi> pages,
+    int? restoreIndex,
+  ) async {
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+    await _prepareInitialReader(pages, restoreIndex);
+  }
+
+  /// Synchronously prepares the scroll controller for the restore position,
+  /// then preloads images centred around [restoreIndex] (or from the start).
+  Future<void> _prepareInitialReader(
+    List<_ReaderPageUi> pages,
+    int? restoreIndex,
+  ) async {
+    // ── Synchronous part (runs before the first await) ──────────────────────
+    if (restoreIndex != null &&
+        !_restored &&
+        !_pagedMode &&
+        !_scrollController.hasClients) {
+      _currentPage.value = restoreIndex;
+      _recreateScrollControllerAt(_progressScrollOffset(restoreIndex));
+      _schedulePreciseScrollRestoration(restoreIndex);
+      _restored = true; // _restorePosition will be a no-op
+    }
+
+    // ── Async part: preload images around the restore (or start) ─────────────
+    final center = restoreIndex ?? 0;
+    final start = math.max(0, center - 2);
+    final end = math.min(pages.length - 1, center + 3);
+    await _preloadIndexes(
+      Iterable<int>.generate(end - start + 1, (i) => start + i),
+      timeout: const Duration(seconds: 6),
+      ignoreRecentRequests: true,
+    );
+  }
+
+  /// Estimates the scroll offset for a given page index using the known
+  /// aspect ratios of already-loaded images, falling back to a viewport ratio.
+  double _progressScrollOffset(int pageIndex) {
+    if (_activePages.isEmpty) return 0;
+    var offset = 0.0;
+    final width = MediaQuery.sizeOf(context).width;
+    for (var i = 0; i < pageIndex && i < _activePages.length; i++) {
+      final ar = _readerPageAspectRatio(_activePages[i]);
+      offset += ar > 0 ? width / ar : MediaQuery.sizeOf(context).height * 0.82;
+    }
+    return offset;
   }
 
   Future<void> _preloadFromCurrentPosition() {
     if (_activePages.isEmpty) return Future<void>.value();
     final current = _currentPage.value.clamp(0, _activePages.length - 1);
-    final indexes = <int>[];
-    for (var index = current + 1; index <= current + 3; index++) {
-      if (index < _activePages.length) {
-        indexes.add(index);
-      }
+    final indexes = <int>[current];
+    for (var distance = 1; distance <= 3; distance++) {
+      final next = current + distance;
+      final previous = current - distance;
+      if (next < _activePages.length) indexes.add(next);
+      if (previous >= 0) indexes.add(previous);
     }
     return _preloadIndexes(indexes);
   }
@@ -1049,30 +1297,37 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   Future<void> _preloadIndexes(
     Iterable<int> indexes, {
     Duration? timeout,
+    bool ignoreRecentRequests = false,
   }) async {
     if (!mounted) return;
-    final providers = <ImageProvider>[];
+    final now = DateTime.now();
+    _recentPrefetchRequests.removeWhere(
+      (_, requestedAt) =>
+          now.difference(requestedAt) > _imagePrefetchHistoryLifetime,
+    );
+    final futures = <Future<void>>[];
     for (final index in indexes) {
       if (index < 0 || index >= _activePages.length) continue;
-      if (!_requestedPrefetchIndexes.add(index)) continue;
       final imageUrl = _activePages[index].imageUrl;
+      final lastRequested = _recentPrefetchRequests[imageUrl];
+      if (!ignoreRecentRequests &&
+          lastRequested != null &&
+          now.difference(lastRequested) < _imagePrefetchCooldown) {
+        continue;
+      }
+      _recentPrefetchRequests[imageUrl] = now;
       final filePath = _localFilePath(imageUrl);
-      providers.add(
-        filePath == null
-            ? CachedNetworkImageProvider(
-                imageUrl,
-                cacheManager: ReaderImageCacheManager.instance,
-              )
-            : FileImage(File(filePath)),
-      );
+      final ImageProvider provider = filePath == null
+          ? CachedNetworkImageProvider(
+              imageUrl,
+              cacheManager: ReaderImageCacheManager.instance,
+            )
+          : FileImage(File(filePath));
+      futures.add(_precacheReaderImageProvider(provider, imageUrl));
     }
-    if (providers.isEmpty) return;
+    if (futures.isEmpty) return;
 
-    final future = Future.wait(
-      providers.map(
-        (provider) => precacheImage(provider, context).catchError((_) {}),
-      ),
-    );
+    final future = Future.wait(futures);
     if (timeout == null) {
       await future;
       return;
@@ -1087,6 +1342,47 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     await Future.any<void>([future.then((_) {}), timeoutCompleter.future]);
     _initialPreloadTimeoutTimer?.cancel();
     _initialPreloadTimeoutTimer = null;
+  }
+
+  Future<void> _precacheReaderImageProvider(
+    ImageProvider provider,
+    String imageUrl,
+  ) async {
+    if (!mounted) return;
+
+    final imageConfig = createLocalImageConfiguration(context);
+    final stream = provider.resolve(imageConfig);
+    final ratioCompleter = Completer<void>();
+    late final ImageStreamListener listener;
+    listener = ImageStreamListener(
+      (info, _) {
+        _rememberReaderImageAspectRatio(imageUrl, info);
+        if (!ratioCompleter.isCompleted) {
+          ratioCompleter.complete();
+        }
+      },
+      onError: (_, _) {
+        if (!ratioCompleter.isCompleted) {
+          ratioCompleter.complete();
+        }
+      },
+    );
+    stream.addListener(listener);
+
+    try {
+      await Future.wait<void>([
+        precacheImage(
+          provider,
+          context,
+        ).timeout(const Duration(seconds: 10)).catchError((_) {}),
+        ratioCompleter.future.timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {},
+        ),
+      ]);
+    } finally {
+      stream.removeListener(listener);
+    }
   }
 
   void _ensureNearbyReadinessWatcher(List<ChapterListItem>? chapters) {
@@ -1137,7 +1433,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
 
       if (newlyReady.isNotEmpty && mounted) {
         ref.invalidate(chaptersProvider(_comicRequest));
-        _showNearbyReadyToast(newlyReady);
+        _showNearbyReadyNotice(newlyReady);
       }
 
       final stillPending = _nearbyChapters(
@@ -1161,7 +1457,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     });
   }
 
-  void _showNearbyReadyToast(List<ChapterListItem> chapters) {
+  void _showNearbyReadyNotice(List<ChapterListItem> chapters) {
     final sorted = [...chapters]
       ..sort(
         (a, b) => (a.chapterNumber - widget.chapterNumber).abs().compareTo(
@@ -1176,15 +1472,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
         ? '${shown.join(', ')} +$extra siap dibaca'
         : '${shown.join(', ')} siap dibaca';
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+    _nearbyReadyNoticeTimer?.cancel();
+    setState(() => _nearbyReadyNoticeMessage = message);
+    _nearbyReadyNoticeTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted && _nearbyReadyNoticeMessage == message) {
+        setState(() => _nearbyReadyNoticeMessage = null);
+      }
+    });
   }
 }
 
@@ -1211,6 +1505,7 @@ class _ReadyReaderScaffold extends StatelessWidget {
     required this.scrollController,
     required this.activePages,
     required this.continuousLoadingNext,
+    required this.nearbyReadyMessage,
     required this.readerPrefs,
     required this.overlayVisible,
     required this.currentPage,
@@ -1236,6 +1531,7 @@ class _ReadyReaderScaffold extends StatelessWidget {
   final ScrollController scrollController;
   final List<_ReaderPageUi> activePages;
   final bool continuousLoadingNext;
+  final String? nearbyReadyMessage;
   final ReaderPreferences? readerPrefs;
   final bool overlayVisible;
   final ValueListenable<int> currentPage;
@@ -1294,6 +1590,10 @@ class _ReadyReaderScaffold extends StatelessWidget {
                 onOpenComicDetail: onOpenComicDetail,
                 onToggleMode: onToggleMode,
               ),
+              _NearbyReadyIndicator(
+                message: nearbyReadyMessage,
+                controlsVisible: overlayVisible,
+              ),
               _ReaderBottomBar(
                 visible: overlayVisible,
                 bingeModeActive: readerPrefs?.defaultBingeMode == true,
@@ -1306,6 +1606,34 @@ class _ReadyReaderScaffold extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PreparingReaderScaffold extends StatelessWidget {
+  const _PreparingReaderScaffold({
+    required this.overlayStyle,
+    required this.backgroundColor,
+    required this.comicSummary,
+    required this.chapterTitle,
+  });
+
+  final SystemUiOverlayStyle overlayStyle;
+  final Color backgroundColor;
+  final ComicSummary comicSummary;
+  final String chapterTitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlayStyle,
+      child: Scaffold(
+        backgroundColor: backgroundColor,
+        body: _PreparingChapterView(
+          comicSummary: comicSummary,
+          chapterTitle: chapterTitle,
         ),
       ),
     );
@@ -1330,9 +1658,107 @@ class _ReaderBottomViewportFade extends StatelessWidget {
               end: Alignment.bottomCenter,
               colors: List.generate(9, (index) {
                 final p = index / 8;
-                return Colors.black.withValues(alpha: math.pow(p, 1.5).toDouble());
+                return Colors.black.withValues(
+                  alpha: math.pow(p, 1.5).toDouble(),
+                );
               }),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NearbyReadyIndicator extends StatelessWidget {
+  const _NearbyReadyIndicator({
+    required this.message,
+    required this.controlsVisible,
+  });
+
+  final String? message;
+  final bool controlsVisible;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final safeBottom = MediaQuery.paddingOf(context).bottom;
+
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      right: 12,
+      left: 12,
+      bottom: safeBottom + (controlsVisible ? 238 : 18),
+      child: IgnorePointer(
+        child: Align(
+          alignment: Alignment.bottomRight,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            reverseDuration: const Duration(milliseconds: 140),
+            transitionBuilder: (child, animation) {
+              final curved = CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+              );
+              return FadeTransition(
+                opacity: curved,
+                child: ScaleTransition(
+                  scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
+                  child: child,
+                ),
+              );
+            },
+            child: message == null
+                ? const SizedBox.shrink(key: ValueKey('nearby-ready-empty'))
+                : Semantics(
+                    key: ValueKey(message),
+                    liveRegion: true,
+                    label: message,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: math.min(
+                          MediaQuery.sizeOf(context).width - 24,
+                          320,
+                        ),
+                      ),
+                      child: Material(
+                        color: colorScheme.inverseSurface.withValues(
+                          alpha: 0.88,
+                        ),
+                        borderRadius: BorderRadius.circular(99),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 7,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                TonztoonIcons.check,
+                                size: 15,
+                                color: colorScheme.onInverseSurface,
+                              ),
+                              const SizedBox(width: 7),
+                              Flexible(
+                                child: Text(
+                                  message!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: colorScheme.onInverseSurface,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
           ),
         ),
       ),
@@ -1537,6 +1963,72 @@ class _PagedReader extends StatelessWidget {
   }
 }
 
+const _standardWebtoonAspectRatio = 0.68;
+const _minReliableReaderImageAspectRatio = 0.25;
+const _maxReliableReaderImageAspectRatio = 2.5;
+const _minFallbackWebtoonAspectRatio = 0.45;
+const _maxFallbackWebtoonAspectRatio = 0.9;
+
+final Map<String, double> _knownReaderImageAspectRatios = <String, double>{};
+
+void _rememberReaderImageAspectRatio(String url, ImageInfo info) {
+  final width = info.image.width.toDouble();
+  final height = info.image.height.toDouble();
+  if (width <= 0 || height <= 0) return;
+  final aspectRatio = width / height;
+  if (!aspectRatio.isFinite ||
+      aspectRatio < _minReliableReaderImageAspectRatio ||
+      aspectRatio > _maxReliableReaderImageAspectRatio) {
+    return;
+  }
+  _knownReaderImageAspectRatios[url] = aspectRatio;
+}
+
+double _readerPageAspectRatio(_ReaderPageUi page) {
+  final known = _knownReaderImageAspectRatios[page.imageUrl];
+  if (known != null && known > 0) return known;
+  return _dynamicReaderFallbackAspectRatio(page.aspectRatio);
+}
+
+double _dynamicReaderFallbackAspectRatio(double seedAspectRatio) {
+  final knownRatios =
+      _knownReaderImageAspectRatios.values
+          .where(
+            (ratio) =>
+                ratio.isFinite &&
+                ratio >= _minReliableReaderImageAspectRatio &&
+                ratio <= _maxReliableReaderImageAspectRatio,
+          )
+          .toList()
+        ..sort();
+  if (knownRatios.isEmpty) {
+    final seed = seedAspectRatio > 0
+        ? seedAspectRatio
+        : _standardWebtoonAspectRatio;
+    return seed.clamp(
+      _minFallbackWebtoonAspectRatio,
+      _maxFallbackWebtoonAspectRatio,
+    );
+  }
+
+  final middle = knownRatios.length ~/ 2;
+  final median = knownRatios.length.isOdd
+      ? knownRatios[middle]
+      : (knownRatios[middle - 1] + knownRatios[middle]) / 2;
+  return median.clamp(
+    _minFallbackWebtoonAspectRatio,
+    _maxFallbackWebtoonAspectRatio,
+  );
+}
+
+double _readerPageHeightForWidth(BuildContext context, double aspectRatio) {
+  final width = MediaQuery.sizeOf(context).width;
+  final ratio = aspectRatio > 0 && aspectRatio.isFinite
+      ? aspectRatio
+      : _standardWebtoonAspectRatio;
+  return width / ratio;
+}
+
 class _ReaderPage extends StatefulWidget {
   const _ReaderPage({
     required this.page,
@@ -1557,6 +2049,15 @@ class _ReaderPage extends StatefulWidget {
 class _ReaderPageState extends State<_ReaderPage> {
   var _retrySerial = 0;
   bool _retrying = false;
+  String? _aspectRatioResolveUrl;
+  ImageStream? _aspectRatioStream;
+  ImageStreamListener? _aspectRatioListener;
+
+  @override
+  void dispose() {
+    _removeAspectRatioListener();
+    super.dispose();
+  }
 
   Future<void> _retryImage(String url) async {
     if (_retrying) return;
@@ -1575,11 +2076,50 @@ class _ReaderPageState extends State<_ReaderPage> {
     }
   }
 
+  void _rememberImageAspectRatio(ImageProvider provider, String url) {
+    if (_knownReaderImageAspectRatios.containsKey(url) ||
+        _aspectRatioResolveUrl == url) {
+      return;
+    }
+
+    _removeAspectRatioListener();
+    _aspectRatioResolveUrl = url;
+    final stream = provider.resolve(createLocalImageConfiguration(context));
+    late final ImageStreamListener listener;
+    listener = ImageStreamListener((info, _) {
+      _rememberReaderImageAspectRatio(url, info);
+      if (mounted && widget.page.imageUrl == url) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() {});
+        });
+      }
+      _removeAspectRatioListener();
+    }, onError: (_, _) => _removeAspectRatioListener());
+    _aspectRatioStream = stream;
+    _aspectRatioListener = listener;
+    stream.addListener(listener);
+  }
+
+  void _removeAspectRatioListener() {
+    final stream = _aspectRatioStream;
+    final listener = _aspectRatioListener;
+    if (stream != null && listener != null) {
+      stream.removeListener(listener);
+    }
+    _aspectRatioStream = null;
+    _aspectRatioListener = null;
+    _aspectRatioResolveUrl = null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final imageUrl = widget.page.imageUrl;
     final filePath = _localFilePath(imageUrl);
+    final aspectRatio = _readerPageAspectRatio(widget.page);
+    final reservedHeight = widget.paged
+        ? double.infinity
+        : _readerPageHeightForWidth(context, aspectRatio);
     final decoration = widget.paged
         ? BoxDecoration(
             color: widget.page.background,
@@ -1601,26 +2141,29 @@ class _ReaderPageState extends State<_ReaderPage> {
             cacheManager: ReaderImageCacheManager.instance,
             width: double.infinity,
             fit: fit,
+            imageBuilder: (context, imageProvider) {
+              _rememberImageAspectRatio(imageProvider, imageUrl);
+              return Image(
+                image: imageProvider,
+                width: double.infinity,
+                fit: fit,
+              );
+            },
             placeholder: (context, url) =>
-                _ImageSkeleton(height: widget.paged ? double.infinity : 360),
+                _ReaderPageReservedSpace(height: reservedHeight),
             errorWidget: (context, url, error) => _ReaderPageError(
               pageNumber: widget.page.number,
               paged: widget.paged,
+              reservedHeight: reservedHeight,
               retrying: _retrying,
               onRetry: () => _retryImage(url),
             ),
           )
-        : Image.file(
-            File(filePath),
-            key: ValueKey('$filePath|$_retrySerial'),
-            width: double.infinity,
+        : _localReaderImage(
+            filePath: filePath,
+            imageUrl: imageUrl,
             fit: fit,
-            errorBuilder: (context, error, stackTrace) => _ReaderPageError(
-              pageNumber: widget.page.number,
-              paged: widget.paged,
-              retrying: _retrying,
-              onRetry: () => _retryImage(imageUrl),
-            ),
+            reservedHeight: reservedHeight,
           );
 
     if (widget.paged) {
@@ -1649,25 +2192,50 @@ class _ReaderPageState extends State<_ReaderPage> {
       ),
     );
   }
+
+  Widget _localReaderImage({
+    required String filePath,
+    required String imageUrl,
+    required BoxFit fit,
+    required double reservedHeight,
+  }) {
+    final provider = FileImage(File(filePath));
+    _rememberImageAspectRatio(provider, imageUrl);
+    return Image(
+      image: provider,
+      key: ValueKey('$filePath|$_retrySerial'),
+      width: double.infinity,
+      fit: fit,
+      errorBuilder: (context, error, stackTrace) => _ReaderPageError(
+        pageNumber: widget.page.number,
+        paged: widget.paged,
+        reservedHeight: reservedHeight,
+        retrying: _retrying,
+        onRetry: () => _retryImage(imageUrl),
+      ),
+    );
+  }
 }
 
 class _ReaderPageError extends StatelessWidget {
   const _ReaderPageError({
     required this.pageNumber,
     required this.paged,
+    required this.reservedHeight,
     required this.retrying,
     required this.onRetry,
   });
 
   final int pageNumber;
   final bool paged;
+  final double reservedHeight;
   final bool retrying;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: paged ? double.infinity : 260,
+      height: paged ? double.infinity : reservedHeight,
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1726,21 +2294,28 @@ class _ReaderPageStack extends StatelessWidget {
 }
 
 class _PreparingChapterView extends StatefulWidget {
-  const _PreparingChapterView();
+  const _PreparingChapterView({
+    required this.comicSummary,
+    required this.chapterTitle,
+  });
+
+  final ComicSummary comicSummary;
+  final String chapterTitle;
 
   @override
   State<_PreparingChapterView> createState() => _PreparingChapterViewState();
 }
 
 class _PreparingChapterViewState extends State<_PreparingChapterView> {
-  bool _showMessage = false;
+  bool _showProgress = false;
   Timer? _timer;
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer(const Duration(milliseconds: 450), () {
-      if (mounted) setState(() => _showMessage = true);
+    // Delay showing progress indicator slightly to prevent flickering on fast loads
+    _timer = Timer(const Duration(milliseconds: 150), () {
+      if (mounted) setState(() => _showProgress = true);
     });
   }
 
@@ -1752,47 +2327,184 @@ class _PreparingChapterViewState extends State<_PreparingChapterView> {
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: Colors.black,
-      child: SafeArea(
-        child: Center(
-          child: AnimatedOpacity(
-            opacity: _showMessage ? 1 : 0,
-            duration: const Duration(milliseconds: 180),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(
-                  width: 180,
-                  child: LinearProgressIndicator(minHeight: 2),
+    final coverUrl = widget.comicSummary.coverImageUrl;
+    final hasCover = coverUrl != null && coverUrl.isNotEmpty;
+
+    return Stack(
+      children: [
+        // Blurred Cover Background
+        Positioned.fill(
+          child: hasCover
+              ? ImageFiltered(
+                  imageFilter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+                  child: CachedNetworkImage(
+                    imageUrl: coverUrl,
+                    fit: BoxFit.cover,
+                    errorWidget: (context, url, error) =>
+                        const SizedBox.shrink(),
+                  ),
+                )
+              : Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF0F172A), Color(0xFF020617)],
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  'Preparing chapter...',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleMedium?.copyWith(color: Colors.white),
-                ),
-              ],
+        ),
+
+        // Dark Premium Overlay
+        Positioned.fill(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withValues(alpha: 0.65),
+                  Colors.black.withValues(alpha: 0.88),
+                ],
+              ),
             ),
           ),
         ),
-      ),
+
+        // Content
+        SafeArea(
+          child: Center(
+            child: TweenAnimationBuilder<double>(
+              duration: const Duration(milliseconds: 400),
+              tween: Tween<double>(begin: 0.0, end: 1.0),
+              curve: Curves.easeOutBack,
+              builder: (context, value, child) {
+                return Opacity(
+                  opacity: value.clamp(0.0, 1.0),
+                  child: Transform.scale(
+                    scale: 0.9 + (value * 0.1),
+                    child: child,
+                  ),
+                );
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (hasCover)
+                      Container(
+                        width: 130,
+                        height: 185,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.12),
+                            width: 1.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              blurRadius: 24,
+                              spreadRadius: 2,
+                              offset: const Offset(0, 12),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: CachedNetworkImage(
+                            imageUrl: coverUrl,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Container(
+                              color: Colors.white.withValues(alpha: 0.05),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.book_outlined,
+                                  color: Colors.white54,
+                                  size: 32,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 28),
+                    Text(
+                      widget.comicSummary.title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${widget.comicSummary.sourceName.toUpperCase()} • ${widget.chapterTitle}',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.6),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.0,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 48),
+                    AnimatedOpacity(
+                      opacity: _showProgress ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 200),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 44,
+                            height: 44,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 3.5,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Theme.of(context).colorScheme.primary,
+                              ),
+                              backgroundColor: Colors.white.withValues(
+                                alpha: 0.15,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          Text(
+                            'Menyiapkan halaman...',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.4),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
 
-class _ImageSkeleton extends StatelessWidget {
-  const _ImageSkeleton({required this.height});
+class _ReaderPageReservedSpace extends StatelessWidget {
+  const _ReaderPageReservedSpace({required this.height});
 
   final double height;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(color: Color(0xFF090A0D)),
-      child: SizedBox(width: double.infinity, height: height),
-    );
+    return SizedBox(width: double.infinity, height: height);
   }
 }
 

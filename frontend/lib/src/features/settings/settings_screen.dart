@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../../core/app_snackbar.dart';
 import '../../core/avatar_image.dart';
 import '../../core/app_navigation.dart';
 import '../../core/app_icons.dart';
@@ -36,6 +37,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late final Future<PackageInfo> _packageInfoFuture;
+  bool _loggingOut = false;
 
   @override
   void initState() {
@@ -130,8 +132,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 prefs: readerPrefs,
                 themeMode: themeMode,
                 isSignedIn: widget.isSignedIn,
-                onNightModeChanged: (enabled) =>
-                    _setThemeMode(enabled ? ThemeMode.dark : ThemeMode.light),
                 onThemeChanged: (value) =>
                     _setThemeMode(_themeModeFromLabel(value)),
                 onReaderModeChanged: (value) => _savePrefs(
@@ -152,7 +152,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               if (widget.isSignedIn) ...[
                 const SizedBox(height: 24),
                 FilledButton.icon(
-                  onPressed: _logout,
+                  onPressed: _loggingOut ? null : _logout,
                   icon: const Icon(TonztoonIcons.logout, size: 18),
                   label: const Text('Logout'),
                   style: FilledButton.styleFrom(
@@ -177,7 +177,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _setThemeMode(ThemeMode mode) async {
-    await ref.read(appThemeModeProvider.notifier).setMode(mode);
+    try {
+      await ref.read(appThemeModeProvider.notifier).setMode(mode);
+    } catch (error) {
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        message: 'Gagal mengubah tema: $error',
+        type: AppSnackBarType.failure,
+      );
+    }
   }
 
   Future<void> _savePrefs(ReaderPreferences prefs) async {
@@ -185,31 +194,59 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       await ref.read(readerPreferencesProvider.notifier).save(prefs);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(content: Text('Gagal menyimpan preferensi: $error')),
-        );
+      showAppSnackBar(
+        context,
+        message: 'Gagal menyimpan preferensi: $error',
+        type: AppSnackBarType.failure,
+      );
     }
   }
 
   Future<void> _clearCache() async {
-    await ref.read(localStoreProvider).cache.clear();
-    ref.invalidate(sourcesProvider);
-    ref.invalidate(homeDataProvider);
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Cache katalog dibersihkan.')));
+    try {
+      await ref.read(localStoreProvider).cache.clear();
+      ref.invalidate(sourcesProvider);
+      ref.invalidate(homeDataProvider);
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        message: 'Cache katalog dibersihkan.',
+        type: AppSnackBarType.success,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        message: 'Gagal membersihkan cache: $error',
+        type: AppSnackBarType.failure,
+      );
+    }
   }
 
   Future<void> _logout() async {
-    await widget.onLogout();
-    ref.invalidate(homeDataProvider);
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Logout berhasil.')));
+    if (_loggingOut) return;
+    setState(() => _loggingOut = true);
+    try {
+      await widget.onLogout();
+      ref.invalidate(homeDataProvider);
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        message: 'Logout berhasil.',
+        type: AppSnackBarType.success,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        message: 'Logout gagal: $error',
+        type: AppSnackBarType.failure,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _loggingOut = false);
+      }
+    }
   }
 
   String _migrationRowSubtitle(GuestMigrationSummary summary) {
@@ -221,11 +258,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final repo = ref.read(libraryRepositoryProvider);
     final summary = repo.getGuestMigrationSummary();
     if (summary.isEmpty) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('Tidak ada data guest untuk migrasi.')),
-        );
+      showAppSnackBar(
+        context,
+        message: 'Tidak ada data guest untuk migrasi.',
+        type: AppSnackBarType.warning,
+      );
       return;
     }
 
@@ -247,20 +284,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
       loadingShown = false;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('Data guest berhasil disinkronkan.')),
-        );
+      showAppSnackBar(
+        context,
+        message: 'Data guest berhasil disinkronkan.',
+        type: AppSnackBarType.success,
+      );
     } catch (error) {
       if (!mounted) return;
       if (loadingShown) {
         Navigator.of(context, rootNavigator: true).pop();
         loadingShown = false;
       }
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text('Migrasi gagal: $error')));
+      showAppSnackBar(
+        context,
+        message: 'Migrasi gagal: $error',
+        type: AppSnackBarType.failure,
+      );
     }
   }
 
@@ -459,10 +498,12 @@ class _ProfileTextDialogState extends State<_ProfileTextDialog> {
       Navigator.of(context).pop(value);
     } catch (error) {
       if (!mounted) return;
+      final message = 'Gagal menyimpan: $error';
       setState(() {
         _saving = false;
-        _errorText = 'Gagal menyimpan: $error';
+        _errorText = message;
       });
+      showAppSnackBar(context, message: message, type: AppSnackBarType.failure);
     }
   }
 }
@@ -631,11 +672,11 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
           .updateProfile(displayName: value),
     );
     if (!mounted || name == null) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(content: Text('Profil berhasil diperbarui.')),
-      );
+    showAppSnackBar(
+      context,
+      message: 'Profil berhasil diperbarui.',
+      type: AppSnackBarType.success,
+    );
   }
 
   Future<void> _editAvatar() async {
@@ -661,22 +702,22 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
         Navigator.of(context, rootNavigator: true).pop();
         uploadDialogShown = false;
       }
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('Foto profil berhasil diperbarui.')),
-        );
+      showAppSnackBar(
+        context,
+        message: 'Foto profil berhasil diperbarui.',
+        type: AppSnackBarType.success,
+      );
     } catch (error) {
       if (!mounted) return;
       if (uploadDialogShown) {
         Navigator.of(context, rootNavigator: true).pop();
         uploadDialogShown = false;
       }
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(content: Text('Gagal mengunggah foto profil: $error')),
-        );
+      showAppSnackBar(
+        context,
+        message: 'Gagal mengunggah foto profil: $error',
+        type: AppSnackBarType.failure,
+      );
     } finally {
       if (mounted && uploadDialogShown) {
         Navigator.of(context, rootNavigator: true).pop();
@@ -1155,11 +1196,11 @@ class _PrivacySecurityContent extends ConsumerWidget {
     );
     if (!context.mounted || changed != true) return;
     ref.invalidate(authSecurityOverviewProvider);
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(content: Text('Password berhasil diperbarui.')),
-      );
+    showAppSnackBar(
+      context,
+      message: 'Password berhasil diperbarui.',
+      type: AppSnackBarType.success,
+    );
   }
 
   Future<void> _logoutCurrentSession(
@@ -1189,9 +1230,11 @@ class _PrivacySecurityContent extends ConsumerWidget {
     ref.invalidate(homeDataProvider);
     if (!context.mounted) return;
     Navigator.of(context).pop();
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('Logout berhasil.')));
+    showAppSnackBar(
+      context,
+      message: 'Logout berhasil.',
+      type: AppSnackBarType.success,
+    );
   }
 }
 
@@ -1397,10 +1440,12 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
       Navigator.of(context).pop(true);
     } catch (error) {
       if (!mounted) return;
+      final message = 'Gagal menyimpan: $error';
       setState(() {
         _saving = false;
-        _errorText = 'Gagal menyimpan: $error';
+        _errorText = message;
       });
+      showAppSnackBar(context, message: message, type: AppSnackBarType.failure);
     }
   }
 }
@@ -1712,7 +1757,6 @@ class _PreferencesSection extends StatelessWidget {
     required this.prefs,
     required this.themeMode,
     required this.isSignedIn,
-    required this.onNightModeChanged,
     required this.onThemeChanged,
     required this.onReaderModeChanged,
     required this.onDirectionChanged,
@@ -1725,7 +1769,6 @@ class _PreferencesSection extends StatelessWidget {
   final ReaderPreferences prefs;
   final ThemeMode themeMode;
   final bool isSignedIn;
-  final ValueChanged<bool> onNightModeChanged;
   final ValueChanged<String> onThemeChanged;
   final ValueChanged<String> onReaderModeChanged;
   final ValueChanged<String> onDirectionChanged;
@@ -1738,16 +1781,6 @@ class _PreferencesSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return _SettingsSection(
       children: [
-        _SettingsRow(
-          icon: TonztoonIcons.darkMode,
-          title: 'Night Mode',
-          subtitle: 'Use a darker reading surface',
-          trailing: Switch.adaptive(
-            value: themeMode == ThemeMode.dark,
-            onChanged: onNightModeChanged,
-          ),
-        ),
-        const _SettingsDivider(),
         _SegmentedSetting(
           icon: TonztoonIcons.lightMode,
           title: 'Theme',

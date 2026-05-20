@@ -1,6 +1,6 @@
 {
-    "name": "tonztoon_comic",
-    "short_name": "tonztoon_comic",
+    "name": "tonztoon",
+    "short_name": "tonztoon",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

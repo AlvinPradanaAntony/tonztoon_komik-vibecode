@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -8,11 +9,17 @@ import '../core/token_store.dart';
 import '../models/auth.dart';
 
 class AuthRepository {
-  AuthRepository(this._api, this._tokenStore, this._store);
+  AuthRepository(
+    this._api,
+    this._tokenStore,
+    this._store, {
+    Future<void> Function()? clearOfflineFiles,
+  }) : _clearOfflineFiles = clearOfflineFiles;
 
   final TonztoonApi _api;
   final TokenStore _tokenStore;
   final LocalStore _store;
+  final Future<void> Function()? _clearOfflineFiles;
 
   Future<AuthState> restore() async {
     final token = await _tokenStore.readAccessToken();
@@ -191,13 +198,36 @@ class AuthRepository {
   }
 
   Future<void> logout() async {
+    final accessToken = await _tokenStore.readAccessToken();
+    await _tokenStore.clear();
+    await _clearOfflineFilesSafely();
+    await _store.clearUserScopedData();
+    unawaited(_revokeServerSession(accessToken));
+  }
+
+  Future<void> _clearOfflineFilesSafely() async {
     try {
-      await _api.post<Map<String, dynamic>>('/auth/logout');
+      await _clearOfflineFiles?.call();
+    } catch (_) {
+      // Logging out must still clear local account state even if the platform
+      // cannot remove cached offline files.
+    }
+  }
+
+  Future<void> _revokeServerSession(String? accessToken) async {
+    try {
+      await _api.dio.post<Map<String, dynamic>>(
+        '/auth/logout',
+        options: Options(
+          headers: {
+            if (accessToken != null && accessToken.isNotEmpty)
+              'Authorization': 'Bearer $accessToken',
+          },
+        ),
+      );
     } catch (_) {
       // Local logout should still succeed if the server cannot be reached.
     }
-    await _tokenStore.clear();
-    await _store.auth.clear();
   }
 
   Future<AuthState> _persistSession(AuthSession session) async {

@@ -8,6 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_icons.dart';
+import '../../core/app_responsive.dart';
+import '../../core/app_snackbar.dart';
 import '../../models/comic.dart';
 import '../../models/library.dart';
 import '../../models/progress.dart';
@@ -37,7 +39,6 @@ class ComicDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
-  static const double _expandedHeaderHeight = 380;
   static const double _titleFadeStart = 150;
   static const double _titleFadeDistance = 90;
 
@@ -121,6 +122,7 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
+    final expandedHeaderHeight = AppResponsive.heroHeaderHeight(context);
     final navigationOverlayStyle = SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.light,
@@ -138,16 +140,25 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
       child: Scaffold(
         body: RefreshIndicator(
           onRefresh: () async {
-            ref.invalidate(comicDetailProvider(request));
-            ref.invalidate(chaptersProvider(request));
-            ref.invalidate(progressProvider(request));
-            ref.invalidate(libraryComicStateProvider(comic));
-            await Future.wait([
-              ref.read(comicDetailProvider(request).future),
-              ref.read(chaptersProvider(request).future),
-              ref.read(progressProvider(request).future),
-              ref.read(libraryComicStateProvider(comic).future),
-            ]);
+            try {
+              ref.invalidate(comicDetailProvider(request));
+              ref.invalidate(chaptersProvider(request));
+              ref.invalidate(progressProvider(request));
+              ref.invalidate(libraryComicStateProvider(comic));
+              await Future.wait([
+                ref.read(comicDetailProvider(request).future),
+                ref.read(chaptersProvider(request).future),
+                ref.read(progressProvider(request).future),
+                ref.read(libraryComicStateProvider(comic).future),
+              ]);
+            } catch (error) {
+              if (!context.mounted) return;
+              showAppSnackBar(
+                context,
+                message: 'Gagal memuat ulang detail komik: $error',
+                type: AppSnackBarType.failure,
+              );
+            }
           },
           child: CustomScrollView(
             controller: _scrollController,
@@ -157,7 +168,7 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
             slivers: [
               SliverAppBar(
                 automaticallyImplyLeading: false,
-                expandedHeight: _expandedHeaderHeight,
+                expandedHeight: expandedHeaderHeight,
                 pinned: true,
                 stretch: true,
                 elevation: 0,
@@ -370,9 +381,12 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
           .toggleBookmark(comic, state.bookmarked);
       ref.invalidate(libraryComicStateProvider(comic));
       ref.invalidate(bookmarksProvider);
-      _showSnack(bookmarked ? 'Bookmark disimpan.' : 'Bookmark dihapus.');
+      _showSnack(
+        bookmarked ? 'Bookmark disimpan.' : 'Bookmark dihapus.',
+        type: AppSnackBarType.success,
+      );
     } catch (error) {
-      _showSnack(error.toString());
+      _showSnack(error.toString(), type: AppSnackBarType.failure);
     } finally {
       if (mounted) setState(() => _bookmarkBusy = false);
     }
@@ -412,9 +426,9 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
           .setComicCollections(comic, result);
       ref.invalidate(libraryComicStateProvider(comic));
       ref.invalidate(collectionsProvider);
-      _showSnack('Koleksi diperbarui.');
+      _showSnack('Koleksi diperbarui.', type: AppSnackBarType.success);
     } catch (error) {
-      if (mounted) _showSnack(error.toString());
+      if (mounted) _showSnack(error.toString(), type: AppSnackBarType.failure);
     } finally {
       if (mounted) setState(() => _collectionBusy = false);
     }
@@ -434,7 +448,10 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
         )
         .toList();
     if (available.isEmpty) {
-      _showSnack('Semua chapter yang tersedia sudah masuk offline/antrean.');
+      _showSnack(
+        'Semua chapter yang tersedia sudah masuk offline/antrean.',
+        type: AppSnackBarType.warning,
+      );
       return;
     }
 
@@ -453,21 +470,23 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
       ref.invalidate(downloadsProvider);
       ref.invalidate(offlineQueueProvider);
       ref.invalidate(libraryComicStateProvider(comic));
-      _showSnack('${selected.length} chapter masuk antrean offline.');
+      _showSnack(
+        '${selected.length} chapter masuk antrean offline.',
+        type: AppSnackBarType.success,
+      );
     } catch (error) {
-      _showSnack(error.toString());
+      _showSnack(error.toString(), type: AppSnackBarType.failure);
     } finally {
       if (mounted) setState(() => _downloadBusy = false);
     }
   }
 
-  void _showSnack(String message) {
+  void _showSnack(
+    String message, {
+    AppSnackBarType type = AppSnackBarType.help,
+  }) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
-      );
+    showAppSnackBar(context, message: message, type: type);
   }
 }
 
@@ -536,8 +555,10 @@ Future<Set<int>?> _showCollectionPicker(
                           });
                         } catch (error) {
                           if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(error.toString())),
+                          showAppSnackBar(
+                            context,
+                            message: error.toString(),
+                            type: AppSnackBarType.failure,
                           );
                         }
                       },
@@ -1005,7 +1026,8 @@ class _DetailHero extends StatelessWidget {
           child: ImageFiltered(
             imageFilter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
             child: Transform.scale(
-              scale: 1.1, // Scale up to hide blur bleed/white edges at the boundaries
+              scale:
+                  1.1, // Scale up to hide blur bleed/white edges at the boundaries
               child: ComicCover(
                 imageUrl: detail.coverImageUrl,
                 borderRadius: 0,
@@ -1034,42 +1056,51 @@ class _DetailHero extends StatelessWidget {
         ),
         SafeArea(
           bottom: false,
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 14, 24, 46),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _SourceInfoBadge(sourceName: detail.sourceName),
-                  const SizedBox(height: 12),
-                  Hero(
-                    tag: 'detail-cover-${detail.title}',
-                    child: RepaintBoundary(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.38),
-                              blurRadius: 28,
-                              offset: const Offset(0, 18),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final coverSize = AppResponsive.detailCoverSize(
+                context,
+                constraints,
+              );
+
+              return Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 14, 24, 42),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _SourceInfoBadge(sourceName: detail.sourceName),
+                      const SizedBox(height: 12),
+                      Hero(
+                        tag: 'detail-cover-${detail.title}',
+                        child: RepaintBoundary(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.38),
+                                  blurRadius: 28,
+                                  offset: const Offset(0, 18),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                        child: ComicCover(
-                          imageUrl: detail.coverImageUrl,
-                          width: 182,
-                          height: 268,
-                          borderRadius: 12,
-                          fallbackIconSize: 36,
+                            child: ComicCover(
+                              imageUrl: detail.coverImageUrl,
+                              width: coverSize.width,
+                              height: coverSize.height,
+                              borderRadius: 12,
+                              fallbackIconSize: 36,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
         ),
       ],
@@ -1091,7 +1122,7 @@ class _ComicDetailLoadingPlaceholder extends StatelessWidget {
       slivers: [
         SliverToBoxAdapter(
           child: SizedBox(
-            height: _ComicDetailScreenState._expandedHeaderHeight,
+            height: AppResponsive.heroHeaderHeight(context),
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -1552,7 +1583,10 @@ class _TitleBlock extends StatelessWidget {
             child: Text(
               detail.title,
               textAlign: TextAlign.center,
-              style: theme.textTheme.headlineMedium?.copyWith(height: 1.08),
+              style: theme.textTheme.headlineMedium?.copyWith(
+                fontSize: AppResponsive.compactTitleSize(context),
+                height: 1.12,
+              ),
             ),
           ),
         ),
@@ -1920,9 +1954,11 @@ class _ChapterReadBadge extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final completed = state == _ChapterReadState.completed;
-    final color = completed ? colorScheme.tertiary : colorScheme.primary;
+    final color = completed ? const Color(0xFF16A34A) : colorScheme.secondary;
     final label = completed ? 'Selesai dibaca' : 'Terakhir dibaca';
-    final icon = completed ? TonztoonIcons.bookMarked : TonztoonIcons.clock;
+    final icon = completed
+        ? TonztoonIcons.badgeCheckFilled
+        : TonztoonIcons.clock;
 
     return Align(
       alignment: Alignment.centerLeft,
@@ -2514,7 +2550,11 @@ class _GlassIconButton extends StatelessWidget {
         // When value = 0 (expanded), bg alpha is 0.34. When value = 1 (collapsed), bg alpha is 0.
         final bgAlpha = 0.34 * (1.0 - value);
         // Fade icon color from White to onSurface for contrast
-        final iconColor = Color.lerp(Colors.white, colorScheme.onSurface, value);
+        final iconColor = Color.lerp(
+          Colors.white,
+          colorScheme.onSurface,
+          value,
+        );
 
         return DecoratedBox(
           decoration: BoxDecoration(
@@ -2685,15 +2725,19 @@ String _sourceLabel(String sourceName) {
 
 String _relativeDateLabel(DateTime date) {
   final now = DateTime.now();
-  final difference = now.difference(date);
+  final localDate = date.toLocal();
+  final difference = now.difference(localDate);
   if (difference.inDays <= 0) return 'Hari ini';
   if (difference.inDays == 1) return 'Kemarin';
   if (difference.inDays < 7) return '${difference.inDays} hari lalu';
   if (difference.inDays < 30) {
     return '${(difference.inDays / 7).floor()} minggu lalu';
   }
-  if (difference.inDays < 365) {
-    return '${(difference.inDays / 30).floor()} bulan lalu';
-  }
-  return '${(difference.inDays / 365).floor()} tahun lalu';
+  return _absoluteDateLabel(localDate);
+}
+
+String _absoluteDateLabel(DateTime date) {
+  final day = date.day.toString().padLeft(2, '0');
+  final month = date.month.toString().padLeft(2, '0');
+  return '$day/$month/${date.year}';
 }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_icons.dart';
+import '../../core/app_snackbar.dart';
 import '../../models/app_notification.dart';
 import '../../repositories/providers.dart';
 
@@ -97,14 +98,40 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     );
   }
 
-  Future<void> _markAllRead() {
-    return ref.read(notificationsProvider.notifier).markAllRead();
+  Future<void> _markAllRead() async {
+    try {
+      await ref.read(notificationsProvider.notifier).markAllRead();
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        message: 'Semua notifikasi ditandai dibaca.',
+        type: AppSnackBarType.success,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        message: 'Gagal menandai notifikasi: $error',
+        type: AppSnackBarType.failure,
+      );
+    }
   }
 
   Future<void> _openNotification(AppNotification item) async {
-    if (item.unread) {
-      await ref.read(notificationsProvider.notifier).markRead(item.id);
+    try {
+      if (item.unread) {
+        await ref.read(notificationsProvider.notifier).markRead(item.id);
+      }
+    } catch (error) {
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        message: 'Gagal membuka notifikasi: $error',
+        type: AppSnackBarType.failure,
+      );
+      return;
     }
+
     if (!mounted) return;
     final route = item.actionRoute;
     if (route == null || route.isEmpty) return;

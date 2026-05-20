@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/app_assets.dart';
 import '../../core/app_icons.dart';
+import '../../core/app_snackbar.dart';
 import 'section/comic_section_screen.dart';
 import '../../models/auth.dart';
 import '../../models/comic.dart';
@@ -135,6 +136,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     context,
                     title: 'Rilis Terbaru',
                     subtitle: 'Chapter baru dari berbagai sumber favorit.',
+                    sourceName: home.selectedSource.id,
                     comics: latestComics,
                     initialSort: ComicSortOption.updateNewest,
                   ),
@@ -148,6 +150,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     context,
                     title: 'Populer',
                     subtitle: 'Komik yang ramai dibaca minggu ini.',
+                    sourceName: home.selectedSource.id,
                     comics: popularComics,
                     initialSort: ComicSortOption.popular,
                   ),
@@ -167,9 +170,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       await ref.read(homeDataProvider.future);
     } catch (error) {
       if (!mounted || !showErrorSnackBar) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text('Refresh gagal: $error')));
+      showAppSnackBar(
+        context,
+        message: 'Refresh gagal: $error',
+        type: AppSnackBarType.failure,
+      );
     }
   }
 
@@ -220,8 +225,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
       loadingShown = false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Data guest berhasil disinkronkan.')),
+      showAppSnackBar(
+        context,
+        message: 'Data guest berhasil disinkronkan.',
+        type: AppSnackBarType.success,
       );
     } catch (error) {
       _migrationPromptShown = false;
@@ -229,9 +236,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (loadingShown) {
         Navigator.of(context, rootNavigator: true).pop();
       }
-      ScaffoldMessenger.of(
+      showAppSnackBar(
         context,
-      ).showSnackBar(SnackBar(content: Text('Migrasi gagal: $error')));
+        message: 'Migrasi gagal: $error',
+        type: AppSnackBarType.failure,
+      );
     }
   }
 
@@ -751,7 +760,7 @@ class _ComicRail extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         SizedBox(
-          height: 284,
+          height: 304,
           child: ListView.separated(
             clipBehavior: Clip.none,
             scrollDirection: Axis.horizontal,
@@ -825,7 +834,7 @@ class _RecommendationCarouselState extends State<_RecommendationCarousel> {
     return Column(
       children: [
         SizedBox(
-          height: 214,
+          height: 230,
           child: PageView.builder(
             controller: _pageController,
             clipBehavior: Clip.none,
@@ -965,97 +974,103 @@ class _RecommendationBanner extends StatelessWidget {
                       end: Alignment.centerRight,
                       colors: List.generate(9, (index) {
                         final p = index / 8;
-                        return Colors.black.withValues(alpha: 0.84 * (1 - p * p));
+                        return Colors.black.withValues(
+                          alpha: 0.84 * (1 - p * p),
+                        );
                       }),
                     ),
                   ),
                 ),
                 Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                ComicSourceBadge(label: source),
-                                if (comic.type != null)
-                                  ComicTypeFlagBadge(type: comic.type!),
-                              ],
-                            ),
-                            const Spacer(),
-                            Text(
-                              comic.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.headlineSmall?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w900,
+                  child: MediaQuery.withClampedTextScaling(
+                    maxScaleFactor: 1.12,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  ComicSourceBadge(label: source),
+                                  if (comic.type != null)
+                                    ComicTypeFlagBadge(type: comic.type!),
+                                ],
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                if (chapter != null)
-                                  _BannerPill(
-                                    label: 'Ch ${formatChapterNumber(chapter)}',
-                                    color: accent,
-                                  ),
-                                _BannerPill(
-                                  label: 'Rekomendasi',
+                              const Spacer(),
+                              Text(
+                                comic.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.titleLarge?.copyWith(
                                   color: Colors.white,
-                                  foregroundColor: Colors.white,
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 14),
-                            FilledButton.icon(
-                              onPressed: onTap,
-                              icon: const Icon(TonztoonIcons.play, size: 17),
-                              label: const Text('Baca sekarang'),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: accent,
-                                foregroundColor: Colors.white,
-                                minimumSize: const Size(0, 42),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
+                                  fontWeight: FontWeight.w900,
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      SizedBox(
-                        width: 86,
-                        height: 132,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.34),
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.28),
-                                blurRadius: 14,
-                                offset: const Offset(0, 8),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  if (chapter != null)
+                                    _BannerPill(
+                                      label:
+                                          'Ch ${formatChapterNumber(chapter)}',
+                                      color: accent,
+                                    ),
+                                  _BannerPill(
+                                    label: 'Rekomendasi',
+                                    color: Colors.white,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+                              FilledButton.icon(
+                                onPressed: onTap,
+                                icon: const Icon(TonztoonIcons.play, size: 17),
+                                label: const Text('Baca sekarang'),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: accent,
+                                  foregroundColor: Colors.white,
+                                  minimumSize: const Size(0, 42),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                  ),
+                                ),
                               ),
                             ],
                           ),
-                          child: ComicCover(
-                            imageUrl: comic.coverImageUrl,
-                            borderRadius: 12,
+                        ),
+                        const SizedBox(width: 12),
+                        SizedBox(
+                          width: 86,
+                          height: 132,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.34),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.28),
+                                  blurRadius: 14,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: ComicCover(
+                              imageUrl: comic.coverImageUrl,
+                              borderRadius: 12,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -1225,6 +1240,7 @@ void _openComicSection(
   BuildContext context, {
   required String title,
   required String subtitle,
+  required String sourceName,
   required List<ComicSummary> comics,
   required String initialSort,
 }) {
@@ -1233,10 +1249,11 @@ void _openComicSection(
       ? 'popular'
       : 'latest';
   context.push(
-    '/comic/home/$section/section/$section',
+    '/comic/${Uri.encodeComponent(sourceName)}/$section/section/$section',
     extra: ComicSectionPayload(
       title: title,
       subtitle: subtitle,
+      sourceName: sourceName,
       comics: comics,
       initialSort: initialSort,
     ),

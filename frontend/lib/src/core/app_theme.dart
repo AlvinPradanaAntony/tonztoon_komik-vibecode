@@ -92,22 +92,69 @@ class TonztoonTheme {
         .apply(bodyColor: text, displayColor: text)
         .copyWith(
           headlineMedium: base.textTheme.headlineMedium?.copyWith(
+            fontSize: 24,
+            height: 1.16,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+          ),
+          headlineSmall: base.textTheme.headlineSmall?.copyWith(
+            fontSize: 22,
+            height: 1.18,
             fontWeight: FontWeight.w800,
             letterSpacing: 0,
           ),
           titleLarge: base.textTheme.titleLarge?.copyWith(
+            fontSize: 20,
+            height: 1.2,
             fontWeight: FontWeight.w800,
             letterSpacing: 0,
           ),
           titleMedium: base.textTheme.titleMedium?.copyWith(
+            fontSize: 16,
+            height: 1.25,
             fontWeight: FontWeight.w700,
             letterSpacing: 0,
           ),
+          titleSmall: base.textTheme.titleSmall?.copyWith(
+            fontSize: 14,
+            height: 1.25,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0,
+          ),
+          bodyLarge: base.textTheme.bodyLarge?.copyWith(
+            fontSize: 15.5,
+            height: 1.45,
+            letterSpacing: 0,
+          ),
+          bodyMedium: base.textTheme.bodyMedium?.copyWith(
+            fontSize: 14,
+            height: 1.4,
+            letterSpacing: 0,
+          ),
+          bodySmall: base.textTheme.bodySmall?.copyWith(
+            fontSize: 12,
+            height: 1.35,
+            color: mutedText,
+            letterSpacing: 0,
+          ),
           labelLarge: base.textTheme.labelLarge?.copyWith(
+            fontSize: 14,
+            height: 1.2,
             fontWeight: FontWeight.w800,
             letterSpacing: 0,
           ),
-          bodySmall: base.textTheme.bodySmall?.copyWith(color: mutedText),
+          labelMedium: base.textTheme.labelMedium?.copyWith(
+            fontSize: 12.5,
+            height: 1.2,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0,
+          ),
+          labelSmall: base.textTheme.labelSmall?.copyWith(
+            fontSize: 11,
+            height: 1.2,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0,
+          ),
         );
 
     // =========================================================================

@@ -5,9 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_icons.dart';
+import '../../core/app_snackbar.dart';
 import '../../models/comic.dart';
 import '../../models/library.dart';
 import '../../repositories/providers.dart';
+import '../../widgets/app_loading_placeholder.dart';
 import '../../widgets/app_surface_ink.dart';
 import '../../widgets/comic_cover.dart';
 
@@ -353,13 +355,26 @@ class _LibraryList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
-      onRefresh: onRefresh,
+      onRefresh: () => _refreshWithSnackBar(context),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: padding,
         children: children,
       ),
     );
+  }
+
+  Future<void> _refreshWithSnackBar(BuildContext context) async {
+    try {
+      await onRefresh();
+    } catch (error) {
+      if (!context.mounted) return;
+      showAppSnackBar(
+        context,
+        message: 'Gagal memuat ulang data offline: $error',
+        type: AppSnackBarType.failure,
+      );
+    }
   }
 }
 
@@ -370,7 +385,7 @@ class _LoadingPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(child: CircularProgressIndicator());
+    return const AppPageLoadingPlaceholder();
   }
 }
 
@@ -475,7 +490,9 @@ class _SceneCard extends ConsumerWidget {
                     end: Alignment.bottomCenter,
                     colors: List.generate(9, (index) {
                       final p = index / 8;
-                      return Colors.black.withValues(alpha: math.pow(p, 1.5).toDouble());
+                      return Colors.black.withValues(
+                        alpha: math.pow(p, 1.5).toDouble(),
+                      );
                     }),
                   ),
                 ),
@@ -614,7 +631,9 @@ Future<void> _showScenePreview(BuildContext context, FavoriteScene scene) {
                     end: Alignment.bottomCenter,
                     colors: List.generate(9, (index) {
                       final p = index / 8;
-                      return Colors.black.withValues(alpha: math.pow(p, 1.5).toDouble());
+                      return Colors.black.withValues(
+                        alpha: math.pow(p, 1.5).toDouble(),
+                      );
                     }),
                   ),
                 ),
@@ -695,6 +714,7 @@ class _OfflineBatchTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final progressPercent = (batch.progress * 100).round().clamp(0, 100);
 
     return AppSurfaceInk(
       onTap: () => _openComicDetail(context, batch.comic.toSummary()),
@@ -754,6 +774,19 @@ class _OfflineBatchTile extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 12),
+          Row(
+            children: [
+              Text('Progres unduhan', style: theme.textTheme.labelSmall),
+              const Spacer(),
+              Text(
+                '$progressPercent%',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
           LinearProgressIndicator(
             value: batch.progress,
             borderRadius: BorderRadius.circular(99),
@@ -1313,11 +1346,19 @@ void _openOfflineChapter(BuildContext context, OfflineChapter chapter) {
 }
 
 void _showMessage(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  showAppSnackBar(
+    context,
+    message: message,
+    type: AppSnackBarType.success,
+    hideCurrent: false,
+  );
 }
 
 void _showError(BuildContext context, Object error) {
-  ScaffoldMessenger.of(
+  showAppSnackBar(
     context,
-  ).showSnackBar(SnackBar(content: Text(error.toString())));
+    message: error.toString(),
+    type: AppSnackBarType.failure,
+    hideCurrent: false,
+  );
 }

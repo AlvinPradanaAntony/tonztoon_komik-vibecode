@@ -4,19 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
-import 'package:tonztoon_comic/src/app.dart';
-import 'package:tonztoon_comic/src/core/storage.dart';
-import 'package:tonztoon_comic/src/core/token_store.dart';
-import 'package:tonztoon_comic/src/features/auth/auth_screen.dart';
-import 'package:tonztoon_comic/src/features/comic/comic_detail_screen.dart';
-import 'package:tonztoon_comic/src/features/notifications/notifications_screen.dart';
-import 'package:tonztoon_comic/src/features/reader/reader_screen.dart';
-import 'package:tonztoon_comic/src/models/comic.dart';
-import 'package:tonztoon_comic/src/models/library.dart';
-import 'package:tonztoon_comic/src/models/source_info.dart';
-import 'package:tonztoon_comic/src/repositories/catalog_repository.dart';
-import 'package:tonztoon_comic/src/repositories/providers.dart';
-import 'package:tonztoon_comic/src/routing/app_router.dart';
+import 'package:tonztoon/src/app.dart';
+import 'package:tonztoon/src/core/storage.dart';
+import 'package:tonztoon/src/core/token_store.dart';
+import 'package:tonztoon/src/features/auth/auth_screen.dart';
+import 'package:tonztoon/src/features/comic/comic_detail_screen.dart';
+import 'package:tonztoon/src/features/notifications/notifications_screen.dart';
+import 'package:tonztoon/src/features/reader/reader_screen.dart';
+import 'package:tonztoon/src/models/comic.dart';
+import 'package:tonztoon/src/models/library.dart';
+import 'package:tonztoon/src/models/source_info.dart';
+import 'package:tonztoon/src/repositories/catalog_repository.dart';
+import 'package:tonztoon/src/repositories/providers.dart';
+import 'package:tonztoon/src/routing/app_router.dart';
 
 void main() {
   late Directory hiveDir;
@@ -261,19 +261,31 @@ class _FakeCatalogRepository implements CatalogRepository {
   }
 
   @override
-  Future<List<ComicSummary>> getLatest(String sourceName) async => const [
-    comic,
-  ];
+  Future<List<ComicSummary>> getLatest(
+    String sourceName, {
+    int page = 1,
+    int pageSize = 20,
+  }) async => const [comic];
 
   @override
-  Future<List<ComicSummary>> getPopular(String sourceName) async => const [
-    comic,
-  ];
+  Future<List<ComicSummary>> getPopular(
+    String sourceName, {
+    int page = 1,
+    int pageSize = 20,
+  }) async => const [comic];
 
   @override
   Future<List<Genre>> getGenres() async => const [
     Genre(id: 1, name: 'Action', slug: 'action'),
   ];
+
+  @override
+  List<Genre> getCachedGenres() => const [
+    Genre(id: 1, name: 'Action', slug: 'action'),
+  ];
+
+  @override
+  Future<List<Genre>> refreshGenres() => getGenres();
 
   @override
   Future<SourceComicPage> getSourceComics({

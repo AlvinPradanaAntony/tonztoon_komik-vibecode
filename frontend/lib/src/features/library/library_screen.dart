@@ -5,10 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_icons.dart';
+import '../../core/app_snackbar.dart';
 import '../../models/comic.dart';
 import '../../models/library.dart';
 import '../../models/progress.dart';
 import '../../repositories/providers.dart';
+import '../../widgets/app_loading_placeholder.dart';
 import '../../widgets/app_surface_ink.dart';
 import '../../widgets/comic_card.dart';
 import '../../widgets/comic_cover.dart';
@@ -267,13 +269,26 @@ class _LibraryList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
-      onRefresh: onRefresh,
+      onRefresh: () => _refreshWithSnackBar(context),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 132),
         children: children,
       ),
     );
+  }
+
+  Future<void> _refreshWithSnackBar(BuildContext context) async {
+    try {
+      await onRefresh();
+    } catch (error) {
+      if (!context.mounted) return;
+      showAppSnackBar(
+        context,
+        message: 'Gagal memuat ulang pustaka: $error',
+        type: AppSnackBarType.failure,
+      );
+    }
   }
 }
 
@@ -284,7 +299,7 @@ class _LoadingPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(child: CircularProgressIndicator());
+    return const AppPageLoadingPlaceholder();
   }
 }
 
@@ -1428,11 +1443,19 @@ String _dateLabel(DateTime value) {
 }
 
 void _showMessage(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  showAppSnackBar(
+    context,
+    message: message,
+    type: AppSnackBarType.success,
+    hideCurrent: false,
+  );
 }
 
 void _showError(BuildContext context, Object error) {
-  ScaffoldMessenger.of(
+  showAppSnackBar(
     context,
-  ).showSnackBar(SnackBar(content: Text(error.toString())));
+    message: error.toString(),
+    type: AppSnackBarType.failure,
+    hideCurrent: false,
+  );
 }

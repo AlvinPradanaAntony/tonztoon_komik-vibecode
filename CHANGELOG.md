@@ -6,29 +6,52 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
-## [1.5.4] - 2026-05-16
+## [1.8.0] - 2026-05-20
 
 ### Added
-- Penyimpanan chapter selesai terpisah melalui tabel `user_completed_chapters` dan payload sinkronisasi `completed_chapters`.
-- Dialog migrasi data guest untuk membantu memindahkan progress, koleksi, favorite scenes, download, dan preferensi reader ke akun.
-- Metadata lokal untuk membedakan cache progress/preferensi milik akun dengan data guest yang perlu dimigrasikan.
-- Test repository dan parsing model untuk completed chapters, migrasi guest, fallback cache, dan preferensi reader.
+- Refresh signed cover URL Komikcast otomatis saat proxy gambar mendeteksi URL cover yang kedaluwarsa.
+- Skrip `refresh_komikcast_cover_urls.py` untuk memperbarui URL cover Komikcast secara batch dengan checkpoint, dry-run, dan retry/backoff.
+- Helper UI `AppResponsive` dan `showAppSnackBar` untuk text scaling responsif dan snackbar konsisten.
+- Pagination lanjutan pada halaman section komik, termasuk load more, refresh, loading state, dan error state.
 
 ### Changed
-- Reader kini melacak chapter aktif, posisi halaman vertikal yang benar-benar terlihat, dan chapter selesai tanpa mengubah posisi continue reading.
-- Progress lokal dan cloud digabungkan saat membaca state komik, sehingga progress terbaru tetap terlihat saat sinkronisasi cloud gagal.
-- Default `mark_read_on_complete` diubah menjadi nonaktif, dan field lama `auto_next` dihapus dari preferensi reader.
-- Tampilan Home, Detail Komik, Reader, Library, Notifications, dan Settings disesuaikan dengan status baca selesai serta migrasi data lokal.
+- Branding aplikasi diperbarui menjadi `tonztoon` dengan package id `com.tonzdev.tonztoon` di Android, iOS, macOS, Windows, Linux, dan Web.
+- Workflow build release kini menyiapkan signing APK dari GitHub Secrets dan membersihkan file signing setelah build.
+- Reader diperhalus dengan restore posisi yang lebih presisi, cache prefetch ber-cooldown, snackbar baru, dan proteksi agar progress tidak tertimpa saat restore.
+- Catalog, search, home, detail, library, notifications, settings, dan auth screen disesuaikan untuk layout lebih responsif dan feedback UI yang lebih konsisten.
+- Continue reading kini local-first untuk akun login, melakukan refresh cloud di background, dan memberi sinyal refresh setelah login/logout.
 
 ### Fixed
-- Data progress milik akun tidak lagi dihitung sebagai data guest saat proses migrasi.
-- Completed chapters lokal dapat dipertahankan dan diimpor tanpa menimpa progress continue reading terakhir.
-- Riwayat dan notifikasi baca lebih konsisten saat user membaca offline, berpindah chapter, atau kembali login.
+- Logout kini membersihkan data lokal yang terkait user tanpa menghapus cache katalog atau pengaturan global seperti tema.
+- Cache genre dapat direfresh dan tetap tersedia saat offline atau API gagal.
+- Proxy image dapat menyimpan ulang URL cover Komikcast yang sudah direfresh ke database.
+- Import package dan metadata test diperbarui mengikuti rename package Flutter menjadi `tonztoon`.
 
 ---
 
 <details>
 <summary><strong>Riwayat versi sebelumnya</strong></summary>
+
+### [1.5.4](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.5.4) - 2026-05-16
+
+#### Added
+- Penyimpanan chapter selesai terpisah melalui tabel `user_completed_chapters` dan payload sinkronisasi `completed_chapters`.
+- Dialog migrasi data guest untuk membantu memindahkan progress, koleksi, favorite scenes, download, dan preferensi reader ke akun.
+- Metadata lokal untuk membedakan cache progress/preferensi milik akun dengan data guest yang perlu dimigrasikan.
+- Test repository dan parsing model untuk completed chapters, migrasi guest, fallback cache, dan preferensi reader.
+
+#### Changed
+- Reader kini melacak chapter aktif, posisi halaman vertikal yang benar-benar terlihat, dan chapter selesai tanpa mengubah posisi continue reading.
+- Progress lokal dan cloud digabungkan saat membaca state komik, sehingga progress terbaru tetap terlihat saat sinkronisasi cloud gagal.
+- Default `mark_read_on_complete` diubah menjadi nonaktif, dan field lama `auto_next` dihapus dari preferensi reader.
+- Tampilan Home, Detail Komik, Reader, Library, Notifications, dan Settings disesuaikan dengan status baca selesai serta migrasi data lokal.
+
+#### Fixed
+- Data progress milik akun tidak lagi dihitung sebagai data guest saat proses migrasi.
+- Completed chapters lokal dapat dipertahankan dan diimpor tanpa menimpa progress continue reading terakhir.
+- Riwayat dan notifikasi baca lebih konsisten saat user membaca offline, berpindah chapter, atau kembali login.
+
+---
 
 ### [1.5.3](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.5.3) - 2026-05-15
 

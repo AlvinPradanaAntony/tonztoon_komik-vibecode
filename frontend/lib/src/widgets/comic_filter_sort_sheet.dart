@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_icons.dart';
+import 'app_loading_placeholder.dart';
 import 'comic_card.dart';
 import 'choice_chip_group.dart';
 
@@ -182,6 +183,8 @@ Future<ComicFilterSortState?> showComicFilterSortSheet({
       'Atur komik berdasarkan sumber, tipe, status, genre, dan urutan.',
   String resetSort = ComicSortOption.relevance,
   List<String>? genreOptions,
+  Future<List<String>>? genreOptionsFuture,
+  Future<List<String>>? genreOptionsRefreshFuture,
   AnimationStyle? animationStyle,
   BoxConstraints? constraints,
 }) {
@@ -204,6 +207,8 @@ Future<ComicFilterSortState?> showComicFilterSortSheet({
       description: description,
       resetSort: ComicSortOption.normalize(resetSort),
       genreOptions: genreOptions,
+      genreOptionsFuture: genreOptionsFuture,
+      genreOptionsRefreshFuture: genreOptionsRefreshFuture,
     ),
   );
 }
@@ -216,6 +221,8 @@ class ComicFilterSortSheet extends StatefulWidget {
     required this.description,
     required this.resetSort,
     this.genreOptions,
+    this.genreOptionsFuture,
+    this.genreOptionsRefreshFuture,
   });
 
   final ComicFilterSortState initialState;
@@ -223,6 +230,8 @@ class ComicFilterSortSheet extends StatefulWidget {
   final String description;
   final String resetSort;
   final List<String>? genreOptions;
+  final Future<List<String>>? genreOptionsFuture;
+  final Future<List<String>>? genreOptionsRefreshFuture;
 
   @override
   State<ComicFilterSortSheet> createState() => _ComicFilterSortSheetState();
@@ -234,10 +243,70 @@ class _ComicFilterSortSheetState extends State<ComicFilterSortSheet> {
   late String _status = widget.initialState.status;
   late String _genre = widget.initialState.genre;
   late String _sort = widget.initialState.sort;
+  late List<String>? _genreOptions = widget.genreOptions;
+  bool _genreOptionsLoading = false;
 
   List<String> get _genreValues {
-    final options = widget.genreOptions ?? ComicFilterOption.genres;
+    final options = _genreOptions ?? ComicFilterOption.genres;
     return _filterOptionsWithAll(options, selectedValue: _genre);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _resolveGenreOptions();
+  }
+
+  Future<void> _resolveGenreOptions() async {
+    final future = widget.genreOptionsFuture;
+    final refreshFuture = widget.genreOptionsRefreshFuture;
+    if (future == null && refreshFuture == null) return;
+
+    if (future != null) {
+      _genreOptionsLoading = true;
+      try {
+        final options = await future;
+        if (!mounted) return;
+        final cleanOptions = options
+            .map((option) => option.trim())
+            .where((option) => option.isNotEmpty)
+            .toList(growable: false);
+        setState(() {
+          if (cleanOptions.isNotEmpty) _genreOptions = cleanOptions;
+          _genreOptionsLoading = false;
+        });
+      } catch (_) {
+        if (!mounted) return;
+        setState(() => _genreOptionsLoading = false);
+      }
+    }
+
+    if (refreshFuture != null) {
+      await _resolveRefreshedGenreOptions(refreshFuture);
+    }
+  }
+
+  Future<void> _resolveRefreshedGenreOptions(
+    Future<List<String>> future,
+  ) async {
+    if (!_genreOptionsLoading && mounted) {
+      setState(() => _genreOptionsLoading = true);
+    }
+    try {
+      final options = await future;
+      if (!mounted) return;
+      final cleanOptions = options
+          .map((option) => option.trim())
+          .where((option) => option.isNotEmpty)
+          .toList(growable: false);
+      setState(() {
+        if (cleanOptions.isNotEmpty) _genreOptions = cleanOptions;
+        _genreOptionsLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _genreOptionsLoading = false);
+    }
   }
 
   @override
@@ -313,6 +382,10 @@ class _ComicFilterSortSheetState extends State<ComicFilterSortSheet> {
                       scrollable: false,
                       labelStyle: theme.textTheme.titleSmall,
                     ),
+                    if (_genreOptionsLoading) ...[
+                      const SizedBox(height: 10),
+                      const _GenreOptionsLoading(),
+                    ],
                     const SizedBox(height: 16),
                     ChoiceChipGroup(
                       label: 'Urutkan',
@@ -381,6 +454,25 @@ class _ComicFilterSortSheetState extends State<ComicFilterSortSheet> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _GenreOptionsLoading extends StatelessWidget {
+  const _GenreOptionsLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return const AppShimmer(
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          AppShimmerBlock(width: 76, height: 32, borderRadius: 18),
+          AppShimmerBlock(width: 92, height: 32, borderRadius: 18),
+          AppShimmerBlock(width: 84, height: 32, borderRadius: 18),
+        ],
       ),
     );
   }

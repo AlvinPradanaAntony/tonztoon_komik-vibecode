@@ -169,16 +169,19 @@ final routerProvider = Provider<GoRouter>((ref) {
             return ComicSectionScreen(
               title: payload.title,
               subtitle: payload.subtitle,
+              sourceName: payload.sourceName,
               comics: payload.comics,
               initialSort: payload.initialSort,
             );
           }
           final section = state.pathParameters['section'] ?? 'Katalog';
+          final source = state.pathParameters['source'];
           return ComicSectionScreen(
             title: section == 'popular' ? 'Populer' : 'Rilis Terbaru',
             subtitle: section == 'popular'
                 ? 'Komik yang ramai dibaca minggu ini.'
                 : 'Chapter baru dari berbagai sumber favorit.',
+            sourceName: source == 'home' ? null : source,
             comics: const [],
             initialSort: section == 'popular'
                 ? 'Paling populer'

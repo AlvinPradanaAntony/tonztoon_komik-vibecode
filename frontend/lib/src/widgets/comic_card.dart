@@ -58,76 +58,81 @@ class _ComicCardState extends State<ComicCard> {
           child: InkWell(
             borderRadius: BorderRadius.circular(12),
             onTap: widget.onTap,
-            child: SizedBox(
-              width: widget.width,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(
-                            alpha: _hovered ? 0.2 : 0.12,
-                          ),
-                          blurRadius: _hovered ? 22 : 14,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: AspectRatio(
-                      aspectRatio: 2 / 3,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          ComicCover(
-                            imageUrl: widget.comic.coverImageUrl,
-                            borderRadius: 12,
-                          ),
-                          Positioned(
-                            left: 8,
-                            top: 8,
-                            child: ComicSourceBadge(label: source),
-                          ),
-                          if (widget.comic.type != null)
-                            Positioned(
-                              right: 8,
-                              top: 8,
-                              child: ComicTypeFlagBadge(
-                                type: widget.comic.type!,
-                              ),
+            child: MediaQuery.withClampedTextScaling(
+              maxScaleFactor: 1.12,
+              child: SizedBox(
+                width: widget.width,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(
+                              alpha: _hovered ? 0.2 : 0.12,
                             ),
+                            blurRadius: _hovered ? 22 : 14,
+                            offset: const Offset(0, 10),
+                          ),
                         ],
                       ),
+                      child: AspectRatio(
+                        aspectRatio: 2 / 3,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            ComicCover(
+                              imageUrl: widget.comic.coverImageUrl,
+                              borderRadius: 12,
+                            ),
+                            Positioned(
+                              left: 8,
+                              top: 8,
+                              child: ComicSourceBadge(label: source),
+                            ),
+                            if (widget.comic.type != null)
+                              Positioned(
+                                right: 8,
+                                top: 8,
+                                child: ComicTypeFlagBadge(
+                                  type: widget.comic.type!,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 9),
-                  Text(
-                    widget.comic.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelLarge,
-                  ),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 5,
-                    children: [
-                      if (widget.rating != null)
-                        ComicMetaBadge(
-                          label: widget.rating!,
-                          icon: TonztoonIcons.starFilled,
-                          iconColor: Colors.amber,
-                        ),
-                      if (chapterNumber != null)
-                        ComicMetaBadge(
-                          label: 'Ch ${formatChapterNumber(chapterNumber)}',
-                          color: colorScheme.primary,
-                        ),
-                    ],
-                  ),
-                ],
+                    const SizedBox(height: 9),
+                    Flexible(
+                      child: Text(
+                        widget.comic.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelLarge,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 5,
+                      children: [
+                        if (widget.rating != null)
+                          ComicMetaBadge(
+                            label: widget.rating!,
+                            icon: TonztoonIcons.starFilled,
+                            iconColor: Colors.amber,
+                          ),
+                        if (chapterNumber != null)
+                          ComicMetaBadge(
+                            label: 'Chapter ${formatChapterNumber(chapterNumber)}',
+                            color: colorScheme.primary,
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

@@ -9,21 +9,12 @@ import re
 from typing import Any
 from urllib.parse import urlencode, urlparse
 
+import httpx
+from sqlalchemy import func, or_, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.config import settings
-
-
-# Mapping domain -> Referer header yang benar
-REFERER_MAP = {
-    "komiku.org": "https://komiku.org/",
-    "komiku.asia": "https://01.komiku.asia/",
-    "cdnkomiku.xyz": "https://01.komiku.asia/",
-    "komikcast": "https://v1.komikcast.fit/",
-    "komikcast.to": "https://v1.komikcast.fit/",
-    "imgkc2.my.id": "https://v1.komikcast.fit/",
-    "imgkc.my.id": "https://v1.komikcast.fit/",
-    "shinigami": "https://e.shinigami.asia/",
-    "shngm.id": "https://e.shinigami.asia/",
-}
+from app.models import Comic
 
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -32,6 +23,25 @@ DEFAULT_USER_AGENT = (
 )
 
 PROXY_IMAGE_PATH = "/api/v1/images/proxy"
+KOMIKCAST_API_BASE_URL = "https://be.komikcast.cc"
+KOMIKCAST_WEB_BASE_URL = "https://v1.komikcast.fit"
+KOMIKCAST_WEB_REFERER = f"{KOMIKCAST_WEB_BASE_URL}/"
+KOMIKCAST_IMAGE_HOSTS = (
+    "komikcast.to",
+    "imgkc1.my.id",
+    "imgkc2.my.id",
+    "imgkc.my.id",
+)
+KOMIKCAST_COVER_PATH_RE = re.compile(r"^/prod/series/([^/]+)/cover/")
+
+# Mapping host suffix -> Referer header yang benar untuk source non-Komikcast.
+REFERER_BY_HOST_SUFFIX = {
+    "komiku.org": "https://komiku.org/",
+    "komiku.asia": "https://01.komiku.asia/",
+    "cdnkomiku.xyz": "https://01.komiku.asia/",
+    "shinigami.asia": "https://e.shinigami.asia/",
+    "shngm.id": "https://e.shinigami.asia/",
+}
 
 
 def build_absolute_url(base_url: str | None, path: str | None) -> str | None:
@@ -109,25 +119,178 @@ def wrap_chapter_image_urls(
     return wrapped_images
 
 
+def _host_matches_suffix(host: str, suffix: str) -> bool:
+    """True jika host sama dengan suffix atau subdomain dari suffix."""
+    host = host.lower()
+    suffix = suffix.lower()
+    return host == suffix or host.endswith(f".{suffix}")
+
+
+def _is_komikcast_image_host(host: str) -> bool:
+    return any(
+        _host_matches_suffix(host, suffix)
+        for suffix in KOMIKCAST_IMAGE_HOSTS
+    )
+
+
+def _extract_komikcast_cover_slug_from_path(path: str) -> str | None:
+    match = KOMIKCAST_COVER_PATH_RE.search(path)
+    return match.group(1) if match else None
+
+
+def _looks_like_komikcast_cover_url(parsed_url) -> bool:
+    return _extract_komikcast_cover_slug_from_path(parsed_url.path) is not None
+
+
+def _referer_for_image_url(image_url: str) -> str:
+    parsed = urlparse(image_url)
+    host = parsed.netloc.lower()
+
+    if _is_komikcast_image_host(host) or _looks_like_komikcast_cover_url(parsed):
+        return KOMIKCAST_WEB_REFERER
+
+    for suffix, referer in REFERER_BY_HOST_SUFFIX.items():
+        if _host_matches_suffix(host, suffix):
+            return referer
+
+    return f"{parsed.scheme}://{parsed.netloc}/"
+
+
 def get_proxy_headers(image_url: str) -> dict[str, str]:
     """
     Generate headers yang tepat untuk fetch gambar dari server asli.
     Menentukan Referer berdasarkan domain URL gambar.
     """
-    referer = None
-    for key, ref_url in REFERER_MAP.items():
-        if key in image_url:
-            referer = ref_url
-            break
-
-    if referer is None:
-        parsed = urlparse(image_url)
-        referer = f"{parsed.scheme}://{parsed.netloc}/"
-
     return {
-        "Referer": referer,
+        "Referer": _referer_for_image_url(image_url),
         "User-Agent": DEFAULT_USER_AGENT,
     }
+
+
+def get_komikcast_api_headers() -> dict[str, str]:
+    """Headers API Komikcast untuk refresh signed asset URL."""
+    return {
+        "User-Agent": DEFAULT_USER_AGENT,
+        "Accept": "application/json, text/plain, */*",
+        "Referer": KOMIKCAST_WEB_REFERER,
+        "Origin": KOMIKCAST_WEB_BASE_URL,
+    }
+
+
+def extract_komikcast_series_slug_from_cover_url(image_url: str) -> str | None:
+    """
+    Ambil slug series dari URL cover MinIO Komikcast.
+
+    Cover Komikcast dari API berbentuk signed URL MinIO yang expired harian,
+    contohnya `/prod/series/{slug}/cover/{file}.webp?...`.
+    """
+    parsed = urlparse(image_url)
+    slug = _extract_komikcast_cover_slug_from_path(parsed.path)
+    if slug and (
+        _is_komikcast_image_host(parsed.netloc)
+        or parsed.scheme in {"http", "https"}
+    ):
+        return slug
+    return None
+
+
+async def refresh_komikcast_cover_url(
+    client: httpx.AsyncClient,
+    image_url: str,
+) -> str | None:
+    """
+    Resolve ulang signed URL cover Komikcast yang sudah kedaluwarsa.
+
+    Database bisa menyimpan `coverImage` lama dari API Komikcast. Ketika URL itu
+    expired, proxy mengambil payload series terbaru untuk mendapatkan signed URL
+    baru tanpa menunggu job scraper berjalan lagi.
+    """
+    slug = extract_komikcast_series_slug_from_cover_url(image_url)
+    if not slug:
+        return None
+
+    cover_url = await fetch_komikcast_cover_url_for_slug(client, slug)
+    if not cover_url or cover_url == image_url:
+        return None
+    return cover_url
+
+
+async def fetch_komikcast_cover_url_for_slug(
+    client: httpx.AsyncClient,
+    slug: str,
+) -> str | None:
+    """Ambil signed cover URL terbaru dari API Komikcast untuk satu slug."""
+    slug = slug.strip()
+    if not slug:
+        return None
+
+    response = await client.get(
+        f"{KOMIKCAST_API_BASE_URL}/series/{slug}",
+        params={"includeMeta": "true"},
+        headers=get_komikcast_api_headers(),
+    )
+    if response.status_code != 200:
+        return None
+
+    try:
+        payload = response.json()
+    except ValueError:
+        return None
+    cover_url = ((payload.get("data") or {}).get("data") or {}).get("coverImage")
+    if not isinstance(cover_url, str):
+        return None
+
+    cover_url = cover_url.strip()
+    if not cover_url:
+        return None
+    return cover_url
+
+
+async def update_komikcast_cover_url_for_slug(
+    db: AsyncSession,
+    *,
+    slug: str,
+    cover_url: str,
+) -> bool:
+    """Simpan signed cover URL Komikcast terbaru untuk satu comic slug."""
+    cover_url = cover_url.strip()
+    if not slug or not cover_url:
+        return False
+
+    result = await db.execute(
+        update(Comic)
+        .where(Comic.source_name == "komikcast", Comic.slug == slug)
+        .where(
+            or_(
+                Comic.cover_image_url.is_(None),
+                Comic.cover_image_url != cover_url,
+            )
+        )
+        .values(cover_image_url=cover_url, updated_at=func.now())
+    )
+    await db.commit()
+    return bool(result.rowcount)
+
+
+async def get_komikcast_cover_refresh_candidates(
+    db: AsyncSession,
+    *,
+    limit: int,
+    after_id: int = 0,
+) -> list[tuple[int, str, str, str | None]]:
+    """Ambil comic Komikcast yang cover URL-nya bisa direfresh dari API source."""
+    stmt = (
+        select(Comic.id, Comic.slug, Comic.title, Comic.cover_image_url)
+        .where(Comic.source_name == "komikcast")
+        .where(Comic.slug.is_not(None), Comic.slug != "")
+        .where(Comic.id > max(after_id, 0))
+        .order_by(Comic.id.asc())
+    )
+    if limit > 0:
+        stmt = stmt.limit(limit)
+
+    rows = (await db.execute(stmt)).all()
+    return [(int(row[0]), str(row[1]), str(row[2]), row[3]) for row in rows]
 
 
 def is_komiku_asia_cover_url(image_url: str) -> bool:

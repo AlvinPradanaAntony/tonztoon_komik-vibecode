@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_icons.dart';
+import '../../core/app_snackbar.dart';
 import '../../models/comic.dart';
 import '../../models/source_info.dart';
 import '../../repositories/providers.dart';
@@ -124,76 +125,77 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
                   )
                 : RefreshIndicator(
                     key: const ValueKey('catalog-content'),
-                    onRefresh: _loadFirstPage,
+                    onRefresh: () => _loadFirstPage(mergeWithExisting: true),
                     child: CustomScrollView(
-                  controller: _scrollController,
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  slivers: [
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                      sliver: SliverList(
-                        delegate: SliverChildListDelegate.fixed([
-                          _CatalogHero(
-                            visibleCount: comics.length,
-                            totalCount: _total,
-                            sourceLabel: _activeSource?.label ?? 'Semua Sumber',
-                          ),
-                          const SizedBox(height: 16),
-                          ComicActiveFilterStrip(
-                            filters: _filters,
-                            onClear: _clearFilters,
-                          ),
-                          const SizedBox(height: 18),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  '${comics.length} komik dimuat',
-                                  style: theme.textTheme.titleMedium,
-                                ),
+                      controller: _scrollController,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      slivers: [
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                          sliver: SliverList(
+                            delegate: SliverChildListDelegate.fixed([
+                              _CatalogHero(
+                                visibleCount: comics.length,
+                                totalCount: _total,
+                                sourceLabel:
+                                    _activeSource?.label ?? 'Semua Sumber',
                               ),
-                              _SortPill(label: _filters.sort),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                        ]),
-                      ),
-                    ),
-                    if (comics.isEmpty)
-                      const SliverFillRemaining(
-                        hasScrollBody: false,
-                        child: _EmptyCatalogState(),
-                      )
-                    else
-                      SliverPadding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        sliver: _isGrid
-                            ? _CatalogGrid(
-                                entries: comics,
-                                onTap: _openComicDetail,
-                              )
-                            : _CatalogList(
-                                entries: comics,
-                                onTap: _openComicDetail,
+                              const SizedBox(height: 16),
+                              ComicActiveFilterStrip(
+                                filters: _filters,
+                                onClear: _clearFilters,
                               ),
-                      ),
-                    SliverPadding(
-                      padding: EdgeInsets.fromLTRB(
-                        16,
-                        0,
-                        16,
-                        widget.showBackButton ? 28 : 132,
-                      ),
-                      sliver: SliverToBoxAdapter(
-                        child: _LoadMoreFooter(
-                          loading: _isLoadingMore,
-                          hasNextPage: _hasNextPage,
-                          loadedCount: _comics.length,
-                          totalCount: _total,
+                              const SizedBox(height: 18),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      '${comics.length} komik dimuat',
+                                      style: theme.textTheme.titleMedium,
+                                    ),
+                                  ),
+                                  _SortPill(label: _filters.sort),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                            ]),
+                          ),
                         ),
-                      ),
-                    ),
-                  ],
+                        if (comics.isEmpty)
+                          const SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: _EmptyCatalogState(),
+                          )
+                        else
+                          SliverPadding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            sliver: _isGrid
+                                ? _CatalogGrid(
+                                    entries: comics,
+                                    onTap: _openComicDetail,
+                                  )
+                                : _CatalogList(
+                                    entries: comics,
+                                    onTap: _openComicDetail,
+                                  ),
+                          ),
+                        SliverPadding(
+                          padding: EdgeInsets.fromLTRB(
+                            16,
+                            0,
+                            16,
+                            widget.showBackButton ? 28 : 132,
+                          ),
+                          sliver: SliverToBoxAdapter(
+                            child: _LoadMoreFooter(
+                              loading: _isLoadingMore,
+                              hasNextPage: _hasNextPage,
+                              loadedCount: _comics.length,
+                              totalCount: _total,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
           ),
@@ -205,10 +207,11 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
     );
   }
 
-  Future<void> _loadFirstPage() async {
+  Future<void> _loadFirstPage({bool mergeWithExisting = false}) async {
     if (!mounted) return;
     final serial = ++_requestSerial;
     final hadCatalog = _hasLoadedCatalog;
+    final shouldMerge = mergeWithExisting && hadCatalog;
     setState(() {
       _isFirstPageLoading = true;
       _isLoadingMore = false;
@@ -240,9 +243,12 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
       );
 
       if (!mounted || serial != _requestSerial) return;
+      final nextComics = shouldMerge
+          ? _mergeRefreshedFirstPage(page.items)
+          : page.items;
       setState(() {
         _activeSource = source;
-        _comics = page.items;
+        _comics = nextComics;
         _page = page.page;
         _total = page.total;
         _totalPages = page.totalPages < 1 ? 1 : page.totalPages;
@@ -256,11 +262,11 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
         _isFirstPageLoading = false;
       });
       if (hadCatalog) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(content: Text('Gagal memuat ulang katalog: $error')),
-          );
+        showAppSnackBar(
+          context,
+          message: 'Gagal memuat ulang katalog: $error',
+          type: AppSnackBarType.failure,
+        );
       }
     }
   }
@@ -309,12 +315,28 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
     } catch (error) {
       if (!mounted || serial != _requestSerial) return;
       setState(() => _isLoadingMore = false);
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(content: Text('Gagal memuat halaman berikutnya: $error')),
-        );
+      showAppSnackBar(
+        context,
+        message: 'Gagal memuat halaman berikutnya: $error',
+        type: AppSnackBarType.failure,
+      );
     }
+  }
+
+  List<ComicSummary> _mergeRefreshedFirstPage(
+    List<ComicSummary> refreshedComics,
+  ) {
+    final refreshedKeys = refreshedComics
+        .map((comic) => '${comic.sourceName}|${comic.slug}|${comic.title}')
+        .toSet();
+    return [
+      ...refreshedComics,
+      for (final comic in _comics)
+        if (!refreshedKeys.contains(
+          '${comic.sourceName}|${comic.slug}|${comic.title}',
+        ))
+          comic,
+    ];
   }
 
   void _onScroll() {
@@ -347,15 +369,15 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
 
   Future<void> _showFilterSheet() async {
     FocusManager.instance.primaryFocus?.unfocus();
-    final genreOptions = await _loadGenreOptions();
-    if (!mounted) return;
+    final cachedGenreOptions = _cachedGenreOptions();
 
     final result = await showComicFilterSortSheet(
       context: context,
       initialState: _filters,
       title: 'Filter Katalog',
       resetSort: ComicSortOption.relevance,
-      genreOptions: genreOptions,
+      genreOptions: cachedGenreOptions.isEmpty ? null : cachedGenreOptions,
+      genreOptionsRefreshFuture: _refreshGenreOptions(),
       constraints: BoxConstraints(
         maxHeight: MediaQuery.sizeOf(context).height * 0.78,
       ),
@@ -367,16 +389,33 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
     await _loadFirstPage();
   }
 
-  Future<List<String>> _loadGenreOptions() async {
+  List<String> _cachedGenreOptions() {
+    final genres = ref.read(catalogRepositoryProvider).getCachedGenres();
+    return _genreNames(genres);
+  }
+
+  Future<List<String>> _refreshGenreOptions() async {
     try {
-      final genres = await ref.read(genresProvider.future);
-      return genres
-          .map((genre) => genre.name.trim())
-          .where((name) => name.isNotEmpty)
-          .toList(growable: false);
-    } catch (_) {
+      final genres = await ref.read(catalogRepositoryProvider).refreshGenres();
+      ref.invalidate(genresProvider);
+      return _genreNames(genres);
+    } catch (error) {
+      if (mounted) {
+        showAppSnackBar(
+          context,
+          message: 'Gagal memuat genre: $error',
+          type: AppSnackBarType.failure,
+        );
+      }
       return const [];
     }
+  }
+
+  List<String> _genreNames(List<Genre> genres) {
+    return genres
+        .map((genre) => genre.name.trim())
+        .where((name) => name.isNotEmpty)
+        .toList(growable: false);
   }
 
   void _openComicDetail(_CatalogEntry entry) {
@@ -616,7 +655,7 @@ class _CatalogLoadingPlaceholder extends StatelessWidget {
               crossAxisCount: 2,
               mainAxisSpacing: 14,
               crossAxisSpacing: 12,
-              childAspectRatio: 0.51,
+              childAspectRatio: 0.47,
             ),
             delegate: SliverChildBuilderDelegate(
               (context, index) => const _CatalogCardShimmer(),
@@ -788,7 +827,7 @@ class _CatalogGrid extends StatelessWidget {
         crossAxisCount: 2,
         mainAxisSpacing: 14,
         crossAxisSpacing: 12,
-        childAspectRatio: 0.51,
+        childAspectRatio: 0.47,
       ),
       delegate: SliverChildBuilderDelegate((context, index) {
         final entry = entries[index];

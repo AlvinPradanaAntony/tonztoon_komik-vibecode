@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/app_responsive.dart';
 import 'core/app_theme.dart';
 import 'repositories/providers.dart';
 import 'routing/app_router.dart';
@@ -33,6 +34,8 @@ class _TonztoonAppState extends ConsumerState<TonztoonApp> {
       darkTheme: TonztoonTheme.dark(),
       themeMode: themeMode,
       routerConfig: router,
+      builder: (context, child) =>
+          AppResponsive(child: child ?? const SizedBox.shrink()),
     );
   }
 }

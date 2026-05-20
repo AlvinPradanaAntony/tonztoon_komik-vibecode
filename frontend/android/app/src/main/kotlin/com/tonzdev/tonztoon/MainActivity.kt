@@ -1,4 +1,4 @@
-package com.example.tonztoon_comic
+package com.tonzdev.tonztoon
 
 import io.flutter.embedding.android.FlutterActivity
 
