@@ -1,0 +1,130 @@
+name: 🧰 Flutter Cache Warmup
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/build-release.yml'
+      - '.github/workflows/flutter-cache-warmup.yml'
+  workflow_dispatch:
+
+env:
+  FLUTTER_VERSION: '3.41.9'
+  FLUTTER_CHANNEL: stable
+  FLUTTER_PUB_CACHE_PATH: ~/.pub-cache
+
+jobs:
+  warmup-linux:
+    name: Warm Flutter cache (Linux)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Restore Flutter SDK cache
+        id: flutter-sdk-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ runner.tool_cache }}/flutter/${{ env.FLUTTER_CHANNEL }}-${{ env.FLUTTER_VERSION }}-x64
+          key: flutter-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ env.FLUTTER_VERSION }}-x64
+
+      - name: Restore Flutter pub cache
+        id: flutter-pub-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ env.FLUTTER_PUB_CACHE_PATH }}
+          key: flutter-pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ env.FLUTTER_VERSION }}-x64-${{ hashFiles('frontend/pubspec.lock') }}
+          restore-keys: |
+            flutter-pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ env.FLUTTER_VERSION }}-x64-
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          architecture: x64
+          cache: false
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze project
+        run: flutter analyze --no-fatal-infos
+
+      - name: Save Flutter SDK cache
+        if: steps.flutter-sdk-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ runner.tool_cache }}/flutter/${{ env.FLUTTER_CHANNEL }}-${{ env.FLUTTER_VERSION }}-x64
+          key: ${{ steps.flutter-sdk-cache.outputs.cache-primary-key }}
+
+      - name: Save Flutter pub cache
+        if: steps.flutter-pub-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ env.FLUTTER_PUB_CACHE_PATH }}
+          key: ${{ steps.flutter-pub-cache.outputs.cache-primary-key }}
+
+  warmup-macos:
+    name: Warm Flutter cache (macOS)
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Restore Flutter SDK cache
+        id: flutter-sdk-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ runner.tool_cache }}/flutter/${{ env.FLUTTER_CHANNEL }}-${{ env.FLUTTER_VERSION }}-arm64
+          key: flutter-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ env.FLUTTER_VERSION }}-arm64
+
+      - name: Restore Flutter pub cache
+        id: flutter-pub-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ env.FLUTTER_PUB_CACHE_PATH }}
+          key: flutter-pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ env.FLUTTER_VERSION }}-arm64-${{ hashFiles('frontend/pubspec.lock') }}
+          restore-keys: |
+            flutter-pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ env.FLUTTER_VERSION }}-arm64-
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          architecture: arm64
+          cache: false
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Save Flutter SDK cache
+        if: steps.flutter-sdk-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ runner.tool_cache }}/flutter/${{ env.FLUTTER_CHANNEL }}-${{ env.FLUTTER_VERSION }}-arm64
+          key: ${{ steps.flutter-sdk-cache.outputs.cache-primary-key }}
+
+      - name: Save Flutter pub cache
+        if: steps.flutter-pub-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ env.FLUTTER_PUB_CACHE_PATH }}
+          key: ${{ steps.flutter-pub-cache.outputs.cache-primary-key }}

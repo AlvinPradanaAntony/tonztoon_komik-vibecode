@@ -18,6 +18,14 @@ on:
         description: "Source that triggered this workflow"
         required: false
         default: "manual"
+      source:
+        description: "Optional scraper source to sync (empty = all sources)"
+        required: false
+        default: ""
+      max_pages:
+        description: "Latest pages to scan (0 disables latest feed)"
+        required: false
+        default: "10"
 
 # Force Node.js 24 to avoid deprecation warnings
 env:
@@ -44,6 +52,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: 🖥️ Install virtual display
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.source == '' || github.event.inputs.source == 'all' || github.event.inputs.source == 'komiku_asia'
         run: sudo apt-get update && sudo apt-get install -y xvfb
       
       - name: 🌐 Install Scrapling browser dependencies
@@ -52,14 +61,53 @@ jobs:
       - name: 🕷️ Run scraper
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SCRAPER_SOURCE: ${{ github.event.inputs.source || '' }}
+          SCRAPER_MAX_PAGES: ${{ github.event.inputs.max_pages || '' }}
+          KOMIKU_ASIA_HEADLESS: "false"
         run: |
+          set -euo pipefail
+
           cd backend
-          xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.main
+
+          args=()
+
+          if [ -n "${SCRAPER_SOURCE}" ] && [ "${SCRAPER_SOURCE}" != "all" ]; then
+            args+=(--source "${SCRAPER_SOURCE}")
+          fi
+
+          if [ -n "${SCRAPER_MAX_PAGES}" ]; then
+            if ! [[ "${SCRAPER_MAX_PAGES}" =~ ^[0-9]+$ ]]; then
+              echo "max_pages must be an integer >= 0"
+              exit 1
+            fi
+            args+=(--max-pages "${SCRAPER_MAX_PAGES}")
+          fi
+
+          printf 'Running scraper with args:'
+          printf ' %q' "${args[@]}"
+          printf '\n'
+
+          if [ "${SCRAPER_SOURCE}" = "komiku_asia" ]; then
+            echo "Running komiku_asia through xvfb."
+            xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.main "${args[@]}"
+          elif [ -z "${SCRAPER_SOURCE}" ] || [ "${SCRAPER_SOURCE}" = "all" ]; then
+            echo "Running non-komiku_asia sources without xvfb."
+            for source in komiku komikcast shinigami; do
+              python -m scraper.main --source "${source}" "${args[@]}"
+            done
+            echo "Running komiku_asia through xvfb."
+            xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.main --source komiku_asia "${args[@]}"
+          else
+            echo "komiku_asia is not included; running without xvfb."
+            python -m scraper.main "${args[@]}"
+          fi
 
       - name: 📝 Log completion
         if: always()
         env:
           TRIGGER_SOURCE: ${{ github.event.inputs.trigger_source || github.event_name }}
+          SCRAPER_SOURCE: ${{ github.event.inputs.source || 'all' }}
+          SCRAPER_MAX_PAGES: ${{ github.event.inputs.max_pages || 'default' }}
         run: |
           set -euo pipefail
 
@@ -71,6 +119,8 @@ jobs:
             echo "| Metric | Value |"
             echo "|---|---|"
             echo "| Trigger source | ${TRIGGER_SOURCE} |"
+            echo "| Source | ${SCRAPER_SOURCE} |"
+            echo "| Latest pages | ${SCRAPER_MAX_PAGES} |"
             echo "| Completed at | ${completed_at} |"
           } >> "$GITHUB_STEP_SUMMARY"
 

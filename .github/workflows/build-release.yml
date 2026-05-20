@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*.*.*'   # Trigger saat push tag seperti v1.0.0, v1.2.3, dll
 
+env:
+  FLUTTER_VERSION: '3.41.9'
+  FLUTTER_CHANNEL: stable
+  FLUTTER_PUB_CACHE_PATH: ~/.pub-cache
+
 jobs:
   # ─────────────────────────────────────────────
   # JOB 1: Ekstrak Changelog untuk versi ini
@@ -122,12 +127,27 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Restore Flutter SDK cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ runner.tool_cache }}/flutter/${{ env.FLUTTER_CHANNEL }}-${{ env.FLUTTER_VERSION }}-x64
+          key: flutter-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ env.FLUTTER_VERSION }}-x64
+
+      - name: Restore Flutter pub cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ env.FLUTTER_PUB_CACHE_PATH }}
+          key: flutter-pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ env.FLUTTER_VERSION }}-x64-${{ hashFiles('frontend/pubspec.lock') }}
+          restore-keys: |
+            flutter-pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ env.FLUTTER_VERSION }}-x64-
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.9'
-          channel: 'stable'
-          cache: true
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          architecture: x64
+          cache: false
 
       - name: Install dependencies
         run: flutter pub get
@@ -212,12 +232,27 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Restore Flutter SDK cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ runner.tool_cache }}/flutter/${{ env.FLUTTER_CHANNEL }}-${{ env.FLUTTER_VERSION }}-arm64
+          key: flutter-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ env.FLUTTER_VERSION }}-arm64
+
+      - name: Restore Flutter pub cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ env.FLUTTER_PUB_CACHE_PATH }}
+          key: flutter-pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ env.FLUTTER_VERSION }}-arm64-${{ hashFiles('frontend/pubspec.lock') }}
+          restore-keys: |
+            flutter-pub-${{ runner.os }}-${{ env.FLUTTER_CHANNEL }}-${{ env.FLUTTER_VERSION }}-arm64-
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.9'
-          channel: 'stable'
-          cache: true
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          architecture: arm64
+          cache: false
 
       - name: Install dependencies
         run: flutter pub get

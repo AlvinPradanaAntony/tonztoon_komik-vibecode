@@ -42,6 +42,7 @@ import asyncio
 import logging
 import os
 import re
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -105,6 +106,10 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
         return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
 
     @classmethod
+    def _headless(cls) -> bool:
+        return cls._env_bool("KOMIKU_ASIA_HEADLESS", False)
+
+    @classmethod
     def _browser_extra_flags(cls) -> list[str]:
         """Gunakan viewport realistis di CI; lokal tetap disembunyikan seperti konfigurasi lama."""
         if os.getenv("GITHUB_ACTIONS", "").lower() == "true":
@@ -126,11 +131,24 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
         return Path(raw_path) if raw_path else None
 
     @classmethod
+    def _cloak_challenge_timeout_ms(cls, request_timeout_ms: int) -> int:
+        raw_timeout = os.getenv("KOMIKU_ASIA_CLOAK_CHALLENGE_TIMEOUT_MS", "").strip()
+        if raw_timeout:
+            try:
+                return max(request_timeout_ms, int(raw_timeout))
+            except ValueError:
+                logger.warning(
+                    "KOMIKU_ASIA_CLOAK_CHALLENGE_TIMEOUT_MS tidak valid: %s",
+                    raw_timeout,
+                )
+        return max(request_timeout_ms, 120_000)
+
+    @classmethod
     async def get_session(cls) -> AsyncStealthySession:
         if cls._shared_session is None:
             logger.info("Membuka AsyncStealthySession (Persistent) baru...")
             cls._shared_session = AsyncStealthySession(
-                headless=False,
+                headless=cls._headless(),
                 real_chrome=True,
                 block_webrtc=True,
                 solve_cloudflare=True,
@@ -308,10 +326,10 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
             )
             if wait_ms > 0:
                 await page.wait_for_timeout(wait_ms)
-            await page.wait_for_selector(
+            await self._wait_for_cloak_target_selector(
+                page,
                 wait_selector,
-                state="visible",
-                timeout=timeout_ms,
+                timeout_ms=self._cloak_challenge_timeout_ms(timeout_ms),
             )
 
             html = await page.content()
@@ -327,6 +345,7 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
                 )
             await self._save_cloak_storage_state()
         except Exception as exc:
+            await self._save_cloak_storage_state()
             if page is not None:
                 await self._dump_cloak_debug_artifacts(page, url)
             if self._should_reset_session_on_error(exc):
@@ -345,6 +364,89 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
 
         await self._raise_for_bad_response(url, parsed)
         return parsed
+
+    async def _wait_for_cloak_target_selector(
+        self,
+        page,
+        wait_selector: str,
+        *,
+        timeout_ms: int,
+    ) -> None:
+        """
+        Tunggu halaman target setelah Cloudflare.
+
+        Cloudflare kadang menampilkan "Verifikasi berhasil. Menunggu response..."
+        tetapi tidak langsung redirect. Dalam kondisi itu, reload ringan sering
+        membuat cookie clearance yang baru tersimpan dipakai untuk request target.
+        """
+        deadline = time.monotonic() + (timeout_ms / 1000)
+        last_log_at = 0.0
+        last_reload_at = 0.0
+        reload_count = 0
+        target = page.locator(wait_selector).first
+
+        while time.monotonic() < deadline:
+            try:
+                if await target.is_visible(timeout=1_000):
+                    return
+            except Exception:
+                pass
+
+            title = ""
+            body_text = ""
+            try:
+                title = await page.title()
+            except Exception:
+                pass
+            try:
+                body_text = await page.locator("body").inner_text(timeout=1_000)
+            except Exception:
+                pass
+
+            lower_text = f"{title}\n{body_text}".lower()
+            challenge_seen = any(
+                marker in lower_text
+                for marker in (
+                    "tunggu sebentar",
+                    "enable javascript and cookies",
+                    "verifikasi keamanan",
+                    "cloudflare",
+                )
+            )
+            verification_finished = (
+                "verifikasi berhasil" in lower_text
+                or "verification successful" in lower_text
+            )
+
+            now = time.monotonic()
+            if challenge_seen and now - last_log_at >= 10:
+                logger.info(
+                    "CloakBrowser masih di halaman Cloudflare (title=%r, verification_finished=%s); menunggu target selector %r...",
+                    title,
+                    verification_finished,
+                    wait_selector,
+                )
+                last_log_at = now
+
+            if verification_finished and reload_count < 2 and now - last_reload_at >= 15:
+                reload_count += 1
+                last_reload_at = now
+                logger.info(
+                    "Cloudflare menampilkan verifikasi berhasil tetapi belum redirect; reload target ringan (%s/2).",
+                    reload_count,
+                )
+                await self._save_cloak_storage_state()
+                try:
+                    await page.reload(wait_until="domcontentloaded", timeout=30_000)
+                except Exception as exc:
+                    logger.warning("Reload setelah verifikasi Cloudflare gagal: %s", exc)
+
+            await page.wait_for_timeout(2_000)
+
+        raise TimeoutError(
+            f"Timeout menunggu target selector {wait_selector!r} setelah Cloudflare "
+            f"({timeout_ms}ms)"
+        )
 
     async def _save_cloak_storage_state(self) -> None:
         if self._cloak_context is None:

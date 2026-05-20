@@ -74,7 +74,7 @@ jobs:
           SOURCE_FILTER: ${{ github.event.inputs.source || '' }}
         run: |
           cd backend
-          if [ -n "${SOURCE_FILTER}" ]; then
+          if [ -n "${SOURCE_FILTER}" ] && [ "${SOURCE_FILTER}" != "all" ]; then
             python -m scraper.check_pending_chapter_images --source "${SOURCE_FILTER}" --github-output "${GITHUB_OUTPUT}"
           else
             python -m scraper.check_pending_chapter_images --github-output "${GITHUB_OUTPUT}"
@@ -130,6 +130,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: 🖥️ Install virtual display
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.source == '' || github.event.inputs.source == 'all' || github.event.inputs.source == 'komiku_asia'
         run: sudo apt-get update && sudo apt-get install -y xvfb
 
       - name: 🌐 Install Scrapling browser dependencies
@@ -142,14 +143,30 @@ jobs:
           SELECTION_MODE: ${{ github.event.inputs.selection || 'random' }}
           BATCH_SIZE: ${{ github.event.inputs.batch_size || '10' }}
           LIMIT_COUNT: ${{ github.event.inputs.limit || '20' }}
+          KOMIKU_ASIA_HEADLESS: "false"
         run: |
+          set -euo pipefail
+
           cd backend
           CMD="python -m scraper.sync_chapter_images --selection ${SELECTION_MODE} --batch-size ${BATCH_SIZE} --limit ${LIMIT_COUNT}"
-          if [ -n "${SOURCE_FILTER}" ]; then
+          if [ -n "${SOURCE_FILTER}" ] && [ "${SOURCE_FILTER}" != "all" ]; then
             CMD="${CMD} --source ${SOURCE_FILTER}"
           fi
           echo "Running: ${CMD}"
-          xvfb-run -a -s "-screen 0 1366x768x24" bash -lc "${CMD}"
+          if [ "${SOURCE_FILTER}" = "komiku_asia" ]; then
+            echo "Running komiku_asia through xvfb."
+            xvfb-run -a -s "-screen 0 1366x768x24" bash -lc "${CMD}"
+          elif [ -z "${SOURCE_FILTER}" ] || [ "${SOURCE_FILTER}" = "all" ]; then
+            echo "Running non-komiku_asia sources without xvfb."
+            for source in komiku komikcast shinigami; do
+              bash -lc "${CMD} --source ${source}"
+            done
+            echo "Running komiku_asia through xvfb."
+            xvfb-run -a -s "-screen 0 1366x768x24" bash -lc "${CMD} --source komiku_asia"
+          else
+            echo "komiku_asia is not included; running without xvfb."
+            bash -lc "${CMD}"
+          fi
 
       - name: 📝 Log completion
         if: always()

@@ -43,6 +43,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: 🖥️ Install virtual display
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.source == '' || github.event.inputs.source == 'all' || github.event.inputs.source == 'komiku_asia'
         run: sudo apt-get update && sudo apt-get install -y xvfb
 
       - name: 🌐 Install Scrapling browser dependencies
@@ -52,12 +53,31 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SOURCE_FILTER: ${{ github.event.inputs.source || '' }}
+          KOMIKU_ASIA_HEADLESS: "false"
         run: |
+          set -euo pipefail
+
           cd backend
-          if [ -n "$SOURCE_FILTER" ]; then
-            xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.refresh_source_stats --source "$SOURCE_FILTER"
+          args=()
+          if [ -n "${SOURCE_FILTER}" ] && [ "${SOURCE_FILTER}" != "all" ]; then
+            args+=(--source "$SOURCE_FILTER")
+          fi
+
+          printf 'Running source stats refresh with args:'
+          printf ' %q' "${args[@]}"
+          printf '\n'
+
+          if [ "${SOURCE_FILTER}" = "komiku_asia" ]; then
+            echo "Running komiku_asia through xvfb."
+            xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.refresh_source_stats "${args[@]}"
+          elif [ -z "${SOURCE_FILTER}" ] || [ "${SOURCE_FILTER}" = "all" ]; then
+            echo "Running non-komiku_asia sources without xvfb."
+            python -m scraper.refresh_source_stats --source komiku,komikcast,shinigami
+            echo "Running komiku_asia through xvfb."
+            xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.refresh_source_stats --source komiku_asia
           else
-            xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.refresh_source_stats
+            echo "komiku_asia is not included; running without xvfb."
+            python -m scraper.refresh_source_stats "${args[@]}"
           fi
 
       - name: 📝 Log completion

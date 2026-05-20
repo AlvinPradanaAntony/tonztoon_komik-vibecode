@@ -11,16 +11,40 @@ Alur:
 4. Backend langsung merespons "Sync started" ke client (fire-and-forget)
 """
 
-from fastapi import APIRouter, HTTPException
 import httpx
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field, field_validator
 
 from app.config import settings
 
 router = APIRouter()
 
 
+class ScraperSyncRequest(BaseModel):
+    trigger_source: str = Field(default="manual_api", max_length=64)
+    source: str | None = Field(default=None, max_length=64)
+    max_pages: int | None = Field(default=None, ge=0)
+
+    @field_validator("source")
+    @classmethod
+    def validate_source(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        normalized = value.strip().lower()
+        if not normalized or normalized == "all":
+            return None
+
+        allowed_sources = {"komiku", "komiku_asia", "komikcast", "shinigami"}
+        if normalized not in allowed_sources:
+            allowed = ", ".join(sorted(allowed_sources))
+            raise ValueError(f"source must be empty, all, or one of: {allowed}")
+
+        return normalized
+
+
 @router.post("/sync")
-async def trigger_manual_sync():
+async def trigger_manual_sync(sync_request: ScraperSyncRequest | None = None):
     """
     Trigger manual scraping via GitHub Actions workflow_dispatch.
 
@@ -55,11 +79,19 @@ async def trigger_manual_sync():
         "X-GitHub-Api-Version": "2022-11-28",
     }
 
+    sync_request = sync_request or ScraperSyncRequest()
+    workflow_inputs = {
+        "trigger_source": sync_request.trigger_source.strip() or "manual_api",
+    }
+
+    if sync_request.source:
+        workflow_inputs["source"] = sync_request.source
+    if sync_request.max_pages is not None:
+        workflow_inputs["max_pages"] = str(sync_request.max_pages)
+
     payload = {
         "ref": "main",  # Branch target
-        "inputs": {
-            "trigger_source": "manual_api",
-        },
+        "inputs": workflow_inputs,
     }
 
     try:

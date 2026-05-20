@@ -27,6 +27,10 @@ on:
         required: false
         default: false
         type: boolean
+      cloak_challenge_timeout_ms:
+        description: "Timeout khusus Cloudflare/CloakBrowser dalam milidetik"
+        required: false
+        default: "120000"
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -66,6 +70,7 @@ jobs:
           ENGINE: ${{ github.event.inputs.engine || 'both' }}
           PAGE: ${{ github.event.inputs.page || '1' }}
           CLOAK_HEADLESS: ${{ github.event.inputs.cloak_headless || 'false' }}
+          KOMIKU_ASIA_CLOAK_CHALLENGE_TIMEOUT_MS: ${{ github.event.inputs.cloak_challenge_timeout_ms || '120000' }}
         run: |
           set -euo pipefail
           cd backend
@@ -89,6 +94,7 @@ jobs:
           ENGINE: ${{ github.event.inputs.engine || 'both' }}
           PAGE: ${{ github.event.inputs.page || '1' }}
           CLOAK_HEADLESS: ${{ github.event.inputs.cloak_headless || 'false' }}
+          CLOAK_CHALLENGE_TIMEOUT_MS: ${{ github.event.inputs.cloak_challenge_timeout_ms || '120000' }}
         run: |
           set -euo pipefail
 
@@ -112,6 +118,7 @@ jobs:
             echo "| Engine | ${ENGINE} |"
             echo "| Page | ${PAGE} |"
             echo "| Cloak headless | ${CLOAK_HEADLESS} |"
+            echo "| Cloak challenge timeout | ${CLOAK_CHALLENGE_TIMEOUT_MS} ms |"
             echo "| Exit status | ${status} (${conclusion}) |"
             echo "| Completed at | ${completed_at} |"
             echo
