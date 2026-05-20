@@ -46,6 +46,9 @@ jobs:
           cd backend
           pip install -r requirements.txt
 
+      - name: 🖥️ Install virtual display
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
       - name: 🌐 Install Scrapling browser dependencies
         run: scrapling install
 
@@ -55,7 +58,7 @@ jobs:
           POPULAR_PAGES: ${{ github.event.inputs.popular_pages || '10' }}
         run: |
           cd backend
-          python -m scraper.main --max-pages 0 --popular-pages ${POPULAR_PAGES}
+          xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.main --max-pages 0 --popular-pages ${POPULAR_PAGES}
 
       - name: 📝 Log completion
         if: always()

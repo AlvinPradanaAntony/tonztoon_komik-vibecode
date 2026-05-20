@@ -42,6 +42,9 @@ jobs:
           cd backend
           pip install -r requirements.txt
 
+      - name: 🖥️ Install virtual display
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
       - name: 🌐 Install Scrapling browser dependencies
         run: scrapling install
 
@@ -52,9 +55,9 @@ jobs:
         run: |
           cd backend
           if [ -n "$SOURCE_FILTER" ]; then
-            python -m scraper.refresh_source_stats --source "$SOURCE_FILTER"
+            xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.refresh_source_stats --source "$SOURCE_FILTER"
           else
-            python -m scraper.refresh_source_stats
+            xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.refresh_source_stats
           fi
 
       - name: 📝 Log completion
