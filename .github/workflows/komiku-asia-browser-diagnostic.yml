@@ -34,6 +34,7 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  CLOAKBROWSER_CACHE_PATH: ~/.cloakbrowser
 
 jobs:
   diagnose:
@@ -55,6 +56,23 @@ jobs:
           cd backend
           pip install -r requirements.txt
           pip install cloakbrowser
+
+      - name: 🗓️ Compute CloakBrowser cache key
+        id: cloakbrowser-cache-key
+        run: |
+          set -euo pipefail
+          week="$(date -u +'%G-W%V')"
+          echo "week=${week}" >> "$GITHUB_OUTPUT"
+
+      - name: 🧥 Restore CloakBrowser binary cache
+        id: cloakbrowser-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ env.CLOAKBROWSER_CACHE_PATH }}
+          key: cloakbrowser-${{ runner.os }}-${{ runner.arch }}-py312-${{ steps.cloakbrowser-cache-key.outputs.week }}
+          restore-keys: |
+            cloakbrowser-${{ runner.os }}-${{ runner.arch }}-py312-
+            cloakbrowser-${{ runner.os }}-${{ runner.arch }}-
 
       - name: 🖥️ Install virtual display and browser dependencies
         run: |
@@ -87,6 +105,25 @@ jobs:
           set -e
           echo "${status}" > ../komiku-asia-diagnostic.status
           exit "${status}"
+
+      - name: 🔎 Check CloakBrowser cache path
+        id: cloakbrowser-cache-path
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -d "${HOME}/.cloakbrowser" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            du -sh "${HOME}/.cloakbrowser" || true
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 💾 Save CloakBrowser binary cache
+        if: always() && steps.cloakbrowser-cache.outputs.cache-hit != 'true' && steps.cloakbrowser-cache-path.outputs.exists == 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ env.CLOAKBROWSER_CACHE_PATH }}
+          key: cloakbrowser-${{ runner.os }}-${{ runner.arch }}-py312-${{ steps.cloakbrowser-cache-key.outputs.week }}
 
       - name: 📝 Write diagnostic summary
         if: always()

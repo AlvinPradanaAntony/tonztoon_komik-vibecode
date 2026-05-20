@@ -10,6 +10,7 @@ import re
 from datetime import datetime
 from typing import Any
 from urllib.parse import urlencode
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from scraper.utils import clean_text
@@ -19,23 +20,40 @@ KOMIKCAST_API_BASE_URL = "https://be.komikcast.cc"
 DEFAULT_SERIES_INDEX_TAKE = 12
 DEFAULT_SERIES_INDEX_TAKE_CHAPTER = 2
 DEFAULT_POPULAR_TAKE = 20
+DEFAULT_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/120.0.0.0 Safari/537.36"
+)
 
 
 
 def build_komikcast_api_headers() -> dict[str, str]:
     return {
-        "User-Agent": "Mozilla/5.0",
+        "User-Agent": DEFAULT_USER_AGENT,
         "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
         "Referer": f"{KOMIKCAST_BASE_URL}/",
         "Origin": KOMIKCAST_BASE_URL,
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "cross-site",
     }
 
 
 async def fetch_komikcast_api_json(api_url: str) -> dict[str, Any]:
     def do_request() -> dict[str, Any]:
         request = Request(api_url, headers=build_komikcast_api_headers())
-        with urlopen(request, timeout=45) as response:
-            payload = response.read().decode("utf-8", errors="ignore")
+        try:
+            with urlopen(request, timeout=45) as response:
+                payload = response.read().decode("utf-8", errors="ignore")
+        except HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="ignore")[:500]
+            raise RuntimeError(
+                f"Komikcast API HTTP {exc.code} untuk {api_url}: {body}"
+            ) from exc
         return json.loads(payload)
 
     data = await asyncio.to_thread(do_request)
