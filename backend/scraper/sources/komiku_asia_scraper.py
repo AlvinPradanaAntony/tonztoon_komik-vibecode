@@ -42,14 +42,11 @@ import asyncio
 import logging
 import os
 import re
-import time
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
 from scrapling.fetchers import AsyncStealthySession
-from scrapling.parser import Adaptor
 
 from scraper.base_scraper import BaseComicScraper
 from scraper.sources.common import ScraperCommonMixin
@@ -88,15 +85,6 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
         "timed out",
     )
     _SESSION_RESET_STATUSES = {403, 429, 500, 502, 503, 504}
-    _cloak_browser = None
-    _cloak_context = None
-
-    @classmethod
-    def _browser_engine(cls) -> str:
-        engine = os.getenv("KOMIKU_ASIA_BROWSER_ENGINE", "scrapling").strip().lower()
-        if engine in {"cloak", "cloakbrowser"}:
-            return "cloakbrowser"
-        return "scrapling"
 
     @classmethod
     def _env_bool(cls, name: str, default: bool = False) -> bool:
@@ -117,33 +105,6 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
         return ["--window-position=-32000,-32000", "--window-size=200,200"]
 
     @classmethod
-    def _cloak_browser_extra_flags(cls) -> list[str]:
-        return ["--window-size=1366,768"]
-
-    @classmethod
-    def _cloak_storage_state_path(cls) -> Path:
-        default_path = Path(__file__).resolve().parents[2] / ".cache" / "komiku_asia_cloak_state.json"
-        return Path(os.getenv("KOMIKU_ASIA_CLOAK_STATE_PATH", str(default_path)))
-
-    @classmethod
-    def _cloak_debug_dir(cls) -> Path | None:
-        raw_path = os.getenv("KOMIKU_ASIA_CLOAK_DEBUG_DIR", "").strip()
-        return Path(raw_path) if raw_path else None
-
-    @classmethod
-    def _cloak_challenge_timeout_ms(cls, request_timeout_ms: int) -> int:
-        raw_timeout = os.getenv("KOMIKU_ASIA_CLOAK_CHALLENGE_TIMEOUT_MS", "").strip()
-        if raw_timeout:
-            try:
-                return max(request_timeout_ms, int(raw_timeout))
-            except ValueError:
-                logger.warning(
-                    "KOMIKU_ASIA_CLOAK_CHALLENGE_TIMEOUT_MS tidak valid: %s",
-                    raw_timeout,
-                )
-        return max(request_timeout_ms, 120_000)
-
-    @classmethod
     async def get_session(cls) -> AsyncStealthySession:
         if cls._shared_session is None:
             logger.info("Membuka AsyncStealthySession (Persistent) baru...")
@@ -159,37 +120,6 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
         return cls._shared_session
 
     @classmethod
-    async def get_cloak_context(cls):
-        if cls._cloak_context is None:
-            try:
-                from cloakbrowser import launch_context_async
-            except ImportError as exc:
-                raise RuntimeError(
-                    "KOMIKU_ASIA_BROWSER_ENGINE=cloakbrowser membutuhkan package "
-                    "`cloakbrowser`. Install dengan `pip install cloakbrowser`."
-                ) from exc
-
-            headless = cls._env_bool("KOMIKU_ASIA_CLOAK_HEADLESS", False)
-            storage_state_path = cls._cloak_storage_state_path()
-            storage_state_path.parent.mkdir(parents=True, exist_ok=True)
-            storage_state = str(storage_state_path) if storage_state_path.exists() else None
-            logger.info(
-                "Membuka CloakBrowser context baru (headless=%s, storage_state=%s)...",
-                headless,
-                storage_state or "new",
-            )
-            cls._cloak_context = await launch_context_async(
-                headless=headless,
-                humanize=True,
-                args=cls._cloak_browser_extra_flags(),
-                timezone="Asia/Bangkok",
-                locale="id-ID",
-                viewport={"width": 1366, "height": 768},
-                storage_state=storage_state,
-            )
-        return cls._cloak_context
-
-    @classmethod
     async def close_shared_session(cls) -> None:
         """Tutup sesi persisten untuk mengosongkan resource browser."""
         if cls._shared_session is not None:
@@ -200,24 +130,6 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
                 await session.__aexit__(None, None, None)
             except Exception as exc:
                 logger.warning("Gagal menutup AsyncStealthySession lama: %s", exc)
-
-        if cls._cloak_context is not None:
-            logger.info("Menutup CloakBrowser context...")
-            context = cls._cloak_context
-            cls._cloak_context = None
-            try:
-                await context.close()
-            except Exception as exc:
-                logger.warning("Gagal menutup CloakBrowser context lama: %s", exc)
-
-        if cls._cloak_browser is not None:
-            logger.info("Menutup CloakBrowser...")
-            browser = cls._cloak_browser
-            cls._cloak_browser = None
-            try:
-                await browser.close()
-            except Exception as exc:
-                logger.warning("Gagal menutup CloakBrowser lama: %s", exc)
 
     @classmethod
     async def reset_shared_session(cls, reason: str) -> None:
@@ -272,14 +184,6 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
         akan tetap disimpan di pemanggilan `.fetch(...)` berikutnya.
         """
         logger.info("Stealth fetch: %s", url)
-        if self._browser_engine() == "cloakbrowser":
-            return await self._fetch_page_with_cloakbrowser(
-                url,
-                wait_selector=wait_selector,
-                timeout_ms=timeout_ms,
-                wait_ms=wait_ms,
-            )
-
         try:
             session = await self.get_session()
             page = await session.fetch(
@@ -302,181 +206,6 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
 
         await self._raise_for_bad_response(url, page)
         return page
-
-    async def _fetch_page_with_cloakbrowser(
-        self,
-        url: str,
-        *,
-        wait_selector: str,
-        timeout_ms: int,
-        wait_ms: int,
-    ):
-        """Eksperimen CloakBrowser: ambil HTML via Playwright lalu parse dengan Scrapling."""
-        logger.info("CloakBrowser fetch: %s", url)
-        page = None
-        try:
-            context = await self.get_cloak_context()
-            page = await context.new_page()
-            page.set_default_timeout(timeout_ms)
-
-            response = await page.goto(
-                url,
-                wait_until="domcontentloaded",
-                timeout=timeout_ms,
-            )
-            if wait_ms > 0:
-                await page.wait_for_timeout(wait_ms)
-            await self._wait_for_cloak_target_selector(
-                page,
-                wait_selector,
-                timeout_ms=self._cloak_challenge_timeout_ms(timeout_ms),
-            )
-
-            html = await page.content()
-            parsed = Adaptor(html, url=url)
-            original_status = response.status if response is not None else 0
-            parsed.original_status = original_status
-            parsed.status = 200
-            if original_status and original_status != 200:
-                logger.warning(
-                    "CloakBrowser navigation status=%s untuk %s, tetapi selector target sudah visible; lanjut parse DOM.",
-                    original_status,
-                    url,
-                )
-            await self._save_cloak_storage_state()
-        except Exception as exc:
-            await self._save_cloak_storage_state()
-            if page is not None:
-                await self._dump_cloak_debug_artifacts(page, url)
-            if self._should_reset_session_on_error(exc):
-                await self.reset_shared_session(f"{type(exc).__name__}: {exc}")
-                logger.warning(
-                    "CloakBrowser fetch gagal untuk %s dan error diteruskan ke caller agar backoff/retry berjalan.",
-                    url,
-                )
-            raise
-        finally:
-            if page is not None:
-                try:
-                    await page.close()
-                except Exception as exc:
-                    logger.warning("Gagal menutup page CloakBrowser: %s", exc)
-
-        await self._raise_for_bad_response(url, parsed)
-        return parsed
-
-    async def _wait_for_cloak_target_selector(
-        self,
-        page,
-        wait_selector: str,
-        *,
-        timeout_ms: int,
-    ) -> None:
-        """
-        Tunggu halaman target setelah Cloudflare.
-
-        Cloudflare kadang menampilkan "Verifikasi berhasil. Menunggu response..."
-        tetapi tidak langsung redirect. Dalam kondisi itu, reload ringan sering
-        membuat cookie clearance yang baru tersimpan dipakai untuk request target.
-        """
-        deadline = time.monotonic() + (timeout_ms / 1000)
-        last_log_at = 0.0
-        last_reload_at = 0.0
-        reload_count = 0
-        target = page.locator(wait_selector).first
-
-        while time.monotonic() < deadline:
-            try:
-                if await target.is_visible(timeout=1_000):
-                    return
-            except Exception:
-                pass
-
-            title = ""
-            body_text = ""
-            try:
-                title = await page.title()
-            except Exception:
-                pass
-            try:
-                body_text = await page.locator("body").inner_text(timeout=1_000)
-            except Exception:
-                pass
-
-            lower_text = f"{title}\n{body_text}".lower()
-            challenge_seen = any(
-                marker in lower_text
-                for marker in (
-                    "tunggu sebentar",
-                    "enable javascript and cookies",
-                    "verifikasi keamanan",
-                    "cloudflare",
-                )
-            )
-            verification_finished = (
-                "verifikasi berhasil" in lower_text
-                or "verification successful" in lower_text
-            )
-
-            now = time.monotonic()
-            if challenge_seen and now - last_log_at >= 10:
-                logger.info(
-                    "CloakBrowser masih di halaman Cloudflare (title=%r, verification_finished=%s); menunggu target selector %r...",
-                    title,
-                    verification_finished,
-                    wait_selector,
-                )
-                last_log_at = now
-
-            if verification_finished and reload_count < 2 and now - last_reload_at >= 15:
-                reload_count += 1
-                last_reload_at = now
-                logger.info(
-                    "Cloudflare menampilkan verifikasi berhasil tetapi belum redirect; reload target ringan (%s/2).",
-                    reload_count,
-                )
-                await self._save_cloak_storage_state()
-                try:
-                    await page.reload(wait_until="domcontentloaded", timeout=30_000)
-                except Exception as exc:
-                    logger.warning("Reload setelah verifikasi Cloudflare gagal: %s", exc)
-
-            await page.wait_for_timeout(2_000)
-
-        raise TimeoutError(
-            f"Timeout menunggu target selector {wait_selector!r} setelah Cloudflare "
-            f"({timeout_ms}ms)"
-        )
-
-    async def _save_cloak_storage_state(self) -> None:
-        if self._cloak_context is None:
-            return
-
-        try:
-            await self._cloak_context.storage_state(path=str(self._cloak_storage_state_path()))
-        except Exception as exc:
-            logger.warning("Gagal menyimpan CloakBrowser storage_state: %s", exc)
-
-    async def _dump_cloak_debug_artifacts(self, page, url: str) -> None:
-        debug_dir = self._cloak_debug_dir()
-        if debug_dir is None:
-            return
-
-        debug_dir.mkdir(parents=True, exist_ok=True)
-        safe_name = re.sub(r"[^a-zA-Z0-9]+", "_", url).strip("_")[:120]
-        html_path = debug_dir / f"{safe_name}.html"
-        screenshot_path = debug_dir / f"{safe_name}.png"
-
-        try:
-            html_path.write_text(await page.content(), encoding="utf-8")
-            await page.screenshot(path=str(screenshot_path), full_page=True)
-            logger.warning(
-                "CloakBrowser debug artifacts tersimpan: %s dan %s",
-                html_path,
-                screenshot_path,
-            )
-        except Exception as exc:
-            logger.warning("Gagal menyimpan CloakBrowser debug artifacts: %s", exc)
 
     def _parse_date(self, date_str: str | None) -> datetime | None:
         cleaned = clean_text(date_str)

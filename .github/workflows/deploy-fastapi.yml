@@ -52,6 +52,42 @@ jobs:
     steps:
       - name: 📥 Checkout repository
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: 🔎 Inspect triggering changes
+        id: trigger-changes
+        run: |
+          set -euo pipefail
+
+          before="${{ github.event.before || '' }}"
+          after="${{ github.sha }}"
+
+          if [ -n "${before}" ] && git cat-file -e "${before}^{commit}" 2>/dev/null; then
+            range="${before}..${after}"
+          elif git rev-parse HEAD^ >/dev/null 2>&1; then
+            range="HEAD^..HEAD"
+          else
+            range="HEAD"
+          fi
+
+          echo "🔎 Inspecting trigger range: ${range}"
+          git diff --name-only "${range}" > trigger-changed-files.txt || true
+
+          backend_count=$(grep -Ec '^(backend/|Dockerfile$|\.dockerignore$|README\.md$)' trigger-changed-files.txt || true)
+          total_count=$(wc -l < trigger-changed-files.txt | tr -d ' ')
+          commit_subject="$(git log -1 --pretty=%s)"
+
+          echo "changed_total=${total_count}" >> "$GITHUB_OUTPUT"
+          echo "backend_changed=${backend_count}" >> "$GITHUB_OUTPUT"
+          {
+            echo "commit_subject<<EOF"
+            echo "${commit_subject}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Changed files:"
+          sed 's#^#  - #' trigger-changed-files.txt || true
 
       - name: 🔎 Validate deployment prerequisites
         env:
@@ -157,15 +193,22 @@ jobs:
 
           added=$(grep -c '^>f+++++++++' rsync.log || true)
           deleted=$(grep -c '^\*deleting ' rsync.log || true)
+          changed=$(grep -Ec '^(>f|>d|cd|cL|cS|cD|h|\.d|\.f)' rsync.log || true)
+          updated=$(grep -Ec '^>f[^+]' rsync.log || true)
 
           echo "🧾 Rsync summary"
           printf '  - added:   %s\n' "${added}"
+          printf '  - updated: %s\n' "${updated}"
           printf '  - deleted: %s\n' "${deleted}"
+          printf '  - changed: %s\n' "${changed}"
           echo "✅ Ringkasan rsync selesai"
           echo "added=${added}" >> "$GITHUB_OUTPUT"
+          echo "updated=${updated}" >> "$GITHUB_OUTPUT"
           echo "deleted=${deleted}" >> "$GITHUB_OUTPUT"
+          echo "changed=${changed}" >> "$GITHUB_OUTPUT"
 
       - name: 📤 Push to Hugging Face
+        id: push-hf
         if: env.DRY_RUN != 'true'
         working-directory: hf-space
         run: |
@@ -173,39 +216,102 @@ jobs:
 
           if git diff --cached --quiet; then
             echo "⚠️ Tidak ada perubahan baru, push dilewati"
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+            echo "commit_sha=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           commit_message="chore: update backend deploy files [$(date +'%Y-%m-%d')]"
           echo "📝 Membuat commit: ${commit_message}"
           git commit -m "${commit_message}"
+          commit_sha="$(git rev-parse --short HEAD)"
 
           echo "🚀 Mendorong perubahan ke Hugging Face"
           git push origin main
 
           echo "✅ Push ke Hugging Face berhasil"
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+          echo "commit_sha=${commit_sha}" >> "$GITHUB_OUTPUT"
 
       - name: ✅ Log completion
         if: always()
         env:
           JOB_STATUS: ${{ job.status }}
           RSYNC_ADDED: ${{ steps.rsync-summary.outputs.added || 'n/a' }}
+          RSYNC_UPDATED: ${{ steps.rsync-summary.outputs.updated || 'n/a' }}
           RSYNC_DELETED: ${{ steps.rsync-summary.outputs.deleted || 'n/a' }}
+          RSYNC_CHANGED: ${{ steps.rsync-summary.outputs.changed || 'n/a' }}
+          HF_PUSHED: ${{ steps.push-hf.outputs.pushed || 'false' }}
+          HF_COMMIT_SHA: ${{ steps.push-hf.outputs.commit_sha || '' }}
+          TRIGGER_CHANGED_TOTAL: ${{ steps.trigger-changes.outputs.changed_total || 'n/a' }}
+          TRIGGER_BACKEND_CHANGED: ${{ steps.trigger-changes.outputs.backend_changed || 'n/a' }}
+          TRIGGER_COMMIT_SUBJECT: ${{ steps.trigger-changes.outputs.commit_subject || '' }}
         run: |
           set -euo pipefail
 
           completed_at="$(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          deploy_status="failed"
+          if [ "${JOB_STATUS}" = "success" ]; then
+            if [ "${DRY_RUN}" = "true" ]; then
+              deploy_status="dry_run_preview"
+            elif [ "${HF_PUSHED}" = "true" ]; then
+              deploy_status="deployed"
+            else
+              deploy_status="no_payload_changes"
+            fi
+          fi
 
           {
             echo "## 🚀 Deploy backend summary"
             echo
             echo "| Metric | Value |"
             echo "|---|---|"
+            echo "| Deploy status | ${deploy_status} |"
             echo "| Dry run | ${DRY_RUN} |"
             echo "| Job status | ${JOB_STATUS} |"
+            echo "| Trigger commit | ${GITHUB_SHA::7} |"
+            echo "| Trigger message | ${TRIGGER_COMMIT_SUBJECT:-n/a} |"
+            echo "| Trigger changed files | ${TRIGGER_CHANGED_TOTAL} |"
+            echo "| Backend deploy-relevant files | ${TRIGGER_BACKEND_CHANGED} |"
+            echo "| Hugging Face pushed | ${HF_PUSHED} |"
+            echo "| Hugging Face commit | ${HF_COMMIT_SHA:-n/a} |"
+            echo "| Rsync changed | ${RSYNC_CHANGED} |"
             echo "| Rsync added | ${RSYNC_ADDED} |"
+            echo "| Rsync updated | ${RSYNC_UPDATED} |"
             echo "| Rsync deleted | ${RSYNC_DELETED} |"
             echo "| Completed at | ${completed_at} |"
+            echo
+
+            if [ -f trigger-changed-files.txt ]; then
+              echo "### Trigger changed files"
+              echo
+              echo '```text'
+              head -n 20 trigger-changed-files.txt
+              total_lines="$(wc -l < trigger-changed-files.txt | tr -d ' ')"
+              if [ "${total_lines}" -gt 20 ]; then
+                echo "... and $((total_lines - 20)) more"
+              fi
+              echo '```'
+              echo
+            fi
+
+            if [ -f rsync.log ]; then
+              echo "### Payload changes"
+              echo
+              echo '```text'
+              head -n 40 rsync.log
+              total_rsync_lines="$(wc -l < rsync.log | tr -d ' ')"
+              if [ "${total_rsync_lines}" -gt 40 ]; then
+                echo "... and $((total_rsync_lines - 40)) more"
+              fi
+              echo '```'
+              echo
+            elif [ "${DRY_RUN}" = "true" ]; then
+              echo "### Payload changes"
+              echo
+              echo "Dry run mode did not sync against Hugging Face, so rsync changes were not computed."
+              echo
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
           echo "⏱️ Waktu selesai: $(date -u)"
