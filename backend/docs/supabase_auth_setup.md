@@ -41,6 +41,7 @@ ADMIN_USER_IDS=
 
 - `POST /api/v1/auth/register`
 - `POST /api/v1/auth/login`
+- `POST /api/v1/auth/google`
 - `POST /api/v1/auth/refresh`
 - `POST /api/v1/auth/password/forgot`
 - `POST /api/v1/auth/password/recovery/verify`
@@ -56,6 +57,15 @@ ADMIN_USER_IDS=
 ```http
 Authorization: Bearer <supabase_access_token>
 ```
+
+`POST /api/v1/auth/google` menerima Google `id_token` dari Flutter native
+`google_sign_in`, lalu backend menukarnya ke Supabase Auth melalui
+`/auth/v1/token?grant_type=id_token`. Setelah session diterima, backend tetap
+menjalankan bootstrap `public.profiles` seperti login email/password.
+
+Untuk login Google, aktifkan provider Google di Supabase Dashboard
+Authentication > Providers dan isi Google OAuth Client ID/Secret. Flutter hanya
+perlu `GOOGLE_WEB_CLIENT_ID` dan, untuk iOS/macOS, `GOOGLE_IOS_CLIENT_ID`.
 
 ## Endpoint account manager
 

@@ -52,6 +52,7 @@ from app.schemas.library import (
 from app.schemas.auth import (
     AuthenticatedUser,
     AuthEmailVerificationRequest,
+    AuthGoogleRequest,
     AuthLoginRequest,
     AuthLogoutResponse,
     AuthPasswordRecoveryRequest,
@@ -122,6 +123,7 @@ __all__ = [
     "ReaderPreferenceUpdateRequest",
     "AuthenticatedUser",
     "AuthEmailVerificationRequest",
+    "AuthGoogleRequest",
     "AuthLoginRequest",
     "AuthLogoutResponse",
     "AuthPasswordRecoveryRequest",

@@ -23,6 +23,7 @@ import 'library_repository.dart';
 import 'notification_repository.dart';
 import 'offline_repository.dart';
 import 'progress_repository.dart';
+import 'google_auth_client.dart';
 
 final configProvider = Provider<AppConfig>(
   (ref) => AppConfig.fromEnvironment(),
@@ -212,11 +213,16 @@ final catalogRepositoryProvider = Provider<CatalogRepository>((ref) {
   );
 });
 
+final googleAuthClientProvider = Provider<GoogleAuthClient>((ref) {
+  return NativeGoogleAuthClient(ref.watch(configProvider));
+});
+
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository(
     ref.watch(apiProvider),
     ref.watch(tokenStoreProvider),
     ref.watch(localStoreProvider),
+    googleAuthClient: ref.watch(googleAuthClientProvider),
     clearOfflineFiles: () =>
         ref.read(offlineRepositoryProvider).clearAllOfflineChapters(),
   );
@@ -278,6 +284,10 @@ class AuthController extends Notifier<AuthState> {
     state = await ref
         .read(authRepositoryProvider)
         .login(email: email, password: password);
+  }
+
+  Future<void> loginWithGoogle() async {
+    state = await ref.read(authRepositoryProvider).loginWithGoogle();
   }
 
   Future<void> register(

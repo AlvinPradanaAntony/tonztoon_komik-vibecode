@@ -68,6 +68,7 @@ async def ensure_profile_for_auth_user(
         or user_metadata.get("name")
     )
     username = normalize_username(user_metadata.get("username"))
+    avatar_url = user_metadata.get("avatar_url") or user_metadata.get("picture")
 
     if profile is not None:
         updated = False
@@ -77,6 +78,9 @@ async def ensure_profile_for_auth_user(
         if profile.username is None and username:
             profile.username = username
             profile.normalized_username = username
+            updated = True
+        if profile.avatar_url is None and avatar_url:
+            profile.avatar_url = avatar_url
             updated = True
         if updated:
             await db.commit()
@@ -88,6 +92,7 @@ async def ensure_profile_for_auth_user(
         username=username,
         normalized_username=username,
         display_name=display_name,
+        avatar_url=avatar_url,
     )
     db.add(profile)
     await db.commit()

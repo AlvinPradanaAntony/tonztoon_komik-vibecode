@@ -15,6 +15,7 @@ import 'package:tonztoon/src/models/comic.dart';
 import 'package:tonztoon/src/models/progress.dart';
 import 'package:tonztoon/src/repositories/auth_repository.dart';
 import 'package:tonztoon/src/repositories/catalog_repository.dart';
+import 'package:tonztoon/src/repositories/google_auth_client.dart';
 import 'package:tonztoon/src/repositories/library_repository.dart';
 import 'package:tonztoon/src/repositories/notification_repository.dart';
 import 'package:tonztoon/src/repositories/progress_repository.dart';
@@ -195,6 +196,64 @@ void main() {
     expect(state.isAuthenticated, isTrue);
     expect(await tokenStore.readAccessToken(), 'access-token');
     expect(store.auth.get('user'), isA<Map>());
+  });
+
+  test('auth repository exchanges Google tokens through backend', () async {
+    final tokenStore = MemoryTokenStore();
+    Map<String, dynamic>? googleRequestBody;
+    final dio = Dio(BaseOptions(baseUrl: 'https://api.test'));
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          if (options.method == 'POST' && options.path == '/auth/google') {
+            googleRequestBody = Map<String, dynamic>.from(options.data as Map);
+            handler.resolve(
+              Response<Object?>(
+                requestOptions: options,
+                statusCode: 200,
+                data: {
+                  'user': {'id': 'google-user-1', 'email': 'reader@gmail.com'},
+                  'session': {
+                    'access_token': 'google-access-token',
+                    'refresh_token': 'google-refresh-token',
+                    'expires_at': 456,
+                  },
+                },
+              ),
+            );
+            return;
+          }
+          handler.reject(DioException(requestOptions: options));
+        },
+      ),
+    );
+    final repository = AuthRepository(
+      TonztoonApi(
+        config: const AppConfig(apiBaseUrl: 'https://api.test'),
+        tokenStore: tokenStore,
+        dio: dio,
+      ),
+      tokenStore,
+      store,
+      googleAuthClient: _FakeGoogleAuthClient(
+        const GoogleAuthTokens(
+          idToken: 'google-id-token',
+          accessToken: 'google-oauth-access-token',
+        ),
+      ),
+    );
+
+    final state = await repository.loginWithGoogle();
+
+    expect(state.isAuthenticated, isTrue);
+    expect(state.user?.email, 'reader@gmail.com');
+    expect(googleRequestBody, {
+      'id_token': 'google-id-token',
+      'access_token': 'google-oauth-access-token',
+    });
+    expect(await tokenStore.readAccessToken(), 'google-access-token');
+    expect(await tokenStore.readRefreshToken(), 'google-refresh-token');
+    expect(await tokenStore.readExpiresAt(), 456);
   });
 
   test('auth repository logout clears local user-scoped data', () async {
@@ -1000,6 +1059,18 @@ class _FakeAuthRepository implements AuthRepository {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakeGoogleAuthClient implements GoogleAuthClient {
+  _FakeGoogleAuthClient(this.tokens);
+
+  final GoogleAuthTokens tokens;
+
+  @override
+  Future<GoogleAuthTokens> signIn() async => tokens;
+
+  @override
+  Future<void> signOut() async {}
 }
 
 class _ClearingAuthRepository implements AuthRepository {

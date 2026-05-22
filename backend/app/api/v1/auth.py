@@ -13,6 +13,7 @@ from app.database import get_db
 from app.schemas import (
     AuthenticatedUser,
     AuthEmailVerificationRequest,
+    AuthGoogleRequest,
     AuthLoginRequest,
     AuthLogoutResponse,
     AuthPasswordRecoveryRequest,
@@ -31,6 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.auth_service import (
     AuthConfigurationError,
     AuthRequestError,
+    login_with_google_id_token,
     login_with_email_password,
     logout_auth_session,
     refresh_auth_session,
@@ -97,6 +99,27 @@ async def login(
     """Login email/password melalui Supabase Auth."""
     try:
         response = await login_with_email_password(payload)
+        if response.user is not None:
+            await ensure_profile_for_auth_user(
+                db,
+                response.user.id,
+                user_metadata=response.user.user_metadata,
+            )
+        return response
+    except AuthConfigurationError as exc:
+        raise_api_error(status.HTTP_500_INTERNAL_SERVER_ERROR, str(exc))
+    except AuthRequestError as exc:
+        _raise_auth_service_error(exc)
+
+
+@router.post("/google", response_model=AuthSessionResponse)
+async def login_google(
+    payload: AuthGoogleRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Login Google native melalui backend lalu buat/isi public profile."""
+    try:
+        response = await login_with_google_id_token(payload)
         if response.user is not None:
             await ensure_profile_for_auth_user(
                 db,

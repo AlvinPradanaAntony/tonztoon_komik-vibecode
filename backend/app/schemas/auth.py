@@ -44,6 +44,14 @@ class AuthLoginRequest(BaseModel):
     password: str = Field(..., min_length=8, max_length=128)
 
 
+class AuthGoogleRequest(BaseModel):
+    """Payload login Google native dari Flutter."""
+
+    id_token: str = Field(..., min_length=1, max_length=8192)
+    access_token: str | None = Field(default=None, min_length=1, max_length=8192)
+    nonce: str | None = Field(default=None, min_length=1, max_length=2048)
+
+
 class AuthRefreshRequest(BaseModel):
     """Payload refresh session menggunakan refresh token."""
 

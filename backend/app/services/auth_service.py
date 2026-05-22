@@ -21,6 +21,7 @@ from app.config import (
 from app.schemas import (
     AuthenticatedUser,
     AuthEmailVerificationRequest,
+    AuthGoogleRequest,
     AuthLoginRequest,
     AuthPasswordRecoveryRequest,
     AuthPasswordRecoveryVerifyRequest,
@@ -210,6 +211,37 @@ async def login_with_email_password(
 
     if response.status_code >= 400:
         raise _build_login_auth_error(response)
+
+    return _normalize_session(response.json())
+
+
+async def login_with_google_id_token(
+    payload: AuthGoogleRequest,
+) -> AuthSessionResponse:
+    """Login Google native via Supabase Auth id_token grant."""
+    auth_base = get_supabase_auth_base_url()
+    if not auth_base:
+        raise AuthConfigurationError("SUPABASE_URL must be configured.")
+
+    body: dict[str, Any] = {
+        "provider": "google",
+        "id_token": payload.id_token,
+    }
+    if payload.access_token:
+        body["access_token"] = payload.access_token
+    if payload.nonce:
+        body["nonce"] = payload.nonce
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            f"{auth_base}/token",
+            params={"grant_type": "id_token"},
+            headers=_build_public_headers(),
+            json=body,
+        )
+
+    if response.status_code >= 400:
+        raise _build_google_auth_error(response)
 
     return _normalize_session(response.json())
 
@@ -415,6 +447,34 @@ def _build_login_auth_error(response: httpx.Response) -> AuthRequestError:
             "Email belum dikonfirmasi. Silakan cek inbox Anda terlebih dahulu.",
             status_code=403,
             code="email_not_confirmed",
+        )
+
+    return AuthRequestError(message, status_code=401, code=code)
+
+
+def _build_google_auth_error(response: httpx.Response) -> AuthRequestError:
+    message, code = _extract_auth_error_payload(response)
+    normalized = _normalize_error_text(message, code)
+
+    if "provider" in normalized and (
+        "disabled" in normalized or "not enabled" in normalized
+    ):
+        return AuthRequestError(
+            "Provider Google belum aktif di Supabase Auth.",
+            status_code=502,
+            code=code or "google_provider_disabled",
+        )
+
+    if (
+        "id token" in normalized
+        or "id_token" in normalized
+        or "invalid token" in normalized
+        or "jwt" in normalized
+    ):
+        return AuthRequestError(
+            "Token Google tidak valid atau sudah kedaluwarsa. Silakan login ulang.",
+            status_code=401,
+            code=code or "invalid_google_token",
         )
 
     return AuthRequestError(message, status_code=401, code=code)

@@ -7,18 +7,22 @@ import '../core/api_client.dart';
 import '../core/storage.dart';
 import '../core/token_store.dart';
 import '../models/auth.dart';
+import 'google_auth_client.dart';
 
 class AuthRepository {
   AuthRepository(
     this._api,
     this._tokenStore,
     this._store, {
+    GoogleAuthClient? googleAuthClient,
     Future<void> Function()? clearOfflineFiles,
-  }) : _clearOfflineFiles = clearOfflineFiles;
+  }) : _googleAuthClient = googleAuthClient,
+       _clearOfflineFiles = clearOfflineFiles;
 
   final TonztoonApi _api;
   final TokenStore _tokenStore;
   final LocalStore _store;
+  final GoogleAuthClient? _googleAuthClient;
   final Future<void> Function()? _clearOfflineFiles;
 
   Future<AuthState> restore() async {
@@ -59,6 +63,26 @@ class AuthRepository {
     final response = await _api.post<Map<String, dynamic>>(
       '/auth/login',
       data: {'email': email, 'password': password},
+    );
+    final session = AuthSession.fromJson(response.data ?? const {});
+    return _persistSession(session);
+  }
+
+  Future<AuthState> loginWithGoogle() async {
+    final googleAuthClient = _googleAuthClient;
+    if (googleAuthClient == null) {
+      throw ApiException('Google sign-in belum dikonfigurasi.');
+    }
+
+    final googleTokens = await googleAuthClient.signIn();
+    final response = await _api.post<Map<String, dynamic>>(
+      '/auth/google',
+      data: {
+        'id_token': googleTokens.idToken,
+        if (googleTokens.accessToken != null &&
+            googleTokens.accessToken!.trim().isNotEmpty)
+          'access_token': googleTokens.accessToken!.trim(),
+      },
     );
     final session = AuthSession.fromJson(response.data ?? const {});
     return _persistSession(session);
@@ -202,7 +226,16 @@ class AuthRepository {
     await _tokenStore.clear();
     await _clearOfflineFilesSafely();
     await _store.clearUserScopedData();
+    await _signOutGoogleSafely();
     unawaited(_revokeServerSession(accessToken));
+  }
+
+  Future<void> _signOutGoogleSafely() async {
+    try {
+      await _googleAuthClient?.signOut();
+    } catch (_) {
+      // Logout should clear local account state even if provider sign-out fails.
+    }
   }
 
   Future<void> _clearOfflineFilesSafely() async {

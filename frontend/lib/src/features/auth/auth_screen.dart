@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import '../../core/app_assets.dart';
 import '../../core/api_client.dart';
 import '../../core/app_icons.dart';
-import '../../core/app_snackbar.dart';
 import '../../repositories/providers.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
@@ -218,12 +217,33 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     return message.isEmpty ? 'Terjadi kesalahan. Silakan coba lagi.' : message;
   }
 
-  void _continueGoogle() {
-    showAppSnackBar(
-      context,
-      message: 'Google sign-in belum tersambung ke backend.',
-      type: AppSnackBarType.help,
-    );
+  Future<void> _continueGoogle() async {
+    if (_submitting) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    setState(() => _submitting = true);
+    try {
+      await ref.read(authControllerProvider.notifier).loginWithGoogle();
+      final auth = ref.read(authControllerProvider);
+      if (!auth.isAuthenticated) {
+        throw ApiException(
+          auth.message ?? 'Login Google belum berhasil. Silakan coba lagi.',
+        );
+      }
+      ref.invalidate(homeDataProvider);
+      if (!mounted) return;
+      context.go('/');
+    } catch (error) {
+      if (!mounted) return;
+      await _showAuthErrorDialog(
+        title: 'Login Google gagal',
+        message: _authErrorMessage(error),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
   }
 }
 
