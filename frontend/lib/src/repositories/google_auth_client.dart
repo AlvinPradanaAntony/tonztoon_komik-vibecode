@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../core/app_error.dart';
 import '../core/api_client.dart';
 import '../core/config.dart';
 
@@ -34,7 +35,8 @@ class NativeGoogleAuthClient implements GoogleAuthClient {
     final GoogleSignInAccount googleAccount;
     try {
       googleAccount = await _googleSignIn.authenticate();
-    } on GoogleSignInException catch (error) {
+    } on GoogleSignInException catch (error, stackTrace) {
+      logAppError(error, stackTrace, context: 'Native Google Sign-In failed');
       throw ApiException(_googleSignInErrorMessage(error));
     }
 
@@ -107,9 +109,7 @@ class NativeGoogleAuthClient implements GoogleAuthClient {
       GoogleSignInExceptionCode.uiUnavailable =>
         'UI Google Sign-In tidak dapat dibuka dari perangkat ini.',
       _ =>
-        error.description?.trim().isNotEmpty == true
-            ? error.description!.trim()
-            : 'Login Google gagal. Silakan coba lagi.',
+        'Login Google gagal. Periksa konfigurasi Google Sign-In lalu coba lagi.',
     };
   }
 

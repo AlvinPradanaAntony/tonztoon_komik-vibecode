@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/app_error.dart';
 import '../../core/app_icons.dart';
 import '../../core/app_snackbar.dart';
 import '../../models/comic.dart';
@@ -14,6 +15,7 @@ import '../../widgets/app_loading_placeholder.dart';
 import '../../widgets/app_surface_ink.dart';
 import '../../widgets/comic_card.dart';
 import '../../widgets/comic_cover.dart';
+import 'library_error.dart';
 import 'library_shared_panes.dart';
 
 class LibraryScreen extends ConsumerWidget {
@@ -168,8 +170,8 @@ class _CollectionsTab extends ConsumerWidget {
       ref.invalidate(collectionDetailProvider(created.id));
       if (!context.mounted) return;
       _showMessage(context, 'Koleksi "${created.name}" dibuat.');
-    } catch (error) {
-      if (context.mounted) _showError(context, error);
+    } catch (error, stackTrace) {
+      if (context.mounted) showLibraryActionError(context, error, stackTrace);
     }
   }
 }
@@ -281,12 +283,14 @@ class _LibraryList extends StatelessWidget {
   Future<void> _refreshWithSnackBar(BuildContext context) async {
     try {
       await onRefresh();
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (!context.mounted) return;
-      showAppSnackBar(
+      showAppErrorSnackBar(
         context,
-        message: 'Gagal memuat ulang pustaka: $error',
-        type: AppSnackBarType.failure,
+        error: error,
+        stackTrace: stackTrace,
+        logContext: 'Refresh library failed',
+        fallbackMessage: 'Pustaka belum dapat dimuat ulang. Silakan coba lagi.',
       );
     }
   }
@@ -319,7 +323,14 @@ class _ErrorPane extends StatelessWidget {
           children: [
             const Icon(Icons.cloud_off_rounded, size: 40),
             const SizedBox(height: 12),
-            Text(error.toString(), textAlign: TextAlign.center),
+            Text(
+              friendlyErrorMessage(
+                error,
+                fallbackMessage:
+                    'Pustaka belum dapat dimuat. Silakan coba lagi.',
+              ),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: onRetry,
@@ -697,8 +708,8 @@ class _BookmarkTile extends ConsumerWidget {
       ref.invalidate(libraryComicStateProvider(comic));
       await _refreshBookmarks(ref);
       if (context.mounted) _showMessage(context, 'Bookmark dihapus.');
-    } catch (error) {
-      if (context.mounted) _showError(context, error);
+    } catch (error, stackTrace) {
+      if (context.mounted) showLibraryActionError(context, error, stackTrace);
     }
   }
 }
@@ -975,8 +986,8 @@ class _CollectionDetailScreen extends ConsumerWidget {
       ref.invalidate(collectionsProvider);
       if (!context.mounted) return;
       _showMessage(context, 'Komik ditambahkan.');
-    } catch (error) {
-      if (context.mounted) _showError(context, error);
+    } catch (error, stackTrace) {
+      if (context.mounted) showLibraryActionError(context, error, stackTrace);
     }
   }
 
@@ -1013,8 +1024,8 @@ class _CollectionDetailScreen extends ConsumerWidget {
       ref.invalidate(collectionsProvider);
       if (!context.mounted) return;
       _showMessage(context, 'Komik dihapus dari koleksi.');
-    } catch (error) {
-      if (context.mounted) _showError(context, error);
+    } catch (error, stackTrace) {
+      if (context.mounted) showLibraryActionError(context, error, stackTrace);
     }
   }
 }
@@ -1314,7 +1325,6 @@ Future<String?> _showCollectionNameDialog(
     ),
   );
 }
-
 Future<void> _renameCollection(
   BuildContext context,
   WidgetRef ref,
@@ -1336,8 +1346,8 @@ Future<void> _renameCollection(
     ref.invalidate(collectionDetailProvider(collection.id));
     if (!context.mounted) return;
     _showMessage(context, 'Koleksi menjadi "${updated.name}".');
-  } catch (error) {
-    if (context.mounted) _showError(context, error);
+  } catch (error, stackTrace) {
+    if (context.mounted) showLibraryActionError(context, error, stackTrace);
   }
 }
 
@@ -1372,8 +1382,8 @@ Future<bool> _deleteCollection(
     if (!context.mounted) return false;
     _showMessage(context, 'Koleksi dihapus.');
     return true;
-  } catch (error) {
-    if (context.mounted) _showError(context, error);
+  } catch (error, stackTrace) {
+    if (context.mounted) showLibraryActionError(context, error, stackTrace);
     return false;
   }
 }
@@ -1447,15 +1457,6 @@ void _showMessage(BuildContext context, String message) {
     context,
     message: message,
     type: AppSnackBarType.success,
-    hideCurrent: false,
-  );
-}
-
-void _showError(BuildContext context, Object error) {
-  showAppSnackBar(
-    context,
-    message: error.toString(),
-    type: AppSnackBarType.failure,
     hideCurrent: false,
   );
 }

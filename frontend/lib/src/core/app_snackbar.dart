@@ -1,6 +1,8 @@
 import 'package:awesome_snackbar_content/awesome_snackbar_content.dart';
 import 'package:flutter/material.dart';
 
+import 'app_error.dart';
+
 enum AppSnackBarType { success, failure, warning, help }
 
 void showAppSnackBar(
@@ -30,6 +32,29 @@ void showAppSnackBar(
         contentType: _contentType(type),
       ),
     ),
+  );
+}
+
+void showAppErrorSnackBar(
+  BuildContext context, {
+  required Object error,
+  StackTrace? stackTrace,
+  String logContext = 'UI flow failed',
+  String fallbackMessage = 'Terjadi kesalahan. Silakan coba lagi.',
+  String? title,
+  Duration duration = const Duration(seconds: 3),
+  bool hideCurrent = true,
+}) {
+  if (stackTrace != null) {
+    logAppError(error, stackTrace, context: logContext);
+  }
+  showAppSnackBar(
+    context,
+    title: title,
+    message: friendlyErrorMessage(error, fallbackMessage: fallbackMessage),
+    type: AppSnackBarType.failure,
+    duration: duration,
+    hideCurrent: hideCurrent,
   );
 }
 

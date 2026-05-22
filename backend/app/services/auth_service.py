@@ -87,6 +87,22 @@ def _build_public_headers() -> dict[str, str]:
     }
 
 
+def _require_supabase_admin_config() -> None:
+    if not settings.SUPABASE_URL or not settings.SUPABASE_SERVICE_ROLE_KEY:
+        raise AuthConfigurationError(
+            "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be configured.",
+        )
+
+
+def _build_admin_headers() -> dict[str, str]:
+    _require_supabase_admin_config()
+    return {
+        "apikey": settings.SUPABASE_SERVICE_ROLE_KEY,
+        "Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}",
+        "Content-Type": "application/json",
+    }
+
+
 @lru_cache(maxsize=1)
 def _get_jwks_client() -> PyJWKClient | None:
     jwks_url = get_supabase_jwks_url()
@@ -153,6 +169,36 @@ def _normalize_session(raw_data: dict[str, Any]) -> AuthSessionResponse:
     )
 
 
+async def _auth_user_exists_by_email(email: str) -> bool:
+    """Check duplicate email with Supabase Admin before public signup."""
+    auth_base = get_supabase_auth_base_url()
+    if not auth_base:
+        raise AuthConfigurationError("SUPABASE_URL must be configured.")
+
+    normalized_email = email.strip().lower()
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.get(
+            f"{auth_base}/admin/users",
+            params={"page": 1, "per_page": 100, "filter": normalized_email},
+            headers=_build_admin_headers(),
+        )
+
+    if response.status_code >= 400:
+        raise AuthRequestError(
+            _extract_auth_error_payload(response)[0],
+            status_code=502,
+            code="auth_admin_lookup_failed",
+        )
+
+    payload = response.json()
+    users = payload.get("users") or payload.get("data", {}).get("users") or []
+    return any(
+        str(user.get("email") or "").strip().lower() == normalized_email
+        for user in users
+        if isinstance(user, dict)
+    )
+
+
 async def register_with_email_password(
     payload: AuthRegisterRequest,
 ) -> AuthSessionResponse:
@@ -160,6 +206,13 @@ async def register_with_email_password(
     auth_base = get_supabase_auth_base_url()
     if not auth_base:
         raise AuthConfigurationError("SUPABASE_URL must be configured.")
+
+    if await _auth_user_exists_by_email(str(payload.email)):
+        raise AuthRequestError(
+            "Email sudah terdaftar.",
+            status_code=409,
+            code="email_already_registered",
+        )
 
     body: dict[str, Any] = {
         "email": str(payload.email),

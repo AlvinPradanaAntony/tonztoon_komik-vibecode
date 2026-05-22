@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/app_error.dart';
 import '../../core/app_icons.dart';
 import '../../core/app_snackbar.dart';
 import '../../models/app_notification.dart';
@@ -86,10 +87,16 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 ],
               ),
               loading: () => const _NotificationsLoading(),
-              error: (error, stackTrace) => _NotificationsError(
-                message: error.toString(),
-                onRetry: () => ref.invalidate(notificationsProvider),
-              ),
+              error: (error, stackTrace) {
+                logAppError(error, stackTrace, context: 'Notifications provider failed',);
+                return _NotificationsError(
+                  message: friendlyErrorMessage(
+                    error,
+                    fallbackMessage: 'Notifikasi belum dapat dimuat. Silakan coba lagi.',
+                  ),
+                  onRetry: () => ref.invalidate(notificationsProvider),
+                );
+              },
             ),
           ),
           _NotificationsBottomFade(background: theme.scaffoldBackgroundColor),
@@ -107,12 +114,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         message: 'Semua notifikasi ditandai dibaca.',
         type: AppSnackBarType.success,
       );
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (!mounted) return;
-      showAppSnackBar(
+      showAppErrorSnackBar(
         context,
-        message: 'Gagal menandai notifikasi: $error',
-        type: AppSnackBarType.failure,
+        error: error,
+        stackTrace: stackTrace,
+        logContext: 'Mark all notifications read failed',
+        fallbackMessage: 'Gagal menandai semua notifikasi dibaca. Silakan coba lagi.',
       );
     }
   }
@@ -122,12 +131,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       if (item.unread) {
         await ref.read(notificationsProvider.notifier).markRead(item.id);
       }
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (!mounted) return;
-      showAppSnackBar(
+      showAppErrorSnackBar(
         context,
-        message: 'Gagal membuka notifikasi: $error',
-        type: AppSnackBarType.failure,
+        error: error,
+        stackTrace: stackTrace,
+        logContext: 'Open notification failed',
+        fallbackMessage: 'Gagal membuka notifikasi. Silakan coba lagi.',
       );
       return;
     }

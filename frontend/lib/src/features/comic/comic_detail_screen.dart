@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/app_error.dart';
 import '../../core/app_icons.dart';
 import '../../core/app_responsive.dart';
 import '../../core/app_snackbar.dart';
@@ -151,12 +152,15 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
                 ref.read(progressProvider(request).future),
                 ref.read(libraryComicStateProvider(comic).future),
               ]);
-            } catch (error) {
+            } catch (error, stackTrace) {
               if (!context.mounted) return;
-              showAppSnackBar(
+              showAppErrorSnackBar(
                 context,
-                message: 'Gagal memuat ulang detail komik: $error',
-                type: AppSnackBarType.failure,
+                error: error,
+                stackTrace: stackTrace,
+                logContext: 'Refresh comic detail failed',
+                fallbackMessage:
+                    'Detail komik belum dapat dimuat ulang. Silakan coba lagi.',
               );
             }
           },
@@ -385,8 +389,8 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
         bookmarked ? 'Bookmark disimpan.' : 'Bookmark dihapus.',
         type: AppSnackBarType.success,
       );
-    } catch (error) {
-      _showSnack(error.toString(), type: AppSnackBarType.failure);
+    } catch (error, stackTrace) {
+      _showErrorSnack(error, stackTrace, 'Toggle bookmark failed');
     } finally {
       if (mounted) setState(() => _bookmarkBusy = false);
     }
@@ -427,8 +431,10 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
       ref.invalidate(libraryComicStateProvider(comic));
       ref.invalidate(collectionsProvider);
       _showSnack('Koleksi diperbarui.', type: AppSnackBarType.success);
-    } catch (error) {
-      if (mounted) _showSnack(error.toString(), type: AppSnackBarType.failure);
+    } catch (error, stackTrace) {
+      if (mounted) {
+        _showErrorSnack(error, stackTrace, 'Update comic collections failed');
+      }
     } finally {
       if (mounted) setState(() => _collectionBusy = false);
     }
@@ -474,8 +480,8 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
         '${selected.length} chapter masuk antrean offline.',
         type: AppSnackBarType.success,
       );
-    } catch (error) {
-      _showSnack(error.toString(), type: AppSnackBarType.failure);
+    } catch (error, stackTrace) {
+      _showErrorSnack(error, stackTrace, 'Queue comic download failed');
     } finally {
       if (mounted) setState(() => _downloadBusy = false);
     }
@@ -487,6 +493,17 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
   }) {
     if (!mounted) return;
     showAppSnackBar(context, message: message, type: type);
+  }
+
+  void _showErrorSnack(Object error, StackTrace stackTrace, String logContext) {
+    if (!mounted) return;
+    showAppErrorSnackBar(
+      context,
+      error: error,
+      stackTrace: stackTrace,
+      logContext: logContext,
+      fallbackMessage: 'Aksi komik belum berhasil. Silakan coba lagi.',
+    );
   }
 }
 
@@ -553,12 +570,15 @@ Future<Set<int>?> _showCollectionPicker(
                             items = [created, ...items];
                             selected.add(created.id);
                           });
-                        } catch (error) {
+                        } catch (error, stackTrace) {
                           if (!context.mounted) return;
-                          showAppSnackBar(
+                          showAppErrorSnackBar(
                             context,
-                            message: error.toString(),
-                            type: AppSnackBarType.failure,
+                            error: error,
+                            stackTrace: stackTrace,
+                            logContext: 'Create collection from comic failed',
+                            fallbackMessage:
+                                'Koleksi baru belum dapat dibuat. Silakan coba lagi.',
                           );
                         }
                       },
@@ -1736,7 +1756,11 @@ class _ChapterPanel extends StatelessWidget {
                 child: Column(
                   children: [
                     Text(
-                      error.toString(),
+                      friendlyErrorMessage(
+                        error!,
+                        fallbackMessage:
+                            'Chapter belum dapat dimuat. Silakan coba lagi.',
+                      ),
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyMedium,
                     ),

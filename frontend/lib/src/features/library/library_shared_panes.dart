@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/app_error.dart';
 import '../../core/app_icons.dart';
 import '../../core/app_snackbar.dart';
 import '../../models/comic.dart';
@@ -12,6 +13,7 @@ import '../../repositories/providers.dart';
 import '../../widgets/app_loading_placeholder.dart';
 import '../../widgets/app_surface_ink.dart';
 import '../../widgets/comic_cover.dart';
+import 'library_error.dart';
 
 class FavoriteScenesPane extends ConsumerWidget {
   const FavoriteScenesPane({
@@ -367,12 +369,14 @@ class _LibraryList extends StatelessWidget {
   Future<void> _refreshWithSnackBar(BuildContext context) async {
     try {
       await onRefresh();
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (!context.mounted) return;
-      showAppSnackBar(
+      showAppErrorSnackBar(
         context,
-        message: 'Gagal memuat ulang data offline: $error',
-        type: AppSnackBarType.failure,
+        error: error,
+        stackTrace: stackTrace,
+        logContext: 'Refresh offline data failed',
+        fallbackMessage: 'Gagal memperbarui data offline. Silakan coba lagi.',
       );
     }
   }
@@ -405,7 +409,13 @@ class _ErrorPane extends StatelessWidget {
           children: [
             const Icon(Icons.cloud_off_rounded, size: 40),
             const SizedBox(height: 12),
-            Text(error.toString(), textAlign: TextAlign.center),
+            Text(
+              friendlyErrorMessage(
+                error,
+                fallbackMessage: 'Gagal memuat data offline. Silakan coba lagi.',
+              ),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: onRetry,
@@ -544,8 +554,8 @@ class _SceneCard extends ConsumerWidget {
       await ref.read(libraryRepositoryProvider).deleteFavoriteScene(scene.id);
       ref.invalidate(favoriteScenesProvider);
       if (context.mounted) _showMessage(context, 'Scene favorit dihapus.');
-    } catch (error) {
-      if (context.mounted) _showError(context, error);
+    } catch (error, stackTrace) {
+      if (context.mounted) showLibraryActionError(context, error, stackTrace);
     }
   }
 }
@@ -705,7 +715,6 @@ Future<void> _showScenePreview(BuildContext context, FavoriteScene scene) {
     },
   );
 }
-
 class _OfflineBatchTile extends ConsumerWidget {
   const _OfflineBatchTile({required this.batch});
 
@@ -871,8 +880,8 @@ class _OfflineChapterTile extends ConsumerWidget {
       ref.invalidate(offlineChaptersProvider);
       ref.invalidate(downloadsProvider);
       if (context.mounted) _showMessage(context, 'Unduhan offline dihapus.');
-    } catch (error) {
-      if (context.mounted) _showError(context, error);
+    } catch (error, stackTrace) {
+      if (context.mounted) showLibraryActionError(context, error, stackTrace);
     }
   }
 
@@ -1072,8 +1081,8 @@ class _DownloadEntryTile extends ConsumerWidget {
       if (context.mounted) {
         _showMessage(context, 'Chapter masuk antrean download perangkat ini.');
       }
-    } catch (error) {
-      if (context.mounted) _showError(context, error);
+    } catch (error, stackTrace) {
+      if (context.mounted) showLibraryActionError(context, error, stackTrace);
     }
   }
 
@@ -1082,8 +1091,8 @@ class _DownloadEntryTile extends ConsumerWidget {
       await ref.read(libraryRepositoryProvider).deleteDownloadEntry(entry);
       ref.invalidate(downloadsProvider);
       if (context.mounted) _showMessage(context, 'Wishlist offline dihapus.');
-    } catch (error) {
-      if (context.mounted) _showError(context, error);
+    } catch (error, stackTrace) {
+      if (context.mounted) showLibraryActionError(context, error, stackTrace);
     }
   }
 }
@@ -1350,15 +1359,6 @@ void _showMessage(BuildContext context, String message) {
     context,
     message: message,
     type: AppSnackBarType.success,
-    hideCurrent: false,
-  );
-}
-
-void _showError(BuildContext context, Object error) {
-  showAppSnackBar(
-    context,
-    message: error.toString(),
-    type: AppSnackBarType.failure,
     hideCurrent: false,
   );
 }

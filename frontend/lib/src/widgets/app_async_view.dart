@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/app_error.dart';
 import 'app_loading_placeholder.dart';
 
 class AppAsyncView<T> extends StatefulWidget {
@@ -29,6 +30,7 @@ class AppAsyncView<T> extends StatefulWidget {
 
 class _AppAsyncViewState<T> extends State<AppAsyncView<T>> {
   bool _retrying = false;
+  Object? _lastLoggedError;
 
   @override
   void didUpdateWidget(covariant AppAsyncView<T> oldWidget) {
@@ -55,27 +57,37 @@ class _AppAsyncViewState<T> extends State<AppAsyncView<T>> {
       loading: () =>
           widget.loadingBuilder?.call(context) ??
           const AppPageLoadingPlaceholder(),
-      error: (error, stackTrace) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.cloud_off_rounded, size: 40),
-              const SizedBox(height: 12),
-              Text(error.toString(), textAlign: TextAlign.center),
-              if (widget.onRetry != null) ...[
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: _handleRetry,
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Retry'),
+      error: (error, stackTrace) {
+        _logErrorOnce(error, stackTrace);
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.cloud_off_rounded, size: 40),
+                const SizedBox(height: 12),
+                Text(
+                  friendlyErrorMessage(
+                    error,
+                    fallbackMessage:
+                        'Data belum dapat dimuat. Periksa koneksi lalu coba lagi.',
+                  ),
+                  textAlign: TextAlign.center,
                 ),
+                if (widget.onRetry != null) ...[
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: _handleRetry,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Retry'),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -83,5 +95,11 @@ class _AppAsyncViewState<T> extends State<AppAsyncView<T>> {
     if (_retrying) return;
     setState(() => _retrying = true);
     widget.onRetry?.call();
+  }
+
+  void _logErrorOnce(Object error, StackTrace stackTrace) {
+    if (identical(_lastLoggedError, error)) return;
+    _lastLoggedError = error;
+    logAppError(error, stackTrace, context: 'Async view failed');
   }
 }

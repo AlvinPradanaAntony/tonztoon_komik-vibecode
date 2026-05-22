@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/app_error.dart';
 import '../../core/app_icons.dart';
 import '../../core/app_snackbar.dart';
 import '../../models/comic.dart';
@@ -255,17 +256,20 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
         _isFirstPageLoading = false;
         _hasLoadedCatalog = true;
       });
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (!mounted || serial != _requestSerial) return;
       setState(() {
         _error = error;
         _isFirstPageLoading = false;
       });
       if (hadCatalog) {
-        showAppSnackBar(
+        showAppErrorSnackBar(
           context,
-          message: 'Gagal memuat ulang katalog: $error',
-          type: AppSnackBarType.failure,
+          error: error,
+          stackTrace: stackTrace,
+          logContext: 'Refresh catalog failed',
+          fallbackMessage:
+              'Katalog belum dapat dimuat ulang. Silakan coba lagi.',
         );
       }
     }
@@ -312,13 +316,15 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
         _totalPages = page.totalPages < 1 ? 1 : page.totalPages;
         _isLoadingMore = false;
       });
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (!mounted || serial != _requestSerial) return;
       setState(() => _isLoadingMore = false);
-      showAppSnackBar(
+      showAppErrorSnackBar(
         context,
-        message: 'Gagal memuat halaman berikutnya: $error',
-        type: AppSnackBarType.failure,
+        error: error,
+        stackTrace: stackTrace,
+        logContext: 'Load next catalog page failed',
+        fallbackMessage: 'Halaman berikutnya belum dapat dimuat.',
       );
     }
   }
@@ -399,12 +405,14 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
       final genres = await ref.read(catalogRepositoryProvider).refreshGenres();
       ref.invalidate(genresProvider);
       return _genreNames(genres);
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (mounted) {
-        showAppSnackBar(
+        showAppErrorSnackBar(
           context,
-          message: 'Gagal memuat genre: $error',
-          type: AppSnackBarType.failure,
+          error: error,
+          stackTrace: stackTrace,
+          logContext: 'Refresh catalog genres failed',
+          fallbackMessage: 'Daftar genre belum dapat dimuat.',
         );
       }
       return const [];
@@ -710,7 +718,14 @@ class _CatalogErrorState extends StatelessWidget {
           children: [
             const Icon(Icons.cloud_off_rounded, size: 40),
             const SizedBox(height: 12),
-            Text(error.toString(), textAlign: TextAlign.center),
+            Text(
+              friendlyErrorMessage(
+                error,
+                fallbackMessage:
+                    'Katalog belum dapat dimuat. Silakan coba lagi.',
+              ),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: onRetry,

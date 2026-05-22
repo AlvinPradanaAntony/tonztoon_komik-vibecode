@@ -1,15 +1,29 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'src/app.dart';
+import 'src/core/app_error.dart';
 import 'src/core/storage.dart';
 
 export 'src/app.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    logAppError(
+      details.exception,
+      details.stack ?? StackTrace.current,
+      context: 'Flutter framework error',
+    );
+  };
+  PlatformDispatcher.instance.onError = (error, stackTrace) {
+    logAppError(error, stackTrace, context: 'Uncaught platform error');
+    return true;
+  };
 
   await Hive.initFlutter();
   await Future.wait([

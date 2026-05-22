@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../core/app_error.dart';
 import '../../core/app_icons.dart';
 import '../../core/app_snackbar.dart';
 import '../../models/comic.dart';
@@ -214,14 +215,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         key: ValueKey('search-async-loading-$_gridView'),
         gridView: _gridView,
       ),
-      error: (error, stackTrace) => _SearchCenteredState(
-        key: ValueKey('search-error-$query'),
-        height: stateHeight,
-        child: _SearchErrorState(
-          message: error.toString(),
-          onRetry: () => unawaited(_retrySearch()),
-        ),
-      ),
+      error: (error, stackTrace) {
+        logAppError(error, stackTrace, context: 'Search provider failed');
+        return _SearchCenteredState(
+          key: ValueKey('search-error-$query'),
+          height: stateHeight,
+          child: _SearchErrorState(
+            message: friendlyErrorMessage(
+              error,
+              fallbackMessage: 'Pencarian belum berhasil. Silakan coba lagi.',
+            ),
+            onRetry: () => unawaited(_retrySearch()),
+          ),
+        );
+      },
     );
   }
 
@@ -316,12 +323,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     try {
       ref.invalidate(searchResultsProvider);
       await ref.read(searchResultsProvider.future);
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (!mounted) return;
-      showAppSnackBar(
+      showAppErrorSnackBar(
         context,
-        message: 'Pencarian gagal: $error',
-        type: AppSnackBarType.failure,
+        error: error,
+        stackTrace: stackTrace,
+        logContext: 'Retry search failed',
+        fallbackMessage: 'Pencarian belum berhasil. Silakan coba lagi.',
       );
     } finally {
       if (mounted) {
@@ -378,12 +387,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       final genres = await ref.read(catalogRepositoryProvider).refreshGenres();
       ref.invalidate(genresProvider);
       return _genreNames(genres);
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (mounted) {
-        showAppSnackBar(
+        showAppErrorSnackBar(
           context,
-          message: 'Gagal memuat genre: $error',
-          type: AppSnackBarType.failure,
+          error: error,
+          stackTrace: stackTrace,
+          logContext: 'Refresh search genres failed',
+          fallbackMessage: 'Daftar genre belum dapat dimuat.',
         );
       }
       return const [];

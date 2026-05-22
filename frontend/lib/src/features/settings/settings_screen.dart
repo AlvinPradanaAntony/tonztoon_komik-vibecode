@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../../core/app_error.dart';
 import '../../core/app_snackbar.dart';
 import '../../core/avatar_image.dart';
 import '../../core/app_navigation.dart';
@@ -179,12 +180,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _setThemeMode(ThemeMode mode) async {
     try {
       await ref.read(appThemeModeProvider.notifier).setMode(mode);
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (!mounted) return;
-      showAppSnackBar(
+      showAppErrorSnackBar(
         context,
-        message: 'Gagal mengubah tema: $error',
-        type: AppSnackBarType.failure,
+        error: error,
+        stackTrace: stackTrace,
+        logContext: 'Set theme mode failed',
+        fallbackMessage: 'Tema belum dapat diubah. Silakan coba lagi.',
       );
     }
   }
@@ -192,12 +195,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _savePrefs(ReaderPreferences prefs) async {
     try {
       await ref.read(readerPreferencesProvider.notifier).save(prefs);
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (!mounted) return;
-      showAppSnackBar(
+      showAppErrorSnackBar(
         context,
-        message: 'Gagal menyimpan preferensi: $error',
-        type: AppSnackBarType.failure,
+        error: error,
+        stackTrace: stackTrace,
+        logContext: 'Save reader preferences failed',
+        fallbackMessage: 'Preferensi belum dapat disimpan. Silakan coba lagi.',
       );
     }
   }
@@ -213,12 +218,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         message: 'Cache katalog dibersihkan.',
         type: AppSnackBarType.success,
       );
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (!mounted) return;
-      showAppSnackBar(
+      showAppErrorSnackBar(
         context,
-        message: 'Gagal membersihkan cache: $error',
-        type: AppSnackBarType.failure,
+        error: error,
+        stackTrace: stackTrace,
+        logContext: 'Clear catalog cache failed',
+        fallbackMessage: 'Cache belum dapat dibersihkan. Silakan coba lagi.',
       );
     }
   }
@@ -235,12 +242,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         message: 'Logout berhasil.',
         type: AppSnackBarType.success,
       );
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (!mounted) return;
-      showAppSnackBar(
+      showAppErrorSnackBar(
         context,
-        message: 'Logout gagal: $error',
-        type: AppSnackBarType.failure,
+        error: error,
+        stackTrace: stackTrace,
+        logContext: 'Logout failed',
+        fallbackMessage: 'Logout belum berhasil. Silakan coba lagi.',
       );
     } finally {
       if (mounted) {
@@ -289,16 +298,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         message: 'Data guest berhasil disinkronkan.',
         type: AppSnackBarType.success,
       );
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (!mounted) return;
       if (loadingShown) {
         Navigator.of(context, rootNavigator: true).pop();
         loadingShown = false;
       }
-      showAppSnackBar(
+      showAppErrorSnackBar(
         context,
-        message: 'Migrasi gagal: $error',
-        type: AppSnackBarType.failure,
+        error: error,
+        stackTrace: stackTrace,
+        logContext: 'Guest data migration failed',
+        fallbackMessage: 'Migrasi data guest belum berhasil. Silakan coba lagi.',
       );
     }
   }
@@ -496,9 +507,13 @@ class _ProfileTextDialogState extends State<_ProfileTextDialog> {
       await widget.onSubmit(value);
       if (!mounted) return;
       Navigator.of(context).pop(value);
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (!mounted) return;
-      final message = 'Gagal menyimpan: $error';
+      final message = friendlyErrorMessage(
+        error,
+        fallbackMessage: 'Perubahan profil belum dapat disimpan.',
+      );
+      logAppError(error, stackTrace, context: 'Save profile field failed');
       setState(() {
         _saving = false;
         _errorText = message;
@@ -707,16 +722,18 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
         message: 'Foto profil berhasil diperbarui.',
         type: AppSnackBarType.success,
       );
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (!mounted) return;
       if (uploadDialogShown) {
         Navigator.of(context, rootNavigator: true).pop();
         uploadDialogShown = false;
       }
-      showAppSnackBar(
+      showAppErrorSnackBar(
         context,
-        message: 'Gagal mengunggah foto profil: $error',
-        type: AppSnackBarType.failure,
+        error: error,
+        stackTrace: stackTrace,
+        logContext: 'Upload profile avatar failed',
+        fallbackMessage: 'Gagal unggah Foto profil. Silakan coba lagi.',
       );
     } finally {
       if (mounted && uploadDialogShown) {
@@ -1438,9 +1455,13 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
       await widget.onSubmit(_passwordController.text);
       if (!mounted) return;
       Navigator.of(context).pop(true);
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (!mounted) return;
-      final message = 'Gagal menyimpan: $error';
+      final message = friendlyErrorMessage(
+        error,
+        fallbackMessage: 'Password gagal disimpan. Silakan coba lagi.',
+      );
+      logAppError(error, stackTrace, context: 'Save password failed');
       setState(() {
         _saving = false;
         _errorText = message;

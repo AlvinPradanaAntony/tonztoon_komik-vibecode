@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_assets.dart';
+import '../../core/app_error.dart';
 import '../../core/api_client.dart';
 import '../../core/app_icons.dart';
 import '../../repositories/providers.dart';
@@ -153,11 +154,21 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       ref.invalidate(homeDataProvider);
       if (!mounted) return;
       context.go('/');
-    } catch (error) {
+    } catch (error, stackTrace) {
+      logAppError(
+        error,
+        stackTrace,
+        context: mode ? 'Register email failed' : 'Login email failed',
+      );
       if (!mounted) return;
       await _showAuthErrorDialog(
         title: mode ? 'Register gagal' : 'Login gagal',
-        message: _authErrorMessage(error),
+        message: _authErrorMessage(
+          error,
+          fallbackMessage: mode
+              ? 'Registrasi belum berhasil. Periksa data akun lalu coba lagi.'
+              : 'Login belum berhasil. Periksa email dan password lalu coba lagi.',
+        ),
       );
     } finally {
       if (mounted) {
@@ -211,12 +222,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     return _showAuthFailureDialog(context, title: title, message: message);
   }
 
-  String _authErrorMessage(Object error) {
-    if (error is ApiException) return error.message;
-    final message = error.toString().trim();
-    return message.isEmpty ? 'Terjadi kesalahan. Silakan coba lagi.' : message;
-  }
-
   Future<void> _continueGoogle() async {
     if (_submitting) return;
     FocusManager.instance.primaryFocus?.unfocus();
@@ -233,11 +238,16 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       ref.invalidate(homeDataProvider);
       if (!mounted) return;
       context.go('/');
-    } catch (error) {
+    } catch (error, stackTrace) {
+      logAppError(error, stackTrace, context: 'Login Google failed');
       if (!mounted) return;
       await _showAuthErrorDialog(
         title: 'Login Google gagal',
-        message: _authErrorMessage(error),
+        message: _authErrorMessage(
+          error,
+          fallbackMessage:
+              'Login Google belum berhasil. Periksa akun Google lalu coba lagi.',
+        ),
       );
     } finally {
       if (mounted) {
@@ -304,6 +314,13 @@ Future<void> _showAuthFailureDialog(
       ],
     ),
   );
+}
+
+String _authErrorMessage(
+  Object error, {
+  String fallbackMessage = 'Terjadi kesalahan. Silakan coba lagi.',
+}) {
+  return friendlyErrorMessage(error, fallbackMessage: fallbackMessage);
 }
 
 class _AuthCard extends StatelessWidget {
@@ -756,9 +773,14 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           .requestPasswordReset(email: _emailController.text);
       if (!mounted) return;
       setState(() => _instructionSent = true);
-    } catch (error) {
+    } catch (error, stackTrace) {
+      logAppError(error, stackTrace, context: 'Password reset request failed');
       if (!mounted) return;
-      final message = _authErrorMessage(error);
+      final message = _authErrorMessage(
+        error,
+        fallbackMessage:
+            'Permintaan reset password belum berhasil. Coba beberapa saat lagi.',
+      );
       setState(() => _errorMessage = message);
       await _showAuthFailureDialog(
         context,
@@ -772,11 +794,6 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     }
   }
 
-  String _authErrorMessage(Object error) {
-    if (error is ApiException) return error.message;
-    final message = error.toString().trim();
-    return message.isEmpty ? 'Terjadi kesalahan. Silakan coba lagi.' : message;
-  }
 }
 
 class _ForgotPasswordHeader extends StatelessWidget {
@@ -1367,9 +1384,14 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
           .updatePassword(_passwordController.text);
       if (!mounted) return;
       setState(() => _completed = true);
-    } catch (error) {
+    } catch (error, stackTrace) {
+      logAppError(error, stackTrace, context: 'Password update failed');
       if (!mounted) return;
-      final message = _authErrorMessage(error);
+      final message = _authErrorMessage(
+        error,
+        fallbackMessage:
+            'Password belum dapat diperbarui. Periksa link reset lalu coba lagi.',
+      );
       setState(() => _errorMessage = message);
       await _showAuthFailureDialog(
         context,
@@ -1413,11 +1435,6 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
     _sessionReady = true;
   }
 
-  String _authErrorMessage(Object error) {
-    if (error is ApiException) return error.message;
-    final message = error.toString().trim();
-    return message.isEmpty ? 'Terjadi kesalahan. Silakan coba lagi.' : message;
-  }
 }
 
 class _ResetPasswordForm extends StatelessWidget {
@@ -1739,12 +1756,14 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
           );
       if (!mounted) return;
       context.go('/settings');
-    } catch (error) {
+    } catch (error, stackTrace) {
+      logAppError(error, stackTrace, context: 'Auth callback session failed');
       if (!mounted) return;
       setState(() {
-        _errorMessage = error is ApiException
-            ? error.message
-            : 'Tidak dapat memulihkan sesi. Silakan login ulang.';
+        _errorMessage = _authErrorMessage(
+          error,
+          fallbackMessage: 'Tidak dapat memulihkan sesi. Silakan login ulang.',
+        );
       });
     }
   }
@@ -1759,12 +1778,15 @@ class _AuthCallbackScreenState extends ConsumerState<AuthCallbackScreen> {
           .verifyEmailSignup(email, tokenHash);
       if (!mounted) return;
       context.go('/settings');
-    } catch (error) {
+    } catch (error, stackTrace) {
+      logAppError(error, stackTrace, context: 'Email verification failed');
       if (!mounted) return;
       setState(() {
-        _errorMessage = error is ApiException
-            ? error.message
-            : 'Tidak dapat memverifikasi email. Silakan minta link baru.';
+        _errorMessage = _authErrorMessage(
+          error,
+          fallbackMessage:
+              'Tidak dapat memverifikasi email. Silakan minta link baru.',
+        );
       });
     }
   }

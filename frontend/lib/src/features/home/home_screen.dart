@@ -168,12 +168,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     try {
       ref.invalidate(homeDataProvider);
       await ref.read(homeDataProvider.future);
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (!mounted || !showErrorSnackBar) return;
-      showAppSnackBar(
+      showAppErrorSnackBar(
         context,
-        message: 'Refresh gagal: $error',
-        type: AppSnackBarType.failure,
+        error: error,
+        stackTrace: stackTrace,
+        logContext: 'Refresh home failed',
+        fallbackMessage: 'Beranda belum dapat dimuat ulang. Silakan coba lagi.',
       );
     }
   }
@@ -230,16 +232,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         message: 'Data guest berhasil disinkronkan.',
         type: AppSnackBarType.success,
       );
-    } catch (error) {
+    } catch (error, stackTrace) {
       _migrationPromptShown = false;
       if (!mounted) return;
       if (loadingShown) {
         Navigator.of(context, rootNavigator: true).pop();
       }
-      showAppSnackBar(
+      showAppErrorSnackBar(
         context,
-        message: 'Migrasi gagal: $error',
-        type: AppSnackBarType.failure,
+        error: error,
+        stackTrace: stackTrace,
+        logContext: 'Home guest migration failed',
+        fallbackMessage:
+            'Migrasi data guest belum berhasil. Silakan coba lagi.',
       );
     }
   }

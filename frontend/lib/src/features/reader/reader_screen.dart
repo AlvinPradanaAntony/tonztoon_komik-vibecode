@@ -406,12 +406,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
               duration: const Duration(seconds: 2),
             );
           })
-          .catchError((Object error) {
+          .catchError((Object error, StackTrace stackTrace) {
             if (!mounted) return;
-            showAppSnackBar(
+            showAppErrorSnackBar(
               context,
-              message: error.toString(),
-              type: AppSnackBarType.failure,
+              error: error,
+              stackTrace: stackTrace,
+              logContext: 'Save favorite scene failed',
+              fallbackMessage: 'Scene belum dapat disimpan. Silakan coba lagi.',
               duration: const Duration(seconds: 2),
             );
           }),
