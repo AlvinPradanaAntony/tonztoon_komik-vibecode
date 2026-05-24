@@ -162,6 +162,7 @@ class AuthSecurityOverviewResponse(BaseModel):
     email: EmailStr | None = None
     email_verified: bool = False
     provider: str | None = None
+    has_password: bool = False
     current_session: AuthSecuritySessionResponse
 
 

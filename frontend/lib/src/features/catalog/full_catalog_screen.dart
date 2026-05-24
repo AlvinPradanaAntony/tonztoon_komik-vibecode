@@ -958,7 +958,7 @@ class _CatalogListTile extends StatelessWidget {
                         children: [
                           ComicMetaBadge(
                             label:
-                                'Ch ${formatChapterNumber(comic.latestChapterNumber ?? 0)}',
+                                'Chapter ${formatChapterNumber(comic.latestChapterNumber ?? 0)}',
                             color: colorScheme.primary,
                           ),
                         ],

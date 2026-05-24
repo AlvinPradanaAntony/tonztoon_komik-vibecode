@@ -6,30 +6,51 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
-## [1.9.0] - 2026-05-22
+## [1.10.0] - 2026-05-24
 
 ### Added
+- Status `has_password` pada ringkasan keamanan akun untuk membedakan akun email/password dan akun provider seperti Google.
+- Lookup Supabase Auth Admin user untuk membaca provider, identities, dan metadata keamanan yang lebih lengkap.
+- Dukungan update username dari frontend melalui endpoint profil yang sudah ada.
+- Badge `TERBARU` pada chapter paling atas di halaman detail komik.
+
+### Changed
+- Register, login email/password, dan update password kini menandai user sebagai sudah punya password di app metadata Supabase Auth.
+- Halaman Home, Detail Komik, Settings, dan kartu komik dipoles untuk layout carousel, status chapter, rating, dan panel akun yang lebih jelas.
+- Security overview kini mengambil provider dari metadata dan identities agar akun multi-provider tampil lebih akurat.
+- Sinkronisasi scraper menjaga URL cover yang sudah berada di public object storage, termasuk saat `SUPABASE_URL` tidak tersedia di environment job.
+
+### Fixed
+- Cover yang sudah dimigrasi ke Supabase Storage tidak lagi tertimpa oleh URL source scraper pada sync berikutnya.
+- Model dan test auth security overview kini memvalidasi `has_password`.
+- Update profil dapat menyimpan username dan memperbarui cache user lokal.
+
+---
+
+<details>
+<summary><strong>Riwayat versi sebelumnya</strong></summary>
+
+### [1.9.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.9.0) - 2026-05-22
+
+#### Added
 - Native Google Sign-In untuk frontend mobile melalui `google_sign_in` dan `NativeGoogleAuthClient`.
 - Endpoint backend `POST /api/v1/auth/google` untuk menukar Google ID token menjadi sesi Supabase.
 - Utilitas `AppError` untuk logging error terpusat, stack trace, dan sanitasi pesan yang ramah pengguna.
 - `showAppErrorSnackBar` dan error state Library agar feedback kegagalan lebih konsisten di seluruh UI.
 
-### Changed
+#### Changed
 - Auth flow kini menghubungkan token Google native ke backend melalui `AuthRepository.loginWithGoogle`.
 - Backend auth service diperkuat dengan validasi konfigurasi admin dan pengecekan email duplikat via Supabase Admin API.
 - Auth, Catalog, Comic Detail, Home, Library, Notifications, Reader, Search, Settings, dan `AppAsyncView` memakai pola error handling baru.
 - Global Flutter dan platform error kini ditangkap dari `main.dart` untuk meningkatkan observability.
 - Workflow `popular-sync` diperbarui agar sinkronisasi scraper berjalan lebih sering.
 
-### Fixed
+#### Fixed
 - Profil pengguna kini ikut menyinkronkan avatar Google saat login dengan provider Google.
 - Pesan error UI kini lebih aman dan seragam, tanpa membocorkan detail teknis mentah ke pengguna.
 - Konfigurasi Google OAuth untuk backend dan frontend didokumentasikan di README serta dokumen Supabase auth.
 
 ---
-
-<details>
-<summary><strong>Riwayat versi sebelumnya</strong></summary>
 
 ### [1.8.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.8.0) - 2026-05-20
 

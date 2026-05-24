@@ -127,6 +127,7 @@ enum AuthStatus { booting, guest, authenticated }
 class AuthSecurityOverview {
   const AuthSecurityOverview({
     required this.emailVerified,
+    required this.hasPassword,
     required this.currentSession,
     this.email,
     this.provider,
@@ -136,6 +137,7 @@ class AuthSecurityOverview {
     return AuthSecurityOverview(
       email: json['email'] as String?,
       emailVerified: json['email_verified'] as bool? ?? false,
+      hasPassword: json['has_password'] as bool? ?? true,
       provider: json['provider'] as String?,
       currentSession: AuthSecuritySession.fromJson(
         Map<String, dynamic>.from(
@@ -147,6 +149,7 @@ class AuthSecurityOverview {
 
   final String? email;
   final bool emailVerified;
+  final bool hasPassword;
   final String? provider;
   final AuthSecuritySession currentSession;
 }

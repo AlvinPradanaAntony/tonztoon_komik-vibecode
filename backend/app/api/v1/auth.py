@@ -32,12 +32,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.auth_service import (
     AuthConfigurationError,
     AuthRequestError,
+    get_auth_user_by_id,
     login_with_google_id_token,
     login_with_email_password,
     logout_auth_session,
     refresh_auth_session,
     register_with_email_password,
     request_password_recovery,
+    mark_auth_user_has_password,
     update_auth_password,
     verify_email_signup,
     verify_password_recovery,
@@ -70,6 +72,65 @@ def _claim_bool(claims: dict[str, object], key: str) -> bool | None:
     return None
 
 
+def _append_provider(providers: list[str], value: object) -> None:
+    if not isinstance(value, str):
+        return
+    provider = value.strip().lower()
+    if provider and provider not in providers:
+        providers.append(provider)
+
+
+def _auth_provider_names(
+    app_metadata: dict[str, object],
+    admin_user: dict[str, object] | None = None,
+) -> list[str]:
+    providers: list[str] = []
+    _append_provider(providers, app_metadata.get("provider"))
+    metadata_providers = app_metadata.get("providers")
+    if isinstance(metadata_providers, list):
+        for provider in metadata_providers:
+            _append_provider(providers, provider)
+
+    if admin_user:
+        admin_metadata = admin_user.get("app_metadata")
+        if isinstance(admin_metadata, dict):
+            _append_provider(providers, admin_metadata.get("provider"))
+            admin_providers = admin_metadata.get("providers")
+            if isinstance(admin_providers, list):
+                for provider in admin_providers:
+                    _append_provider(providers, provider)
+
+        identities = admin_user.get("identities")
+        if isinstance(identities, list):
+            for identity in identities:
+                if isinstance(identity, dict):
+                    _append_provider(providers, identity.get("provider"))
+
+    return providers
+
+
+def _metadata_has_password(
+    app_metadata: dict[str, object],
+    admin_user: dict[str, object] | None = None,
+) -> bool:
+    if app_metadata.get("has_password") is True:
+        return True
+    if not admin_user:
+        return False
+    admin_metadata = admin_user.get("app_metadata")
+    return (
+        isinstance(admin_metadata, dict)
+        and admin_metadata.get("has_password") is True
+    )
+
+
+async def _mark_auth_user_has_password_safely(user_id: object) -> None:
+    try:
+        await mark_auth_user_has_password(str(user_id))
+    except (AuthConfigurationError, AuthRequestError):
+        pass
+
+
 @router.post("/register", response_model=AuthSessionResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     payload: AuthRegisterRequest,
@@ -78,6 +139,8 @@ async def register(
     """Register akun baru melalui Supabase Auth."""
     try:
         response = await register_with_email_password(payload)
+        if response.user is not None:
+            await _mark_auth_user_has_password_safely(response.user.id)
         if response.user is not None:
             await ensure_profile_for_auth_user(
                 db,
@@ -99,6 +162,8 @@ async def login(
     """Login email/password melalui Supabase Auth."""
     try:
         response = await login_with_email_password(payload)
+        if response.user is not None:
+            await _mark_auth_user_has_password_safely(response.user.id)
         if response.user is not None:
             await ensure_profile_for_auth_user(
                 db,
@@ -227,6 +292,7 @@ async def verify_email(
 async def update_password(
     payload: AuthPasswordUpdateRequest,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    auth_user: AuthenticatedUser = Depends(get_current_auth_user),
 ):
     """Update password memakai bearer token dari sesi recovery yang valid."""
     if credentials is None or credentials.scheme.lower() != "bearer":
@@ -234,6 +300,7 @@ async def update_password(
 
     try:
         await update_auth_password(credentials.credentials, payload)
+        await _mark_auth_user_has_password_safely(auth_user.user_id)
     except AuthConfigurationError as exc:
         raise_api_error(status.HTTP_500_INTERNAL_SERVER_ERROR, str(exc))
     except AuthRequestError as exc:
@@ -279,13 +346,18 @@ async def security_overview(
     if not isinstance(user_metadata, dict):
         user_metadata = {}
 
-    provider = app_metadata.get("provider")
-    if not isinstance(provider, str) or not provider.strip():
-        providers = app_metadata.get("providers")
-        if isinstance(providers, list) and providers:
-            provider = str(providers[0])
-        else:
-            provider = None
+    admin_user: dict[str, object] | None = None
+    try:
+        admin_user = await get_auth_user_by_id(str(auth_user.user_id))
+    except (AuthConfigurationError, AuthRequestError):
+        admin_user = None
+
+    providers = _auth_provider_names(app_metadata, admin_user)
+    provider = providers[0] if providers else None
+    has_password = "email" in providers or _metadata_has_password(
+        app_metadata,
+        admin_user,
+    )
 
     email_verified_claim = _claim_bool(claims, "email_verified")
     if email_verified_claim is None:
@@ -300,6 +372,7 @@ async def security_overview(
         email=auth_user.email,
         email_verified=email_verified,
         provider=provider,
+        has_password=has_password,
         current_session=AuthSecuritySessionResponse(
             session_id=auth_user.session_id,
             issued_at=auth_user.issued_at,

@@ -1,5 +1,6 @@
-import 'dart:ui';
 import 'dart:async';
+import 'dart:math' as math;
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -800,6 +801,7 @@ class _RecommendationCarousel extends StatefulWidget {
 }
 
 class _RecommendationCarouselState extends State<_RecommendationCarousel> {
+  static const _viewportFraction = 0.94;
   static const _autoSlideDuration = Duration(seconds: 4);
   static const _slideAnimationDuration = Duration(milliseconds: 520);
 
@@ -836,54 +838,66 @@ class _RecommendationCarouselState extends State<_RecommendationCarousel> {
   Widget build(BuildContext context) {
     if (widget.comics.isEmpty) return const SizedBox.shrink();
 
-    return Column(
-      children: [
-        SizedBox(
-          height: 230,
-          child: PageView.builder(
-            controller: _pageController,
-            clipBehavior: Clip.none,
-            onPageChanged: _handlePageChanged,
-            itemCount: widget.comics.length > 1 ? null : widget.comics.length,
-            itemBuilder: (context, index) {
-              final comicIndex = index % widget.comics.length;
-              final comic = widget.comics[comicIndex];
-              return Padding(
-                padding: EdgeInsets.only(
-                  right: widget.comics.length == 1 ? 0 : 10,
-                ),
-                child: _RecommendationBanner(
-                  comic: comic,
-                  index: comicIndex,
-                  onTap: () => widget.onComicTap(comic),
-                ),
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final carouselHeight = _recommendationCarouselHeight(
+          context,
+          constraints.maxWidth,
+          widget.comics,
+        );
+
+        return Column(
           children: [
-            for (var i = 0; i < widget.comics.length; i++)
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOutCubic,
-                width: _currentPage == i ? 18 : 7,
-                height: 7,
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                decoration: BoxDecoration(
-                  color: _currentPage == i
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(
-                          context,
-                        ).colorScheme.outlineVariant.withValues(alpha: 0.9),
-                  borderRadius: BorderRadius.circular(99),
-                ),
+            SizedBox(
+              height: carouselHeight,
+              child: PageView.builder(
+                controller: _pageController,
+                clipBehavior: Clip.none,
+                onPageChanged: _handlePageChanged,
+                itemCount: widget.comics.length > 1
+                    ? null
+                    : widget.comics.length,
+                itemBuilder: (context, index) {
+                  final comicIndex = index % widget.comics.length;
+                  final comic = widget.comics[comicIndex];
+                  return Padding(
+                    padding: EdgeInsets.only(
+                      right: widget.comics.length == 1 ? 0 : 10,
+                    ),
+                    child: _RecommendationBanner(
+                      comic: comic,
+                      index: comicIndex,
+                      onTap: () => widget.onComicTap(comic),
+                    ),
+                  );
+                },
               ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (var i = 0; i < widget.comics.length; i++)
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    width: _currentPage == i ? 18 : 7,
+                    height: 7,
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    decoration: BoxDecoration(
+                      color: _currentPage == i
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(
+                              context,
+                            ).colorScheme.outlineVariant.withValues(alpha: 0.9),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+              ],
+            ),
           ],
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -892,7 +906,7 @@ class _RecommendationCarouselState extends State<_RecommendationCarousel> {
     _virtualPage = hasMultipleItems ? widget.comics.length * 1000 : 0;
     _currentPage = 0;
     _pageController = PageController(
-      viewportFraction: 0.94,
+      viewportFraction: _viewportFraction,
       initialPage: _virtualPage,
     );
   }
@@ -919,6 +933,183 @@ class _RecommendationCarouselState extends State<_RecommendationCarousel> {
   }
 }
 
+const double _bannerPaddingX = 16;
+const double _bannerPaddingY = 10;
+const double _bannerMaxTextScale = 1.08;
+const double _bannerBadgeContentGap = 10;
+const double _bannerMainContentGap = 12;
+const double _bannerCoverWidth = 86;
+const double _bannerCoverHeight = 132;
+const double _bannerTitlePillGap = 8;
+const double _bannerPillButtonGap = 14;
+const double _bannerButtonMinHeight = 48;
+const double _bannerPageEndGap = 10;
+const double _bannerSingleLineTitleScale = 1.28;
+const double _bannerSingleLineWidthTolerance = 1.08;
+
+double _recommendationCarouselHeight(
+  BuildContext context,
+  double viewportWidth,
+  List<ComicSummary> comics,
+) {
+  final textScale = _clampedBannerTextScale(context);
+  final bannerWidth = math.max(
+    0.0,
+    (viewportWidth * _RecommendationCarouselState._viewportFraction) -
+        (comics.length == 1 ? 0 : _bannerPageEndGap),
+  );
+  final contentWidth = math.max(0.0, bannerWidth - (_bannerPaddingX * 2));
+  final textColumnWidth = math.max(
+    80.0,
+    contentWidth - _bannerMainContentGap - _bannerCoverWidth,
+  );
+  final theme = Theme.of(context);
+  final titleStyle = theme.textTheme.titleLarge?.copyWith(
+    color: Colors.white,
+    fontWeight: FontWeight.w900,
+  );
+  final singleLineTitleStyle = titleStyle?.copyWith(
+    fontSize: (titleStyle.fontSize ?? 20) * _bannerSingleLineTitleScale,
+    height: 1.05,
+  );
+  final titleLineHeight = _scaledLineHeight(
+    titleStyle,
+    fallbackFontSize: 20,
+    fallbackHeight: 1.2,
+    textScale: textScale,
+  );
+  final topBadgeHeight = math.max(
+    28.0,
+    _scaledLineHeight(
+          theme.textTheme.labelSmall,
+          fallbackFontSize: 11,
+          fallbackHeight: 1.2,
+          textScale: textScale,
+        ) +
+        10,
+  );
+  final pillHeight =
+      _scaledLineHeight(
+        theme.textTheme.labelSmall,
+        fallbackFontSize: 11,
+        fallbackHeight: 1.2,
+        textScale: textScale,
+      ) +
+      10;
+  final buttonHeight = _bannerButtonMinHeight + ((textScale - 1) * 12);
+  var maxLowerRowHeight = _bannerCoverHeight;
+
+  for (final comic in comics) {
+    final statusLabel = _capitalizeBannerStatus(comic.status);
+    final hasPills =
+        comic.latestChapterNumber != null ||
+        comic.rating != null ||
+        statusLabel != null;
+    final useLargeTitle = _bannerTitleLooksSingleLine(
+      context,
+      comic.title,
+      titleStyle,
+      textColumnWidth,
+      textScale,
+    );
+    final titleHeight = _measureBannerTitleHeight(
+      context,
+      comic.title,
+      useLargeTitle ? singleLineTitleStyle : titleStyle,
+      textColumnWidth,
+      textScale,
+      fallbackLineHeight: titleLineHeight,
+    );
+    final textColumnHeight =
+        titleHeight +
+        (hasPills ? _bannerTitlePillGap + pillHeight : 0) +
+        _bannerPillButtonGap +
+        buttonHeight;
+    maxLowerRowHeight = math.max(maxLowerRowHeight, textColumnHeight);
+  }
+
+  return _bannerPaddingY +
+      topBadgeHeight +
+      _bannerBadgeContentGap +
+      maxLowerRowHeight +
+      _bannerPaddingY;
+}
+
+double _measureBannerTitleHeight(
+  BuildContext context,
+  String title,
+  TextStyle? style,
+  double maxWidth,
+  double textScale, {
+  required double fallbackLineHeight,
+}) {
+  if (maxWidth <= 0) return fallbackLineHeight * 2;
+  final painter = TextPainter(
+    text: TextSpan(text: title, style: style),
+    maxLines: 2,
+    ellipsis: '...',
+    textDirection: Directionality.of(context),
+    textScaler: TextScaler.linear(textScale),
+  )..layout(maxWidth: maxWidth);
+  return math.max(fallbackLineHeight, painter.size.height);
+}
+
+bool _bannerTitleLooksSingleLine(
+  BuildContext context,
+  String title,
+  TextStyle? style,
+  double maxWidth,
+  double textScale,
+) {
+  if (maxWidth <= 0) return false;
+  final width = _measureBannerTextWidth(context, title, style, textScale);
+  return width <= maxWidth * _bannerSingleLineWidthTolerance;
+}
+
+double _measureBannerTextWidth(
+  BuildContext context,
+  String text,
+  TextStyle? style,
+  double textScale,
+) {
+  final painter = TextPainter(
+    text: TextSpan(text: text, style: style),
+    maxLines: 1,
+    textDirection: Directionality.of(context),
+    textScaler: TextScaler.linear(textScale),
+  )..layout();
+  return painter.size.width;
+}
+
+double _scaledLineHeight(
+  TextStyle? style, {
+  required double fallbackFontSize,
+  required double fallbackHeight,
+  required double textScale,
+}) {
+  final fontSize = style?.fontSize ?? fallbackFontSize;
+  final height = style?.height ?? fallbackHeight;
+  return fontSize * height * textScale;
+}
+
+double _clampedBannerTextScale(BuildContext context) {
+  return MediaQuery.textScalerOf(
+    context,
+  ).scale(1).clamp(1.0, _bannerMaxTextScale).toDouble();
+}
+
+String? _capitalizeBannerStatus(String? status) {
+  final value = status?.trim();
+  if (value == null || value.isEmpty) return null;
+  return value
+      .split(RegExp(r'\s+'))
+      .map((word) {
+        if (word.isEmpty) return word;
+        return word[0].toUpperCase() + word.substring(1).toLowerCase();
+      })
+      .join(' ');
+}
+
 class _RecommendationBanner extends StatelessWidget {
   const _RecommendationBanner({
     required this.comic,
@@ -935,6 +1126,14 @@ class _RecommendationBanner extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final source = comicSourceLabel(comic);
+    final titleStyle = theme.textTheme.titleLarge?.copyWith(
+      color: Colors.white,
+      fontWeight: FontWeight.w900,
+    );
+    final singleLineTitleStyle = titleStyle?.copyWith(
+      fontSize: (titleStyle.fontSize ?? 20) * _bannerSingleLineTitleScale,
+      height: 1.05,
+    );
     final accentColors = const [
       Color(0xFFFF9D00),
       Color(0xFF3A86FF),
@@ -943,6 +1142,10 @@ class _RecommendationBanner extends StatelessWidget {
     ];
     final accent = accentColors[index % accentColors.length];
     final chapter = comic.latestChapterNumber;
+    final ratingLabel = comic.rating?.toStringAsFixed(1);
+    final statusLabel = _capitalizeBannerStatus(comic.status);
+    final hasPills =
+        chapter != null || ratingLabel != null || statusLabel != null;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -987,92 +1190,133 @@ class _RecommendationBanner extends StatelessWidget {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: _bannerPaddingX,
+                    vertical: _bannerPaddingY,
+                  ),
                   child: MediaQuery.withClampedTextScaling(
-                    maxScaleFactor: 1.12,
-                    child: Row(
+                    maxScaleFactor: _bannerMaxTextScale,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  ComicSourceBadge(label: source),
-                                  if (comic.type != null)
-                                    ComicTypeFlagBadge(type: comic.type!),
-                                ],
-                              ),
-                              const Spacer(),
-                              Text(
-                                comic.title,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.titleLarge?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  if (chapter != null)
-                                    _BannerPill(
-                                      label:
-                                          'Ch ${formatChapterNumber(chapter)}',
-                                      color: accent,
-                                    ),
-                                  _BannerPill(
-                                    label: 'Rekomendasi',
-                                    color: Colors.white,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 14),
-                              FilledButton.icon(
-                                onPressed: onTap,
-                                icon: const Icon(TonztoonIcons.play, size: 17),
-                                label: const Text('Baca sekarang'),
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: accent,
-                                  foregroundColor: Colors.white,
-                                  minimumSize: const Size(0, 42),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            ComicSourceBadge(label: source),
+                            if (comic.type != null)
+                              ComicTypeFlagBadge(type: comic.type!),
+                          ],
                         ),
-                        const SizedBox(width: 12),
-                        SizedBox(
-                          width: 86,
-                          height: 132,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.34),
+                        const SizedBox(height: _bannerBadgeContentGap),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      final useLargeTitle =
+                                          _bannerTitleLooksSingleLine(
+                                            context,
+                                            comic.title,
+                                            titleStyle,
+                                            constraints.maxWidth,
+                                            _clampedBannerTextScale(context),
+                                          );
+                                      return Text(
+                                        comic.title,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: useLargeTitle
+                                            ? singleLineTitleStyle
+                                            : titleStyle,
+                                      );
+                                    },
+                                  ),
+                                  if (hasPills) ...[
+                                    const SizedBox(height: _bannerTitlePillGap),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: [
+                                        if (chapter != null)
+                                          _BannerPill(
+                                            label:
+                                                'Ch ${formatChapterNumber(chapter)}',
+                                            color: accent,
+                                            solidSoftBackground: true,
+                                          ),
+                                        if (ratingLabel != null)
+                                          _BannerPill(
+                                            label: ratingLabel,
+                                            color: Colors.amber,
+                                            foregroundColor: Colors.amber,
+                                            icon: TonztoonIcons.starFilled,
+                                          ),
+                                        if (statusLabel != null)
+                                          _BannerPill(
+                                            label: statusLabel,
+                                            color: Colors.white,
+                                            foregroundColor: Colors.white,
+                                          ),
+                                      ],
+                                    ),
+                                  ],
+                                  const SizedBox(height: _bannerPillButtonGap),
+                                  FilledButton.icon(
+                                    onPressed: onTap,
+                                    icon: const Icon(
+                                      TonztoonIcons.play,
+                                      size: 17,
+                                    ),
+                                    label: const Text('Baca sekarang'),
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: accent,
+                                      foregroundColor: Colors.white,
+                                      minimumSize: const Size(
+                                        0,
+                                        _bannerButtonMinHeight,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.28),
-                                  blurRadius: 14,
-                                  offset: const Offset(0, 8),
+                            ),
+                            const SizedBox(width: _bannerMainContentGap),
+                            SizedBox(
+                              width: _bannerCoverWidth,
+                              height: _bannerCoverHeight,
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.34),
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.28,
+                                      ),
+                                      blurRadius: 14,
+                                      offset: const Offset(0, 8),
+                                    ),
+                                  ],
                                 ),
-                              ],
+                                child: ComicCover(
+                                  imageUrl: comic.coverImageUrl,
+                                  borderRadius: 12,
+                                ),
+                              ),
                             ),
-                            child: ComicCover(
-                              imageUrl: comic.coverImageUrl,
-                              borderRadius: 12,
-                            ),
-                          ),
+                          ],
                         ),
                       ],
                     ),
@@ -1092,29 +1336,50 @@ class _BannerPill extends StatelessWidget {
     required this.label,
     required this.color,
     this.foregroundColor,
+    this.icon,
+    this.solidSoftBackground = false,
   });
 
   final String label;
   final Color color;
   final Color? foregroundColor;
+  final IconData? icon;
+  final bool solidSoftBackground;
 
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.16),
+        color: solidSoftBackground
+            ? Color.lerp(Colors.white, color, 0.18)
+            : color.withValues(alpha: 0.16),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: color.withValues(alpha: 0.26)),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-        child: Text(
-          label,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: foregroundColor ?? color,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
+        child: icon == null
+            ? Text(
+                label,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: foregroundColor ?? color,
+                  fontWeight: FontWeight.w900,
+                ),
+              )
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 12, color: foregroundColor ?? color),
+                  const SizedBox(width: 4),
+                  Text(
+                    label,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: foregroundColor ?? color,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }

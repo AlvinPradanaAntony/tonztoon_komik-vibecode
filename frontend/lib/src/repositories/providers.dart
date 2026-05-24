@@ -336,13 +336,18 @@ class AuthController extends Notifier<AuthState> {
     return ref.read(authRepositoryProvider).updatePassword(password: password);
   }
 
-  Future<void> updateProfile({String? displayName, String? avatarUrl}) async {
+  Future<void> updateProfile({
+    String? username,
+    String? displayName,
+    String? avatarUrl,
+  }) async {
     final currentUser = state.user;
     if (currentUser == null) return;
     state = await ref
         .read(authRepositoryProvider)
         .updateProfile(
           currentUser: currentUser,
+          username: username,
           displayName: displayName,
           avatarUrl: avatarUrl,
         );

@@ -39,6 +39,11 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late final Future<PackageInfo> _packageInfoFuture;
   bool _loggingOut = false;
+  bool _profileSetupPromptInFlight = false;
+  String? _passwordSetupCheckedUserId;
+  String? _usernameSetupCheckedUserId;
+  String? _profileAvatarUrl;
+  bool _profileAvatarReady = true;
 
   @override
   void initState() {
@@ -52,6 +57,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final prefs = ref.watch(readerPreferencesProvider);
     final themeMode = ref.watch(appThemeModeProvider);
     final auth = ref.watch(authControllerProvider);
+    final bookmarks = widget.isSignedIn
+        ? ref.watch(bookmarksProvider)
+        : const AsyncData<List<LibraryComicRef>>(<LibraryComicRef>[]);
+    final collections = widget.isSignedIn
+        ? ref.watch(collectionsProvider)
+        : const AsyncData<List<CollectionSummary>>(<CollectionSummary>[]);
+    final favoriteScenes = widget.isSignedIn
+        ? ref.watch(favoriteScenesProvider)
+        : const AsyncData<List<FavoriteScene>>(<FavoriteScene>[]);
+    final offlineChapters = widget.isSignedIn
+        ? ref.watch(offlineChaptersProvider)
+        : const AsyncData<List<OfflineChapter>>(<OfflineChapter>[]);
 
     return Scaffold(
       appBar: AppBar(
@@ -72,6 +89,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               : null;
           final showMigrationRow =
               migrationSummary != null && !migrationSummary.isEmpty;
+          final profileReady =
+              !widget.isSignedIn || _ensureProfileAvatarReady(auth);
+          final profileStatsReady =
+              !widget.isSignedIn ||
+              (_hasInitialValue(bookmarks) &&
+                  _hasInitialValue(collections) &&
+                  _hasInitialValue(favoriteScenes) &&
+                  _hasInitialValue(offlineChapters));
+
+          if (!profileReady || !profileStatsReady) {
+            return _SettingsLoadingPlaceholder(isSignedIn: widget.isSignedIn);
+          }
+
+          _maybePromptProfileSetup(auth);
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 132),
@@ -79,7 +110,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               if (widget.isSignedIn) ...[
                 _ProfileHeader(auth: auth),
                 const SizedBox(height: 18),
-                const _ProfileStats(),
+                _ProfileStats(bookmarks: bookmarks),
                 const SizedBox(height: 24),
                 const _SectionLabel(text: 'Account'),
                 const SizedBox(height: 8),
@@ -104,11 +135,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ],
                     const _SettingsDivider(),
-                    const _SavedCollectionsSettingsRow(),
+                    _SavedCollectionsSettingsRow(collections: collections),
                     const _SettingsDivider(),
-                    const _FavoriteScenesSettingsRow(),
+                    _FavoriteScenesSettingsRow(scenes: favoriteScenes),
                     const _SettingsDivider(),
-                    const _MyDownloadsSettingsRow(),
+                    _MyDownloadsSettingsRow(offlineChapters: offlineChapters),
                     const _SettingsDivider(),
                     _SettingsRow(
                       icon: TonztoonIcons.bell,
@@ -192,6 +223,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  bool _ensureProfileAvatarReady(AuthState auth) {
+    final avatarUrl = auth.user?.avatarUrl?.trim();
+    if (avatarUrl == null || avatarUrl.isEmpty) {
+      _profileAvatarUrl = null;
+      _profileAvatarReady = true;
+      return true;
+    }
+
+    if (_profileAvatarUrl == avatarUrl) return _profileAvatarReady;
+
+    _profileAvatarUrl = avatarUrl;
+    _profileAvatarReady = false;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        await precacheImage(NetworkImage(avatarUrl), context);
+      } catch (_) {
+        // Let the avatar widget fall back to initials through its errorBuilder.
+      }
+      if (!mounted || _profileAvatarUrl != avatarUrl) return;
+      setState(() {
+        _profileAvatarReady = true;
+      });
+    });
+
+    return false;
+  }
+
+  bool _hasInitialValue<T>(AsyncValue<T> value) {
+    return value.hasValue || !value.isLoading;
+  }
+
   Future<void> _savePrefs(ReaderPreferences prefs) async {
     try {
       await ref.read(readerPreferencesProvider.notifier).save(prefs);
@@ -258,6 +321,127 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  void _maybePromptProfileSetup(AuthState auth) {
+    final userId = auth.user?.id.trim();
+    if (!widget.isSignedIn ||
+        !auth.isAuthenticated ||
+        userId == null ||
+        userId.isEmpty ||
+        _profileSetupPromptInFlight) {
+      return;
+    }
+
+    final shouldCheckPassword = _passwordSetupCheckedUserId != userId;
+    final shouldCheckUsername =
+        _usernameSetupCheckedUserId != userId && _needsUsername(auth);
+    if (!shouldCheckPassword && !shouldCheckUsername) return;
+
+    _profileSetupPromptInFlight = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      var needsPassword = false;
+      var needsUsername = false;
+      try {
+        if (shouldCheckPassword) {
+          _passwordSetupCheckedUserId = userId;
+          final overview = await ref
+              .read(authRepositoryProvider)
+              .getSecurityOverview();
+          if (!mounted) return;
+
+          final currentAuth = ref.read(authControllerProvider);
+          final provider = overview.provider?.trim().toLowerCase();
+          needsPassword =
+              _isCurrentUser(currentAuth, userId) &&
+              provider == 'google' &&
+              !overview.hasPassword;
+        }
+
+        if (!mounted) return;
+        final currentAuth = ref.read(authControllerProvider);
+        if (_usernameSetupCheckedUserId != userId &&
+            _isCurrentUser(currentAuth, userId) &&
+            _needsUsername(currentAuth)) {
+          _usernameSetupCheckedUserId = userId;
+          needsUsername = true;
+        }
+
+        if (!needsPassword && !needsUsername) return;
+
+        final completed = await _showProfileSetupDialog(
+          requireUsername: needsUsername,
+          requirePassword: needsPassword,
+        );
+        if (!mounted || completed != true) return;
+
+        if (needsPassword) ref.invalidate(authSecurityOverviewProvider);
+        showAppSnackBar(
+          context,
+          message: needsPassword && needsUsername
+              ? 'Username dan password berhasil disimpan.'
+              : needsPassword
+              ? 'Password berhasil dibuat.'
+              : 'Username berhasil dibuat.',
+          type: AppSnackBarType.success,
+        );
+      } catch (error, stackTrace) {
+        logAppError(error, stackTrace, context: 'Check profile setup failed');
+      } finally {
+        _profileSetupPromptInFlight = false;
+      }
+    });
+  }
+
+  bool _isCurrentUser(AuthState auth, String userId) {
+    return widget.isSignedIn &&
+        auth.isAuthenticated &&
+        auth.user?.id.trim() == userId;
+  }
+
+  bool _needsUsername(AuthState auth) {
+    final username = auth.user?.username?.trim();
+    return username == null || username.isEmpty;
+  }
+
+  Future<bool?> _showProfileSetupDialog({
+    required bool requireUsername,
+    required bool requirePassword,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _ProfileSetupDialog(
+        requireUsername: requireUsername,
+        requirePassword: requirePassword,
+        title: requireUsername && requirePassword
+            ? 'Lengkapi akun kamu'
+            : requirePassword
+            ? 'Buat password login'
+            : 'Buat username',
+        description: requireUsername && requirePassword
+            ? 'Tambahkan username dan password agar akun TonzToon kamu siap dipakai dengan Google maupun email.'
+            : requirePassword
+            ? 'Tambahkan password agar akun Google kamu juga bisa dipakai login dengan email.'
+            : 'Tambahkan username agar profil kamu mudah dikenali.',
+        cancelLabel: 'Nanti saja',
+        submitLabel: requireUsername && requirePassword
+            ? 'Simpan akun'
+            : requirePassword
+            ? 'Buat password'
+            : 'Buat username',
+        savingLabel: 'Menyimpan...',
+        onSubmit: ({String? username, String? password}) async {
+          final controller = ref.read(authControllerProvider.notifier);
+          if (username != null) {
+            await controller.updateProfile(username: username);
+          }
+          if (password != null) {
+            await controller.updatePassword(password);
+          }
+        },
+      ),
+    );
+  }
+
   String _migrationRowSubtitle(GuestMigrationSummary summary) {
     final itemCount = guestMigrationItemCount(summary);
     return '$itemCount item guest siap disinkronkan';
@@ -309,7 +493,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         error: error,
         stackTrace: stackTrace,
         logContext: 'Guest data migration failed',
-        fallbackMessage: 'Migrasi data guest belum berhasil. Silakan coba lagi.',
+        fallbackMessage:
+            'Migrasi data guest belum berhasil. Silakan coba lagi.',
       );
     }
   }
@@ -362,6 +547,17 @@ String _directionLabel(String direction) {
   return direction == 'rtl' ? 'RTL' : 'LTR';
 }
 
+String? _validateUsernameValue(String? value) {
+  final username = value?.trim() ?? '';
+  if (username.isEmpty) return 'Username wajib diisi.';
+  if (username.length < 3) return 'Username minimal 3 karakter.';
+  if (username.length > 50) return 'Username maksimal 50 karakter.';
+  if (!RegExp(r'^[A-Za-z0-9._-]+$').hasMatch(username)) {
+    return 'Gunakan huruf, angka, titik, strip, atau underscore.';
+  }
+  return null;
+}
+
 void _openAccountFlow(BuildContext context, Widget page) {
   Navigator.of(
     context,
@@ -379,6 +575,9 @@ Future<String?> _showProfileTextDialog(
   int? maxLength,
   bool allowEmpty = false,
   String emptyError = 'Field ini wajib diisi.',
+  String cancelLabel = 'Batal',
+  String submitLabel = 'Simpan',
+  String? Function(String? value)? validator,
 }) {
   return showDialog<String>(
     context: context,
@@ -392,6 +591,9 @@ Future<String?> _showProfileTextDialog(
       maxLength: maxLength,
       allowEmpty: allowEmpty,
       emptyError: emptyError,
+      cancelLabel: cancelLabel,
+      submitLabel: submitLabel,
+      validator: validator,
     ),
   );
 }
@@ -404,9 +606,12 @@ class _ProfileTextDialog extends StatefulWidget {
     required this.onSubmit,
     required this.allowEmpty,
     required this.emptyError,
+    required this.cancelLabel,
+    required this.submitLabel,
     this.helperText,
     this.keyboardType,
     this.maxLength,
+    this.validator,
   });
 
   final String title;
@@ -418,6 +623,9 @@ class _ProfileTextDialog extends StatefulWidget {
   final int? maxLength;
   final bool allowEmpty;
   final String emptyError;
+  final String cancelLabel;
+  final String submitLabel;
+  final String? Function(String? value)? validator;
 
   @override
   State<_ProfileTextDialog> createState() => _ProfileTextDialogState();
@@ -462,6 +670,8 @@ class _ProfileTextDialogState extends State<_ProfileTextDialog> {
               errorText: _errorText,
             ),
             validator: (value) {
+              final customError = widget.validator?.call(value);
+              if (customError != null) return customError;
               final text = value?.trim() ?? '';
               if (!widget.allowEmpty && text.isEmpty) return widget.emptyError;
               return null;
@@ -472,23 +682,23 @@ class _ProfileTextDialogState extends State<_ProfileTextDialog> {
         actions: [
           TextButton(
             onPressed: _saving ? null : () => Navigator.of(context).pop(),
-            child: const Text('Batal'),
+            child: Text(widget.cancelLabel),
           ),
           FilledButton(
             onPressed: _saving ? null : _submit,
             child: _saving
-                ? const Row(
+                ? Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      SizedBox.square(
+                      const SizedBox.square(
                         dimension: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       ),
-                      SizedBox(width: 8),
-                      Text('Simpan'),
+                      const SizedBox(width: 8),
+                      Text(widget.submitLabel),
                     ],
                   )
-                : const Text('Simpan'),
+                : Text(widget.submitLabel),
           ),
         ],
       ),
@@ -533,6 +743,8 @@ class _ProfileHeader extends ConsumerStatefulWidget {
 }
 
 class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
+  static const double _profileInlineEditButtonBalancedWidth = 28;
+
   bool _saving = false;
   final AvatarImagePicker _avatarPicker = AvatarImagePicker();
 
@@ -541,6 +753,7 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final name = _displayName(widget.auth);
+    final username = widget.auth.user?.username?.trim();
     final initials = _initials(name);
     final avatarUrl = widget.auth.user?.avatarUrl?.trim();
 
@@ -578,13 +791,6 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
                                     height: double.infinity,
                                     fit: BoxFit.cover,
                                     alignment: Alignment.center,
-                                    loadingBuilder:
-                                        (context, child, loadingProgress) {
-                                          if (loadingProgress == null) {
-                                            return child;
-                                          }
-                                          return const _ProfileAvatarImageShimmer();
-                                        },
                                     errorBuilder:
                                         (context, error, stackTrace) => Center(
                                           child: Text(
@@ -600,19 +806,20 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
                           ),
                         ),
                       ),
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: colorScheme.tertiary,
-                                width: 2,
+                      if (avatarUrl == null || avatarUrl.isEmpty)
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: colorScheme.tertiary,
+                                  width: 2,
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
                     ],
                   ),
                 ),
@@ -633,6 +840,7 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const SizedBox(width: _profileInlineEditButtonBalancedWidth),
             Flexible(
               child: Text(
                 name,
@@ -650,7 +858,20 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
             ),
           ],
         ),
-        const SizedBox(height: 6),
+        if (username != null && username.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(
+            '@$username',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 6),
+        ] else
+          const SizedBox(height: 6),
         DecoratedBox(
           decoration: BoxDecoration(
             color: colorScheme.surfaceContainerHighest,
@@ -855,21 +1076,6 @@ class _ProfileEditButton extends StatelessWidget {
 
 enum _ProfileEditButtonVariant { avatar, inline }
 
-class _ProfileAvatarImageShimmer extends StatelessWidget {
-  const _ProfileAvatarImageShimmer();
-
-  @override
-  Widget build(BuildContext context) {
-    return const AppShimmer(
-      child: AppShimmerBlock(
-        width: double.infinity,
-        height: double.infinity,
-        borderRadius: 999,
-      ),
-    );
-  }
-}
-
 class _AvatarUploadDialog extends StatelessWidget {
   const _AvatarUploadDialog();
 
@@ -897,11 +1103,12 @@ class _AvatarUploadDialog extends StatelessWidget {
 }
 
 class _ProfileStats extends ConsumerWidget {
-  const _ProfileStats();
+  const _ProfileStats({required this.bookmarks});
+
+  final AsyncValue<List<LibraryComicRef>> bookmarks;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bookmarks = ref.watch(bookmarksProvider);
     final readingTime = ref.watch(readingTimeProvider);
     final bookmarkCount = _bookmarkCountLabel(bookmarks);
     final activeTime = _readingTimeLabel(readingTime);
@@ -998,11 +1205,12 @@ String _readingTimeLabel(Duration duration) {
 }
 
 class _FavoriteScenesSettingsRow extends ConsumerWidget {
-  const _FavoriteScenesSettingsRow();
+  const _FavoriteScenesSettingsRow({required this.scenes});
+
+  final AsyncValue<List<FavoriteScene>> scenes;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final scenes = ref.watch(favoriteScenesProvider);
     final count = scenes.asData?.value.length;
 
     return _SettingsRow(
@@ -1017,11 +1225,12 @@ class _FavoriteScenesSettingsRow extends ConsumerWidget {
 }
 
 class _SavedCollectionsSettingsRow extends ConsumerWidget {
-  const _SavedCollectionsSettingsRow();
+  const _SavedCollectionsSettingsRow({required this.collections});
+
+  final AsyncValue<List<CollectionSummary>> collections;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final collections = ref.watch(collectionsProvider);
     final count = collections.asData?.value.length;
 
     return _SettingsRow(
@@ -1036,12 +1245,13 @@ class _SavedCollectionsSettingsRow extends ConsumerWidget {
 }
 
 class _MyDownloadsSettingsRow extends ConsumerWidget {
-  const _MyDownloadsSettingsRow();
+  const _MyDownloadsSettingsRow({required this.offlineChapters});
+
+  final AsyncValue<List<OfflineChapter>> offlineChapters;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final offline = ref.watch(offlineChaptersProvider);
-    final readyCount = offline.asData?.value
+    final readyCount = offlineChapters.asData?.value
         .where((chapter) => chapter.isCompleted)
         .length;
 
@@ -1140,6 +1350,11 @@ class _PrivacySecurityContent extends ConsumerWidget {
         : email;
     final provider = overview.provider?.trim();
     final session = overview.currentSession;
+    final auth = ref.watch(authControllerProvider);
+    final username = auth.user?.username?.trim();
+    final usernameSubtitle = username == null || username.isEmpty
+        ? 'Belum dibuat'
+        : '@$username';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1160,11 +1375,20 @@ class _PrivacySecurityContent extends ConsumerWidget {
             ),
             const _SettingsDivider(),
             _SettingsRow(
+              icon: TonztoonIcons.user,
+              title: 'Username',
+              subtitle: usernameSubtitle,
+              onTap: () => _showEditUsernameDialog(context, ref, username),
+            ),
+            const _SettingsDivider(),
+            _SettingsRow(
               icon: TonztoonIcons.keyRound,
-              title: 'Change Password',
-              subtitle: provider == null || provider == 'email'
-                  ? 'Update password akun TonzToon'
-                  : 'Login provider: $provider',
+              title: overview.hasPassword ? 'Password login' : 'Buat password',
+              subtitle: overview.hasPassword
+                  ? 'Ubah password untuk login dengan email'
+                  : provider == 'google'
+                  ? 'Aktifkan login email untuk akun Google ini'
+                  : 'Tambahkan password untuk login email',
               onTap: () => _showChangePasswordDialog(context, ref),
             ),
           ],
@@ -1193,6 +1417,40 @@ class _PrivacySecurityContent extends ConsumerWidget {
     );
   }
 
+  Future<void> _showEditUsernameDialog(
+    BuildContext context,
+    WidgetRef ref,
+    String? currentUsername,
+  ) async {
+    final saved = await _showProfileTextDialog(
+      context,
+      title: currentUsername == null || currentUsername.isEmpty
+          ? 'Buat username'
+          : 'Edit username',
+      label: 'Username',
+      initialValue: currentUsername ?? '',
+      helperText:
+          'Username tampil di profil sebagai @username. Gunakan huruf, angka, titik, strip, atau underscore.',
+      maxLength: 50,
+      emptyError: 'Username wajib diisi.',
+      submitLabel: currentUsername == null || currentUsername.isEmpty
+          ? 'Buat username'
+          : 'Simpan',
+      validator: _validateUsernameValue,
+      onSubmit: (value) => ref
+          .read(authControllerProvider.notifier)
+          .updateProfile(username: value),
+    );
+    if (!context.mounted || saved == null) return;
+    showAppSnackBar(
+      context,
+      message: currentUsername == null || currentUsername.isEmpty
+          ? 'Username berhasil dibuat.'
+          : 'Username berhasil diperbarui.',
+      type: AppSnackBarType.success,
+    );
+  }
+
   static String _sessionSubtitle(AuthSecuritySession session) {
     final expires = session.expiresAtDate;
     if (expires == null) return 'Sesi aktif saat ini';
@@ -1207,6 +1465,12 @@ class _PrivacySecurityContent extends ConsumerWidget {
       context: context,
       barrierDismissible: false,
       builder: (context) => _ChangePasswordDialog(
+        title: overview.hasPassword ? 'Ubah password login' : 'Buat password',
+        description: overview.hasPassword
+            ? null
+            : 'Tambahkan password agar akun ini bisa dipakai login dengan email.',
+        submitLabel: overview.hasPassword ? 'Simpan' : 'Buat password',
+        savingLabel: overview.hasPassword ? 'Simpan' : 'Menyimpan...',
         onSubmit: (password) =>
             ref.read(authControllerProvider.notifier).updatePassword(password),
       ),
@@ -1264,10 +1528,15 @@ class _SecurityScoreCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final title = overview.emailVerified
+    final provider = overview.provider?.trim().toLowerCase();
+    final title = !overview.hasPassword && provider == 'google'
+        ? 'Login email belum aktif'
+        : overview.emailVerified
         ? 'Security looks good'
         : 'Email verification needed';
-    final message = overview.emailVerified
+    final message = !overview.hasPassword && provider == 'google'
+        ? 'Tambahkan password jika ingin masuk tanpa tombol Google.'
+        : overview.emailVerified
         ? 'Email akun terverifikasi dan sesi aktif terlindungi.'
         : 'Verifikasi email Anda agar pemulihan akun lebih aman.';
 
@@ -1310,10 +1579,241 @@ class _SecurityScoreCard extends StatelessWidget {
   }
 }
 
+class _ProfileSetupDialog extends StatefulWidget {
+  const _ProfileSetupDialog({
+    required this.requireUsername,
+    required this.requirePassword,
+    required this.title,
+    required this.description,
+    required this.cancelLabel,
+    required this.submitLabel,
+    required this.savingLabel,
+    required this.onSubmit,
+  });
+
+  final bool requireUsername;
+  final bool requirePassword;
+  final String title;
+  final String description;
+  final String cancelLabel;
+  final String submitLabel;
+  final String savingLabel;
+  final Future<void> Function({String? username, String? password}) onSubmit;
+
+  @override
+  State<_ProfileSetupDialog> createState() => _ProfileSetupDialogState();
+}
+
+class _ProfileSetupDialogState extends State<_ProfileSetupDialog> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmController = TextEditingController();
+  bool _saving = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirm = true;
+  String? _errorText;
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    _confirmController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return PopScope(
+      canPop: !_saving,
+      child: AlertDialog(
+        title: Text(widget.title),
+        content: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(widget.description),
+                const SizedBox(height: 14),
+                if (_errorText != null) ...[
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      _errorText!,
+                      style: TextStyle(color: colorScheme.error),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (widget.requireUsername) ...[
+                  TextFormField(
+                    controller: _usernameController,
+                    enabled: !_saving,
+                    autofocus: true,
+                    maxLength: 50,
+                    textInputAction: widget.requirePassword
+                        ? TextInputAction.next
+                        : TextInputAction.done,
+                    decoration: const InputDecoration(
+                      labelText: 'Username',
+                      helperText:
+                          'Tampil sebagai @username. Huruf, angka, titik, strip, atau underscore.',
+                    ),
+                    validator: _validateUsernameValue,
+                    onFieldSubmitted: (_) {
+                      if (!widget.requirePassword) _submit();
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (widget.requirePassword) ...[
+                  TextFormField(
+                    controller: _passwordController,
+                    enabled: !_saving,
+                    autofocus: !widget.requireUsername,
+                    obscureText: _obscurePassword,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      labelText: 'Password baru',
+                      helperText: 'Minimal 8 karakter.',
+                      suffixIcon: IconButton(
+                        tooltip: _obscurePassword
+                            ? 'Tampilkan password'
+                            : 'Sembunyikan password',
+                        onPressed: _saving
+                            ? null
+                            : () => setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              ),
+                        icon: Icon(
+                          _obscurePassword
+                              ? TonztoonIcons.eye
+                              : TonztoonIcons.eyeOff,
+                        ),
+                      ),
+                    ),
+                    validator: _validatePassword,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _confirmController,
+                    enabled: !_saving,
+                    obscureText: _obscureConfirm,
+                    textInputAction: TextInputAction.done,
+                    decoration: InputDecoration(
+                      labelText: 'Konfirmasi password',
+                      suffixIcon: IconButton(
+                        tooltip: _obscureConfirm
+                            ? 'Tampilkan password'
+                            : 'Sembunyikan password',
+                        onPressed: _saving
+                            ? null
+                            : () => setState(
+                                () => _obscureConfirm = !_obscureConfirm,
+                              ),
+                        icon: Icon(
+                          _obscureConfirm
+                              ? TonztoonIcons.eye
+                              : TonztoonIcons.eyeOff,
+                        ),
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value != _passwordController.text) {
+                        return 'Konfirmasi password tidak sama.';
+                      }
+                      return null;
+                    },
+                    onFieldSubmitted: (_) => _submit(),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: _saving ? null : () => Navigator.of(context).pop(false),
+            child: Text(widget.cancelLabel),
+          ),
+          FilledButton(
+            onPressed: _saving ? null : _submit,
+            child: _saving
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(widget.savingLabel),
+                    ],
+                  )
+                : Text(widget.submitLabel),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String? _validatePassword(String? value) {
+    final password = value ?? '';
+    if (password.length < 8) return 'Password minimal 8 karakter.';
+    if (password.length > 128) return 'Password maksimal 128 karakter.';
+    return null;
+  }
+
+  Future<void> _submit() async {
+    if (_saving) return;
+    if (_formKey.currentState?.validate() != true) return;
+
+    setState(() {
+      _saving = true;
+      _errorText = null;
+    });
+    try {
+      await widget.onSubmit(
+        username: widget.requireUsername
+            ? _usernameController.text.trim()
+            : null,
+        password: widget.requirePassword ? _passwordController.text : null,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (error, stackTrace) {
+      if (!mounted) return;
+      final message = friendlyErrorMessage(
+        error,
+        fallbackMessage: 'Data akun belum dapat disimpan. Silakan coba lagi.',
+      );
+      logAppError(error, stackTrace, context: 'Save profile setup failed');
+      setState(() {
+        _saving = false;
+        _errorText = message;
+      });
+      showAppSnackBar(context, message: message, type: AppSnackBarType.failure);
+    }
+  }
+}
+
 class _ChangePasswordDialog extends StatefulWidget {
-  const _ChangePasswordDialog({required this.onSubmit});
+  const _ChangePasswordDialog({
+    required this.onSubmit,
+    this.title = 'Change Password',
+    this.description,
+    this.submitLabel = 'Simpan',
+    this.savingLabel = 'Simpan',
+  });
 
   final Future<void> Function(String password) onSubmit;
+  final String title;
+  final String? description;
+  final String submitLabel;
+  final String savingLabel;
 
   @override
   State<_ChangePasswordDialog> createState() => _ChangePasswordDialogState();
@@ -1340,12 +1840,16 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
     return PopScope(
       canPop: !_saving,
       child: AlertDialog(
-        title: const Text('Change Password'),
+        title: Text(widget.title),
         content: Form(
           key: _formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (widget.description != null) ...[
+                Text(widget.description!),
+                const SizedBox(height: 14),
+              ],
               TextFormField(
                 controller: _passwordController,
                 enabled: !_saving,
@@ -1425,18 +1929,18 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
           FilledButton(
             onPressed: _saving ? null : _submit,
             child: _saving
-                ? const Row(
+                ? Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      SizedBox.square(
+                      const SizedBox.square(
                         dimension: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       ),
-                      SizedBox(width: 8),
-                      Text('Simpan'),
+                      const SizedBox(width: 8),
+                      Text(widget.savingLabel),
                     ],
                   )
-                : const Text('Simpan'),
+                : Text(widget.submitLabel),
           ),
         ],
       ),

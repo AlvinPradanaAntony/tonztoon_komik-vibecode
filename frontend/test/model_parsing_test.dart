@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tonztoon/src/models/auth.dart';
 import 'package:tonztoon/src/models/comic.dart';
 import 'package:tonztoon/src/models/library.dart';
 import 'package:tonztoon/src/models/progress.dart';
@@ -7,6 +8,26 @@ import 'package:tonztoon/src/models/source_info.dart';
 import 'package:tonztoon/src/widgets/comic_card.dart';
 
 void main() {
+  test('auth security overview exposes password availability', () {
+    final overview = AuthSecurityOverview.fromJson(const {
+      'email': 'reader@example.test',
+      'email_verified': true,
+      'provider': 'google',
+      'has_password': false,
+      'current_session': {
+        'session_id': '00000000-0000-0000-0000-000000000001',
+        'issued_at': 1710000000,
+        'expires_at': 1710003600,
+      },
+    });
+
+    expect(overview.email, 'reader@example.test');
+    expect(overview.provider, 'google');
+    expect(overview.emailVerified, isTrue);
+    expect(overview.hasPassword, isFalse);
+    expect(overview.currentSession.expiresAt, 1710003600);
+  });
+
   test('comic summary parses backend list item shape', () {
     final comic = ComicSummary.fromJson(const {
       'title': 'Solo Leveling',

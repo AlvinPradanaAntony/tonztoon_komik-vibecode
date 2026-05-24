@@ -482,19 +482,26 @@ class _AuthCard extends StatelessWidget {
                       )
                     : const SizedBox.shrink(),
               ),
-              const SizedBox(height: 16),
               if (!registerMode) ...[
+                const SizedBox(height: 6),
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: submitting ? null : onForgotPassword,
                     style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: Size.zero,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                     child: const Text('Lupa password?'),
                   ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
+              ] else ...[
+                const SizedBox(height: 16),
               ],
               SizedBox(
                 width: double.infinity,
@@ -793,7 +800,6 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       }
     }
   }
-
 }
 
 class _ForgotPasswordHeader extends StatelessWidget {
@@ -1434,7 +1440,6 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
     }
     _sessionReady = true;
   }
-
 }
 
 class _ResetPasswordForm extends StatelessWidget {

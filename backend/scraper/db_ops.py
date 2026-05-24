@@ -10,7 +10,7 @@ dan Genre. Diekstrak dari main.py agar:
 3. Mudah diuji secara independen
 """
 
-from sqlalchemy import case, delete, select, update
+from sqlalchemy import case, delete, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -98,6 +98,22 @@ def _public_storage_prefix() -> str | None:
     return f"{settings.SUPABASE_URL.rstrip('/')}/storage/v1/object/public/"
 
 
+def _storage_cover_preserve_condition():
+    """
+    Kenali cover yang sudah berada di public object storage.
+
+    Jika SUPABASE_URL tersedia, prefix project tetap dicek secara spesifik.
+    Jika tidak tersedia (misalnya GitHub Actions hanya punya DATABASE_URL),
+    pola public storage generik tetap cukup untuk mencegah URL source scraper
+    menimpa cover yang sudah dimigrasi.
+    """
+    conditions = [Comic.cover_image_url.like("%/storage/v1/object/public/%")]
+    storage_prefix = _public_storage_prefix()
+    if storage_prefix:
+        conditions.insert(0, Comic.cover_image_url.like(f"{storage_prefix}%"))
+    return or_(*conditions)
+
+
 def _preserve_storage_cover_value(scraped_cover_url: str | None):
     """
     Jangan timpa cover yang sudah dimigrasi ke Supabase Storage.
@@ -106,13 +122,9 @@ def _preserve_storage_cover_value(scraped_cover_url: str | None):
     yang sudah punya URL storage, metadata sync berikutnya tidak boleh
     mengembalikannya ke URL source/canonical.
     """
-    storage_prefix = _public_storage_prefix()
-    if not storage_prefix:
-        return scraped_cover_url
-
     return case(
         (
-            Comic.cover_image_url.like(f"{storage_prefix}%"),
+            _storage_cover_preserve_condition(),
             Comic.cover_image_url,
         ),
         else_=scraped_cover_url,

@@ -136,6 +136,62 @@ def _normalize_auth_user(raw_user: dict[str, Any] | None) -> AuthUserResponse | 
     )
 
 
+def _normalize_admin_user_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+    if isinstance(data.get("user"), dict):
+        return data["user"]
+    return data
+
+
+async def get_auth_user_by_id(user_id: str) -> dict[str, Any]:
+    """Fetch raw Supabase Auth user data with admin credentials."""
+    auth_base = get_supabase_auth_base_url()
+    if not auth_base:
+        raise AuthConfigurationError("SUPABASE_URL must be configured.")
+
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        response = await client.get(
+            f"{auth_base}/admin/users/{user_id}",
+            headers=_build_admin_headers(),
+        )
+
+    if response.status_code >= 400:
+        raise AuthRequestError(
+            _extract_auth_error_payload(response)[0],
+            status_code=response.status_code,
+            code="auth_admin_user_lookup_failed",
+        )
+
+    return _normalize_admin_user_payload(response.json())
+
+
+async def mark_auth_user_has_password(user_id: str) -> None:
+    """Persist an app-level marker after password auth is enabled."""
+    current = await get_auth_user_by_id(user_id)
+    app_metadata = dict(current.get("app_metadata") or {})
+    if app_metadata.get("has_password") is True:
+        return
+
+    app_metadata["has_password"] = True
+    auth_base = get_supabase_auth_base_url()
+    if not auth_base:
+        raise AuthConfigurationError("SUPABASE_URL must be configured.")
+
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        response = await client.put(
+            f"{auth_base}/admin/users/{user_id}",
+            headers=_build_admin_headers(),
+            json={"app_metadata": app_metadata},
+        )
+
+    if response.status_code >= 400:
+        raise AuthRequestError(
+            _extract_auth_error_payload(response)[0],
+            status_code=response.status_code,
+            code="auth_admin_password_marker_failed",
+        )
+
+
 def _normalize_session(raw_data: dict[str, Any]) -> AuthSessionResponse:
     if "session" in raw_data:
         raw_session = raw_data.get("session")

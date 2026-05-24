@@ -37,6 +37,8 @@ class _ComicCardState extends State<ComicCard> {
     final colorScheme = theme.colorScheme;
     final chapterNumber = widget.comic.latestChapterNumber;
     final source = widget.source ?? comicSourceLabel(widget.comic);
+    final ratingLabel =
+        widget.rating ?? widget.comic.rating?.toStringAsFixed(1);
 
     // MouseRegion untuk mendeteksi kursor mouse (berguna di Desktop/Web)
     return MouseRegion(
@@ -114,20 +116,26 @@ class _ComicCardState extends State<ComicCard> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 5,
+                    Row(
                       children: [
-                        if (widget.rating != null)
+                        if (chapterNumber != null)
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: ComicMetaBadge(
+                                label:
+                                    'Chapter ${formatChapterNumber(chapterNumber)}',
+                                color: colorScheme.primary,
+                              ),
+                            ),
+                          )
+                        else
+                          const Spacer(),
+                        if (ratingLabel != null)
                           ComicMetaBadge(
-                            label: widget.rating!,
+                            label: ratingLabel,
                             icon: TonztoonIcons.starFilled,
                             iconColor: Colors.amber,
-                          ),
-                        if (chapterNumber != null)
-                          ComicMetaBadge(
-                            label: 'Chapter ${formatChapterNumber(chapterNumber)}',
-                            color: colorScheme.primary,
                           ),
                       ],
                     ),

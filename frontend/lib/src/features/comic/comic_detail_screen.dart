@@ -1794,6 +1794,7 @@ class _ChapterPanel extends StatelessWidget {
                       itemBuilder: (context, index) {
                         return _ChapterRow(
                           chapter: chapters[index],
+                          isLatest: index == 0,
                           offline: downloadState.offlineChapterNumbers.contains(
                             chapters[index].chapterNumber,
                           ),
@@ -1805,13 +1806,8 @@ class _ChapterPanel extends StatelessWidget {
                           onTap: () => onOpenChapter(chapters[index]),
                         );
                       },
-                      separatorBuilder: (context, index) => Divider(
-                        height: 1,
-                        indent: 58,
-                        color: colorScheme.outlineVariant.withValues(
-                          alpha: 0.7,
-                        ),
-                      ),
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 10),
                       itemCount: chapters.length,
                     ),
                   ),
@@ -1850,39 +1846,102 @@ class _ChapterRowShimmer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-      child: Row(
-        children: [
-          AppShimmerBlock(width: 42, height: 42, borderRadius: 12),
-          SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AppShimmerBlock(width: double.infinity, height: 16),
-                SizedBox(height: 6),
-                AppShimmerBlock(width: 132, height: 12),
-              ],
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(13),
+      ),
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        child: Row(
+          children: [
+            AppShimmerBlock(width: 42, height: 42, borderRadius: 12),
+            SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AppShimmerBlock(width: double.infinity, height: 16),
+                  SizedBox(height: 6),
+                  AppShimmerBlock(width: 132, height: 12),
+                ],
+              ),
             ),
-          ),
-          SizedBox(width: 10),
-          AppShimmerBlock(width: 18, height: 18, borderRadius: 9),
-        ],
+            SizedBox(width: 10),
+            AppShimmerBlock(width: 18, height: 18, borderRadius: 9),
+          ],
+        ),
       ),
     );
   }
 }
 
+class _LatestChapterBadge extends StatelessWidget {
+  const _LatestChapterBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipPath(
+      clipper: const _LatestChapterBadgeClipper(),
+      child: ColoredBox(
+        color: const Color(0xFFFF9700),
+        child: SizedBox(
+          width: 66,
+          height: 20,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 12, right: 7, bottom: 2),
+            child: Align(
+              alignment: Alignment.center,
+              child: Text(
+                'TERBARU',
+                maxLines: 1,
+                overflow: TextOverflow.clip,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Colors.white,
+                  fontSize: 8.5,
+                  height: 1,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LatestChapterBadgeClipper extends CustomClipper<Path> {
+  const _LatestChapterBadgeClipper();
+
+  @override
+  Path getClip(Size size) {
+    return Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width, size.height)
+      ..lineTo(16, size.height)
+      ..quadraticBezierTo(8, size.height - 1, 5, size.height - 8)
+      ..close();
+  }
+
+  @override
+  bool shouldReclip(covariant _LatestChapterBadgeClipper oldClipper) => false;
+}
+
 class _ChapterRow extends StatelessWidget {
   const _ChapterRow({
     required this.chapter,
+    required this.isLatest,
     required this.offline,
     required this.readState,
     required this.onTap,
   });
 
   final _ChapterUi chapter;
+  final bool isLatest;
   final bool offline;
   final _ChapterReadState readState;
   final VoidCallback onTap;
@@ -1893,57 +1952,89 @@ class _ChapterRow extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return Material(
-      color: Colors.transparent,
+      color: colorScheme.surface,
+      elevation: 2.6,
+      shadowColor: Colors.black.withValues(alpha: 0.18),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
-          child: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: colorScheme.primary.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  TonztoonIcons.bookOpen,
-                  size: 20,
-                  color: colorScheme.primary,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(chapter.title, style: theme.textTheme.titleSmall),
-                    const SizedBox(height: 3),
-                    Text(chapter.subtitle, style: theme.textTheme.bodySmall),
-                    if (readState != _ChapterReadState.none) ...[
-                      const SizedBox(height: 7),
-                      _ChapterReadBadge(state: readState),
-                    ],
-                  ],
-                ),
-              ),
-              if (offline) ...[
-                const SizedBox(width: 8),
-                Tooltip(
-                  message: 'Tersedia offline',
-                  child: Icon(
-                    TonztoonIcons.badgeCheckFilled,
-                    size: 18,
-                    color: colorScheme.secondary,
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 10, 11, 10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      TonztoonIcons.bookOpen,
+                      size: 20,
+                      color: colorScheme.primary,
+                    ),
                   ),
-                ),
-              ],
-              const SizedBox(width: 8),
-              const Icon(TonztoonIcons.chevronRight, size: 18),
-            ],
-          ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(right: isLatest ? 26 : 0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            chapter.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            chapter.subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall,
+                          ),
+                          if (readState != _ChapterReadState.none) ...[
+                            const SizedBox(height: 7),
+                            _ChapterReadBadge(state: readState),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (offline) ...[
+                    const SizedBox(width: 8),
+                    Tooltip(
+                      message: 'Tersedia offline',
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: colorScheme.secondary.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          TonztoonIcons.badgeCheckFilled,
+                          size: 15,
+                          color: colorScheme.secondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(width: 8),
+                  const Icon(TonztoonIcons.chevronRight, size: 18),
+                ],
+              ),
+            ),
+            if (isLatest)
+              const Positioned(top: 0, right: 0, child: _LatestChapterBadge()),
+          ],
         ),
       ),
     );

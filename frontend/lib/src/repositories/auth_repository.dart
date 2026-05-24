@@ -174,10 +174,12 @@ class AuthRepository {
 
   Future<AuthState> updateProfile({
     required AuthUser currentUser,
+    String? username,
     String? displayName,
     String? avatarUrl,
   }) async {
     final data = <String, dynamic>{};
+    if (username != null) data['username'] = username;
     if (displayName != null) data['display_name'] = displayName;
     if (avatarUrl != null) data['avatar_url'] = avatarUrl;
 

@@ -256,6 +256,52 @@ void main() {
     expect(await tokenStore.readExpiresAt(), 456);
   });
 
+  test('auth repository updates username through profile endpoint', () async {
+    final tokenStore = MemoryTokenStore();
+    Map<String, dynamic>? profileRequestBody;
+    final dio = Dio(BaseOptions(baseUrl: 'https://api.test'));
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          if (options.method == 'PATCH' && options.path == '/auth/profile') {
+            profileRequestBody = Map<String, dynamic>.from(options.data as Map);
+            handler.resolve(
+              Response<Object?>(
+                requestOptions: options,
+                statusCode: 200,
+                data: {
+                  'id': 'user-1',
+                  'username': 'tonz_reader',
+                  'display_name': 'Tonz Reader',
+                },
+              ),
+            );
+            return;
+          }
+          handler.reject(DioException(requestOptions: options));
+        },
+      ),
+    );
+    final repository = AuthRepository(
+      TonztoonApi(
+        config: const AppConfig(apiBaseUrl: 'https://api.test'),
+        tokenStore: tokenStore,
+        dio: dio,
+      ),
+      tokenStore,
+      store,
+    );
+
+    final state = await repository.updateProfile(
+      currentUser: const AuthUser(id: 'user-1', email: 'reader@tonztoon.app'),
+      username: 'tonz_reader',
+    );
+
+    expect(profileRequestBody, {'username': 'tonz_reader'});
+    expect(state.user?.username, 'tonz_reader');
+    expect(store.auth.get('user'), containsPair('username', 'tonz_reader'));
+  });
+
   test('auth repository logout clears local user-scoped data', () async {
     final tokenStore = MemoryTokenStore();
     await tokenStore.save(
