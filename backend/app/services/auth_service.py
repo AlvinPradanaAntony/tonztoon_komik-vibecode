@@ -11,6 +11,8 @@ from typing import Any
 import httpx
 import jwt
 from jwt import PyJWKClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import (
     get_supabase_auth_base_url,
@@ -18,6 +20,7 @@ from app.config import (
     get_supabase_jwt_issuer,
     settings,
 )
+from app.models import Profile
 from app.schemas import (
     AuthenticatedUser,
     AuthEmailVerificationRequest,
@@ -32,6 +35,7 @@ from app.schemas import (
     AuthTokenResponse,
     AuthUserResponse,
 )
+from app.services.profile_service import normalize_username
 
 
 class AuthConfigurationError(RuntimeError):
@@ -301,11 +305,14 @@ async def register_with_email_password(
 
 async def login_with_email_password(
     payload: AuthLoginRequest,
+    db: AsyncSession,
 ) -> AuthSessionResponse:
-    """Login user via Supabase Auth."""
+    """Login user via Supabase Auth using email or public username."""
     auth_base = get_supabase_auth_base_url()
     if not auth_base:
         raise AuthConfigurationError("SUPABASE_URL must be configured.")
+
+    email = await _resolve_login_email(db, payload.login_identifier)
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(
@@ -313,7 +320,7 @@ async def login_with_email_password(
             params={"grant_type": "password"},
             headers=_build_public_headers(),
             json={
-                "email": str(payload.email),
+                "email": email,
                 "password": payload.password,
             },
         )
@@ -353,6 +360,41 @@ async def login_with_google_id_token(
         raise _build_google_auth_error(response)
 
     return _normalize_session(response.json())
+
+
+async def _resolve_login_email(db: AsyncSession, identifier: str) -> str:
+    normalized = identifier.strip()
+    if "@" in normalized:
+        return normalized
+
+    normalized_username = normalize_username(normalized)
+    if normalized_username is None:
+        raise AuthRequestError(
+            "Email/username atau password tidak valid.",
+            status_code=401,
+            code="invalid_login_credentials",
+        )
+
+    result = await db.execute(
+        select(Profile).where(Profile.normalized_username == normalized_username)
+    )
+    profile = result.scalars().first()
+    if profile is None:
+        raise AuthRequestError(
+            "Email/username atau password tidak valid.",
+            status_code=401,
+            code="invalid_login_credentials",
+        )
+
+    raw_user = await get_auth_user_by_id(str(profile.id))
+    email = str(raw_user.get("email") or "").strip()
+    if not email:
+        raise AuthRequestError(
+            "Email/username atau password tidak valid.",
+            status_code=401,
+            code="invalid_login_credentials",
+        )
+    return email
 
 
 async def refresh_auth_session(

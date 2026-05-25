@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../core/app_icons.dart';
 import '../models/library.dart';
+import 'tonztoon_modal_dialog.dart';
 
 enum GuestMigrationDialogAction { cancel, skip, migrate }
 
@@ -24,36 +26,30 @@ Future<GuestMigrationDialogAction?> showGuestMigrationDialog(
   GuestMigrationDialogAction secondaryAction =
       GuestMigrationDialogAction.cancel,
 }) {
-  return showDialog<GuestMigrationDialogAction>(
+  return showTonztoonModal<GuestMigrationDialogAction>(
     context: context,
     barrierDismissible: barrierDismissible,
-    builder: (context) => AlertDialog(
-      title: Text(title),
-      content: GuestMigrationDialogContent(summary: summary, message: message),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(secondaryAction),
-          child: Text(secondaryLabel),
-        ),
-        FilledButton(
-          onPressed: () =>
-              Navigator.of(context).pop(GuestMigrationDialogAction.migrate),
-          child: const Text('Migrasi & Sinkronkan'),
-        ),
-      ],
+    builder: (context) => TonztoonModalDialog(
+      title: title,
+      message: message,
+      helperText:
+          'Data lokal akan disalin ke akun cloud. File offline tetap tersimpan di perangkat ini.',
+      helperIcon: TonztoonIcons.cloudUpload,
+      art: TonztoonModalArt.cloudSync,
+      content: GuestMigrationDialogContent(summary: summary),
+      secondaryLabel: secondaryLabel,
+      onSecondaryPressed: () => Navigator.of(context).pop(secondaryAction),
+      primaryLabel: 'Migrasi & Sinkronkan',
+      onPrimaryPressed: () =>
+          Navigator.of(context).pop(GuestMigrationDialogAction.migrate),
     ),
   );
 }
 
 class GuestMigrationDialogContent extends StatelessWidget {
-  const GuestMigrationDialogContent({
-    super.key,
-    required this.summary,
-    required this.message,
-  });
+  const GuestMigrationDialogContent({super.key, required this.summary});
 
   final GuestMigrationSummary summary;
-  final String message;
 
   @override
   Widget build(BuildContext context) {
@@ -63,8 +59,6 @@ class GuestMigrationDialogContent extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(message),
-        const SizedBox(height: 14),
         DecoratedBox(
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -121,22 +115,16 @@ class GuestMigrationLoadingDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      content: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox.square(
-            dimension: 22,
-            child: CircularProgressIndicator(strokeWidth: 2.4),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              'Menyinkronkan data guest...',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-          ),
-        ],
+    return const TonztoonModalDialog(
+      title: 'Menyinkronkan data',
+      message:
+          'Data guest sedang dipindahkan ke akun cloud. Tunggu sebentar sampai proses selesai.',
+      art: TonztoonModalArt.cloudSync,
+      showActions: false,
+      showCloseButton: false,
+      content: SizedBox.square(
+        dimension: 28,
+        child: CircularProgressIndicator(strokeWidth: 2.8),
       ),
     );
   }

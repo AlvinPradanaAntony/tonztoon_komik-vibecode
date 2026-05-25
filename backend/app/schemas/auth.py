@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 
 class AuthRegisterRequest(BaseModel):
@@ -38,10 +38,29 @@ class AuthRegisterRequest(BaseModel):
 
 
 class AuthLoginRequest(BaseModel):
-    """Payload login email/password."""
+    """Payload login email/username + password."""
 
-    email: EmailStr
+    identifier: str | None = Field(default=None, min_length=1, max_length=254)
+    email: EmailStr | None = None
     password: str = Field(..., min_length=8, max_length=128)
+
+    @field_validator("identifier")
+    @classmethod
+    def normalize_identifier(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+    @model_validator(mode="after")
+    def require_identifier(self) -> "AuthLoginRequest":
+        if self.identifier is None and self.email is None:
+            raise ValueError("Email atau username wajib diisi.")
+        return self
+
+    @property
+    def login_identifier(self) -> str:
+        return self.identifier or str(self.email)
 
 
 class AuthGoogleRequest(BaseModel):

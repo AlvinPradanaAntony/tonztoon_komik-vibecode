@@ -11,4 +11,22 @@ class AppAssets {
   static const onboarding1 = 'assets/images/onboarding_1.png';
   static const onboarding2 = 'assets/images/onboarding_2.png';
   static const onboarding3 = 'assets/images/onboarding_3.png';
+
+  static const dialogAccountSetup =
+      'lib/src/assets/icon_dialog/account_setup.png';
+  static const dialogAuthError = 'lib/src/assets/icon_dialog/auth_error.png';
+  static const dialogCloseApp = 'lib/src/assets/icon_dialog/close_app.png';
+  static const dialogCloudSync = 'lib/src/assets/icon_dialog/cloudsync.png';
+  static const dialogEditHeaderProfile =
+      'lib/src/assets/icon_dialog/edit_header_profile.png';
+  static const dialogFolder = 'lib/src/assets/icon_dialog/folder.png';
+  static const dialogLogoutAccount =
+      'lib/src/assets/icon_dialog/logout_account.png';
+  static const dialogLogoutDeviceSession =
+      'lib/src/assets/icon_dialog/logout_device_session.png';
+  static const dialogPasswordSetup =
+      'lib/src/assets/icon_dialog/password_setup.png';
+  static const dialogSendToEmail =
+      'lib/src/assets/icon_dialog/send_to_email.png';
+  static const dialogTrash = 'lib/src/assets/icon_dialog/trash.png';
 }

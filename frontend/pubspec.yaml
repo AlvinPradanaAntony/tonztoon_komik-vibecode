@@ -84,6 +84,7 @@ flutter:
     - lib/src/assets/logo_app_sm_500px.png
     - lib/src/assets/logo_app_android12_1152px.png
     - lib/src/assets/google_logo.svg
+    - lib/src/assets/icon_dialog/
     - assets/images/
 
   fonts:

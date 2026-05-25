@@ -125,10 +125,15 @@ async def update_profile(
 
     if payload.username is not None:
         normalized_username = normalize_username(payload.username)
-        if normalized_username is None:
-            profile.username = None
-            profile.normalized_username = None
-        else:
+        current_username = profile.normalized_username or normalize_username(
+            profile.username
+        )
+        if current_username is not None:
+            if normalized_username != current_username:
+                raise ValueError("Username tidak dapat diubah setelah dibuat.")
+            profile.username = profile.username or current_username
+            profile.normalized_username = current_username
+        elif normalized_username is not None:
             existing = await db.execute(
                 select(Profile).where(
                     Profile.normalized_username == normalized_username,

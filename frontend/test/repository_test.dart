@@ -189,7 +189,7 @@ void main() {
     );
 
     final state = await repository.login(
-      email: 'reader@tonztoon.app',
+      identifier: 'reader@tonztoon.app',
       password: 'secret',
     );
 
@@ -397,6 +397,87 @@ void main() {
     expect(progress.single.comicSlug, 'lookism');
     expect(progressRepository.continueReadingCalls, 2);
   });
+
+  test('reader preferences provider refreshes after login', () async {
+    final libraryRepository = _FakeLibraryRepository()
+      ..readerPreferencesResponses.addAll([
+        const ReaderPreferences(),
+        const ReaderPreferences(
+          defaultReadingMode: 'vertical',
+          readingDirection: 'ltr',
+          markReadOnComplete: true,
+          defaultBingeMode: true,
+        ),
+      ]);
+    final container = ProviderContainer(
+      retry: (retryCount, error) => null,
+      overrides: [
+        authRepositoryProvider.overrideWithValue(_FakeAuthRepository()),
+        libraryRepositoryProvider.overrideWithValue(libraryRepository),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final before = await container.read(readerPreferencesProvider.future);
+    expect(before.markReadOnComplete, isFalse);
+    expect(before.defaultBingeMode, isFalse);
+
+    await container
+        .read(authControllerProvider.notifier)
+        .login('reader@tonztoon.app', 'secret');
+    final after = await container.read(readerPreferencesProvider.future);
+
+    expect(after.defaultReadingMode, 'vertical');
+    expect(after.readingDirection, 'ltr');
+    expect(after.markReadOnComplete, isTrue);
+    expect(after.defaultBingeMode, isTrue);
+    expect(libraryRepository.readerPreferencesCalls, 2);
+  });
+
+  test(
+    'reader preferences provider shows loading while login data fetches',
+    () async {
+      final accountPrefs = Completer<ReaderPreferences>();
+      final libraryRepository = _FakeLibraryRepository()
+        ..readerPreferencesResponses.add(const ReaderPreferences())
+        ..readerPreferencesFutures.add(accountPrefs.future);
+      final container = ProviderContainer(
+        retry: (retryCount, error) => null,
+        overrides: [
+          authRepositoryProvider.overrideWithValue(_FakeAuthRepository()),
+          libraryRepositoryProvider.overrideWithValue(libraryRepository),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      expect(
+        await container.read(readerPreferencesProvider.future),
+        isA<ReaderPreferences>(),
+      );
+
+      await container
+          .read(authControllerProvider.notifier)
+          .login('reader@tonztoon.app', 'secret');
+      await Future<void>.delayed(Duration.zero);
+
+      final loading = container.read(readerPreferencesProvider);
+      expect(loading.isLoading, isTrue);
+      expect(loading.hasValue, isTrue);
+
+      accountPrefs.complete(
+        const ReaderPreferences(
+          defaultReadingMode: 'vertical',
+          readingDirection: 'ltr',
+          markReadOnComplete: true,
+          defaultBingeMode: true,
+        ),
+      );
+      final after = await container.read(readerPreferencesProvider.future);
+
+      expect(after.markReadOnComplete, isTrue);
+      expect(after.defaultBingeMode, isTrue);
+    },
+  );
 
   test(
     'logout refreshes continue reading without circular dependency',
@@ -1094,10 +1175,10 @@ void main() {
 class _FakeAuthRepository implements AuthRepository {
   @override
   Future<AuthState> login({
-    required String email,
+    required String identifier,
     required String password,
   }) async {
-    return AuthState.authenticated(AuthUser(id: 'user-1', email: email));
+    return AuthState.authenticated(AuthUser(id: 'user-1', email: identifier));
   }
 
   @override
@@ -1126,10 +1207,10 @@ class _ClearingAuthRepository implements AuthRepository {
 
   @override
   Future<AuthState> login({
-    required String email,
+    required String identifier,
     required String password,
   }) async {
-    return AuthState.authenticated(AuthUser(id: 'user-1', email: email));
+    return AuthState.authenticated(AuthUser(id: 'user-1', email: identifier));
   }
 
   @override
@@ -1159,6 +1240,27 @@ class _FakeProgressRepository implements ProgressRepository {
 
   @override
   Future<void> saveProgress(ReadingProgress progress) async {}
+}
+
+class _FakeLibraryRepository implements LibraryRepository {
+  final readerPreferencesResponses = <ReaderPreferences>[];
+  final readerPreferencesFutures = <Future<ReaderPreferences>>[];
+  int readerPreferencesCalls = 0;
+
+  @override
+  Future<ReaderPreferences> getReaderPreferences() async {
+    readerPreferencesCalls++;
+    if (readerPreferencesResponses.isEmpty) {
+      if (readerPreferencesFutures.isNotEmpty) {
+        return readerPreferencesFutures.removeAt(0);
+      }
+      return const ReaderPreferences();
+    }
+    return readerPreferencesResponses.removeAt(0);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 TonztoonApi _apiWithResponses(Map<String, Object?> responses) {

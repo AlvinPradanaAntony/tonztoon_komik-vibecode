@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/app_navigation.dart';
 import '../../core/app_icons.dart';
 import '../../repositories/providers.dart';
+import '../../widgets/tonztoon_modal_dialog.dart';
 
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key, required this.navigationShell});
@@ -164,30 +165,19 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (_exitDialogOpen) return;
     _exitDialogOpen = true;
 
-    final shouldExit = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        final colorScheme = Theme.of(context).colorScheme;
-        return AlertDialog(
-          icon: Icon(TonztoonIcons.logout, color: colorScheme.error),
-          title: const Text('Keluar dari aplikasi?'),
-          content: const Text('Kamu yakin ingin menutup TonzToon sekarang?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Batal'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              style: FilledButton.styleFrom(
-                backgroundColor: colorScheme.error,
-                foregroundColor: colorScheme.onError,
-              ),
-              child: const Text('Keluar'),
-            ),
-          ],
-        );
-      },
+    final shouldExit = await showTonztoonConfirmDialog(
+      context,
+      eyebrow: 'Tutup Aplikasi',
+      title: 'Keluar dari aplikasi?',
+      message:
+          'TonzToon akan ditutup dari perangkat ini. Bacaan terakhir tetap tersimpan saat sinkronisasi aktif.',
+      helperText:
+          'Kamu bisa membuka aplikasi lagi kapan saja tanpa kehilangan data akun.',
+      cancelLabel: 'Batal',
+      confirmLabel: 'Keluar',
+      helperIcon: TonztoonIcons.shieldCheck,
+      variant: TonztoonModalVariant.danger,
+      art: TonztoonModalArt.closeApp,
     );
 
     _exitDialogOpen = false;

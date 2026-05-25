@@ -18,6 +18,7 @@ import '../../repositories/providers.dart';
 import '../../widgets/app_async_view.dart';
 import '../../widgets/app_loading_placeholder.dart';
 import '../../widgets/guest_migration_dialog.dart';
+import '../../widgets/tonztoon_modal_dialog.dart';
 import '../library/library_shared_panes.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -185,7 +186,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const SizedBox(height: 24),
                 FilledButton.icon(
                   onPressed: _loggingOut ? null : _logout,
-                  icon: const Icon(TonztoonIcons.logout, size: 18),
+                  icon: _loggingOut
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(TonztoonIcons.logout, size: 18),
                   label: const Text('Logout'),
                   style: FilledButton.styleFrom(
                     backgroundColor: Colors.red,
@@ -295,6 +304,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _logout() async {
     if (_loggingOut) return;
+    final confirmed = await showTonztoonConfirmDialog(
+      context,
+      eyebrow: 'Sesi Akun',
+      title: 'Keluar dari akun?',
+      message:
+          'Kamu akan keluar dari akun ini dan perlu login kembali untuk menyinkronkan pustaka.',
+      helperText:
+          'Data pustaka yang sudah tersimpan di akun tetap aman dan bisa dipulihkan setelah login.',
+      cancelLabel: 'Batal',
+      confirmLabel: 'Ya, Keluar',
+      helperIcon: TonztoonIcons.shieldCheck,
+      variant: TonztoonModalVariant.danger,
+      art: TonztoonModalArt.logoutAccount,
+    );
+    if (!mounted || confirmed != true) return;
+
     setState(() => _loggingOut = true);
     try {
       await widget.onLogout();
@@ -406,7 +431,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     required bool requireUsername,
     required bool requirePassword,
   }) {
-    return showDialog<bool>(
+    return showTonztoonModal<bool>(
       context: context,
       barrierDismissible: false,
       builder: (context) => _ProfileSetupDialog(
@@ -513,7 +538,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _showMigrationLoadingDialog() {
     unawaited(
-      showDialog<void>(
+      showTonztoonModal<void>(
         context: context,
         barrierDismissible: false,
         builder: (context) =>
@@ -579,7 +604,7 @@ Future<String?> _showProfileTextDialog(
   String submitLabel = 'Simpan',
   String? Function(String? value)? validator,
 }) {
-  return showDialog<String>(
+  return showTonztoonModal<String>(
     context: context,
     builder: (context) => _ProfileTextDialog(
       title: title,
@@ -653,8 +678,12 @@ class _ProfileTextDialogState extends State<_ProfileTextDialog> {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: !_saving,
-      child: AlertDialog(
-        title: Text(widget.title),
+      child: TonztoonModalDialog(
+        title: widget.title,
+        message:
+            widget.helperText ?? 'Perbarui data profil akun TonzToon kamu.',
+        art: TonztoonModalArt.editHeaderProfile,
+        showCloseButton: !_saving,
         content: Form(
           key: _formKey,
           child: TextFormField(
@@ -666,7 +695,6 @@ class _ProfileTextDialogState extends State<_ProfileTextDialog> {
             textInputAction: TextInputAction.done,
             decoration: InputDecoration(
               labelText: widget.label,
-              helperText: widget.helperText,
               errorText: _errorText,
             ),
             validator: (value) {
@@ -679,28 +707,11 @@ class _ProfileTextDialogState extends State<_ProfileTextDialog> {
             onFieldSubmitted: (_) => _submit(),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: _saving ? null : () => Navigator.of(context).pop(),
-            child: Text(widget.cancelLabel),
-          ),
-          FilledButton(
-            onPressed: _saving ? null : _submit,
-            child: _saving
-                ? Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const SizedBox.square(
-                        dimension: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(widget.submitLabel),
-                    ],
-                  )
-                : Text(widget.submitLabel),
-          ),
-        ],
+        secondaryLabel: widget.cancelLabel,
+        onSecondaryPressed: _saving ? null : () => Navigator.of(context).pop(),
+        primaryLabel: _saving ? 'Menyimpan...' : widget.submitLabel,
+        primaryLoading: _saving,
+        onPrimaryPressed: _saving ? null : _submit,
       ),
     );
   }
@@ -966,7 +977,7 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> {
 
   void _showAvatarUploadDialog(BuildContext context) {
     unawaited(
-      showDialog<void>(
+      showTonztoonModal<void>(
         context: context,
         barrierDismissible: false,
         builder: (context) =>
@@ -1081,22 +1092,16 @@ class _AvatarUploadDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      content: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox.square(
-            dimension: 22,
-            child: CircularProgressIndicator(strokeWidth: 2.4),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              'Mengunggah foto profil...',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-          ),
-        ],
+    return const TonztoonModalDialog(
+      title: 'Mengunggah foto',
+      message:
+          'Foto profil sedang diproses dan disimpan. Tunggu sebentar sampai unggahan selesai.',
+      art: TonztoonModalArt.editHeaderProfile,
+      showActions: false,
+      showCloseButton: false,
+      content: SizedBox.square(
+        dimension: 28,
+        child: CircularProgressIndicator(strokeWidth: 2.8),
       ),
     );
   }
@@ -1352,9 +1357,10 @@ class _PrivacySecurityContent extends ConsumerWidget {
     final session = overview.currentSession;
     final auth = ref.watch(authControllerProvider);
     final username = auth.user?.username?.trim();
-    final usernameSubtitle = username == null || username.isEmpty
-        ? 'Belum dibuat'
-        : '@$username';
+    final hasUsername = username != null && username.isNotEmpty;
+    final usernameSubtitle = hasUsername
+        ? '@$username - tidak dapat diubah'
+        : 'Belum dibuat';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1378,7 +1384,16 @@ class _PrivacySecurityContent extends ConsumerWidget {
               icon: TonztoonIcons.user,
               title: 'Username',
               subtitle: usernameSubtitle,
-              onTap: () => _showEditUsernameDialog(context, ref, username),
+              trailing: hasUsername
+                  ? Icon(
+                      TonztoonIcons.lock,
+                      size: 18,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    )
+                  : null,
+              onTap: hasUsername
+                  ? null
+                  : () => _showCreateUsernameDialog(context, ref),
             ),
             const _SettingsDivider(),
             _SettingsRow(
@@ -1417,25 +1432,20 @@ class _PrivacySecurityContent extends ConsumerWidget {
     );
   }
 
-  Future<void> _showEditUsernameDialog(
+  Future<void> _showCreateUsernameDialog(
     BuildContext context,
     WidgetRef ref,
-    String? currentUsername,
   ) async {
     final saved = await _showProfileTextDialog(
       context,
-      title: currentUsername == null || currentUsername.isEmpty
-          ? 'Buat username'
-          : 'Edit username',
+      title: 'Buat username',
       label: 'Username',
-      initialValue: currentUsername ?? '',
+      initialValue: '',
       helperText:
-          'Username tampil di profil sebagai @username. Gunakan huruf, angka, titik, strip, atau underscore.',
+          'Username tampil di profil sebagai @username dan tidak dapat diubah setelah dibuat. Gunakan huruf, angka, titik, strip, atau underscore.',
       maxLength: 50,
       emptyError: 'Username wajib diisi.',
-      submitLabel: currentUsername == null || currentUsername.isEmpty
-          ? 'Buat username'
-          : 'Simpan',
+      submitLabel: 'Buat username',
       validator: _validateUsernameValue,
       onSubmit: (value) => ref
           .read(authControllerProvider.notifier)
@@ -1444,9 +1454,7 @@ class _PrivacySecurityContent extends ConsumerWidget {
     if (!context.mounted || saved == null) return;
     showAppSnackBar(
       context,
-      message: currentUsername == null || currentUsername.isEmpty
-          ? 'Username berhasil dibuat.'
-          : 'Username berhasil diperbarui.',
+      message: 'Username berhasil dibuat.',
       type: AppSnackBarType.success,
     );
   }
@@ -1461,7 +1469,7 @@ class _PrivacySecurityContent extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) async {
-    final changed = await showDialog<bool>(
+    final changed = await showTonztoonModal<bool>(
       context: context,
       barrierDismissible: false,
       builder: (context) => _ChangePasswordDialog(
@@ -1488,22 +1496,19 @@ class _PrivacySecurityContent extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Logout sesi ini?'),
-        content: const Text('Anda perlu login lagi untuk memakai akun ini.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Batal'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Logout'),
-          ),
-        ],
-      ),
+    final confirmed = await showTonztoonConfirmDialog(
+      context,
+      eyebrow: 'Sesi Akun',
+      title: 'Logout sesi ini?',
+      message:
+          'Kamu perlu login lagi untuk memakai akun ini di perangkat sekarang.',
+      helperText:
+          'Data akun tetap aman. Riwayat, koleksi, dan progress tersimpan selama sudah tersinkron.',
+      cancelLabel: 'Batal',
+      confirmLabel: 'Logout',
+      helperIcon: TonztoonIcons.shieldCheck,
+      variant: TonztoonModalVariant.danger,
+      art: TonztoonModalArt.logoutDeviceSession,
     );
     if (!context.mounted || confirmed != true) return;
 
@@ -1628,16 +1633,21 @@ class _ProfileSetupDialogState extends State<_ProfileSetupDialog> {
 
     return PopScope(
       canPop: !_saving,
-      child: AlertDialog(
-        title: Text(widget.title),
+      child: TonztoonModalDialog(
+        title: widget.title,
+        message: widget.description,
+        art: widget.requireUsername && widget.requirePassword
+            ? TonztoonModalArt.accountSetup
+            : widget.requirePassword
+            ? TonztoonModalArt.passwordSetup
+            : TonztoonModalArt.accountSetup,
+        showCloseButton: !_saving,
         content: Form(
           key: _formKey,
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(widget.description),
-                const SizedBox(height: 14),
                 if (_errorText != null) ...[
                   Align(
                     alignment: Alignment.centerLeft,
@@ -1660,7 +1670,7 @@ class _ProfileSetupDialogState extends State<_ProfileSetupDialog> {
                     decoration: const InputDecoration(
                       labelText: 'Username',
                       helperText:
-                          'Tampil sebagai @username. Huruf, angka, titik, strip, atau underscore.',
+                          'Tampil sebagai @username dan tidak dapat diubah setelah dibuat. Huruf, angka, titik, strip, atau underscore.',
                     ),
                     validator: _validateUsernameValue,
                     onFieldSubmitted: (_) {
@@ -1734,28 +1744,13 @@ class _ProfileSetupDialogState extends State<_ProfileSetupDialog> {
             ),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: _saving ? null : () => Navigator.of(context).pop(false),
-            child: Text(widget.cancelLabel),
-          ),
-          FilledButton(
-            onPressed: _saving ? null : _submit,
-            child: _saving
-                ? Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const SizedBox.square(
-                        dimension: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(widget.savingLabel),
-                    ],
-                  )
-                : Text(widget.submitLabel),
-          ),
-        ],
+        secondaryLabel: widget.cancelLabel,
+        onSecondaryPressed: _saving
+            ? null
+            : () => Navigator.of(context).pop(false),
+        primaryLabel: _saving ? widget.savingLabel : widget.submitLabel,
+        primaryLoading: _saving,
+        onPrimaryPressed: _saving ? null : _submit,
       ),
     );
   }
@@ -1839,17 +1834,20 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: !_saving,
-      child: AlertDialog(
-        title: Text(widget.title),
+      child: TonztoonModalDialog(
+        title: widget.title,
+        message:
+            widget.description ??
+            'Gunakan password baru yang kuat dan mudah kamu ingat.',
+        helperText: 'Password minimal 8 karakter dan maksimal 128 karakter.',
+        helperIcon: TonztoonIcons.keyRound,
+        art: TonztoonModalArt.passwordSetup,
+        showCloseButton: !_saving,
         content: Form(
           key: _formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (widget.description != null) ...[
-                Text(widget.description!),
-                const SizedBox(height: 14),
-              ],
               TextFormField(
                 controller: _passwordController,
                 enabled: !_saving,
@@ -1921,28 +1919,13 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: _saving ? null : () => Navigator.of(context).pop(false),
-            child: const Text('Batal'),
-          ),
-          FilledButton(
-            onPressed: _saving ? null : _submit,
-            child: _saving
-                ? Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const SizedBox.square(
-                        dimension: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(widget.savingLabel),
-                    ],
-                  )
-                : Text(widget.submitLabel),
-          ),
-        ],
+        secondaryLabel: 'Batal',
+        onSecondaryPressed: _saving
+            ? null
+            : () => Navigator.of(context).pop(false),
+        primaryLabel: _saving ? widget.savingLabel : widget.submitLabel,
+        primaryLoading: _saving,
+        onPrimaryPressed: _saving ? null : _submit,
       ),
     );
   }

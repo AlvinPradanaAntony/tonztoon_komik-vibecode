@@ -57,12 +57,12 @@ class AuthRepository {
   }
 
   Future<AuthState> login({
-    required String email,
+    required String identifier,
     required String password,
   }) async {
     final response = await _api.post<Map<String, dynamic>>(
       '/auth/login',
-      data: {'email': email, 'password': password},
+      data: {'identifier': identifier, 'password': password},
     );
     final session = AuthSession.fromJson(response.data ?? const {});
     return _persistSession(session);

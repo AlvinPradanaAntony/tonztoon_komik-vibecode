@@ -674,12 +674,17 @@ async def get_relation_preview(
         if table == "reader_preferences":
             mode = getattr(row, "default_reading_mode", None) or "mode default"
             direction = getattr(row, "reading_direction", None) or "arah default"
+            mark_read = (
+                "mark read aktif"
+                if getattr(row, "mark_read_on_complete", False)
+                else "mark read nonaktif"
+            )
             binge_mode = (
                 "binge mode aktif"
                 if getattr(row, "default_binge_mode", False)
                 else "binge mode nonaktif"
             )
-            return f"{mode} • {direction.upper()} • {binge_mode}"
+            return f"{mode} • {direction.upper()} • {mark_read} • {binge_mode}"
         if table == "user_reading_stats":
             seconds = int(getattr(row, "total_reading_seconds", 0) or 0)
             minutes = max(0, round(seconds / 60))

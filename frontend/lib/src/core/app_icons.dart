@@ -78,6 +78,7 @@ class TonztoonIcons {
   static const IconData badgeCheck = LucideIcons.badgeCheck;
   static const IconData badgeCheckFilled = Icons.verified_rounded;
   static const IconData circleDotDashed = LucideIcons.circleDotDashed;
+  static const IconData wifi = LucideIcons.wifi;
 
   // Ikon tema
   static const IconData lightMode = LucideIcons.sun;

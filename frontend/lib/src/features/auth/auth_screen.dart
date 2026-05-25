@@ -9,6 +9,7 @@ import '../../core/app_error.dart';
 import '../../core/api_client.dart';
 import '../../core/app_icons.dart';
 import '../../repositories/providers.dart';
+import '../../widgets/tonztoon_modal_dialog.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
@@ -167,8 +168,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           error,
           fallbackMessage: mode
               ? 'Registrasi belum berhasil. Periksa data akun lalu coba lagi.'
-              : 'Login belum berhasil. Periksa email dan password lalu coba lagi.',
+              : 'Login belum berhasil. Periksa email/username dan password lalu coba lagi.',
         ),
+        showResetPassword: !mode,
       );
     } finally {
       if (mounted) {
@@ -190,18 +192,16 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       _obscureConfirmPassword = true;
     });
 
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Registrasi berhasil'),
-        content: Text(_registerSuccessMessage(message)),
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Ke halaman login'),
-          ),
-        ],
-      ),
+    await showTonztoonNoticeDialog(
+      context,
+      title: 'Registrasi berhasil',
+      message: _registerSuccessMessage(message),
+      helperText:
+          'Buka email yang kamu daftarkan, lalu klik link konfirmasi sebelum login.',
+      helperIcon: TonztoonIcons.mail,
+      primaryLabel: 'Ke halaman login',
+      variant: TonztoonModalVariant.success,
+      art: TonztoonModalArt.sendToEmail,
     );
   }
 
@@ -218,8 +218,16 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   Future<void> _showAuthErrorDialog({
     required String title,
     required String message,
+    bool showResetPassword = false,
   }) {
-    return _showAuthFailureDialog(context, title: title, message: message);
+    return _showAuthFailureDialog(
+      context,
+      title: title,
+      message: message,
+      onForgotPassword: showResetPassword
+          ? () => _openForgotPassword(context)
+          : null,
+    );
   }
 
   Future<void> _continueGoogle() async {
@@ -300,19 +308,41 @@ Future<void> _showAuthFailureDialog(
   BuildContext context, {
   required String title,
   required String message,
+  VoidCallback? onForgotPassword,
 }) {
-  return showDialog<void>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text(title),
-      content: Text(message),
-      actions: [
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('OK'),
+  final lowerTitle = title.toLowerCase();
+  final isLogin = lowerTitle.contains('login');
+  final isGoogle = lowerTitle.contains('google');
+  final helperText = isLogin
+      ? isGoogle
+            ? 'Pastikan akun Google aktif, izin login disetujui, dan koneksi internet stabil.'
+            : 'Periksa koneksi internet dan pastikan email/username serta password sudah benar.'
+      : 'Periksa kembali data yang dimasukkan. Jika masalah berlanjut, coba ulang beberapa saat lagi.';
+
+  return showTonztoonNoticeDialog(
+    context,
+    title: title,
+    emphasis: isLogin && !isGoogle
+        ? 'Email/username atau password tidak valid.'
+        : null,
+    message: message,
+    helperText: helperText,
+    helperIcon: isLogin && !isGoogle
+        ? TonztoonIcons.warning
+        : TonztoonIcons.wifi,
+    primaryLabel: 'Coba lagi',
+    supportActions: [
+      if (onForgotPassword != null)
+        TonztoonModalSupportAction(
+          label: 'Reset password',
+          icon: TonztoonIcons.keyRound,
+          fullWidth: true,
+          onPressed: () {
+            Navigator.of(context).pop();
+            onForgotPassword();
+          },
         ),
-      ],
-    ),
+    ],
   );
 }
 
@@ -418,13 +448,17 @@ class _AuthCard extends StatelessWidget {
                     : const SizedBox.shrink(),
               ),
               _AuthField(
-                label: 'Email',
+                label: registerMode ? 'Email' : 'Email atau username',
                 controller: emailController,
                 palette: palette,
-                keyboardType: TextInputType.emailAddress,
+                keyboardType: registerMode
+                    ? TextInputType.emailAddress
+                    : TextInputType.text,
                 prefixIcon: TonztoonIcons.mail,
                 enabled: !submitting,
-                validator: _validateEmail,
+                validator: registerMode
+                    ? _validateEmail
+                    : _validateLoginIdentifier,
               ),
               const SizedBox(height: 16),
               _AuthField(
@@ -566,11 +600,22 @@ class _AuthCard extends StatelessWidget {
   String? _validateEmail(String? value) {
     final email = value?.trim() ?? '';
     if (email.isEmpty) return 'Email wajib diisi.';
-    final valid = RegExp(
-      r'^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$',
-      caseSensitive: false,
-    ).hasMatch(email);
+    final valid = _isValidEmail(email);
     if (!valid) return 'Format email tidak valid.';
+    return null;
+  }
+
+  String? _validateLoginIdentifier(String? value) {
+    final identifier = value?.trim() ?? '';
+    if (identifier.isEmpty) return 'Email atau username wajib diisi.';
+    if (identifier.contains('@')) {
+      return _isValidEmail(identifier) ? null : 'Format email tidak valid.';
+    }
+    if (identifier.length > 50) return 'Username maksimal 50 karakter.';
+    final valid = RegExp(r'^[A-Za-z0-9._-]+$').hasMatch(identifier);
+    if (!valid) {
+      return 'Username hanya boleh berisi huruf, angka, titik, dash, atau underscore.';
+    }
     return null;
   }
 
@@ -602,6 +647,13 @@ class _AuthCard extends StatelessWidget {
     if (value != password) return 'Konfirmasi password tidak sama.';
     return null;
   }
+}
+
+bool _isValidEmail(String value) {
+  return RegExp(
+    r'^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$',
+    caseSensitive: false,
+  ).hasMatch(value);
 }
 
 class _AuthSubmitButton extends StatelessWidget {

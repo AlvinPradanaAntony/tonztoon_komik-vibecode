@@ -15,6 +15,7 @@ import '../../widgets/app_loading_placeholder.dart';
 import '../../widgets/app_surface_ink.dart';
 import '../../widgets/comic_card.dart';
 import '../../widgets/comic_cover.dart';
+import '../../widgets/tonztoon_modal_dialog.dart';
 import 'library_error.dart';
 import 'library_shared_panes.dart';
 
@@ -997,22 +998,17 @@ class _CollectionDetailScreen extends ConsumerWidget {
     CollectionDetail collection,
     LibraryComicRef comic,
   ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Hapus komik'),
-        content: Text('Hapus "${comic.title}" dari koleksi ini?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Batal'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Hapus'),
-          ),
-        ],
-      ),
+    final confirmed = await showTonztoonConfirmDialog(
+      context,
+      title: 'Hapus komik',
+      message: 'Hapus "${comic.title}" dari koleksi ini?',
+      helperText:
+          'Komik hanya dihapus dari koleksi ini. Bookmark dan progress baca tidak ikut terhapus.',
+      helperIcon: TonztoonIcons.trash,
+      cancelLabel: 'Batal',
+      confirmLabel: 'Hapus',
+      variant: TonztoonModalVariant.danger,
+      art: TonztoonModalArt.trash,
     );
     if (!context.mounted || confirmed != true) return;
 
@@ -1297,10 +1293,15 @@ Future<String?> _showCollectionNameDialog(
 }) {
   var value = initialValue ?? '';
 
-  return showDialog<String>(
+  return showTonztoonModal<String>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: Text(title),
+    builder: (context) => TonztoonModalDialog(
+      title: title,
+      message:
+          'Beri nama koleksi supaya daftar komik lebih mudah ditemukan nanti.',
+      helperText: 'Gunakan nama singkat dan jelas, misalnya Favorit Utama.',
+      helperIcon: TonztoonIcons.library,
+      art: TonztoonModalArt.folder,
       content: TextFormField(
         initialValue: initialValue,
         autofocus: true,
@@ -1312,19 +1313,14 @@ Future<String?> _showCollectionNameDialog(
         onChanged: (text) => value = text,
         onFieldSubmitted: (text) => Navigator.of(context).pop(text),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Batal'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(value),
-          child: Text(actionLabel),
-        ),
-      ],
+      secondaryLabel: 'Batal',
+      onSecondaryPressed: () => Navigator.of(context).pop(),
+      primaryLabel: actionLabel,
+      onPrimaryPressed: () => Navigator.of(context).pop(value),
     ),
   );
 }
+
 Future<void> _renameCollection(
   BuildContext context,
   WidgetRef ref,
@@ -1356,22 +1352,17 @@ Future<bool> _deleteCollection(
   WidgetRef ref,
   CollectionSummary collection,
 ) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Hapus koleksi'),
-      content: Text('Hapus "${collection.name}" beserta daftar komiknya?'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Batal'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Hapus'),
-        ),
-      ],
-    ),
+  final confirmed = await showTonztoonConfirmDialog(
+    context,
+    title: 'Hapus koleksi',
+    message: 'Hapus "${collection.name}" beserta daftar komiknya?',
+    helperText:
+        'Koleksi akan hilang dari pustaka. Komik, bookmark, dan progress baca tetap aman.',
+    helperIcon: TonztoonIcons.trash,
+    cancelLabel: 'Batal',
+    confirmLabel: 'Hapus',
+    variant: TonztoonModalVariant.danger,
+    art: TonztoonModalArt.trash,
   );
   if (!context.mounted || confirmed != true) return false;
 

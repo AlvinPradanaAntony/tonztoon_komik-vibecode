@@ -202,8 +202,8 @@ async def upsert_comic_with_feed_markers(
         "status": validated.status,
         "synopsis": validated.synopsis,
         "type": validated.type,
-        "rating": validated.rating,
-        "total_view": validated.total_view,
+        "rating": Comic.rating if validated.rating is None else validated.rating,
+        "total_view": Comic.total_view if validated.total_view is None else validated.total_view,
         "source_url": validated.source_url,
         "updated_at": current_time,
     }

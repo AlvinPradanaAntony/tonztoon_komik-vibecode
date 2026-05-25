@@ -280,10 +280,10 @@ class AuthController extends Notifier<AuthState> {
     state = await ref.read(authRepositoryProvider).restore();
   }
 
-  Future<void> login(String email, String password) async {
+  Future<void> login(String identifier, String password) async {
     state = await ref
         .read(authRepositoryProvider)
-        .login(email: email, password: password);
+        .login(identifier: identifier, password: password);
   }
 
   Future<void> loginWithGoogle() async {
@@ -368,7 +368,6 @@ class AuthController extends Notifier<AuthState> {
 
   Future<void> logout() async {
     await ref.read(authRepositoryProvider).logout();
-    ref.invalidate(readerPreferencesProvider);
     state = const AuthState.guest();
   }
 }
@@ -1072,6 +1071,7 @@ class ReaderPreferencesController extends AsyncNotifier<ReaderPreferences> {
 
   @override
   Future<ReaderPreferences> build() {
+    ref.watch(authControllerProvider.select((auth) => auth.user?.id));
     return ref.watch(libraryRepositoryProvider).getReaderPreferences();
   }
 

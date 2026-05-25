@@ -20,6 +20,7 @@ import '../../widgets/comic_card.dart';
 import '../../widgets/comic_cover.dart';
 import '../../widgets/comic_filter_sort_sheet.dart';
 import '../../widgets/guest_migration_dialog.dart';
+import '../../widgets/tonztoon_modal_dialog.dart';
 
 /// [HomeScreen] adalah halaman beranda aplikasi komik.
 /// Menampilkan rekomendasi dan update terbaru.
@@ -252,7 +253,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   void _showMigrationLoadingDialog() {
     unawaited(
-      showDialog<void>(
+      showTonztoonModal<void>(
         context: context,
         barrierDismissible: false,
         builder: (context) =>

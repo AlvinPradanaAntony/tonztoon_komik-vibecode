@@ -19,6 +19,7 @@ import '../../widgets/app_async_view.dart';
 import '../../widgets/app_loading_placeholder.dart';
 import '../../widgets/comic_card.dart';
 import '../../widgets/comic_cover.dart';
+import '../../widgets/tonztoon_modal_dialog.dart';
 
 class ComicDetailScreen extends ConsumerStatefulWidget {
   ComicDetailScreen({
@@ -680,10 +681,15 @@ Future<Set<int>?> _showCollectionPicker(
 
 Future<String?> _showCollectionNameDialog(BuildContext context) {
   var value = '';
-  return showDialog<String>(
+  return showTonztoonModal<String>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Koleksi baru'),
+    builder: (context) => TonztoonModalDialog(
+      title: 'Koleksi baru',
+      message:
+          'Buat koleksi untuk menyimpan komik ini bersama judul lain yang sejenis.',
+      helperText: 'Nama koleksi bisa diubah lagi dari halaman Pustaka.',
+      helperIcon: TonztoonIcons.library,
+      art: TonztoonModalArt.folder,
       content: TextFormField(
         autofocus: true,
         decoration: const InputDecoration(
@@ -694,16 +700,10 @@ Future<String?> _showCollectionNameDialog(BuildContext context) {
         onChanged: (text) => value = text,
         onFieldSubmitted: (text) => Navigator.of(context).pop(text),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Batal'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(value),
-          child: const Text('Buat'),
-        ),
-      ],
+      secondaryLabel: 'Batal',
+      onSecondaryPressed: () => Navigator.of(context).pop(),
+      primaryLabel: 'Buat',
+      onPrimaryPressed: () => Navigator.of(context).pop(value),
     ),
   );
 }

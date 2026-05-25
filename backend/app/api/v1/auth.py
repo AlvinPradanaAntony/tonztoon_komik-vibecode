@@ -161,7 +161,7 @@ async def login(
 ):
     """Login email/password melalui Supabase Auth."""
     try:
-        response = await login_with_email_password(payload)
+        response = await login_with_email_password(payload, db)
         if response.user is not None:
             await _mark_auth_user_has_password_safely(response.user.id)
         if response.user is not None:
