@@ -6,29 +6,50 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
-## [1.10.0] - 2026-05-24
+## [1.11.0] - 2026-05-25
 
 ### Added
-- Status `has_password` pada ringkasan keamanan akun untuk membedakan akun email/password dan akun provider seperti Google.
-- Lookup Supabase Auth Admin user untuk membaca provider, identities, dan metadata keamanan yang lebih lengkap.
-- Dukungan update username dari frontend melalui endpoint profil yang sudah ada.
-- Badge `TERBARU` pada chapter paling atas di halaman detail komik.
+- Login email/password kini mendukung identifier berupa email atau username publik.
+- Sistem `TonztoonModalDialog` terpadu untuk dialog konfirmasi, notifikasi, helper text, loading action, dan support action.
+- Asset ilustrasi dialog baru untuk auth error, setup akun/password, sinkronisasi cloud, logout, hapus data, email, dan profile editing.
+- Validasi login baru di frontend untuk field "Email atau username".
 
 ### Changed
-- Register, login email/password, dan update password kini menandai user sebagai sudah punya password di app metadata Supabase Auth.
-- Halaman Home, Detail Komik, Settings, dan kartu komik dipoles untuk layout carousel, status chapter, rating, dan panel akun yang lebih jelas.
-- Security overview kini mengambil provider dari metadata dan identities agar akun multi-provider tampil lebih akurat.
-- Sinkronisasi scraper menjaga URL cover yang sudah berada di public object storage, termasuk saat `SUPABASE_URL` tidak tersedia di environment job.
+- Backend auth kini resolve username ke email sebelum melakukan login Supabase password grant.
+- Dialog Auth, Settings, Library, shell, dan migrasi guest dipindahkan ke desain modal TonzToon yang konsisten.
+- Pesan error login diperjelas dengan aksi reset password langsung dari dialog.
+- Reader preferences otomatis direfresh setelah login agar pengaturan akun segera tersinkron.
 
 ### Fixed
-- Cover yang sudah dimigrasi ke Supabase Storage tidak lagi tertimpa oleh URL source scraper pada sync berikutnya.
-- Model dan test auth security overview kini memvalidasi `has_password`.
-- Update profil dapat menyimpan username dan memperbarui cache user lokal.
+- Perubahan username setelah pembuatan akun dibatasi agar identitas publik tetap stabil.
+- Relation preview account manager kini menyertakan status `mark_read`.
+- Preservasi cover storage di scraper diperluas agar tidak mudah tertimpa URL source.
 
 ---
 
 <details>
 <summary><strong>Riwayat versi sebelumnya</strong></summary>
+
+### [1.10.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.10.0) - 2026-05-24
+
+#### Added
+- Status `has_password` pada ringkasan keamanan akun untuk membedakan akun email/password dan akun provider seperti Google.
+- Lookup Supabase Auth Admin user untuk membaca provider, identities, dan metadata keamanan yang lebih lengkap.
+- Dukungan update username dari frontend melalui endpoint profil yang sudah ada.
+- Badge `TERBARU` pada chapter paling atas di halaman detail komik.
+
+#### Changed
+- Register, login email/password, dan update password kini menandai user sebagai sudah punya password di app metadata Supabase Auth.
+- Halaman Home, Detail Komik, Settings, dan kartu komik dipoles untuk layout carousel, status chapter, rating, dan panel akun yang lebih jelas.
+- Security overview kini mengambil provider dari metadata dan identities agar akun multi-provider tampil lebih akurat.
+- Sinkronisasi scraper menjaga URL cover yang sudah berada di public object storage, termasuk saat `SUPABASE_URL` tidak tersedia di environment job.
+
+#### Fixed
+- Cover yang sudah dimigrasi ke Supabase Storage tidak lagi tertimpa oleh URL source scraper pada sync berikutnya.
+- Model dan test auth security overview kini memvalidasi `has_password`.
+- Update profil dapat menyimpan username dan memperbarui cache user lokal.
+
+---
 
 ### [1.9.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.9.0) - 2026-05-22
 
