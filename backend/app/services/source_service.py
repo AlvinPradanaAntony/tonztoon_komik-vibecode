@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import SourceStat
-from scraper.sources.registry import create_scraper, get_supported_source_names
+from scraper.sources.registry import create_observable_scraper, get_observable_source_names
 
 logger = logging.getLogger("app.services.source_service")
 
@@ -27,7 +27,7 @@ async def get_source_stats_map(
     source_names: list[str] | None = None,
 ) -> dict[str, SourceStat]:
     """Ambil baris source_stats dari database, dikelompokkan per source_name."""
-    normalized_source_names = source_names or get_supported_source_names()
+    normalized_source_names = source_names or get_observable_source_names()
     result = await db.execute(
         select(SourceStat).where(SourceStat.source_name.in_(normalized_source_names))
     )
@@ -48,7 +48,7 @@ async def refresh_source_stat(
 
     source_stat.last_attempted_at = now
 
-    scraper = create_scraper(source_name)
+    scraper = create_observable_scraper(source_name)
     try:
         timeout_seconds = _SOURCE_COUNT_FETCH_TIMEOUTS.get(
             source_name,
@@ -82,7 +82,7 @@ async def refresh_source_stats(
     source_names: list[str] | None = None,
 ) -> list[SourceStat]:
     """Refresh source_stats untuk seluruh source atau subset tertentu."""
-    normalized_source_names = source_names or get_supported_source_names()
+    normalized_source_names = source_names or get_observable_source_names()
     refreshed_rows: list[SourceStat] = []
 
     for source_name in normalized_source_names:

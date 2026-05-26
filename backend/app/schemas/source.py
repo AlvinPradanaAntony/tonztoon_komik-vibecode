@@ -13,7 +13,7 @@ WIB = timezone(timedelta(hours=7))
 
 
 class SourceInfoResponse(BaseModel):
-    """Metadata dasar satu source yang aktif di backend."""
+    """Metadata dasar satu source yang dikenal backend."""
 
     id: str = Field(..., examples=["komiku_asia"])
     label: str = Field(..., examples=["Komiku Asia"])
