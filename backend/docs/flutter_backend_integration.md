@@ -1,29 +1,35 @@
 # Flutter Backend Integration
 
-Panduan singkat untuk tim Flutter agar bisa langsung hookup ke backend auth + library Tonztoon.
+Panduan integrasi Flutter dengan backend TonzToon. Base path backend adalah `/api/v1`.
 
 ## Base URL
 
-Contoh:
+Contoh lokal:
 
 ```text
 http://10.0.2.2:8000/api/v1
 ```
 
-Untuk Android emulator gunakan `10.0.2.2`, untuk iOS simulator biasanya `127.0.0.1` atau IP LAN mesin backend.
+Gunakan `10.0.2.2` untuk Android emulator, `127.0.0.1` untuk iOS simulator, dan IP LAN mesin backend untuk device fisik.
 
-## Auth flow
+Flutter membaca base URL dari:
 
-1. User register ke backend `POST /auth/register`
-2. User login ke backend `POST /auth/login`
-3. Simpan `access_token` dan `refresh_token`
-4. Kirim `Authorization: Bearer <access_token>` ke semua endpoint `/library/*`
-5. Saat app boot, verifikasi token dengan `GET /auth/me`
-6. Ambil profile aplikasi dengan `GET /auth/profile`
-6. Jika access token expired, refresh lewat `POST /auth/refresh`
-7. Saat logout, panggil `POST /auth/logout` lalu hapus token lokal
+```bash
+--dart-define=API_BASE_URL=http://10.0.2.2:8000/api/v1
+```
 
-## Endpoint auth
+## Auth Lifecycle
+
+1. Register: `POST /auth/register`
+2. Login email/password: `POST /auth/login`
+3. Login Google native: `POST /auth/google`
+4. Simpan `access_token`, `refresh_token`, dan `expires_at` di secure storage.
+5. Kirim `Authorization: Bearer <access_token>` ke endpoint user-scoped.
+6. Saat app boot, panggil `GET /auth/me`, lalu `GET /auth/profile`.
+7. Saat token hampir expired atau request mendapat `401`, panggil `POST /auth/refresh`, simpan token baru, lalu retry request.
+8. Saat logout, clear state lokal dan panggil `POST /auth/logout` secara best effort.
+
+## Endpoint Auth
 
 ### Register
 
@@ -36,74 +42,22 @@ Request:
   "email": "reader@example.com",
   "password": "securePassword123",
   "display_name": "Tony Reader",
-  "email_redirect_to": "myapp://auth/callback"
+  "username": "tony_reader",
+  "email_redirect_to": "tonztoon://auth/callback"
 }
 ```
 
-Response jika email confirmation aktif:
-
-```json
-{
-  "user": {
-    "id": "11111111-1111-1111-1111-111111111111",
-    "email": "reader@example.com",
-    "role": "authenticated",
-    "app_metadata": {
-      "provider": "email",
-      "providers": ["email"]
-    },
-    "user_metadata": {
-      "display_name": "Tony Reader"
-    },
-    "created_at": "2026-04-23T12:00:00.000000+00:00",
-    "last_sign_in_at": null,
-    "email_confirmed_at": null,
-    "phone": null,
-    "is_anonymous": false
-  },
-  "session": null,
-  "email_confirmation_required": true,
-  "message": "Email confirmation required before sign in."
-}
-```
-
-Response jika signup langsung memberi session:
-
-```json
-{
-  "user": {
-    "id": "11111111-1111-1111-1111-111111111111",
-    "email": "reader@example.com",
-    "role": "authenticated",
-    "app_metadata": {},
-    "user_metadata": {},
-    "created_at": "2026-04-23T12:00:00.000000+00:00",
-    "last_sign_in_at": "2026-04-23T12:00:00.000000+00:00",
-    "email_confirmed_at": "2026-04-23T12:00:00.000000+00:00",
-    "phone": null,
-    "is_anonymous": false
-  },
-  "session": {
-    "access_token": "<jwt>",
-    "refresh_token": "<refresh_token>",
-    "token_type": "bearer",
-    "expires_in": 3600,
-    "expires_at": 1770000000
-  },
-  "email_confirmation_required": false,
-  "message": "Authentication successful."
-}
-```
+Response dapat berisi `session: null` jika email confirmation aktif. Jika session tersedia, simpan token seperti login biasa.
 
 ### Login
 
 `POST /api/v1/auth/login`
 
-Request:
+Request saat ini memakai `identifier`, bukan hanya `email`, agar username/email bisa diarahkan oleh service auth.
 
 ```json
 {
-  "email": "reader@example.com",
+  "identifier": "reader@example.com",
   "password": "securePassword123"
 }
 ```
@@ -123,9 +77,9 @@ Response:
     "user_metadata": {
       "display_name": "Tony Reader"
     },
-    "created_at": "2026-04-23T12:00:00.000000+00:00",
-    "last_sign_in_at": "2026-04-23T12:05:00.000000+00:00",
-    "email_confirmed_at": "2026-04-23T12:00:00.000000+00:00",
+    "created_at": "2026-05-27T00:00:00.000000+00:00",
+    "last_sign_in_at": "2026-05-27T00:05:00.000000+00:00",
+    "email_confirmed_at": "2026-05-27T00:00:00.000000+00:00",
     "phone": null,
     "is_anonymous": false
   },
@@ -141,6 +95,22 @@ Response:
 }
 ```
 
+### Google Login
+
+`POST /api/v1/auth/google`
+
+Request:
+
+```json
+{
+  "id_token": "<google_id_token>",
+  "access_token": "<optional_google_access_token>",
+  "nonce": null
+}
+```
+
+Flutter memakai package `google_sign_in` untuk mengambil token Google, lalu backend menukarnya ke Supabase Auth dan memastikan `public.profiles` tersedia.
+
 ### Me
 
 `GET /api/v1/auth/me`
@@ -151,7 +121,7 @@ Headers:
 Authorization: Bearer <access_token>
 ```
 
-Response:
+Response berisi claim bearer token yang sudah tervalidasi:
 
 ```json
 {
@@ -172,44 +142,47 @@ Response:
 
 `GET /api/v1/auth/profile`
 
-Headers:
+`PATCH /api/v1/auth/profile`
+
+Patch request:
+
+```json
+{
+  "username": "tony_reader",
+  "display_name": "Tony Reader",
+  "avatar_url": "https://cdn.example/avatar.png"
+}
+```
+
+Upload avatar:
 
 ```http
+POST /api/v1/auth/profile/avatar
+Content-Type: multipart/form-data
 Authorization: Bearer <access_token>
 ```
 
-Response:
+Field file: `file`. Backend mengoptimalkan gambar dan menyimpan URL ke profile.
 
-```json
-{
-  "id": "11111111-1111-1111-1111-111111111111",
-  "username": "tony_reader",
-  "display_name": "Tony Reader",
-  "avatar_url": null,
-  "onboarding_completed": false,
-  "created_at": "2026-04-23T12:00:00.000000+00:00",
-  "updated_at": "2026-04-23T12:00:00.000000+00:00"
-}
-```
+### Password dan Email Callback
 
-`PATCH /api/v1/auth/profile`
+| Endpoint | Fungsi |
+|---|---|
+| `POST /auth/password/forgot` | Kirim email recovery |
+| `POST /auth/password/recovery/verify` | Verifikasi `token_hash` recovery dari callback |
+| `POST /auth/email/verify` | Verifikasi signup dari callback |
+| `POST /auth/password/update` | Update password memakai bearer token recovery |
 
-Request:
+Deep link Flutter yang didukung router:
 
-```json
-{
-  "username": "tony_reader",
-  "display_name": "Tony Reader",
-  "avatar_url": "https://cdn.example/avatar.png",
-  "onboarding_completed": true
-}
-```
+| Path | Fungsi |
+|---|---|
+| `/auth/callback` dan `/callback` | Email verification atau callback auth |
+| `/auth/reset-password` dan `/reset-password` | Reset password |
 
 ### Refresh
 
 `POST /api/v1/auth/refresh`
-
-Request:
 
 ```json
 {
@@ -217,72 +190,66 @@ Request:
 }
 ```
 
-Response:
+### Security
 
-```json
-{
-  "user": {
-    "id": "11111111-1111-1111-1111-111111111111",
-    "email": "reader@example.com",
-    "role": "authenticated",
-    "app_metadata": {
-      "provider": "email",
-      "providers": ["email"]
-    },
-    "user_metadata": {
-      "display_name": "Tony Reader"
-    },
-    "created_at": "2026-04-23T12:00:00.000000+00:00",
-    "last_sign_in_at": "2026-04-23T12:05:00.000000+00:00",
-    "email_confirmed_at": "2026-04-23T12:00:00.000000+00:00",
-    "phone": null,
-    "is_anonymous": false
-  },
-  "session": {
-    "access_token": "<new_jwt>",
-    "refresh_token": "<new_refresh_token>",
-    "token_type": "bearer",
-    "expires_in": 3600,
-    "expires_at": 1770007200
-  },
-  "email_confirmation_required": false,
-  "message": "Authentication successful."
-}
-```
+`GET /api/v1/auth/security`
+
+Dipakai settings screen untuk menampilkan email, status verifikasi, provider, info password, dan sesi aktif.
 
 ### Logout
 
 `POST /api/v1/auth/logout`
 
-Headers:
+Header bearer wajib. Flutter saat ini melakukan logout lokal lebih dulu, lalu revoke server session secara best effort.
 
-```http
-Authorization: Bearer <access_token>
-```
+## Library Flow
 
-Response:
+### Setelah Login Sukses
 
-```json
-{
-  "success": true,
-  "message": "Session revoked successfully."
-}
-```
+1. Restore session dengan `GET /auth/me`.
+2. Ambil profile dengan `GET /auth/profile`.
+3. Ambil summary dengan `GET /library/summary`.
+4. Ambil reader preferences dengan `GET /library/reader-preferences`.
+5. Jika ada data guest, tampilkan dialog migrasi dan kirim snapshot ke `POST /library/sync/import`.
 
-## Library flow yang direkomendasikan
-
-### Setelah login sukses
-
-1. Panggil `GET /library/summary`
-2. Panggil `GET /auth/profile`
-3. Panggil `GET /library/reader-preferences`
-4. Saat buka comic detail, panggil `GET /library/state/{source_name}/comics/{comic_slug}`
-
-### Saat user membaca
+### Comic Detail
 
 Panggil:
 
-`PUT /library/progress/{source_name}/comics/{comic_slug}/chapters/{chapter_number}`
+```text
+GET /library/state/{source_name}/comics/{comic_slug}
+```
+
+Gunakan response untuk render:
+
+- status bookmark
+- koleksi yang memuat komik
+- progress terakhir
+- completed chapter
+- jumlah favorite scene
+- status download chapter
+
+### Continue Reading
+
+Preview home:
+
+```text
+GET /library/progress/continue-reading?page=1&page_size=6
+```
+
+Halaman "Lanjutkan Membaca":
+
+```text
+GET /library/progress/continue-reading?page=<page>&page_size=20
+```
+
+Gunakan `page_size`, bukan `limit`. Response diurutkan dari `last_read_at` terbaru.
+
+### Saat User Membaca
+
+```text
+PUT /library/progress/{source_name}/comics/{comic_slug}/chapters/{chapter_number}
+```
 
 Request:
 
@@ -290,7 +257,7 @@ Request:
 {
   "source_name": "komiku_asia",
   "comic_slug": "solo-leveling",
-  "chapter_number": 201,
+  "chapter_number": 201.0,
   "reading_mode": "vertical",
   "scroll_offset": 1824.5,
   "page_index": null,
@@ -300,13 +267,33 @@ Request:
 }
 ```
 
-### Saat user bookmark
+### Bookmark
 
-`PUT /library/bookmarks/{source_name}/comics/{comic_slug}`
+```text
+GET /library/bookmarks?page=1&page_size=20
+PUT /library/bookmarks/{source_name}/comics/{comic_slug}
+DELETE /library/bookmarks/{source_name}/comics/{comic_slug}
+```
 
-### Saat user save favorite scene
+### Collections
 
-`POST /library/favorite-scenes`
+```text
+GET /library/collections
+POST /library/collections
+GET /library/collections/{collection_id}
+PATCH /library/collections/{collection_id}
+DELETE /library/collections/{collection_id}
+PUT /library/collections/{collection_id}/comics/{source_name}/{comic_slug}
+DELETE /library/collections/{collection_id}/comics/{source_name}/{comic_slug}
+```
+
+### Favorite Scenes
+
+```text
+GET /library/favorite-scenes?limit=100
+POST /library/favorite-scenes
+DELETE /library/favorite-scenes/{scene_id}
+```
 
 Request:
 
@@ -314,132 +301,94 @@ Request:
 {
   "source_name": "komiku_asia",
   "comic_slug": "solo-leveling",
-  "chapter_number": 201,
+  "chapter_number": 201.0,
   "page_item_index": 7,
   "image_url": "https://cdn.example/panel-7.jpg",
   "note": "panel favorit"
 }
 ```
 
-### Saat user enqueue download batch
+### History
 
-`POST /library/downloads/batch`
+```text
+GET /library/history?page=<page>&page_size=20
+```
 
-Request:
+History diupdate otomatis saat progress disimpan dan menyimpan daftar chapter yang pernah dibaca. Satu komik dapat muncul beberapa kali jika chapter yang dibaca berbeda.
+
+### Downloads
+
+```text
+GET /library/downloads?limit=200
+PUT /library/downloads/{source_name}/comics/{comic_slug}/chapters/{chapter_number}
+DELETE /library/downloads/{source_name}/comics/{comic_slug}/chapters/{chapter_number}
+POST /library/downloads/batch
+```
+
+Batch request:
 
 ```json
 {
   "source_name": "komiku_asia",
   "comic_slug": "solo-leveling",
-  "chapter_numbers": [201, 200, 199],
+  "chapter_numbers": [201.0, 200.0, 199.0],
   "status": "pending",
   "source_device_id": "android-pixel-7"
 }
 ```
 
-## Dart example
+Status cloud download adalah intent/status sinkronisasi. File offline tetap harus dicek di local storage device.
 
-Contoh sederhana dengan `http` package:
+### Reader Preferences dan Reading Time
 
-```dart
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+```text
+GET /library/reader-preferences
+PUT /library/reader-preferences
+GET /library/reading-time
+POST /library/reading-time
+```
 
-class TonztoonApi {
-  TonztoonApi(this.baseUrl);
+`POST /library/reading-time`:
 
-  final String baseUrl;
-
-  Future<Map<String, dynamic>> login({
-    required String email,
-    required String password,
-  }) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/auth/login'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'email': email,
-        'password': password,
-      }),
-    );
-
-    if (response.statusCode >= 400) {
-      throw Exception(response.body);
-    }
-
-    return jsonDecode(response.body) as Map<String, dynamic>;
-  }
-
-  Future<Map<String, dynamic>> getLibrarySummary(String accessToken) async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/library/summary'),
-      headers: {
-        'Authorization': 'Bearer $accessToken',
-      },
-    );
-
-    if (response.statusCode >= 400) {
-      throw Exception(response.body);
-    }
-
-    return jsonDecode(response.body) as Map<String, dynamic>;
-  }
-
-  Future<Map<String, dynamic>> refreshSession(String refreshToken) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/auth/refresh'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'refresh_token': refreshToken,
-      }),
-    );
-
-    if (response.statusCode >= 400) {
-      throw Exception(response.body);
-    }
-
-    return jsonDecode(response.body) as Map<String, dynamic>;
-  }
-
-  Future<void> logout(String accessToken) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/auth/logout'),
-      headers: {
-        'Authorization': 'Bearer $accessToken',
-      },
-    );
-
-    if (response.statusCode >= 400) {
-      throw Exception(response.body);
-    }
-  }
+```json
+{
+  "delta_seconds": 120
 }
 ```
 
-## Error handling yang perlu diperhatikan
+### Migrasi Guest
 
-- `400`: payload invalid atau register gagal
-- `401`: login gagal / refresh gagal / bearer token invalid / expired
-- `404`: source, comic, chapter, atau resource library tidak ditemukan
-- `409`: conflict, mis. nama collection sudah ada
-- `409`: username profile sudah dipakai user lain
-- `503`: source komik sedang gagal diakses
+```text
+POST /library/sync/import
+```
 
-## Catatan implementasi Flutter
+Kirim snapshot bookmark, collection, progress, history per chapter, completed chapters, favorite scenes, downloads, reader preferences, dan reading time. Setelah backend sukses, cache guest dapat dibersihkan/diberi label sebagai cache akun.
 
-- Simpan `access_token` dan `refresh_token` di secure storage
-- Saat menerima `401`, coba `POST /auth/refresh` menggunakan refresh token terakhir
-- Jika refresh sukses, simpan pasangan token baru lalu retry request awal
-- Jika refresh gagal, anggap session habis, hapus token lokal, lalu arahkan ke login
-- Saat logout, panggil `POST /auth/logout` lalu hapus token lokal
-- Jangan menganggap `downloads.status=completed` di cloud berarti file offline ada di device lain
+## Dart/Dio Notes
 
-## Recommended lifecycle
+`TonztoonApi` di frontend sudah menangani:
 
-1. Login/Register
-2. Simpan `access_token` + `refresh_token`
-3. Panggil endpoint backend dengan bearer token
-4. Jika `401`, jalankan refresh
-5. Jika refresh sukses, retry request
-6. Jika refresh gagal, force relogin
-7. Saat logout, revoke session lalu clear secure storage
+- `Authorization` header otomatis.
+- refresh token dengan leeway 2 menit sebelum expired.
+- retry request setelah refresh sukses.
+- clear token saat refresh invalid.
+- mapping error koneksi ke pesan user-friendly.
+
+Endpoint auth yang tidak boleh memicu refresh ulang:
+
+```text
+/auth/refresh
+/auth/login
+```
+
+## Error Handling
+
+| Status | Arti umum |
+|---|---|
+| `400` | Payload/path tidak cocok atau request invalid |
+| `401` | Bearer token kosong/invalid/expired |
+| `403` | User tidak punya akses, terutama account manager |
+| `404` | Source, comic, chapter, atau item library tidak ditemukan |
+| `409` | Conflict, misalnya username atau nama collection sudah dipakai |
+| `422` | Validasi schema gagal |
+| `503` | Source komik sedang gagal diakses saat lazy-load chapter images |

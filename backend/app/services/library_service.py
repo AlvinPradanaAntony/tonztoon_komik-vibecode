@@ -157,6 +157,45 @@ def build_history_response(
     )
 
 
+def build_history_projection_response(
+    row,
+    base_url: str | None = None,
+) -> HistoryItemResponse:
+    """Serialisasi row projection history tanpa memuat blob chapter penuh."""
+    return HistoryItemResponse(
+        id=row.id,
+        comic=LibraryComicRef(
+            comic_id=row.comic_id,
+            source_name=row.source_name,
+            slug=row.comic_slug,
+            title=row.comic_title,
+            cover_image_url=build_proxy_image_url(
+                row.cover_image_url,
+                base_url=base_url,
+            ),
+            author=row.author,
+            status=row.status,
+            type=row.type,
+            rating=row.rating,
+            total_view=row.total_view,
+        ),
+        chapter=LibraryChapterRef(
+            chapter_id=row.chapter_id,
+            chapter_number=row.chapter_number,
+            title=row.chapter_title,
+            release_date=row.release_date,
+        ),
+        reading_mode=row.reading_mode,
+        scroll_offset=row.scroll_offset,
+        page_index=row.page_index,
+        last_read_page_item_index=row.last_read_page_item_index,
+        total_page_items=row.total_page_items,
+        is_completed=row.is_completed,
+        last_read_at=row.last_read_at,
+        updated_at=row.updated_at,
+    )
+
+
 def build_bookmark_response(
     bookmark: UserBookmark,
     base_url: str | None = None,
@@ -387,12 +426,17 @@ async def add_reading_time_delta(
 async def list_bookmarks(
     db: AsyncSession,
     user_id: uuid.UUID,
+    *,
+    page_size: int = 20,
+    offset: int = 0,
 ) -> list[UserBookmark]:
     """List bookmark user terbaru."""
     result = await db.execute(
         select(UserBookmark)
         .where(UserBookmark.user_id == user_id)
-        .order_by(UserBookmark.updated_at.desc(), UserBookmark.id.desc())
+        .order_by(UserBookmark.created_at.desc(), UserBookmark.id.desc())
+        .limit(page_size)
+        .offset(offset)
     )
     return result.scalars().all()
 
@@ -619,11 +663,11 @@ async def upsert_history_from_progress(
     chapter: Chapter,
     payload: ProgressUpsertRequest,
 ) -> UserHistoryEntry:
-    """Sinkronkan history per comic berdasarkan progress terbaru."""
+    """Sinkronkan history per chapter berdasarkan progress terbaru."""
     result = await db.execute(
         select(UserHistoryEntry).where(
             UserHistoryEntry.user_id == user_id,
-            UserHistoryEntry.comic_id == chapter.comic_id,
+            UserHistoryEntry.chapter_id == chapter.id,
         )
     )
     history_entry = result.scalars().first()
@@ -635,6 +679,7 @@ async def upsert_history_from_progress(
         )
         db.add(history_entry)
 
+    history_entry.comic_id = chapter.comic_id
     history_entry.chapter_id = chapter.id
     history_entry.reading_mode = payload.reading_mode
     history_entry.scroll_offset = payload.scroll_offset
@@ -756,14 +801,16 @@ async def mark_chapter_completed(
 async def list_continue_reading(
     db: AsyncSession,
     user_id: uuid.UUID,
-    limit: int = 20,
+    page_size: int = 20,
+    offset: int = 0,
 ) -> list[UserProgress]:
     """List continue reading terbaru."""
     result = await db.execute(
         select(UserProgress)
         .where(UserProgress.user_id == user_id)
         .order_by(UserProgress.last_read_at.desc(), UserProgress.id.desc())
-        .limit(limit)
+        .offset(offset)
+        .limit(page_size)
     )
     return result.scalars().all()
 
@@ -790,16 +837,77 @@ async def get_progress_for_comic(
 async def list_history(
     db: AsyncSession,
     user_id: uuid.UUID,
-    limit: int = 50,
+    *,
+    page_size: int = 50,
+    offset: int = 0,
 ) -> list[UserHistoryEntry]:
     """List history terbaru."""
     result = await db.execute(
         select(UserHistoryEntry)
         .where(UserHistoryEntry.user_id == user_id)
         .order_by(UserHistoryEntry.last_read_at.desc(), UserHistoryEntry.id.desc())
-        .limit(limit)
+        .offset(offset)
+        .limit(page_size)
     )
     return result.scalars().all()
+
+
+async def list_history_responses(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    *,
+    page_size: int = 20,
+    offset: int = 0,
+    base_url: str | None = None,
+) -> list[HistoryItemResponse]:
+    """List history terbaru memakai projection ringan untuk UI list."""
+    is_completed = (
+        select(UserCompletedChapter.id)
+        .where(
+            UserCompletedChapter.user_id == UserHistoryEntry.user_id,
+            UserCompletedChapter.chapter_id == UserHistoryEntry.chapter_id,
+        )
+        .exists()
+    )
+    result = await db.execute(
+        select(
+            UserHistoryEntry.id.label("id"),
+            UserHistoryEntry.reading_mode.label("reading_mode"),
+            UserHistoryEntry.scroll_offset.label("scroll_offset"),
+            UserHistoryEntry.page_index.label("page_index"),
+            UserHistoryEntry.last_read_page_item_index.label(
+                "last_read_page_item_index"
+            ),
+            UserHistoryEntry.total_page_items.label("total_page_items"),
+            UserHistoryEntry.last_read_at.label("last_read_at"),
+            UserHistoryEntry.updated_at.label("updated_at"),
+            Comic.id.label("comic_id"),
+            Comic.source_name.label("source_name"),
+            Comic.slug.label("comic_slug"),
+            Comic.title.label("comic_title"),
+            Comic.cover_image_url.label("cover_image_url"),
+            Comic.author.label("author"),
+            Comic.status.label("status"),
+            Comic.type.label("type"),
+            Comic.rating.label("rating"),
+            Comic.total_view.label("total_view"),
+            Chapter.id.label("chapter_id"),
+            Chapter.chapter_number.label("chapter_number"),
+            Chapter.title.label("chapter_title"),
+            Chapter.release_date.label("release_date"),
+            is_completed.label("is_completed"),
+        )
+        .join(Comic, Comic.id == UserHistoryEntry.comic_id)
+        .join(Chapter, Chapter.id == UserHistoryEntry.chapter_id)
+        .where(UserHistoryEntry.user_id == user_id)
+        .order_by(UserHistoryEntry.last_read_at.desc(), UserHistoryEntry.id.desc())
+        .offset(offset)
+        .limit(page_size)
+    )
+    return [
+        build_history_projection_response(row, base_url=base_url)
+        for row in result.all()
+    ]
 
 
 async def list_favorite_scenes(
@@ -1064,8 +1172,13 @@ async def get_library_summary(
         )
     ).scalar_one()
 
-    continue_reading = await list_continue_reading(db, user_id, limit=10)
-    history = await list_history(db, user_id, limit=10)
+    continue_reading = await list_continue_reading(db, user_id, page_size=10)
+    history = await list_history_responses(
+        db,
+        user_id,
+        page_size=10,
+        base_url=base_url,
+    )
     collections = await list_collections(db, user_id)
     preferences = await db.get(ReaderPreference, user_id)
     reading_stat = await db.get(UserReadingStat, user_id)
@@ -1086,10 +1199,7 @@ async def get_library_summary(
             build_progress_response(item, base_url=base_url)
             for item in continue_reading
         ],
-        recent_history=[
-            build_history_response(item, base_url=base_url)
-            for item in history
-        ],
+        recent_history=history,
         collections=[build_collection_summary_response(item) for item in collections],
         reader_preferences=(
             build_reader_preferences_response(preferences)
@@ -1126,10 +1236,12 @@ async def get_library_state_for_comic(
     progress = progress_result.scalars().first()
 
     history_result = await db.execute(
-        select(UserHistoryEntry).where(
+        select(UserHistoryEntry)
+        .where(
             UserHistoryEntry.user_id == user_id,
             UserHistoryEntry.comic_id == comic.id,
         )
+        .order_by(UserHistoryEntry.last_read_at.desc(), UserHistoryEntry.id.desc())
     )
     history = history_result.scalars().first()
 
@@ -1240,6 +1352,16 @@ async def import_library_snapshot(
     for progress_payload in payload.progress:
         await upsert_progress(db, user_id, progress_payload)
         response.progress_upserted += 1
+
+    for history_payload in payload.history:
+        chapter = await resolve_chapter_or_raise(
+            db,
+            history_payload.source_name,
+            history_payload.comic_slug,
+            history_payload.chapter_number,
+        )
+        await upsert_history_from_progress(db, user_id, chapter, history_payload)
+        response.history_upserted += 1
 
     for completed_payload in payload.completed_chapters:
         await mark_chapter_completed(db, user_id, completed_payload)

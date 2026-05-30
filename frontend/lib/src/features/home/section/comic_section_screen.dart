@@ -9,7 +9,9 @@ import '../../../models/comic.dart';
 import '../../../repositories/providers.dart';
 import '../../../widgets/app_loading_placeholder.dart';
 import '../../../widgets/comic_card.dart';
+import '../../../widgets/comic_cover.dart';
 import '../../../widgets/comic_filter_sort_sheet.dart';
+import 'section_shared.dart';
 
 class ComicSectionPayload {
   const ComicSectionPayload({
@@ -61,6 +63,7 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
   bool _hasLoadedSection = false;
   bool _isFirstPageLoading = true;
   bool _isLoadingMore = false;
+  bool _isGrid = true;
 
   bool get _isPopularSection =>
       ComicSortOption.normalize(widget.initialSort) == ComicSortOption.popular;
@@ -114,6 +117,14 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
             icon: const Icon(TonztoonIcons.arrowBack),
           ),
         ),
+        actions: [
+          IconButton(
+            tooltip: _isGrid ? 'Tampilan daftar' : 'Tampilan grid',
+            onPressed: () => setState(() => _isGrid = !_isGrid),
+            icon: Icon(_isGrid ? TonztoonIcons.rows : TonztoonIcons.columns),
+          ),
+          const SizedBox(width: 10),
+        ],
       ),
       body: Stack(
         children: [
@@ -173,22 +184,30 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
                         else
                           SliverPadding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
-                            sliver: _SectionGrid(
-                              comics: _comics,
-                              onTap: _openComicDetail,
-                            ),
+                            sliver: _isGrid
+                                ? _SectionGrid(
+                                    comics: _comics,
+                                    onTap: _openComicDetail,
+                                  )
+                                : _SectionList(
+                                    comics: _comics,
+                                    onTap: _openComicDetail,
+                                  ),
                           ),
                         if (_isLoadingMore)
-                          const SliverPadding(
-                            padding: EdgeInsets.fromLTRB(16, 14, 16, 0),
-                            sliver: _SectionLoadingMoreGrid(),
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                            sliver: _isGrid
+                                ? const _SectionLoadingMoreGrid()
+                                : const _SectionLoadingMoreList(),
                           ),
                         SliverPadding(
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 104),
                           sliver: SliverToBoxAdapter(
-                            child: _LoadMoreFooter(
+                            child: SectionLoadMoreFooter(
                               hasNextPage: _hasNextPage,
                               loadedCount: _comics.length,
+                              completeLabel: 'Semua komik sudah dimuat',
                             ),
                           ),
                         ),
@@ -203,7 +222,7 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
               top: 0,
               child: LinearProgressIndicator(minHeight: 3),
             ),
-          _BottomViewportFade(background: theme.scaffoldBackgroundColor),
+          BottomViewportFade(background: theme.scaffoldBackgroundColor),
         ],
       ),
     );
@@ -488,6 +507,150 @@ class _SectionGrid extends StatelessWidget {
   }
 }
 
+class _SectionList extends StatelessWidget {
+  const _SectionList({required this.comics, required this.onTap});
+
+  final List<ComicSummary> comics;
+  final ValueChanged<ComicSummary> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final childCount = comics.isEmpty ? 0 : comics.length * 2 - 1;
+
+    return SliverList(
+      key: const ValueKey('section-list'),
+      delegate: SliverChildBuilderDelegate((context, index) {
+        if (index.isOdd) return const SizedBox(height: 12);
+        final comic = comics[index ~/ 2];
+        return _SectionListTile(comic: comic, onTap: () => onTap(comic));
+      }, childCount: childCount),
+    );
+  }
+}
+
+class _SectionListTile extends StatelessWidget {
+  const _SectionListTile({required this.comic, required this.onTap});
+
+  final ComicSummary comic;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final source = comicSourceNameLabel(comic.sourceName);
+    final type = comicTypeFilterLabel(comic.type);
+    final status = comicStatusFilterLabel(comic.status);
+    final genre = comic.genres.isEmpty ? type : comic.genres.first.name;
+    final rating = comic.rating;
+
+    return Material(
+      color: colorScheme.surface,
+      elevation: 1.5,
+      shadowColor: Colors.black.withValues(alpha: 0.05),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Row(
+            children: [
+              ComicCover(
+                imageUrl: comic.coverImageUrl,
+                width: 74,
+                height: 106,
+                borderRadius: 10,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      comic.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 7),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '$source • ${comicTypeFlag(comic.type)} $type',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: colorScheme.secondary,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        if (rating != null) ...[
+                          const SizedBox(width: 8),
+                          _SectionRatingText(rating: rating),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 7),
+                    Wrap(
+                      spacing: 7,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        ComicGenreBadge(genre: genre, compact: true),
+                        ComicStatusBadge(status: status),
+                      ],
+                    ),
+                    if (comic.latestChapterNumber != null) ...[
+                      const SizedBox(height: 10),
+                      ComicMetaBadge(
+                        label:
+                            'Chapter ${formatChapterNumber(comic.latestChapterNumber!)}',
+                        color: colorScheme.primary,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(TonztoonIcons.chevronRight, color: colorScheme.outline),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionRatingText extends StatelessWidget {
+  const _SectionRatingText({required this.rating});
+
+  final double rating;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(TonztoonIcons.starFilled, size: 15, color: Colors.amber),
+        const SizedBox(width: 4),
+        Text(
+          rating.toStringAsFixed(1),
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: colorScheme.onSurface,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _SectionLoadingState extends StatelessWidget {
   const _SectionLoadingState({super.key});
 
@@ -556,6 +719,56 @@ class _SectionLoadingMoreGrid extends StatelessWidget {
       delegate: SliverChildBuilderDelegate(
         (context, index) => const _SectionCardShimmer(),
         childCount: itemCount,
+      ),
+    );
+  }
+}
+
+class _SectionLoadingMoreList extends StatelessWidget {
+  const _SectionLoadingMoreList();
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverList(
+      delegate: SliverChildBuilderDelegate((context, index) {
+        if (index.isOdd) return const SizedBox(height: 12);
+        return const _SectionListTileShimmer();
+      }, childCount: 3),
+    );
+  }
+}
+
+class _SectionListTileShimmer extends StatelessWidget {
+  const _SectionListTileShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    return const AppShimmer(
+      child: Row(
+        children: [
+          AppShimmerBlock(width: 74, height: 106, borderRadius: 10),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AppShimmerBlock(width: double.infinity, height: 18),
+                SizedBox(height: 8),
+                AppShimmerBlock(width: 190, height: 14),
+                SizedBox(height: 10),
+                Row(
+                  children: [
+                    AppShimmerBlock(width: 82, height: 24, borderRadius: 14),
+                    SizedBox(width: 7),
+                    AppShimmerBlock(width: 92, height: 24, borderRadius: 14),
+                  ],
+                ),
+                SizedBox(height: 10),
+                AppShimmerBlock(width: 112, height: 24, borderRadius: 14),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -670,64 +883,6 @@ class _EmptySectionState extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _LoadMoreFooter extends StatelessWidget {
-  const _LoadMoreFooter({required this.hasNextPage, required this.loadedCount});
-
-  final bool hasNextPage;
-  final int loadedCount;
-
-  @override
-  Widget build(BuildContext context) {
-    if (hasNextPage || loadedCount == 0) {
-      return const SizedBox(height: 20);
-    }
-
-    final colorScheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 18),
-      child: Text(
-        'Semua komik sudah dimuat',
-        textAlign: TextAlign.center,
-        style: Theme.of(
-          context,
-        ).textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
-      ),
-    );
-  }
-}
-
-class _BottomViewportFade extends StatelessWidget {
-  const _BottomViewportFade({required this.background});
-
-  final Color background;
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      left: 0,
-      right: 0,
-      bottom: 0,
-      height: 96,
-      child: IgnorePointer(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              stops: const [0.0, 0.62, 1.0],
-              colors: [
-                background.withValues(alpha: 0.0),
-                background.withValues(alpha: 0.88),
-                background,
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }

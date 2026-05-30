@@ -47,7 +47,6 @@ from app.services.library_service import (
     build_collection_summary_response,
     build_download_response,
     build_favorite_scene_response,
-    build_history_response,
     build_progress_response,
     build_reading_time_response,
     build_reader_preferences_response,
@@ -69,7 +68,7 @@ from app.services.library_service import (
     list_continue_reading,
     list_download_entries,
     list_favorite_scenes,
-    list_history,
+    list_history_responses,
     remove_comic_from_collection,
     rename_collection,
     set_bookmark,
@@ -123,12 +122,18 @@ async def get_user_library_state_for_comic(
 @router.get("/progress/continue-reading", response_model=list[ProgressResponse])
 async def get_continue_reading(
     request: Request,
-    limit: int = Query(20, ge=1, le=100),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
 ):
     """Daftar continue reading terbaru."""
-    items = await list_continue_reading(db, user_id, limit=limit)
+    items = await list_continue_reading(
+        db,
+        user_id,
+        page_size=page_size,
+        offset=(page - 1) * page_size,
+    )
     base_url = _get_request_base_url(request)
     return [build_progress_response(item, base_url=base_url) for item in items]
 
@@ -188,11 +193,18 @@ async def put_progress(
 @router.get("/bookmarks", response_model=list[BookmarkResponse])
 async def get_bookmarks(
     request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
 ):
-    """List semua bookmark komik user."""
-    items = await list_bookmarks(db, user_id)
+    """List bookmark komik user terbaru secara paginated."""
+    items = await list_bookmarks(
+        db,
+        user_id,
+        page_size=page_size,
+        offset=(page - 1) * page_size,
+    )
     base_url = _get_request_base_url(request)
     return [build_bookmark_response(item, base_url=base_url) for item in items]
 
@@ -405,14 +417,19 @@ async def remove_favorite_scene(
 @router.get("/history", response_model=list[HistoryItemResponse])
 async def get_history(
     request: Request,
-    limit: int = Query(50, ge=1, le=200),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=50),
     db: AsyncSession = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
 ):
     """List riwayat baca terbaru."""
-    items = await list_history(db, user_id, limit=limit)
-    base_url = _get_request_base_url(request)
-    return [build_history_response(item, base_url=base_url) for item in items]
+    return await list_history_responses(
+        db,
+        user_id,
+        page_size=page_size,
+        offset=(page - 1) * page_size,
+        base_url=_get_request_base_url(request),
+    )
 
 
 @router.get("/downloads", response_model=list[DownloadEntryResponse])

@@ -23,7 +23,7 @@ class ScraperCommonMixin:
         "b": 1_000_000_000,
     }
     _CHAPTER_PATTERNS = (
-        r"(?:chapter|chap|ch)\.?\s*([0-9]+(?:[.\-][0-9]+)?)",
+        r"\b(?:chapter|chap|ch)\.?\s*([0-9]+(?:[.\-][0-9]+)?)",
         r"\b([0-9]+(?:[.\-][0-9]+)?)\b",
     )
     _COMIC_TEXT_LIMITS = {

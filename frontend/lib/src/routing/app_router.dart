@@ -7,6 +7,7 @@ import '../features/catalog/full_catalog_screen.dart';
 import '../features/comic/comic_detail_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/home/section/comic_section_screen.dart';
+import '../features/home/section/continue_reading_section_screen.dart';
 import '../features/library/library_screen.dart';
 import '../features/notifications/notifications_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
@@ -148,6 +149,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/notifications',
         builder: (context, state) => const NotificationsScreen(),
+      ),
+      GoRoute(
+        path: '/library/continue-reading',
+        builder: (context, state) {
+          final payload = state.extra is ContinueReadingSectionPayload
+              ? state.extra! as ContinueReadingSectionPayload
+              : null;
+          return ContinueReadingSectionScreen(
+            initialItems: payload?.items ?? const [],
+          );
+        },
       ),
       GoRoute(
         path: '/comic/:source/:slug',

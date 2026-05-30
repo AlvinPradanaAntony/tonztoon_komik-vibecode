@@ -434,6 +434,39 @@ void main() {
     expect(libraryRepository.readerPreferencesCalls, 2);
   });
 
+  test('bookmarks provider refreshes after login', () async {
+    final libraryRepository = _FakeLibraryRepository()
+      ..bookmarkResponses.addAll([
+        const [],
+        const [
+          LibraryComicRef(
+            title: 'Lookism',
+            slug: 'lookism',
+            sourceName: 'komiku',
+          ),
+        ],
+      ]);
+    final container = ProviderContainer(
+      retry: (retryCount, error) => null,
+      overrides: [
+        authRepositoryProvider.overrideWithValue(_FakeAuthRepository()),
+        libraryRepositoryProvider.overrideWithValue(libraryRepository),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final before = await container.read(bookmarksProvider.future);
+    expect(before, isEmpty);
+
+    await container
+        .read(authControllerProvider.notifier)
+        .login('reader@tonztoon.app', 'secret');
+    final after = await container.read(bookmarksProvider.future);
+
+    expect(after.single.slug, 'lookism');
+    expect(libraryRepository.bookmarkCalls, 2);
+  });
+
   test(
     'reader preferences provider shows loading while login data fetches',
     () async {
@@ -1227,10 +1260,22 @@ class _FakeProgressRepository implements ProgressRepository {
   int continueReadingCalls = 0;
 
   @override
-  Future<List<ReadingProgress>> getContinueReading() async {
+  Future<List<ReadingProgress>> getContinueReading({int? pageSize}) async {
     continueReadingCalls++;
     if (continueReadingResponses.isEmpty) return const [];
-    return continueReadingResponses.removeAt(0);
+    final items = continueReadingResponses.removeAt(0);
+    if (pageSize == null || pageSize < 1 || items.length <= pageSize) {
+      return items;
+    }
+    return items.take(pageSize).toList();
+  }
+
+  @override
+  Future<List<ReadingProgress>> getContinueReadingPage({
+    required int page,
+    required int pageSize,
+  }) async {
+    return getContinueReading(pageSize: pageSize);
   }
 
   @override
@@ -1243,9 +1288,18 @@ class _FakeProgressRepository implements ProgressRepository {
 }
 
 class _FakeLibraryRepository implements LibraryRepository {
+  final bookmarkResponses = <List<LibraryComicRef>>[];
+  int bookmarkCalls = 0;
   final readerPreferencesResponses = <ReaderPreferences>[];
   final readerPreferencesFutures = <Future<ReaderPreferences>>[];
   int readerPreferencesCalls = 0;
+
+  @override
+  Future<List<LibraryComicRef>> getBookmarks() async {
+    bookmarkCalls++;
+    if (bookmarkResponses.isEmpty) return const [];
+    return bookmarkResponses.removeAt(0);
+  }
 
   @override
   Future<ReaderPreferences> getReaderPreferences() async {

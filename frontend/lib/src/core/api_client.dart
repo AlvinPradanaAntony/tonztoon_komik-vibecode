@@ -191,21 +191,48 @@ class TonztoonApi {
     try {
       return await request();
     } on DioException catch (error) {
-      final data = error.response?.data;
-      String message = 'Request failed. Please try again.';
-
-      if (error.type == DioExceptionType.connectionTimeout ||
-          error.type == DioExceptionType.receiveTimeout ||
-          error.type == DioExceptionType.sendTimeout ||
-          error.type == DioExceptionType.connectionError) {
-        message =
-            'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.';
-      } else if (data is Map<String, dynamic>) {
-        message = (data['message'] ?? data['detail'] ?? message).toString();
-      } else if (data is String && data.isNotEmpty) {
-        message = data;
-      }
+      final message = _messageForDioException(error);
       throw ApiException(message, statusCode: error.response?.statusCode);
     }
+  }
+
+  String _messageForDioException(DioException error) {
+    return switch (error.type) {
+      DioExceptionType.connectionTimeout =>
+        'Waktu koneksi ke server habis. Periksa koneksi Anda lalu coba lagi.',
+      DioExceptionType.sendTimeout =>
+        'Pengiriman data terlalu lama. Silakan coba lagi.',
+      DioExceptionType.receiveTimeout =>
+        'Server terlalu lama merespons. Silakan coba lagi beberapa saat lagi.',
+      DioExceptionType.connectionError =>
+        'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.',
+      _ => _messageFromResponse(error.response?.data),
+    };
+  }
+
+  String _messageFromResponse(Object? data) {
+    const fallback = 'Request failed. Please try again.';
+
+    if (data is Map<String, dynamic>) {
+      final message = _stringMessage(data['message']);
+      if (message != null) return message;
+
+      final detail = data['detail'];
+      final detailMessage = _stringMessage(detail);
+      if (detailMessage != null) return detailMessage;
+
+      if (detail is Map<String, dynamic>) {
+        return _messageFromResponse(detail);
+      }
+    }
+
+    final message = _stringMessage(data);
+    return message ?? fallback;
+  }
+
+  String? _stringMessage(Object? value) {
+    if (value is! String) return null;
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
   }
 }

@@ -891,85 +891,82 @@ class _CatalogListTile extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final comic = entry.comic;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
+    return Material(
+      color: colorScheme.surface,
+      elevation: 1.5,
+      shadowColor: Colors.black.withValues(alpha: 0.05),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Row(
-              children: [
-                ComicCover(
-                  imageUrl: comic.coverImageUrl,
-                  width: 74,
-                  height: 106,
-                  borderRadius: 10,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        comic.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 7),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '${entry.source} • ${comicTypeFlag(comic.type)} ${entry.type}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: colorScheme.secondary,
-                                fontWeight: FontWeight.w900,
-                              ),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Row(
+            children: [
+              ComicCover(
+                imageUrl: comic.coverImageUrl,
+                width: 74,
+                height: 106,
+                borderRadius: 10,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      comic.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 7),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${entry.source} • ${comicTypeFlag(comic.type)} ${entry.type}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: colorScheme.secondary,
+                              fontWeight: FontWeight.w900,
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          _RatingText(rating: entry.rating),
-                        ],
-                      ),
-                      const SizedBox(height: 7),
-                      Wrap(
-                        spacing: 7,
-                        runSpacing: 6,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          ComicGenreBadge(genre: entry.genre, compact: true),
-                          ComicStatusBadge(status: entry.status),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 7,
-                        runSpacing: 6,
-                        children: [
-                          ComicMetaBadge(
-                            label:
-                                'Chapter ${formatChapterNumber(comic.latestChapterNumber ?? 0)}',
-                            color: colorScheme.primary,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                        ),
+                        const SizedBox(width: 8),
+                        _RatingText(rating: entry.rating),
+                      ],
+                    ),
+                    const SizedBox(height: 7),
+                    Wrap(
+                      spacing: 7,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        ComicGenreBadge(genre: entry.genre, compact: true),
+                        ComicStatusBadge(status: entry.status),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 7,
+                      runSpacing: 6,
+                      children: [
+                        ComicMetaBadge(
+                          label:
+                              'Chapter ${formatChapterNumber(comic.latestChapterNumber ?? 0)}',
+                          color: colorScheme.primary,
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Icon(TonztoonIcons.chevronRight, color: colorScheme.outline),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              Icon(TonztoonIcons.chevronRight, color: colorScheme.outline),
+            ],
           ),
         ),
       ),

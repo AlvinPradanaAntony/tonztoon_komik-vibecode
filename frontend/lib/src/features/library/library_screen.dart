@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -16,6 +17,7 @@ import '../../widgets/app_surface_ink.dart';
 import '../../widgets/comic_card.dart';
 import '../../widgets/comic_cover.dart';
 import '../../widgets/tonztoon_modal_dialog.dart';
+import '../home/section/section_shared.dart';
 import 'library_error.dart';
 import 'library_shared_panes.dart';
 
@@ -69,50 +71,223 @@ class LibraryScreen extends ConsumerWidget {
   }
 }
 
-class _BookmarksTab extends ConsumerWidget {
+class _BookmarksTab extends ConsumerStatefulWidget {
   const _BookmarksTab();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final bookmarksAsync = ref.watch(bookmarksProvider);
+  ConsumerState<_BookmarksTab> createState() => _BookmarksTabState();
+}
+
+class _BookmarksTabState extends ConsumerState<_BookmarksTab>
+    with AutomaticKeepAliveClientMixin<_BookmarksTab> {
+  late final ScrollController _scrollController;
+  bool _isBookmarkActionLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController()..addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_onScroll)
+      ..dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final theme = Theme.of(context);
+    final bookmarksAsync = ref.watch(paginatedBookmarksProvider);
+    final bookmarkPage = bookmarksAsync.asData?.value;
+    final bookmarks = bookmarkPage?.items ?? const <LibraryComicRef>[];
+    final summaryAsync = ref.watch(librarySummaryProvider);
     final downloadsCount =
         ref.watch(downloadsProvider).asData?.value.length ?? 0;
 
-    return _AsyncPane<List<LibraryComicRef>>(
-      value: bookmarksAsync,
-      onRefresh: () => _refreshBookmarks(ref),
-      onRetry: () => ref.invalidate(bookmarksProvider),
-      builder: (bookmarks) {
-        final children = <Widget>[
-          _LibraryHero(bookmarks: bookmarks, downloadsCount: downloadsCount),
-          const SizedBox(height: 16),
-          _SectionHeader(
-            icon: TonztoonIcons.bookmarkAdded,
-            title: 'Komik tersimpan',
-            trailing: '${bookmarks.length} item',
-          ),
-          const SizedBox(height: 10),
-          if (bookmarks.isEmpty)
-            const _EmptyState(
-              icon: TonztoonIcons.bookmark,
-              title: 'Belum ada bookmark',
-              message:
-                  'Simpan komik dari halaman detail untuk menaruhnya di sini.',
-            )
-          else
-            for (final comic in bookmarks) ...[
-              _BookmarkTile(comic: comic),
-              const SizedBox(height: 12),
-            ],
-        ];
+    final totalBookmarks =
+        summaryAsync.asData?.value.counts.bookmarks ?? bookmarks.length;
+    final trailing = totalBookmarks > bookmarks.length
+        ? '${bookmarks.length} dari $totalBookmarks item'
+        : '$totalBookmarks item';
+    final isInitialLoading =
+        bookmarksAsync.isLoading && bookmarksAsync.hasValue == false;
+    final isRefreshing =
+        (bookmarksAsync.isLoading && bookmarksAsync.hasValue == true) ||
+        bookmarkPage?.isRefreshing == true;
+    final initialError = bookmarksAsync.hasError && !bookmarksAsync.hasValue
+        ? bookmarksAsync.error
+        : null;
 
-        return _LibraryList(
-          children: children,
-          onRefresh: () => _refreshBookmarks(ref),
-        );
-      },
+    return Stack(
+      children: [
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: isInitialLoading
+              ? const _BookmarkLoadingPane(key: ValueKey('bookmark-loading'))
+              : initialError != null
+              ? _BookmarkErrorPane(
+                  key: const ValueKey('bookmark-error'),
+                  error: initialError,
+                  onRetry: () => ref.invalidate(paginatedBookmarksProvider),
+                )
+              : RefreshIndicator(
+                  key: const ValueKey('bookmark-content'),
+                  onRefresh: _refreshBookmarks,
+                  child: CustomScrollView(
+                    controller: _scrollController,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                        sliver: SliverList(
+                          delegate: SliverChildListDelegate.fixed([
+                            _LibraryHero(
+                              bookmarks: bookmarks,
+                              downloadsCount: downloadsCount,
+                              totalBookmarks: totalBookmarks,
+                            ),
+                            const SizedBox(height: 16),
+                            _SectionHeader(
+                              icon: TonztoonIcons.bookmarkAdded,
+                              title: 'Komik tersimpan',
+                              trailing: trailing,
+                            ),
+                            const SizedBox(height: 10),
+                          ]),
+                        ),
+                      ),
+                      if (bookmarks.isEmpty)
+                        const SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: _EmptyState(
+                            icon: TonztoonIcons.bookmark,
+                            title: 'Belum ada bookmark',
+                            message:
+                                'Simpan komik dari halaman detail untuk menaruhnya di sini.',
+                          ),
+                        )
+                      else
+                        SliverPadding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          sliver: SliverList.separated(
+                            itemBuilder: (context, index) => _BookmarkTile(
+                              comic: bookmarks[index],
+                              onRemove: _removeBookmark,
+                            ),
+                            separatorBuilder: (context, index) =>
+                                const SizedBox(height: 12),
+                            itemCount: bookmarks.length,
+                          ),
+                        ),
+                      if (bookmarkPage?.isLoadingMore == true)
+                        const SliverPadding(
+                          padding: EdgeInsets.fromLTRB(16, 14, 16, 0),
+                          sliver: SliverList(
+                            delegate: SliverChildListDelegate.fixed([
+                              _BookmarkTileShimmer(),
+                              SizedBox(height: 12),
+                              _BookmarkTileShimmer(),
+                            ]),
+                          ),
+                        ),
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 132),
+                        sliver: SliverToBoxAdapter(
+                          child: SectionLoadMoreFooter(
+                            hasNextPage: bookmarkPage?.hasNextPage ?? false,
+                            loadedCount: bookmarks.length,
+                            completeLabel: 'Semua bookmark sudah dimuat',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+        ),
+        if (isRefreshing || _isBookmarkActionLoading)
+          const Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            child: LinearProgressIndicator(minHeight: 3),
+          ),
+        BottomViewportFade(background: theme.scaffoldBackgroundColor),
+      ],
     );
   }
+
+  Future<void> _refreshBookmarks() async {
+    try {
+      ref.invalidate(librarySummaryProvider);
+      ref.invalidate(downloadsProvider);
+      await Future.wait([
+        ref.read(paginatedBookmarksProvider.notifier).refreshFirstPage(),
+        ref.read(librarySummaryProvider.future),
+        ref.read(downloadsProvider.future),
+      ]);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _onScroll());
+    } catch (error, stackTrace) {
+      if (mounted) {
+        showAppErrorSnackBar(
+          context,
+          error: error,
+          stackTrace: stackTrace,
+          logContext: 'Refresh bookmarks failed',
+          fallbackMessage:
+              'Bookmark belum dapat dimuat ulang. Silakan coba lagi.',
+        );
+      }
+    }
+  }
+
+  Future<void> _removeBookmark(ComicSummary comic) async {
+    if (_isBookmarkActionLoading) return;
+    setState(() => _isBookmarkActionLoading = true);
+    try {
+      await ref.read(libraryRepositoryProvider).toggleBookmark(comic, true);
+      ref
+          .read(paginatedBookmarksProvider.notifier)
+          .removeItemByKey('${comic.sourceName}|${comic.slug}');
+      ref.invalidate(libraryComicStateProvider(comic));
+      ref.invalidate(bookmarksProvider);
+      ref.invalidate(librarySummaryProvider);
+      if (mounted) _showMessage(context, 'Bookmark dihapus.');
+    } catch (error, stackTrace) {
+      if (mounted) showLibraryActionError(context, error, stackTrace);
+    } finally {
+      if (mounted) setState(() => _isBookmarkActionLoading = false);
+    }
+  }
+
+  Future<void> _loadNextPage() async {
+    try {
+      await ref.read(paginatedBookmarksProvider.notifier).loadNextPage();
+    } catch (error, stackTrace) {
+      if (mounted) {
+        showAppErrorSnackBar(
+          context,
+          error: error,
+          stackTrace: stackTrace,
+          logContext: 'Load next bookmark page failed',
+          fallbackMessage: 'Bookmark berikutnya belum dapat dimuat.',
+        );
+      }
+    }
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    if (_scrollController.position.extentAfter < 640) {
+      unawaited(_loadNextPage());
+    }
+  }
+
+  @override
+  bool get wantKeepAlive => true;
 }
 
 class _CollectionsTab extends ConsumerWidget {
@@ -186,45 +361,191 @@ class _ScenesTab extends ConsumerWidget {
   }
 }
 
-class _HistoryTab extends ConsumerWidget {
+class _HistoryTab extends ConsumerStatefulWidget {
   const _HistoryTab();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final historyAsync = ref.watch(historyProvider);
+  ConsumerState<_HistoryTab> createState() => _HistoryTabState();
+}
 
-    return _AsyncPane<List<ReadingProgress>>(
-      value: historyAsync,
-      onRefresh: () => _refreshHistory(ref),
-      onRetry: () => ref.invalidate(historyProvider),
-      builder: (history) {
-        final children = <Widget>[
-          _SectionHeader(
-            icon: TonztoonIcons.clock,
-            title: 'Terakhir dibaca',
-            trailing: '${history.length} item',
+class _HistoryTabState extends ConsumerState<_HistoryTab>
+    with AutomaticKeepAliveClientMixin<_HistoryTab> {
+  late final ScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController()..addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_onScroll)
+      ..dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final theme = Theme.of(context);
+    final historyAsync = ref.watch(paginatedHistoryProvider);
+    final historyPage = historyAsync.asData?.value;
+    final history = historyPage?.items ?? const <ReadingProgress>[];
+    final isLoadingWithoutData = historyAsync.isLoading && historyPage == null;
+    final summaryAsync = ref.watch(librarySummaryProvider);
+    final totalHistory =
+        summaryAsync.asData?.value.counts.history ?? history.length;
+    final trailing = totalHistory > history.length
+        ? '${history.length} dari $totalHistory item'
+        : '$totalHistory item';
+    final isInitialLoading = isLoadingWithoutData;
+    final isRefreshing =
+        (historyAsync.isLoading && historyAsync.hasValue == true) ||
+        historyPage?.isRefreshing == true;
+    final initialError = historyAsync.hasError && !historyAsync.hasValue
+        ? historyAsync.error
+        : null;
+
+    return Stack(
+      children: [
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: isInitialLoading
+              ? const _HistoryLoadingPane(key: ValueKey('history-loading'))
+              : initialError != null
+              ? _BookmarkErrorPane(
+                  key: const ValueKey('history-error'),
+                  error: initialError,
+                  onRetry: () => ref.invalidate(paginatedHistoryProvider),
+                )
+              : RefreshIndicator(
+                  key: const ValueKey('history-content'),
+                  onRefresh: _refreshHistory,
+                  child: CustomScrollView(
+                    controller: _scrollController,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                        sliver: SliverList(
+                          delegate: SliverChildListDelegate.fixed([
+                            _SectionHeader(
+                              icon: TonztoonIcons.clock,
+                              title: 'Terakhir dibaca',
+                              trailing: trailing,
+                            ),
+                            const SizedBox(height: 10),
+                          ]),
+                        ),
+                      ),
+                      if (history.isEmpty)
+                        const SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: _EmptyState(
+                            icon: TonztoonIcons.clock,
+                            title: 'Belum ada riwayat',
+                            message:
+                                'Mulai membaca chapter untuk melanjutkan dari tab ini.',
+                          ),
+                        )
+                      else
+                        SliverPadding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          sliver: SliverList.separated(
+                            itemBuilder: (context, index) =>
+                                _HistoryTile(item: history[index]),
+                            separatorBuilder: (context, index) =>
+                                const SizedBox(height: 12),
+                            itemCount: history.length,
+                          ),
+                        ),
+                      if (historyPage?.isLoadingMore == true)
+                        const SliverPadding(
+                          padding: EdgeInsets.fromLTRB(16, 14, 16, 0),
+                          sliver: SliverList(
+                            delegate: SliverChildListDelegate.fixed([
+                              _BookmarkTileShimmer(),
+                              SizedBox(height: 12),
+                              _BookmarkTileShimmer(),
+                            ]),
+                          ),
+                        ),
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 132),
+                        sliver: SliverToBoxAdapter(
+                          child: SectionLoadMoreFooter(
+                            hasNextPage: historyPage?.hasNextPage ?? false,
+                            loadedCount: history.length,
+                            completeLabel: 'Semua riwayat sudah dimuat',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+        ),
+        if (isRefreshing)
+          const Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            child: LinearProgressIndicator(minHeight: 3),
           ),
-          const SizedBox(height: 10),
-          if (history.isEmpty)
-            const _EmptyState(
-              icon: TonztoonIcons.clock,
-              title: 'Belum ada riwayat',
-              message: 'Mulai membaca chapter untuk melanjutkan dari tab ini.',
-            )
-          else
-            for (final item in history) ...[
-              _HistoryTile(item: item),
-              const SizedBox(height: 12),
-            ],
-        ];
-
-        return _LibraryList(
-          children: children,
-          onRefresh: () => _refreshHistory(ref),
-        );
-      },
+        BottomViewportFade(background: theme.scaffoldBackgroundColor),
+      ],
     );
   }
+
+  Future<void> _refreshHistory() async {
+    try {
+      ref.invalidate(historyProvider);
+      ref.invalidate(librarySummaryProvider);
+      await Future.wait([
+        ref.read(paginatedHistoryProvider.notifier).refreshFirstPage(),
+        ref.read(librarySummaryProvider.future),
+      ]);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _onScroll());
+    } catch (error, stackTrace) {
+      if (mounted) {
+        showAppErrorSnackBar(
+          context,
+          error: error,
+          stackTrace: stackTrace,
+          logContext: 'Refresh history failed',
+          fallbackMessage:
+              'Riwayat belum dapat dimuat ulang. Silakan coba lagi.',
+        );
+      }
+    }
+  }
+
+  Future<void> _loadNextPage() async {
+    try {
+      await ref.read(paginatedHistoryProvider.notifier).loadNextPage();
+    } catch (error, stackTrace) {
+      if (mounted) {
+        showAppErrorSnackBar(
+          context,
+          error: error,
+          stackTrace: stackTrace,
+          logContext: 'Load next history page failed',
+          fallbackMessage: 'Riwayat berikutnya belum dapat dimuat.',
+        );
+      }
+    }
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    if (_scrollController.position.extentAfter < 640) {
+      unawaited(_loadNextPage());
+    }
+  }
+
+  @override
+  bool get wantKeepAlive => true;
 }
 
 class _DownloadsTab extends ConsumerWidget {
@@ -345,11 +666,140 @@ class _ErrorPane extends StatelessWidget {
   }
 }
 
+class _BookmarkLoadingPane extends StatelessWidget {
+  const _BookmarkLoadingPane({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const CustomScrollView(
+      physics: AlwaysScrollableScrollPhysics(),
+      slivers: [
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+          sliver: SliverToBoxAdapter(
+            child: AppShimmer(
+              child: AppShimmerBlock(width: double.infinity, height: 172),
+            ),
+          ),
+        ),
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(16, 22, 16, 0),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate.fixed([
+              _BookmarkTileShimmer(),
+              SizedBox(height: 12),
+              _BookmarkTileShimmer(),
+              SizedBox(height: 12),
+              _BookmarkTileShimmer(),
+            ]),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HistoryLoadingPane extends StatelessWidget {
+  const _HistoryLoadingPane({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const CustomScrollView(
+      physics: AlwaysScrollableScrollPhysics(),
+      slivers: [
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(16, 24, 16, 0),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate.fixed([
+              _BookmarkTileShimmer(),
+              SizedBox(height: 12),
+              _BookmarkTileShimmer(),
+              SizedBox(height: 12),
+              _BookmarkTileShimmer(),
+            ]),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BookmarkErrorPane extends StatelessWidget {
+  const _BookmarkErrorPane({
+    super.key,
+    required this.error,
+    required this.onRetry,
+  });
+
+  final Object error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      slivers: [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: _ErrorPane(error: error, onRetry: onRetry),
+        ),
+      ],
+    );
+  }
+}
+
+class _BookmarkTileShimmer extends StatelessWidget {
+  const _BookmarkTileShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: const AppShimmer(
+        child: Row(
+          children: [
+            AppShimmerBlock(width: 72, height: 108, borderRadius: 15),
+            SizedBox(width: 12),
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AppShimmerBlock(width: double.infinity, height: 18),
+                    SizedBox(height: 8),
+                    AppShimmerBlock(width: 150, height: 14),
+                    SizedBox(height: 14),
+                    AppShimmerBlock(width: 180, height: 12),
+                    SizedBox(height: 8),
+                    AppShimmerBlock(width: 120, height: 12),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(width: 48),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _LibraryHero extends StatelessWidget {
-  const _LibraryHero({required this.bookmarks, required this.downloadsCount});
+  const _LibraryHero({
+    required this.bookmarks,
+    required this.downloadsCount,
+    required this.totalBookmarks,
+  });
 
   final List<LibraryComicRef> bookmarks;
   final int downloadsCount;
+  final int totalBookmarks;
 
   int get _ongoingCount =>
       bookmarks.where((item) => item.status?.toLowerCase() == 'ongoing').length;
@@ -434,7 +884,7 @@ class _LibraryHero extends StatelessWidget {
                           ),
                           const SizedBox(height: 1),
                           Text(
-                            '${bookmarks.length} komik tersimpan',
+                            '$totalBookmarks komik tersimpan',
                             style: theme.textTheme.bodySmall,
                           ),
                         ],
@@ -454,7 +904,7 @@ class _LibraryHero extends StatelessWidget {
                         ),
                       ),
                       child: Text(
-                        '${bookmarks.length}',
+                        '$totalBookmarks',
                         style: theme.textTheme.headlineSmall?.copyWith(
                           color: primaryOrange,
                           fontWeight: FontWeight.w900,
@@ -615,19 +1065,23 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _BookmarkTile extends ConsumerWidget {
-  const _BookmarkTile({required this.comic});
+class _BookmarkTile extends StatelessWidget {
+  const _BookmarkTile({required this.comic, required this.onRemove});
 
   final LibraryComicRef comic;
+  final Future<void> Function(ComicSummary comic) onRemove;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final summary = comic.toSummary();
 
     return AppSurfaceInk(
       onTap: () => _openComicDetail(context, summary),
       padding: EdgeInsets.zero,
+      showBorder: false,
+      elevation: 1.5,
+      shadowColor: Colors.black.withValues(alpha: 0.05),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -686,7 +1140,7 @@ class _BookmarkTile extends ConsumerWidget {
                 _openComicDetail(context, summary);
               }
               if (value == 'remove') {
-                await _removeBookmark(context, ref, summary);
+                await onRemove(summary);
               }
             },
             itemBuilder: (context) => const [
@@ -697,21 +1151,6 @@ class _BookmarkTile extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  Future<void> _removeBookmark(
-    BuildContext context,
-    WidgetRef ref,
-    ComicSummary comic,
-  ) async {
-    try {
-      await ref.read(libraryRepositoryProvider).toggleBookmark(comic, true);
-      ref.invalidate(libraryComicStateProvider(comic));
-      await _refreshBookmarks(ref);
-      if (context.mounted) _showMessage(context, 'Bookmark dihapus.');
-    } catch (error, stackTrace) {
-      if (context.mounted) showLibraryActionError(context, error, stackTrace);
-    }
   }
 }
 
@@ -1156,6 +1595,9 @@ class _HistoryTile extends StatelessWidget {
 
     return AppSurfaceInk(
       onTap: () => _openReader(context, item),
+      showBorder: false,
+      elevation: 1.5,
+      shadowColor: Colors.black.withValues(alpha: 0.05),
       child: Row(
         children: [
           ComicCover(imageUrl: item.coverImageUrl, width: 58, height: 82),
@@ -1171,9 +1613,17 @@ class _HistoryTile extends StatelessWidget {
                   style: theme.textTheme.titleMedium,
                 ),
                 const SizedBox(height: 5),
-                Text(
-                  'Chapter ${formatChapterNumber(item.chapterNumber)} - ${_dateLabel(item.lastReadAt)}',
-                  style: theme.textTheme.bodySmall,
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      'Chapter ${formatChapterNumber(item.chapterNumber)} - ${_dateLabel(item.lastReadAt)}',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                    if (item.isCompleted) const _HistoryCompletedBadge(),
+                  ],
                 ),
                 const SizedBox(height: 10),
                 LinearProgressIndicator(
@@ -1190,6 +1640,40 @@ class _HistoryTile extends StatelessWidget {
             icon: const Icon(TonztoonIcons.chevronRight),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _HistoryCompletedBadge extends StatelessWidget {
+  const _HistoryCompletedBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    const color = Color(0xFF16A34A);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(TonztoonIcons.badgeCheckFilled, size: 13, color: color),
+            const SizedBox(width: 4),
+            Text(
+              'Sudah dibaca',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: color,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1379,15 +1863,6 @@ Future<bool> _deleteCollection(
   }
 }
 
-Future<void> _refreshBookmarks(WidgetRef ref) async {
-  ref.invalidate(bookmarksProvider);
-  ref.invalidate(downloadsProvider);
-  await Future.wait([
-    ref.read(bookmarksProvider.future),
-    ref.read(downloadsProvider.future),
-  ]);
-}
-
 Future<void> _refreshCollections(WidgetRef ref) async {
   ref.invalidate(collectionsProvider);
   await ref.read(collectionsProvider.future);
@@ -1400,11 +1875,6 @@ Future<void> _refreshCollectionDetail(WidgetRef ref, int collectionId) async {
     ref.read(collectionDetailProvider(collectionId).future),
     ref.read(collectionsProvider.future),
   ]);
-}
-
-Future<void> _refreshHistory(WidgetRef ref) async {
-  ref.invalidate(historyProvider);
-  await ref.read(historyProvider.future);
 }
 
 void _openComicDetail(BuildContext context, ComicSummary comic) {

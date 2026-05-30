@@ -1,89 +1,246 @@
 # TonzToon Comic - Frontend Walkthrough
 
-## 1. Ikhtisar (Overview)
-Frontend TonzToon Comic adalah aplikasi mobile cross-platform yang dikembangkan dengan framework **Flutter** (Dart). Aplikasi ini bertindak sebagai antarmuka pengguna untuk menjelajahi katalog komik, membaca chapter (mode *vertical* maupun *paged*), dan mengelola koleksi bacaan *(library)*.
+Frontend TonzToon adalah aplikasi Flutter untuk membaca komik multi-source dari backend FastAPI. Aplikasi saat ini berfokus pada pengalaman local-first: guest tetap bisa memakai library lokal, sedangkan user login mendapat sinkronisasi cloud melalui endpoint `/library/*`.
 
-Fokus utama frontend adalah memberikan UI/UX yang dinamis, responsif, stabil saat digunakan dengan koneksi yang tidak menentu (*Offline-First* caching), dan terintegrasi baik dengan Backend FastAPI.
+## 1. Stack
 
-## 2. Tech Stack & Dependensi Utama
-- **Flutter SDK**: Framework utama UI.
-- **State Management**: **Riverpod** (`flutter_riverpod`). Dipilih karena reaktif, aman, dan memisahkan *business logic* dari UI dengan rapi.
-- **Routing**: **GoRouter** (`go_router`) untuk penanganan rute terpusat dan *deep linking*.
-- **Networking**: **Dio** (`dio`) sebagai HTTP Client handal untuk komunikasi dengan REST API Backend.
-- **Caching & Local Storage**:
-  - **Hive** (`hive_flutter`): NoSQL key-value database lokal yang sangat cepat untuk menyimpan metadata aplikasi, state *offline*, history, bookmark, dll.
-  - **Flutter Secure Storage**: Menyimpan token kredensial Autentikasi (Supabase Token) secara aman.
-- **Image Handling**: **Cached Network Image** (`cached_network_image`) untuk menampilkan gambar komik dengan *caching* berlapis agar menghemat bandwidth data.
+| Area | Package |
+|---|---|
+| State | `flutter_riverpod` |
+| Routing | `go_router` |
+| HTTP | `dio` |
+| Local database | `hive`, `hive_flutter` |
+| Token storage | `flutter_secure_storage` |
+| Image cache | `cached_network_image`, `flutter_cache_manager` |
+| UI | `lucide_icons_flutter`, `flutter_svg`, `shimmer`, `awesome_snackbar_content` |
+| Notifications | `flutter_local_notifications` |
+| Files/offline | `path_provider` |
+| Profile media | `image_picker`, `image`, `image_cropper` |
+| Auth provider | `google_sign_in` |
 
-## 3. Struktur Direktori `frontend/lib/`
-Sesuai dengan *best practices* Flutter, arsitektur aplikasi dirancang secara modular di dalam `lib/src/`:
+## 2. Struktur Direktori
 
 ```text
-frontend/
-└── lib/
-    ├── main.dart               # Entry point utama aplikasi Flutter
-    └── src/
-        ├── app.dart            # Root Widget (App), konfigurasi material, tema, inisialisasi router
-        ├── core/               # Konfigurasi sistem dan kelas penunjang global
-        │   ├── constants/      # App text, ukuran, colors, dll.
-        │   ├── network/        # Konfigurasi instance Dio & interceptors
-        │   ├── theme/          # Konfigurasi ThemeData (Dark/Light mode)
-        │   └── utils/          # Fungsi utility global
-        ├── features/           # Fitur utama, dipecah menjadi modul mandiri
-        │   ├── auth/           # Fitur Autentikasi (Guest mode, Sign In, Supabase integration)
-        │   ├── comic/          # Layar detail komik & list chapter
-        │   ├── home/           # Halaman utama (Discover, Trending, Continue Reading)
-        │   ├── library/        # Halaman koleksi pengguna (Bookmarks, History, Offline Downloads)
-        │   ├── onboarding/     # Intro screen untuk pengguna baru
-        │   ├── reader/         # Mesin inti pembaca komik (Vertical Scroll & Paged Manga Mode)
-        │   ├── search/         # Halaman pencarian dan filter tag
-        │   ├── shell/          # Halaman pembungkus utama (Bottom Navigation Bar)
-        │   └── splash/         # Animasi awal saat aplikasi dibuka
-        ├── models/             # Data class (Entity) dengan method parsing dari/ke JSON API
-        ├── repositories/       # Abstraksi data layer (Network API Service vs Local Hive Data)
-        ├── routing/            # Deklarasi router tree menggunakan GoRouter
-        └── widgets/            # Komponen UI global / reusable (Buttons, Cards, Loaders, Dialogs)
+frontend/lib/
+├── main.dart
+└── src/
+    ├── app.dart
+    ├── core/
+    │   ├── api_client.dart
+    │   ├── app_navigation.dart
+    │   ├── app_theme.dart
+    │   ├── config.dart
+    │   ├── storage.dart
+    │   └── token_store.dart
+    ├── features/
+    │   ├── auth/
+    │   ├── catalog/
+    │   ├── comic/
+    │   ├── home/
+    │   ├── library/
+    │   ├── notifications/
+    │   ├── onboarding/
+    │   ├── reader/
+    │   ├── search/
+    │   ├── settings/
+    │   ├── shell/
+    │   └── splash/
+    ├── models/
+    ├── repositories/
+    ├── routing/
+    └── widgets/
 ```
 
-## 4. Arsitektur & Pola Desain (Design Patterns)
-### 4.1. Data Flow & State Management (Riverpod)
-Aplikasi sangat mengandalkan struktur **Layered Architecture**:
-1. **UI Layer (`features/`)**: Hanya bertanggung jawab me-render Widget berdasarkan *state*.
-2. **Controller/Provider Layer (`features/`)**: Provider dari Riverpod menengahi *UI* dan *Repository*. Menangani *loading*, *success*, dan *error* (menggunakan `AsyncValue`).
-3. **Repository Layer (`repositories/`)**: Di sinilah logika pengambilan data terjadi. Jika data tersedia di *Local Cache* (Hive) dan aplikasi offline, kembalikan cache. Jika *online*, ambil dari API melalui Dio, lalu perbarui cache.
-4. **Data Layer (`models/`)**: Representasi raw dari data API.
+## 3. App Bootstrap
 
-### 4.2. Mekanisme Reader (Membaca Komik)
-Fitur *Reader* adalah yang paling kritis di aplikasi ini:
-- **Vertical Mode**: Memanfaatkan `ListView.builder` tanpa jarak (padding 0) antar widget gambar (menggunakan *CachedNetworkImage*).
-- **Manga Mode (Paged)**: Memanfaatkan `PageView.builder` untuk gestur *swipe* per halaman.
-- Keduanya menyimpan posisi (koordinat *scroll* atau indeks *page*) ke *Local Storage* secara periodik (lewat event listener) agar fitur *Continue Reading* akurat saat dibuka kembali.
+`main.dart` menginisialisasi Flutter dan storage lokal, lalu menjalankan root app di `src/app.dart`.
 
-### 4.3. Offline-First Caching
-Mekanisme Offline-First dilakukan secara *hybrid*:
-- Pengguna yang masuk sebagai **Guest** menyimpan koleksinya 100% lokal via Hive.
-- Jika pengguna melakukan **Login** (mendapatkan Token dari Backend/Supabase), maka dilakukan migrasi (*one-time sync*) ke Cloud DB. Namun, penyimpanan lokal tetap digunakan sebagai sumber utama untuk render UI agar instan dan mengatasi hilangnya koneksi saat membaca.
+Konfigurasi runtime ada di `src/core/config.dart`:
 
-## 5. Panduan Menjalankan & Mengembangkan
-1. **Instalasi Dependencies:**
-   ```bash
-   cd frontend
-   flutter clean
-   flutter pub get
-   ```
-2. **Generasi Kode (Jika ada `build_runner`):**
-   (Jalankan ini jika melakukan perubahan pada model yang butuh auto-generasi seperti json_serializable atau freeezy).
-   ```bash
-   dart run build_runner build -d
-   ```
-3. **Menjalankan Aplikasi (Mode Debugging):**
-   Gunakan emulator, *device* fisik, atau web browser.
-   ```bash
-   flutter run
-   ```
-4. **Konfigurasi API Endpoint:**
-   Pastikan variabel base URL API (yang terhubung ke backend FastAPI) didefinisikan dengan benar, umumnya melalui environment variables (`.env` di flutter) atau *Constants class* di `lib/src/core/`.
+- `API_BASE_URL`
+- `GOOGLE_WEB_CLIENT_ID`
+- `GOOGLE_IOS_CLIENT_ID`
 
-## Catatan Khusus
-- Gambar komik yang disajikan bisa jadi memuat *mixed-content* atau diproteksi hotlinking. Jika menemukan gambar rusak (blank screen), periksa *Interceptor* pada *Dio* yang mengirimkan header khusus (seperti referer palsu) saat request gambar atau tanyakan perbaikan *Proxy API* pada spesifikasi *Backend*.
-- Jaga performa Render List Reader untuk komik berjumlah banyak (80+ halaman) dengan mengoptimalkan prefetching (*ImageCache*) namun tanpa membebani RAM (jangan _preload_ semua seketika).
+Contoh:
+
+```bash
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000/api/v1
+```
+
+## 4. Routing
+
+Routing terpusat di `src/routing/app_router.dart` dengan `GoRouter`.
+
+Route utama:
+
+| Route | Screen |
+|---|---|
+| `/splash` | Splash |
+| `/onboarding` | Onboarding |
+| `/` | Home |
+| `/catalog` | Full catalog |
+| `/search` | Search |
+| `/library` | Library tab utama |
+| `/library?tab=collections` | Tab collections |
+| `/library?tab=scenes` | Tab favorite scenes |
+| `/library?tab=history` | Tab history |
+| `/library?tab=downloads` | Tab downloads |
+| `/library/continue-reading` | Continue reading full page |
+| `/settings` | Settings |
+| `/auth` | Auth |
+| `/auth/forgot-password` | Forgot password |
+| `/auth/callback` dan `/callback` | Email/auth callback |
+| `/auth/reset-password` dan `/reset-password` | Reset password |
+| `/notifications` | Notifications |
+| `/comic/:source/:slug` | Comic detail |
+| `/reader/:source/:slug/:chapter` | Reader |
+
+`StatefulShellRoute.indexedStack` menjaga state tab utama: home, catalog, search, library, settings.
+
+## 5. Data Layer
+
+Repository penting:
+
+| Repository | Fungsi |
+|---|---|
+| `AuthRepository` | restore/login/register/google/refresh-aware session, profile, avatar, logout |
+| `CatalogRepository` | source, katalog, latest/popular, detail, chapter list |
+| `ProgressRepository` | continue reading, progress lokal, queue sync progress ke cloud |
+| `LibraryRepository` | summary, bookmark, collection, favorite scene, history, downloads, preferences, reading time, migration |
+| `OfflineRepository` | file offline lokal |
+| `NotificationRepository` | notifikasi internal sync/download |
+
+Provider Riverpod berada terutama di `repositories/providers.dart` dan menghubungkan UI dengan repository.
+
+## 6. API Client dan Token Refresh
+
+`src/core/api_client.dart` membungkus Dio.
+
+Perilaku penting:
+
+- Menambahkan bearer token otomatis dari secure storage.
+- Refresh token jika `expires_at` tersisa kurang dari 2 menit.
+- Retry request awal setelah refresh sukses saat menerima `401`.
+- Membersihkan token jika refresh invalid.
+- Mengubah error koneksi menjadi pesan Bahasa Indonesia yang ramah user.
+
+Endpoint yang tidak memicu refresh ulang:
+
+```text
+/auth/refresh
+/auth/login
+```
+
+## 7. Auth Flow
+
+Flow email/password:
+
+1. Register: `POST /auth/register`.
+2. Login: `POST /auth/login` dengan `identifier` dan `password`.
+3. Restore session: `GET /auth/me`, lalu `GET /auth/profile`.
+4. Token disimpan sebagai `access_token`, `refresh_token`, dan `expires_at`.
+
+Flow Google:
+
+1. `google_sign_in` mengambil Google token native.
+2. Flutter mengirim `id_token` ke `POST /auth/google`.
+3. Backend menukar token ke Supabase Auth.
+4. Session dipersist seperti login email/password.
+
+Flow callback:
+
+- `/auth/callback` dan `/callback` menerima email verification atau callback auth.
+- `/auth/reset-password` dan `/reset-password` menangani recovery/reset password.
+
+## 8. Local-first Library
+
+Data guest tersimpan di Hive. Setelah user login, repository memakai pola:
+
+1. Render dari cache lokal user-scoped jika ada.
+2. Refresh dari endpoint backend di background atau saat halaman butuh pagination.
+3. Simpan response remote ke cache lokal.
+4. Queue update user action ke backend.
+
+Domain yang disimpan/sinkron:
+
+- Progress dan completed chapters.
+- Continue reading.
+- Bookmarks.
+- Collections.
+- Favorite scenes.
+- History.
+- Download intent/status.
+- Reader preferences.
+- Reading time.
+
+Migrasi guest memakai `POST /library/sync/import`. Dialog migrasi menghitung data lokal seperti bookmark, collection, progress, favorite scenes, downloads, dan reading time.
+
+## 9. Reader
+
+Reader mendukung:
+
+- Vertical scroll.
+- Paged mode.
+- Penyimpanan `scroll_offset` atau `page_index`.
+- `last_read_page_item_index` dan `total_page_items` untuk resume lebih akurat.
+- Sync progress ke cloud jika user login.
+- Fallback local progress jika offline atau sync gagal.
+
+Saat `is_completed=true`, backend menyimpan completed chapter dan history.
+
+## 10. Library UI
+
+`features/library/library_screen.dart` dan `library_shared_panes.dart` menangani:
+
+- Bookmark list dengan pagination.
+- Collections dan manajemen item.
+- Favorite scenes.
+- History.
+- Downloads: gabungan queue aktif, file offline lokal, dan cloud download entries.
+
+Tab dapat dibuka lewat query param:
+
+```text
+/library?tab=collections
+/library?tab=scenes
+/library?tab=history
+/library?tab=downloads
+```
+
+## 11. Settings
+
+Settings menggabungkan:
+
+- Auth/profile state.
+- Avatar upload.
+- Security overview.
+- Reader preferences.
+- Reading time.
+- Guest migration.
+- Local/offline cleanup.
+- Link ke library tabs dan account-related actions.
+
+## 12. Menjalankan dan Menguji
+
+```bash
+cd frontend
+flutter pub get
+flutter analyze
+flutter test
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000/api/v1
+```
+
+Asset tooling:
+
+```bash
+dart run flutter_launcher_icons
+dart run flutter_native_splash:create
+```
+
+## 13. Catatan Pengembangan
+
+- Jangan mengandalkan cloud download `completed` sebagai bukti file tersedia di device.
+- Untuk Android emulator, gunakan `10.0.2.2`; untuk device fisik gunakan IP LAN backend.
+- Jika menambah endpoint user-scoped, pastikan `TonztoonApi` bisa mengirim bearer token dan repository punya fallback lokal yang masuk akal.
+- Jika mengubah model library backend, sinkronkan parser di `models/library.dart`, `models/progress.dart`, dan payload repository terkait.
+- Pertahankan pola cache lokal agar UI tetap responsif saat koneksi backend lambat.

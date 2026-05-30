@@ -9,6 +9,7 @@ import '../../core/app_assets.dart';
 import '../../core/app_icons.dart';
 import '../../core/app_snackbar.dart';
 import 'section/comic_section_screen.dart';
+import 'section/continue_reading_section_screen.dart';
 import '../../models/auth.dart';
 import '../../models/comic.dart';
 import '../../models/progress.dart';
@@ -83,7 +84,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     .take(4)
                     .toList();
             final continueProgress =
-                continueReadingAsync.asData?.value ?? home.continueReading;
+                (continueReadingAsync.asData?.value ?? home.continueReading)
+                    .take(6)
+                    .toList();
             final hasHomeContent =
                 latestComics.isNotEmpty ||
                 popularComics.isNotEmpty ||
@@ -112,7 +115,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 if (continueProgress.isNotEmpty) ...[
                   _SectionTitle(
                     title: 'Lanjutkan Membaca',
-                    actionLabel: '${continueProgress.length}',
+                    actionLabel: 'Lihat semua',
+                    onAction: () =>
+                        _openContinueReadingSection(context, continueProgress),
                   ),
                   const SizedBox(height: 10),
                   SizedBox(
@@ -220,10 +225,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       await repo.importLocalSnapshotToCloud();
       ref.invalidate(homeDataProvider);
       ref.invalidate(bookmarksProvider);
+      ref.invalidate(paginatedBookmarksProvider);
+      ref.invalidate(librarySummaryProvider);
       ref.invalidate(collectionsProvider);
       ref.invalidate(favoriteScenesProvider);
       ref.invalidate(downloadsProvider);
       ref.invalidate(historyProvider);
+      ref.invalidate(paginatedHistoryProvider);
       ref.invalidate(readingTimeProvider);
       unawaited(ref.read(readingTimeProvider.notifier).refreshFromCloud());
       if (!mounted) return;
@@ -1396,17 +1404,8 @@ class _ProgressCard extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final chapterText =
         'Chapter ${formatChapterNumber(progress.chapterNumber)}';
-    final pageText =
-        progress.lastReadPageItemIndex == null ||
-            progress.totalPageItems == null
-        ? null
-        : 'Halaman ${progress.lastReadPageItemIndex! + 1}/${progress.totalPageItems}';
-    final progressValue =
-        progress.lastReadPageItemIndex == null ||
-            progress.totalPageItems == null ||
-            progress.totalPageItems == 0
-        ? null
-        : (progress.lastReadPageItemIndex! + 1) / progress.totalPageItems!;
+    final pageText = _progressPageText(progress);
+    final progressValue = _progressValue(progress);
 
     return SizedBox(
       width: 260,
@@ -1457,13 +1456,11 @@ class _ProgressCard extends StatelessWidget {
                           chapterText,
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
-                        if (pageText != null) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            pageText,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
+                        const SizedBox(height: 2),
+                        Text(
+                          pageText,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                         const SizedBox(height: 10),
                         LinearProgressIndicator(
                           borderRadius: BorderRadius.circular(99),
@@ -1501,6 +1498,30 @@ void _openReaderProgress(BuildContext context, ReadingProgress progress) {
     '/reader/${Uri.encodeComponent(progress.sourceName)}/${Uri.encodeComponent(progress.comicSlug)}/${formatChapterNumber(progress.chapterNumber)}',
     extra: comic,
   );
+}
+
+void _openContinueReadingSection(
+  BuildContext context,
+  List<ReadingProgress> items,
+) {
+  context.push(
+    '/library/continue-reading',
+    extra: ContinueReadingSectionPayload(items: items),
+  );
+}
+
+double _progressValue(ReadingProgress item) {
+  final total = item.totalPageItems;
+  if (total == null || total <= 0) return item.isCompleted ? 1 : 0;
+  final current = (item.lastReadPageItemIndex ?? item.pageIndex ?? 0) + 1;
+  return (current / total).clamp(0, 1).toDouble();
+}
+
+String _progressPageText(ReadingProgress item) {
+  final current = (item.lastReadPageItemIndex ?? item.pageIndex ?? 0) + 1;
+  final total = item.totalPageItems;
+  if (total == null || total <= 0) return 'Halaman $current';
+  return 'Halaman $current/$total';
 }
 
 void _openNotifications(BuildContext context) {

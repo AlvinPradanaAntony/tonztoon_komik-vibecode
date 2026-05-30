@@ -15,7 +15,7 @@ class ProgressRepository {
     this._store, {
     NotificationRepository? notificationRepository,
     void Function()? onNotificationsChanged,
-    void Function()? onContinueReadingChanged,
+    void Function(ReadingProgress progress)? onContinueReadingChanged,
   }) : _notificationRepository = notificationRepository,
        _onNotificationsChanged = onNotificationsChanged,
        _onContinueReadingChanged = onContinueReadingChanged;
@@ -25,22 +25,45 @@ class ProgressRepository {
   final LocalStore _store;
   final NotificationRepository? _notificationRepository;
   final void Function()? _onNotificationsChanged;
-  final void Function()? _onContinueReadingChanged;
+  final void Function(ReadingProgress progress)? _onContinueReadingChanged;
   final Queue<ReadingProgress> _progressSyncQueue = Queue<ReadingProgress>();
   final Set<String> _progressRefreshKeys = <String>{};
   bool _syncingProgress = false;
   bool _refreshingContinueReading = false;
   DateTime? _lastContinueReadingRefreshAt;
   static const _continueReadingRefreshCooldown = Duration(seconds: 10);
+  static const _localHistoryKey = 'history_entries';
+  static const _maxLocalHistoryItems = 500;
 
-  Future<List<ReadingProgress>> getContinueReading() async {
+  Future<List<ReadingProgress>> getContinueReading({int? pageSize}) async {
     final token = await _tokenStore.readAccessToken();
     if (token != null && token.isNotEmpty) {
-      _refreshContinueReadingInBackground();
-      return _authenticatedLocalContinueReading()
-        ..sort((a, b) => b.lastReadAt.compareTo(a.lastReadAt));
+      _refreshContinueReadingInBackground(pageSize: pageSize);
+      return _limitProgress(
+        _authenticatedLocalContinueReading()
+          ..sort((a, b) => b.lastReadAt.compareTo(a.lastReadAt)),
+        pageSize,
+      );
     }
-    return _localContinueReading();
+    return _limitProgress(_localContinueReading(), pageSize);
+  }
+
+  Future<List<ReadingProgress>> getContinueReadingPage({
+    required int page,
+    required int pageSize,
+  }) async {
+    final token = await _tokenStore.readAccessToken();
+    if (token != null && token.isNotEmpty) {
+      final remote = await _remoteContinueReading(
+        page: page,
+        pageSize: pageSize,
+      );
+      await _cacheRemoteContinueReading(remote);
+      return remote;
+    }
+
+    final start = (page - 1) * pageSize;
+    return _localContinueReading().skip(start).take(pageSize).toList();
   }
 
   Future<ReadingProgress?> getProgress(String sourceName, String slug) async {
@@ -67,9 +90,11 @@ class ProgressRepository {
 
   Future<void> saveProgress(ReadingProgress progress) async {
     await _store.progress.put(progress.storageKey, progress.toLocalJson());
+    await _saveLocalHistory(progress);
     if (progress.isCompleted) {
       await _saveLocalCompletedChapter(progress);
     }
+    _onContinueReadingChanged?.call(progress);
 
     final token = await _tokenStore.readAccessToken();
     if (token == null || token.isEmpty) {
@@ -122,9 +147,13 @@ class ProgressRepository {
     }
   }
 
-  Future<List<ReadingProgress>> _remoteContinueReading() async {
+  Future<List<ReadingProgress>> _remoteContinueReading({
+    int page = 1,
+    int pageSize = 20,
+  }) async {
     final response = await _api.get<List<dynamic>>(
       '/library/progress/continue-reading',
+      queryParameters: {'page': page, 'page_size': pageSize},
     );
     return (response.data ?? const [])
         .whereType<Map>()
@@ -165,7 +194,7 @@ class ProgressRepository {
       if (remote == null) return;
       final changed = await _cacheRemoteProgress(remote);
       if (changed) {
-        _onContinueReadingChanged?.call();
+        _onContinueReadingChanged?.call(remote);
       }
     } catch (_) {
       // The reader should keep using the local account cache when cloud refresh
@@ -173,7 +202,7 @@ class ProgressRepository {
     }
   }
 
-  void _refreshContinueReadingInBackground() {
+  void _refreshContinueReadingInBackground({int? pageSize}) {
     if (_refreshingContinueReading) return;
     final lastRefresh = _lastContinueReadingRefreshAt;
     final now = DateTime.now();
@@ -185,21 +214,23 @@ class ProgressRepository {
     _refreshingContinueReading = true;
     _lastContinueReadingRefreshAt = now;
     unawaited(
-      _refreshContinueReadingFromCloud().whenComplete(() {
+      _refreshContinueReadingFromCloud(pageSize: pageSize).whenComplete(() {
         _refreshingContinueReading = false;
       }),
     );
   }
 
-  Future<void> _refreshContinueReadingFromCloud() async {
+  Future<void> _refreshContinueReadingFromCloud({int? pageSize}) async {
     final token = await _tokenStore.readAccessToken();
     if (token == null || token.isEmpty) return;
 
     try {
-      final remote = await _remoteContinueReading();
+      final remote = await _remoteContinueReading(pageSize: pageSize ?? 20);
       final changed = await _cacheRemoteContinueReading(remote);
       if (changed) {
-        _onContinueReadingChanged?.call();
+        if (remote.isNotEmpty) {
+          _onContinueReadingChanged?.call(remote.first);
+        }
       }
     } catch (_) {
       // Keep the local-first UI path quiet; PUT sync failures already create
@@ -308,6 +339,27 @@ class ProgressRepository {
     await _store.progress.put(key, sorted);
   }
 
+  Future<void> _saveLocalHistory(ReadingProgress progress) async {
+    final raw = _store.library.get(_localHistoryKey);
+    final items = raw is List
+        ? raw
+              .whereType<Map<dynamic, dynamic>>()
+              .map(ReadingProgress.fromLocalJson)
+              .toList()
+        : <ReadingProgress>[];
+    final key = progress.historyStorageKey;
+    final merged = [
+      progress,
+      for (final item in items)
+        if (item.historyStorageKey != key) item,
+    ]..sort((a, b) => b.lastReadAt.compareTo(a.lastReadAt));
+    final limited = merged.take(_maxLocalHistoryItems).toList();
+    await _store.library.put(
+      _localHistoryKey,
+      limited.map((item) => item.toLocalJson()).toList(),
+    );
+  }
+
   List<ReadingProgress> _localContinueReading() {
     return _store.progress.values
         .whereType<Map<dynamic, dynamic>>()
@@ -333,5 +385,15 @@ class ProgressRepository {
           );
         })
         .toList();
+  }
+
+  List<ReadingProgress> _limitProgress(
+    List<ReadingProgress> items,
+    int? pageSize,
+  ) {
+    if (pageSize == null || pageSize < 1 || items.length <= pageSize) {
+      return items;
+    }
+    return items.take(pageSize).toList();
   }
 }

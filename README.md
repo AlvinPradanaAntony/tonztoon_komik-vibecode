@@ -1,116 +1,132 @@
-# 📚 TonzToon Komik — Backend API
+# TonzToon Komik
 
-REST API backend untuk aplikasi mobile pembaca komik **TonzToon**, dibangun dengan **FastAPI** dan dijalankan di atas **Hugging Face Spaces** menggunakan Docker.
+TonzToon Komik adalah aplikasi baca komik multi-source yang terdiri dari backend FastAPI dan frontend Flutter. Backend menyimpan katalog, chapter, gambar, profil, dan sinkronisasi library di PostgreSQL/Supabase. Frontend menyediakan pengalaman mobile untuk eksplorasi katalog, membaca chapter, continue reading, bookmark, koleksi, favorite scene, riwayat, dan antrean download offline.
 
-## 🛠️ Tech Stack
+## Struktur Repo
 
-| Komponen | Teknologi |
+```text
+tonztoon_komik/
+├── backend/      # FastAPI, SQLAlchemy async, Alembic, scraper, API docs
+├── frontend/     # Flutter app, Riverpod, GoRouter, Dio, Hive
+├── docs/         # Walkthrough arsitektur backend/frontend
+├── admin/        # Aset/admin helper untuk operasi proyek
+└── README.md     # Ringkasan repo
+```
+
+## Tech Stack
+
+| Area | Teknologi |
 |---|---|
-| Framework | FastAPI 0.115+ |
-| Runtime | Python 3.11 |
-| Database | PostgreSQL (via Supabase) |
-| ORM | SQLAlchemy 2.0 (async) |
-| Auth | Supabase Auth + PyJWT |
-| Scraping | Scrapling |
-| Image Proxy | Pillow + httpx |
-| Container | Docker |
+| Backend API | FastAPI, Uvicorn, Pydantic |
+| Database | PostgreSQL/Supabase, SQLAlchemy async, asyncpg, Alembic |
+| Auth | Supabase Auth, PyJWT, bearer token |
+| Scraper | Scrapling, source registry, script sync CLI |
+| Storage | Supabase Storage untuk cover/avatar |
+| Frontend | Flutter, Riverpod, GoRouter, Dio |
+| Local-first | Hive, Flutter Secure Storage, cached images |
+| Notifications/offline | flutter_local_notifications, path_provider, cache manager |
 
-## 🚀 API Endpoints
+## Backend API
 
-Dokumentasi interaktif tersedia di:
-- **Swagger UI:** `/docs`
-- **ReDoc:** `/redoc`
+Base path API adalah `/api/v1`. Swagger tersedia di `/docs`, ReDoc di `/redoc`.
 
-### Endpoint Utama
+Endpoint publik utama:
 
-| Method | Endpoint | Deskripsi |
+| Method | Endpoint | Fungsi |
 |---|---|---|
-| `GET` | `/api/v1/sources` | Daftar semua source komik |
-| `GET` | `/api/v1/sources/{source}/comics` | Katalog komik per source |
-| `GET` | `/api/v1/sources/{source}/comics/latest` | Komik terbaru |
-| `GET` | `/api/v1/sources/{source}/comics/popular` | Komik populer |
+| `GET` | `/api/v1/sources` | Daftar source aktif dan statistik katalog |
+| `GET` | `/api/v1/comics` | Katalog gabungan semua source dengan filter/sort |
+| `GET` | `/api/v1/sources/{source}/comics` | Katalog per source |
+| `GET` | `/api/v1/sources/{source}/comics/latest` | Feed terbaru per source |
+| `GET` | `/api/v1/sources/{source}/comics/popular` | Feed populer per source |
+| `GET` | `/api/v1/sources/{source}/search?q=...` | Search dalam satu source |
+| `GET` | `/api/v1/search?q=...` | Search global |
+| `GET` | `/api/v1/genres` | Daftar genre |
+| `GET` | `/api/v1/genres/{slug}/comics` | Komik berdasarkan genre |
 | `GET` | `/api/v1/sources/{source}/comics/{slug}` | Detail komik |
 | `GET` | `/api/v1/sources/{source}/comics/{slug}/chapters` | Daftar chapter |
-| `GET` | `/api/v1/sources/{source}/comics/{slug}/chapters/{num}` | Isi chapter (dengan lazy load) |
-| `GET` | `/api/v1/search?q=...` | Pencarian komik |
-| `GET` | `/api/v1/images/proxy` | Proxy gambar (menghindari hotlink protection) |
-| `POST` | `/api/v1/scraper/sync` | Trigger sinkronisasi manual via GitHub Actions |
+| `GET` | `/api/v1/sources/{source}/comics/{slug}/chapters/{chapter}` | Payload reader, lazy-load gambar jika DB kosong |
+| `GET` | `/api/v1/images/proxy?url=...` | Proxy gambar cover/chapter/avatar |
 
-## ⚙️ Environment Variables
+Endpoint auth dan user-scoped:
 
-Konfigurasi berikut **wajib** diset melalui **Secrets** di Hugging Face Spaces Settings:
-
-| Variable | Deskripsi |
+| Prefix | Fungsi |
 |---|---|
-| `DATABASE_URL` | URL koneksi PostgreSQL backend (Supabase) |
-| `SUPABASE_URL` | URL project Supabase |
-| `SUPABASE_PUBLISHABLE_KEY` | Publishable/Anon key Supabase |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role key Supabase |
-| `SUPABASE_COVER_BUCKET` | Nama bucket storage Supabase (misal: thumbnail-comic) |
-| `SUPABASE_JWT_AUDIENCE` | Target audience JWT (misal: authenticated) |
-| `SUPABASE_JWT_ISSUER` | URL issuer JWT Supabase |
-| `SUPABASE_JWT_SECRET` | Secret key untuk validasi JWT |
-| `SUPABASE_AUTH_REDIRECT_URL` | URL redirect deep-link untuk konfirmasi email |
-| `ADMIN_USER_IDS` | ID user admin (dipisahkan koma) |
-| `ALLOW_DEV_USER_HEADER` | Izinkan bypass auth untuk testing (wajib `false` di production) |
-| `GITHUB_PAT` | GitHub Personal Access Token (untuk trigger scraper) |
-| `GITHUB_REPO_OWNER` | Username/org pemilik repository GitHub |
-| `GITHUB_REPO_NAME` | Nama repository GitHub |
-| `GITHUB_WORKFLOW_FILE` | Nama file workflow scraper (contoh: `scraper.yml`) |
+| `/api/v1/auth` | Register, login email/password, login Google, refresh, logout, profile, avatar, reset password, security overview |
+| `/api/v1/library` | Summary, continue reading, progress, bookmark, collection, favorite scene, history, download intent, reader preferences, reading time, import snapshot guest |
+| `/api/v1/account-manager` | Admin-only user manager untuk Supabase Auth dan data aplikasi |
+| `/api/v1/scraper/sync` | Trigger GitHub Actions workflow scraper manual |
 
-## 🏗️ Arsitektur
+Endpoint `/library/*`, `/auth/me`, `/auth/profile`, `/auth/security`, dan `/account-manager/*` menggunakan `Authorization: Bearer <supabase_access_token>`. Header `X-User-Id` hanya menjadi fallback lokal jika `ALLOW_DEV_USER_HEADER=true`.
 
-```mermaid
-flowchart TD
-    A(["📱 Flutter App"]) -->|HTTP Request| B["🔀 FastAPI Router"]
-
-    B --> C{"Images\ndi DB?"}
-
-    C -->|"✅ Ada (Cache Hit)"| F["🗄️ PostgreSQL\n(Supabase)"]
-    C -->|"❌ Kosong (Cache Miss)"| D["🕷️ On-Demand Scraper\n(timeout: 10 detik)"]
-
-    D -->|Scrape dari sumber| E["🌐 Sumber Komik\n(Komiku, Shinigami, dll)"]
-    E -->|Images URL| D
-    D -->|Simpan ke DB| F
-
-    F -->|Data chapter| G["🖼️ Image Proxy\n(Pillow + httpx)"]
-    G -->|Response JSON| A
-
-    F -.->|Setelah response dikirim| H["⚡ Background Prefetch\n(±5 chapter sekitar)"]
-    H -.->|Scrape diam-diam| E
-    H -.->|Simpan ke DB| F
-
-    style A fill:#6d28d9,color:#fff
-    style B fill:#1d4ed8,color:#fff
-    style C fill:#b45309,color:#fff
-    style D fill:#dc2626,color:#fff
-    style E fill:#374151,color:#fff
-    style F fill:#065f46,color:#fff
-    style G fill:#0e7490,color:#fff
-    style H fill:#4338ca,color:#fff,stroke-dasharray: 5 5
-```
-
-### Fitur Lazy Loading Chapter
-
-Backend ini menggunakan strategi **lazy loading** untuk gambar chapter:
-1. **Cache Hit:** Jika gambar sudah ada di database → langsung dikembalikan.
-2. **On-Demand Scrape:** Jika gambar belum ada → *live scrape* dari sumber asli (timeout 10 detik).
-3. **Background Prefetch:** Setelah chapter dibuka, backend otomatis men-*prefetch* 5 chapter sebelum dan sesudah di latar belakang.
-
-## 🐳 Menjalankan Lokal dengan Docker
-
-```bash
-# Build image
-docker build -t tonztoon-api .
-
-# Jalankan dengan file .env
-docker run -p 7860:7860 --env-file backend/.env tonztoon-api
-```
-
-Atau tanpa Docker, langsung menggunakan uvicorn:
+## Menjalankan Backend Lokal
 
 ```bash
 cd backend
+python -m venv venv
+venv\Scripts\activate
 pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+copy .env.example .env
+alembic upgrade head
+uvicorn app.main:app --reload
 ```
+
+Untuk Linux/macOS, gunakan `source venv/bin/activate` dan `cp .env.example .env`.
+
+Environment penting:
+
+| Variable | Fungsi |
+|---|---|
+| `DATABASE_URL` | URL PostgreSQL async, contoh `postgresql+asyncpg://...` |
+| `SUPABASE_URL` | URL project Supabase |
+| `SUPABASE_PUBLISHABLE_KEY` | Publishable/anon key Supabase |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role key untuk auth admin/storage |
+| `SUPABASE_JWT_AUDIENCE` | Audience JWT, biasanya `authenticated` |
+| `SUPABASE_JWT_ISSUER` | Issuer Supabase Auth |
+| `SUPABASE_JWT_SECRET` | Opsional untuk legacy HS256 project |
+| `SUPABASE_COVER_BUCKET` | Bucket cover komik |
+| `SUPABASE_AVATAR_BUCKET` | Bucket avatar user |
+| `SUPABASE_AUTH_REDIRECT_URL` | Deep link email confirmation/reset password |
+| `ADMIN_USER_IDS` | CSV Supabase user ID yang boleh memakai account manager |
+| `ALLOW_DEV_USER_HEADER` | Fallback `X-User-Id` untuk dev lokal, wajib `false` di shared/prod |
+| `GITHUB_PAT` dan teman-temannya | Trigger workflow scraper via GitHub API |
+| `KOMIKU_ASIA_ACCESS_TOKEN` | Token export akun Komiku Asia untuk helper scraper tertentu |
+
+## Menjalankan Frontend
+
+```bash
+cd frontend
+flutter pub get
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000/api/v1
+```
+
+Gunakan `10.0.2.2` untuk Android emulator, `127.0.0.1` untuk iOS simulator, atau IP LAN mesin backend untuk device fisik. Google Sign-In dapat dikonfigurasi melalui:
+
+```bash
+--dart-define=GOOGLE_WEB_CLIENT_ID=...
+--dart-define=GOOGLE_IOS_CLIENT_ID=...
+```
+
+## Scraper dan Sinkronisasi
+
+Scraper berada di `backend/scraper/` dan memakai registry source. Perintah yang umum dipakai:
+
+```bash
+cd backend
+python -m scraper.main --source komiku_asia --max-pages 5
+python -m scraper.sync_full_library --source komiku_asia --mode validate --start 1 --max 20
+python -m scraper.sync_chapter_images --selection random --batch-size 10 --limit 20
+python -m scraper.sync_cover_images --limit 500
+python -m scraper.check_pending_chapter_images --json-only
+```
+
+Chapter reader memakai lazy loading: jika `chapters.images` kosong, backend mencoba mengambil gambar dari source saat endpoint chapter dibuka, menyimpan hasil ke DB, lalu menjadwalkan nearby prefetch di background.
+
+## Dokumentasi Lanjutan
+
+- [Walkthrough umum](docs/walkthrough.md)
+- [Walkthrough backend](docs/walkthrough_backend.md)
+- [Walkthrough frontend](docs/walkthrough_frontend.md)
+- [Library API contract](backend/docs/library_api_contract.md)
+- [Flutter-backend integration](backend/docs/flutter_backend_integration.md)
+- [Supabase Auth setup](backend/docs/supabase_auth_setup.md)

@@ -300,11 +300,11 @@ class UserCompletedChapter(Base):
 
 
 class UserHistoryEntry(Base):
-    """Riwayat baca ringkas per komik, diurutkan berdasarkan interaksi terakhir."""
+    """Riwayat baca per chapter, diurutkan berdasarkan interaksi terakhir."""
 
     __tablename__ = "user_history_entries"
     __table_args__ = (
-        UniqueConstraint("user_id", "comic_id", name="uq_user_history_comic"),
+        UniqueConstraint("user_id", "chapter_id", name="uq_user_history_chapter"),
         Index("ix_user_history_entries_user_last_read_at", "user_id", "last_read_at"),
     )
 

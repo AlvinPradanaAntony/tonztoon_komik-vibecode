@@ -107,8 +107,18 @@ class LibraryRepository {
   }
 
   Future<List<LibraryComicRef>> getBookmarks() async {
+    return getBookmarksPage(page: 1, pageSize: 20);
+  }
+
+  Future<List<LibraryComicRef>> getBookmarksPage({
+    required int page,
+    required int pageSize,
+  }) async {
     if (await _isLoggedIn) {
-      final response = await _api.get<List<dynamic>>('/library/bookmarks');
+      final response = await _api.get<List<dynamic>>(
+        '/library/bookmarks',
+        queryParameters: {'page': page, 'page_size': pageSize},
+      );
       return (response.data ?? const []).whereType<Map>().map((json) {
         final comicRaw = json['comic'];
         final comic = comicRaw is Map
@@ -117,7 +127,27 @@ class LibraryRepository {
         return LibraryComicRef.fromJson(comic);
       }).toList();
     }
-    return _localBookmarks().values.toList();
+    final start = (page - 1) * pageSize;
+    return _localBookmarks().values.skip(start).take(pageSize).toList();
+  }
+
+  Future<LibrarySummary> getLibrarySummary() async {
+    if (await _isLoggedIn) {
+      final response = await _api.get<Map<String, dynamic>>('/library/summary');
+      return LibrarySummary.fromJson(response.data ?? const {});
+    }
+
+    return LibrarySummary(
+      counts: LibrarySummaryCounts(
+        bookmarks: _localBookmarks().length,
+        collections: _localCollections().length,
+        favoriteScenes: _localFavoriteScenes().length,
+        history: _localHistory().length,
+        downloads: _localDownloads().length,
+        continueReading: _localGuestProgressEntries().length,
+      ),
+      readingTimeSeconds: _guestReadingSeconds(),
+    );
   }
 
   Future<bool> toggleBookmark(ComicSummary comic, bool bookmarked) async {
@@ -448,8 +478,18 @@ class LibraryRepository {
   }
 
   Future<List<ReadingProgress>> getHistory() async {
+    return getHistoryPage(page: 1, pageSize: 20);
+  }
+
+  Future<List<ReadingProgress>> getHistoryPage({
+    required int page,
+    required int pageSize,
+  }) async {
     if (await _isLoggedIn) {
-      final response = await _api.get<List<dynamic>>('/library/history');
+      final response = await _api.get<List<dynamic>>(
+        '/library/history',
+        queryParameters: {'page': page, 'page_size': pageSize},
+      );
       return (response.data ?? const [])
           .whereType<Map>()
           .map(
@@ -459,11 +499,9 @@ class LibraryRepository {
           )
           .toList();
     }
-    return _store.progress.values
-        .whereType<Map<dynamic, dynamic>>()
-        .map(ReadingProgress.fromLocalJson)
-        .toList()
-      ..sort((a, b) => b.lastReadAt.compareTo(a.lastReadAt));
+    final start = (page - 1) * pageSize;
+    final history = _localHistory();
+    return history.skip(start).take(pageSize).toList();
   }
 
   Future<List<DownloadEntry>> getDownloads() async {
@@ -712,6 +750,9 @@ class LibraryRepository {
         .map((entry) => ReadingProgress.fromLocalJson(entry.value))
         .map((item) => item.toProgressPayload())
         .toList();
+    final history = _localHistory()
+        .map((item) => item.toProgressPayload())
+        .toList();
     final completedChapters = _localCompletedChapterImports();
     final scenes = _localFavoriteScenes()
         .map(
@@ -748,6 +789,7 @@ class LibraryRepository {
         'bookmarks': bookmarks,
         'collections': collections,
         'progress': progress,
+        'history': history,
         'completed_chapters': completedChapters,
         'favorite_scenes': scenes,
         'downloads': downloads,
@@ -761,6 +803,7 @@ class LibraryRepository {
     await _deleteImportedCompletedChapters(completedChapters);
     await _store.library.delete('bookmarks');
     await _store.library.delete('collections');
+    await _store.library.delete('history_entries');
     await _store.library.delete('favorite_scenes');
     await _store.library.delete('downloads');
     if (shouldImportReaderPrefs) {
@@ -829,6 +872,21 @@ class LibraryRepository {
         .whereType<Map<dynamic, dynamic>>()
         .map((item) => DownloadEntry.fromJson(Map<String, dynamic>.from(item)))
         .toList();
+  }
+
+  List<ReadingProgress> _localHistory() {
+    final raw = _store.library.get('history_entries');
+    final items = raw is List
+        ? raw
+              .whereType<Map<dynamic, dynamic>>()
+              .map(ReadingProgress.fromLocalJson)
+              .toList()
+        : _store.progress.values
+              .whereType<Map<dynamic, dynamic>>()
+              .map(ReadingProgress.fromLocalJson)
+              .toList();
+    items.sort((a, b) => b.lastReadAt.compareTo(a.lastReadAt));
+    return items;
   }
 
   Map<String, int> _downloadCountsFor(String comicKey) {

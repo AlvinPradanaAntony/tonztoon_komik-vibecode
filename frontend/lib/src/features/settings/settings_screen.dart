@@ -58,19 +58,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final prefs = ref.watch(readerPreferencesProvider);
     final themeMode = ref.watch(appThemeModeProvider);
     final auth = ref.watch(authControllerProvider);
-    final bookmarks = widget.isSignedIn
-        ? ref.watch(bookmarksProvider)
-        : const AsyncData<List<LibraryComicRef>>(<LibraryComicRef>[]);
-    final collections = widget.isSignedIn
-        ? ref.watch(collectionsProvider)
-        : const AsyncData<List<CollectionSummary>>(<CollectionSummary>[]);
-    final favoriteScenes = widget.isSignedIn
-        ? ref.watch(favoriteScenesProvider)
-        : const AsyncData<List<FavoriteScene>>(<FavoriteScene>[]);
-    final offlineChapters = widget.isSignedIn
-        ? ref.watch(offlineChaptersProvider)
-        : const AsyncData<List<OfflineChapter>>(<OfflineChapter>[]);
-
+    final librarySummary = widget.isSignedIn
+        ? ref.watch(librarySummaryProvider)
+        : const AsyncData<LibrarySummary>(
+            LibrarySummary(
+              counts: LibrarySummaryCounts(
+                bookmarks: 0,
+                collections: 0,
+                favoriteScenes: 0,
+                history: 0,
+                downloads: 0,
+                continueReading: 0,
+              ),
+              readingTimeSeconds: 0,
+            ),
+          );
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -93,11 +95,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           final profileReady =
               !widget.isSignedIn || _ensureProfileAvatarReady(auth);
           final profileStatsReady =
-              !widget.isSignedIn ||
-              (_hasInitialValue(bookmarks) &&
-                  _hasInitialValue(collections) &&
-                  _hasInitialValue(favoriteScenes) &&
-                  _hasInitialValue(offlineChapters));
+              !widget.isSignedIn || _hasInitialValue(librarySummary);
 
           if (!profileReady || !profileStatsReady) {
             return _SettingsLoadingPlaceholder(isSignedIn: widget.isSignedIn);
@@ -111,7 +109,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               if (widget.isSignedIn) ...[
                 _ProfileHeader(auth: auth),
                 const SizedBox(height: 18),
-                _ProfileStats(bookmarks: bookmarks),
+                _ProfileStats(summary: librarySummary),
                 const SizedBox(height: 24),
                 const _SectionLabel(text: 'Account'),
                 const SizedBox(height: 8),
@@ -136,11 +134,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ],
                     const _SettingsDivider(),
-                    _SavedCollectionsSettingsRow(collections: collections),
+                    _SavedCollectionsSettingsRow(summary: librarySummary),
                     const _SettingsDivider(),
-                    _FavoriteScenesSettingsRow(scenes: favoriteScenes),
+                    _FavoriteScenesSettingsRow(summary: librarySummary),
                     const _SettingsDivider(),
-                    _MyDownloadsSettingsRow(offlineChapters: offlineChapters),
+                    _MyDownloadsSettingsRow(summary: librarySummary),
                     const _SettingsDivider(),
                     _SettingsRow(
                       icon: TonztoonIcons.bell,
@@ -526,11 +524,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _refreshMigratedData() {
     ref.invalidate(homeDataProvider);
+    ref.invalidate(librarySummaryProvider);
     ref.invalidate(bookmarksProvider);
     ref.invalidate(collectionsProvider);
     ref.invalidate(favoriteScenesProvider);
     ref.invalidate(downloadsProvider);
     ref.invalidate(historyProvider);
+    ref.invalidate(paginatedHistoryProvider);
     ref.invalidate(readingTimeProvider);
     unawaited(ref.read(readingTimeProvider.notifier).refreshFromCloud());
     setState(() {});
@@ -1108,14 +1108,14 @@ class _AvatarUploadDialog extends StatelessWidget {
 }
 
 class _ProfileStats extends ConsumerWidget {
-  const _ProfileStats({required this.bookmarks});
+  const _ProfileStats({required this.summary});
 
-  final AsyncValue<List<LibraryComicRef>> bookmarks;
+  final AsyncValue<LibrarySummary> summary;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final readingTime = ref.watch(readingTimeProvider);
-    final bookmarkCount = _bookmarkCountLabel(bookmarks);
+    final bookmarkCount = _bookmarkCountLabel(summary);
     final activeTime = _readingTimeLabel(readingTime);
 
     return _SettingsSection(
@@ -1137,8 +1137,8 @@ class _ProfileStats extends ConsumerWidget {
     );
   }
 
-  String _bookmarkCountLabel(AsyncValue<List<LibraryComicRef>> bookmarks) {
-    final bookmarkCount = bookmarks.asData?.value.length;
+  String _bookmarkCountLabel(AsyncValue<LibrarySummary> summary) {
+    final bookmarkCount = summary.asData?.value.counts.bookmarks;
     if (bookmarkCount == null) return '...';
     if (bookmarkCount > 999) return '999+';
     return '$bookmarkCount';
@@ -1210,13 +1210,13 @@ String _readingTimeLabel(Duration duration) {
 }
 
 class _FavoriteScenesSettingsRow extends ConsumerWidget {
-  const _FavoriteScenesSettingsRow({required this.scenes});
+  const _FavoriteScenesSettingsRow({required this.summary});
 
-  final AsyncValue<List<FavoriteScene>> scenes;
+  final AsyncValue<LibrarySummary> summary;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final count = scenes.asData?.value.length;
+    final count = summary.asData?.value.counts.favoriteScenes;
 
     return _SettingsRow(
       icon: TonztoonIcons.heart,
@@ -1230,13 +1230,13 @@ class _FavoriteScenesSettingsRow extends ConsumerWidget {
 }
 
 class _SavedCollectionsSettingsRow extends ConsumerWidget {
-  const _SavedCollectionsSettingsRow({required this.collections});
+  const _SavedCollectionsSettingsRow({required this.summary});
 
-  final AsyncValue<List<CollectionSummary>> collections;
+  final AsyncValue<LibrarySummary> summary;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final count = collections.asData?.value.length;
+    final count = summary.asData?.value.counts.collections;
 
     return _SettingsRow(
       icon: TonztoonIcons.bookmark,
@@ -1250,22 +1250,20 @@ class _SavedCollectionsSettingsRow extends ConsumerWidget {
 }
 
 class _MyDownloadsSettingsRow extends ConsumerWidget {
-  const _MyDownloadsSettingsRow({required this.offlineChapters});
+  const _MyDownloadsSettingsRow({required this.summary});
 
-  final AsyncValue<List<OfflineChapter>> offlineChapters;
+  final AsyncValue<LibrarySummary> summary;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final readyCount = offlineChapters.asData?.value
-        .where((chapter) => chapter.isCompleted)
-        .length;
+    final count = summary.asData?.value.counts.downloads;
 
     return _SettingsRow(
       icon: TonztoonIcons.download,
       title: 'My Downloads',
-      subtitle: readyCount == null
-          ? 'Offline chapters ready on this device'
-          : '$readyCount chapter tersedia offline',
+      subtitle: count == null
+          ? 'Synced download wishlist'
+          : '$count chapter tersimpan di wishlist download',
       onTap: () => _openAccountFlow(context, const _MyDownloadsScreen()),
     );
   }
@@ -2714,8 +2712,23 @@ class _SettingsSection extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        border: Border.all(color: colorScheme.outlineVariant),
         borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(
+              alpha: Theme.of(context).brightness == Brightness.dark
+                  ? 0.24
+                  : 0.08,
+            ),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+          BoxShadow(
+            color: colorScheme.primary.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.all(8),

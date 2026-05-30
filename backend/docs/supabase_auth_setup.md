@@ -9,8 +9,8 @@ Arsitektur user yang dipakai:
 
 Lihat juga:
 
-- [backend/.env.example](</e:/Projek/projek_vibecode/tonztoon_komik/backend/.env.example>)
-- [flutter_backend_integration.md](</e:/Projek/projek_vibecode/tonztoon_komik/backend/docs/flutter_backend_integration.md>)
+- [backend/.env.example](../.env.example)
+- [flutter_backend_integration.md](flutter_backend_integration.md)
 
 ## Environment variables
 
@@ -28,6 +28,9 @@ SUPABASE_JWT_SECRET=
 
 # Redirect email confirmation, recovery, dan callback auth lain ke aplikasi Flutter
 SUPABASE_AUTH_REDIRECT_URL=tonztoon://auth/callback
+
+# Storage bucket untuk avatar profile
+SUPABASE_AVATAR_BUCKET=avatars
 
 # Optional local-only fallback for old testing flow
 ALLOW_DEV_USER_HEADER=false
@@ -49,8 +52,10 @@ ADMIN_USER_IDS=
 - `POST /api/v1/auth/password/update`
 - `POST /api/v1/auth/logout`
 - `GET /api/v1/auth/me`
+- `GET /api/v1/auth/security`
 - `GET /api/v1/auth/profile`
 - `PATCH /api/v1/auth/profile`
+- `POST /api/v1/auth/profile/avatar`
 
 `GET /api/v1/auth/me` dan semua endpoint library menerima:
 
@@ -69,7 +74,7 @@ perlu `GOOGLE_WEB_CLIENT_ID` dan, untuk iOS/macOS, `GOOGLE_IOS_CLIENT_ID`.
 
 ## Endpoint account manager
 
-Dashboard statis di [admin/account-dashboard.html](</e:/Projek/projek_vibecode/tonztoon_komik/admin/account-dashboard.html>) memakai endpoint backend berikut:
+Dashboard statis di [admin/account-dashboard.html](../../admin/account-dashboard.html) memakai endpoint backend berikut:
 
 - `GET /api/v1/account-manager/accounts`
 - `POST /api/v1/account-manager/accounts`
@@ -126,7 +131,7 @@ Catatan penting:
 
 Jalankan file SQL ini di Supabase SQL Editor setelah migrasi Alembic:
 
-- [supabase_rls_user_library.sql](</e:/Projek/projek_vibecode/tonztoon_komik/backend/sql/supabase_rls_user_library.sql>)
+- [supabase_rls_user_library.sql](../sql/supabase_rls_user_library.sql)
 
 SQL tersebut:
 

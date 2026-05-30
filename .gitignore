@@ -15,5 +15,5 @@ build/
 testing/
 backend/logs/
 backend/checkpoints
-
+backend/exports/
 backend/.cache/komiku_asia_cloak_state.json

@@ -525,6 +525,55 @@ class LibraryComicState {
   final List<DownloadEntry> downloadEntries;
 }
 
+class LibrarySummaryCounts {
+  const LibrarySummaryCounts({
+    required this.bookmarks,
+    required this.collections,
+    required this.favoriteScenes,
+    required this.history,
+    required this.downloads,
+    required this.continueReading,
+  });
+
+  factory LibrarySummaryCounts.fromJson(Map<String, dynamic> json) {
+    return LibrarySummaryCounts(
+      bookmarks: json['bookmarks'] as int? ?? 0,
+      collections: json['collections'] as int? ?? 0,
+      favoriteScenes: json['favorite_scenes'] as int? ?? 0,
+      history: json['history'] as int? ?? 0,
+      downloads: json['downloads'] as int? ?? 0,
+      continueReading: json['continue_reading'] as int? ?? 0,
+    );
+  }
+
+  final int bookmarks;
+  final int collections;
+  final int favoriteScenes;
+  final int history;
+  final int downloads;
+  final int continueReading;
+}
+
+class LibrarySummary {
+  const LibrarySummary({
+    required this.counts,
+    required this.readingTimeSeconds,
+  });
+
+  factory LibrarySummary.fromJson(Map<String, dynamic> json) {
+    final countsRaw = json['counts'];
+    return LibrarySummary(
+      counts: LibrarySummaryCounts.fromJson(
+        countsRaw is Map ? Map<String, dynamic>.from(countsRaw) : const {},
+      ),
+      readingTimeSeconds: json['reading_time_seconds'] as int? ?? 0,
+    );
+  }
+
+  final LibrarySummaryCounts counts;
+  final int readingTimeSeconds;
+}
+
 class GuestMigrationSummary {
   const GuestMigrationSummary({
     required this.bookmarks,

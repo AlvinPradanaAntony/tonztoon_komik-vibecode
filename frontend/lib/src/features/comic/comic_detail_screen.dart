@@ -48,6 +48,7 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
   double _collapseProgress = 0;
   ValueNotifier<double>? _collapseProgressNotifier;
   bool _bookmarkBusy = false;
+  bool? _bookmarkOverride;
   bool _collectionBusy = false;
   bool _downloadBusy = false;
 
@@ -111,7 +112,27 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
     );
     final comic = detailPayload.toSummary();
     final libraryStateAsync = ref.watch(libraryComicStateProvider(comic));
+    if (!libraryStateAsync.hasValue) {
+      return Scaffold(
+        body: AppAsyncView<LibraryComicState>(
+          value: libraryStateAsync,
+          loadingBuilder: (context) => const _ComicDetailLoadingPlaceholder(),
+          onRetry: () => ref.invalidate(libraryComicStateProvider(comic)),
+          builder: (_) => const SizedBox.shrink(),
+        ),
+      );
+    }
     final libraryState = libraryStateAsync.asData?.value;
+    final effectiveBookmarked =
+        _bookmarkOverride ?? (libraryState?.bookmarked == true);
+    if (_bookmarkOverride != null &&
+        libraryState?.bookmarked == _bookmarkOverride) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _bookmarkOverride == libraryState?.bookmarked) {
+          setState(() => _bookmarkOverride = null);
+        }
+      });
+    }
     final progress = progressAsync.asData?.value ?? libraryState?.progress;
     final completedChapterNumbers =
         libraryState?.completedChapterNumbers.toSet() ?? const <double>{};
@@ -222,12 +243,15 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
                   Padding(
                     padding: const EdgeInsets.only(right: 12),
                     child: _GlassIconButton(
-                      tooltip: libraryState?.bookmarked == true
+                      tooltip: _bookmarkBusy
+                          ? 'Menyimpan bookmark'
+                          : effectiveBookmarked
                           ? 'Hapus bookmark'
                           : 'Simpan bookmark',
-                      icon: libraryState?.bookmarked == true
+                      icon: effectiveBookmarked
                           ? TonztoonIcons.bookmarkFilled
                           : TonztoonIcons.bookmark,
+                      isLoading: _bookmarkBusy,
                       progress: _toolbarProgress,
                       onPressed: () => _toggleBookmark(comic, libraryState),
                     ),
@@ -378,14 +402,19 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
     if (_bookmarkBusy) return;
     setState(() => _bookmarkBusy = true);
     try {
-      final LibraryComicState state =
-          currentState ??
-          await ref.read(libraryComicStateProvider(comic).future);
+      final currentBookmarked =
+          _bookmarkOverride ??
+          currentState?.bookmarked ??
+          (await ref.read(libraryComicStateProvider(comic).future)).bookmarked;
       final bookmarked = await ref
           .read(libraryRepositoryProvider)
-          .toggleBookmark(comic, state.bookmarked);
+          .toggleBookmark(comic, currentBookmarked);
+      if (!mounted) return;
+      setState(() => _bookmarkOverride = bookmarked);
       ref.invalidate(libraryComicStateProvider(comic));
       ref.invalidate(bookmarksProvider);
+      ref.invalidate(paginatedBookmarksProvider);
+      ref.invalidate(librarySummaryProvider);
       _showSnack(
         bookmarked ? 'Bookmark disimpan.' : 'Bookmark dihapus.',
         type: AppSnackBarType.success,
@@ -1320,7 +1349,7 @@ class _DetailCreatorTileShimmer extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: colorScheme.surface,
+      color: colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: colorScheme.outlineVariant),
       ),
@@ -1725,7 +1754,20 @@ class _ChapterPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.outlineVariant),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(
+              alpha: theme.brightness == Brightness.dark ? 0.24 : 0.08,
+            ),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+          BoxShadow(
+            color: colorScheme.primary.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
@@ -2477,12 +2519,11 @@ class _CreatorTile extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
+    return Material(
+      color: colorScheme.surface,
+      elevation: 1,
+      shadowColor: Colors.black.withValues(alpha: 0.05),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
@@ -2527,12 +2568,11 @@ class _StatTile extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
+    return Material(
+      color: colorScheme.surface,
+      elevation: 1,
+      shadowColor: Colors.black.withValues(alpha: 0.05),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
         child: Column(
@@ -2648,12 +2688,14 @@ class _GlassIconButton extends StatelessWidget {
     required this.icon,
     required this.onPressed,
     required this.progress,
+    this.isLoading = false,
   });
 
   final String tooltip;
   final IconData icon;
   final VoidCallback onPressed;
   final ValueListenable<double> progress;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -2678,8 +2720,16 @@ class _GlassIconButton extends StatelessWidget {
           ),
           child: IconButton(
             tooltip: tooltip,
-            onPressed: onPressed,
-            icon: Icon(icon),
+            onPressed: isLoading ? null : onPressed,
+            icon: isLoading
+                ? SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: iconColor,
+                    ),
+                  )
+                : Icon(icon),
             style: IconButton.styleFrom(
               backgroundColor: Colors.transparent,
               foregroundColor: iconColor,

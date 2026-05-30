@@ -202,6 +202,7 @@ class HistoryItemResponse(BaseModel):
     page_index: int | None = None
     last_read_page_item_index: int | None = None
     total_page_items: int | None = None
+    is_completed: bool = False
     last_read_at: datetime
     updated_at: datetime
 
@@ -322,6 +323,7 @@ class LibrarySyncImportRequest(BaseModel):
     bookmarks: list[ComicSelector] = Field(default_factory=list)
     collections: list[SyncCollectionImport] = Field(default_factory=list)
     progress: list[ProgressUpsertRequest] = Field(default_factory=list)
+    history: list[ProgressUpsertRequest] = Field(default_factory=list)
     completed_chapters: list[CompletedChapterImportRequest] = Field(
         default_factory=list
     )
@@ -338,6 +340,7 @@ class LibrarySyncImportResponse(BaseModel):
     collections_upserted: int = Field(default=0, ge=0)
     collection_items_upserted: int = Field(default=0, ge=0)
     progress_upserted: int = Field(default=0, ge=0)
+    history_upserted: int = Field(default=0, ge=0)
     completed_chapters_upserted: int = Field(default=0, ge=0)
     favorite_scenes_upserted: int = Field(default=0, ge=0)
     downloads_upserted: int = Field(default=0, ge=0)

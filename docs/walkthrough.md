@@ -1,226 +1,158 @@
 # TonzToon Comic - Codebase Walkthrough
 
+Dokumen ini memberi peta cepat codebase TonzToon Komik berdasarkan struktur saat ini. Untuk detail spesifik, baca juga `docs/walkthrough_backend.md`, `docs/walkthrough_frontend.md`, `backend/docs/library_api_contract.md`, dan `backend/docs/flutter_backend_integration.md`.
+
 ## 1. Overview
 
-TonzToon Comic adalah aplikasi mobile baca komik (Manga, Manhwa, Manhua) lintas sumber (Multi-Source). Aplikasi ini dibangun dengan arsitektur modern yang memisahkan antara _Frontend_ (Mobile App) dan _Backend_ (API & Scraper).
+TonzToon Komik adalah aplikasi baca komik multi-source. Backend mengambil dan menyajikan data dari beberapa source komik, sedangkan frontend Flutter menyediakan pengalaman mobile untuk katalog, reader, dan library user.
 
-Aplikasi ini mengutamakan kecepatan akses, fitur _Continue Reading_, sinkronisasi _Cloud_ via Supabase, pembaca komik yang nyaman (Manga mode & Webtoon mode), serta dukungan _Offline Download_.
+Fitur utama:
 
-### Arsitektur Tingkat Tinggi
+- Katalog gabungan dan katalog per source.
+- Feed latest/popular berbasis marker hasil sync scraper.
+- Search global dan search per source.
+- Detail komik, daftar chapter, dan reader vertical/paged.
+- Lazy loading chapter images dari source jika DB belum memiliki daftar gambar.
+- Continue reading, history, completed chapters, bookmark, collection, favorite scene, download intent, reader preferences, dan reading time.
+- Auth Supabase email/password, Google Sign-In, email verification, reset password, profile/avatar, dan token refresh otomatis.
+- Guest/local-first storage dengan migrasi snapshot ke cloud setelah login.
 
-Secara keseluruhan, siklus hidup data pada aplikasi ini diilustrasikan melalui diagram berikut:
+## 2. Arsitektur Tingkat Tinggi
 
 ```mermaid
-graph TD
-    subgraph "External Sources"
-        S1["🌐 Web Komik (e.g. Komiku, Shinigami)"]
-    end
+flowchart TD
+    Source["Web komik / API source"] --> Scraper["Scraper CLI\nScrapling + source registry"]
+    Scraper --> DB[("PostgreSQL / Supabase\nSQLAlchemy + Alembic")]
+    Scraper --> Storage[("Supabase Storage\ncover/avatar")]
+    DB --> API["FastAPI\n/api/v1"]
+    Storage --> API
+    API --> Flutter["Flutter App\nRiverpod + Dio + Hive"]
+    Flutter --> API
+    Flutter --> Local[("Hive + Secure Storage\nlocal-first cache")]
 
-    subgraph "Backend Infrastructure (Python)"
-        SC["🕷️ Scraper Engine\n(Scrapling / Async)"]
-        API["⚡ FastAPI Server\n(REST API)"]
-        DB[("🗄️ PostgreSQL\n(Alembic + SQLAlchemy)")]
-    end
-
-    subgraph "Cloud Storage"
-        STORAGE[("☁️ Supabase Storage\n(Cover Images)")]
-    end
-
-    subgraph "Client App"
-        APP["📱 Flutter Mobile App\n(Riverpod)"]
-    end
-
-    %% Data Extraction (Phased Background Jobs)
-    S1 -->|"1a. Sync Comic Metadata (sync_full_library)"| SC
-    SC -->|"1b. Upsert Comic & Chapters"| DB
-
-    S1 -->|"2a. Fetch Chapter Pages (sync_chapter_images)"| SC
-    SC -->|"2b. Update JSONB Chapter Images"| DB
-
-    S1 -->|"3a. Download Cover (sync_cover_images)"| SC
-    SC -->|"3b. Optimise & Upload Cover"| STORAGE
-
-    %% Data Serving Flow
-    DB -->|"4. Query Database"| API
-    APP <-->|"5. Request/Response JSON"| API
-
-    %% Cover Image Flow
-    STORAGE -->|"6. Load Public URL (Cover)"| APP
-
-    %% Chapter Image Serving Flow (Proxy)
-    APP -->|"7. Chapter Image Request (/api/v1/images/proxy)"| API
-    API -.->|"8. Fetch Stream"| S1
-    API -->|"9. StreamingResponse (Bytes)"| APP
+    API -. "chapter images kosong" .-> Lazy["On-demand chapter image fetch"]
+    Lazy --> Source
+    Lazy --> DB
 ```
 
-## 2. Struktur Direktori Utama
+Alur data utamanya:
 
-Codebase dibagi menjadi dua komponen utama: `backend` dan `frontend`.
+1. Scraper mengambil metadata komik, chapter, feed latest/popular, cover, dan chapter images.
+2. Data disimpan ke PostgreSQL; cover/avatar disimpan atau diproxy lewat backend.
+3. Flutter membaca API publik untuk katalog dan reader.
+4. Endpoint user-scoped memakai bearer token Supabase.
+5. Repository Flutter menyimpan cache lokal supaya guest mode dan pengalaman baca tetap cepat.
+6. Saat user login, data guest dapat dikirim ke `/library/sync/import`.
+
+## 3. Struktur Direktori Utama
 
 ```text
 tonztoon_komik/
-├── backend/            # Python FastAPI backend & Scraper
-├── frontend/           # Flutter mobile application
-├── prd_tonztoon.md     # Product Requirements Document
-└── walkthrough.md      # Dokumen ini
+├── backend/
+│   ├── app/
+│   │   ├── api/          # Router FastAPI dan dependency auth
+│   │   ├── models/       # Model SQLAlchemy
+│   │   ├── schemas/      # Schema Pydantic request/response
+│   │   └── services/     # Business logic
+│   ├── scraper/          # Source scraper dan script sync
+│   ├── alembic/          # Migrasi database
+│   ├── docs/             # Kontrak API backend
+│   └── scripts/          # Helper operasional
+├── frontend/
+│   ├── lib/
+│   │   ├── main.dart
+│   │   └── src/          # Core, features, models, repositories, routing, widgets
+│   └── test/
+├── docs/
+│   ├── walkthrough.md
+│   ├── walkthrough_backend.md
+│   └── walkthrough_frontend.md
+└── README.md
 ```
 
----
+## 4. Backend Ringkas
 
-## 3. Backend (Python / FastAPI)
+Backend memakai FastAPI dengan prefix `/api/v1` dan router:
 
-Backend berfungsi sebagai penyedia REST API untuk aplikasi mobile dan juga memiliki modul Scraper yang berjalan di latar belakang untuk melakukan sinkronisasi data komik dari berbagai sumber.
+- `/comics`: katalog gabungan semua source.
+- `/sources`: source list, katalog per source, latest/popular, search per source, detail komik, chapter list, chapter detail.
+- `/search`: search global.
+- `/genres`: daftar genre dan komik per genre.
+- `/images`: proxy gambar.
+- `/scraper`: trigger GitHub Actions workflow scraper.
+- `/auth`: Supabase Auth, profile, avatar, security, password recovery.
+- `/library`: user library, progress, continue reading, downloads, preferences, reading time, import snapshot.
+- `/account-manager`: admin-only user management.
 
-**Tech Stack Utama:**
+Backend memvalidasi Supabase bearer token melalui `app/api/deps.py`. Fallback `X-User-Id` hanya tersedia saat `ALLOW_DEV_USER_HEADER=true`.
 
-- **Framework:** FastAPI
-- **Database:** PostgreSQL (Alembic untuk migrasi, SQLAlchemy/asyncpg untuk ORM)
-- **Scraping:** Scrapling
-- **Auth:** PyJWT & integrasi Supabase Auth
+Scraper berada di `backend/scraper/` dan memakai registry di `scraper/sources/registry.py`. Source yang tersedia saat ini mencakup implementasi seperti Komiku, Komiku Asia, Komikcast, dan Shinigami, dengan beberapa source memiliki helper API spesifik.
 
-### Struktur Direktori `backend/`
+## 5. Frontend Ringkas
 
-- `app/`: Berisi inti aplikasi FastAPI.
-  - `api/v1/`: Endpoint REST API (auth, genres, images, library, scraper, search, sources).
-  - `models/`: Definisi skema database SQLAlchemy.
-  - `schemas/`: Pydantic models untuk validasi request/response.
-  - `services/`: Business logic dan interaksi dengan database.
-  - `config.py`: Pengaturan variabel lingkungan.
-  - `database.py`: Konfigurasi koneksi database.
-  - `main.py`: Entry point server FastAPI.
-- `scraper/`: Modul independen untuk scraping data dari web komik.
-  - `sources/`: Berisi implementasi spesifik per website (Komikcast, Komiku, Komiku Asia, Shinigami). Terdapat scraper berbasis HTML maupun API (untuk sumber yang menyediakan endpoint API mandiri).
-  - `sync_*.py`: Script sinkronisasi yang biasanya dijalankan secara berkala (cron/background task) seperti `sync_chapter_images.py`, `sync_cover_images.py`, dan `sync_full_library.py`.
-- `alembic/` & `alembic.ini`: Konfigurasi migrasi skema database.
-- `requirements.txt`: Daftar dependensi Python.
+Frontend Flutter memakai:
 
-### Peta Dependensi Internal Backend (SoC)
+- `flutter_riverpod` untuk state.
+- `go_router` untuk routing dan deep link callback auth.
+- `dio` untuk API client dan token refresh.
+- `hive_flutter` untuk cache lokal.
+- `flutter_secure_storage` untuk token.
+- `cached_network_image` dan `flutter_cache_manager` untuk gambar.
+- `google_sign_in` untuk native Google login.
 
-Secara internal, struktur dari modul scraper saling bergantung melalui sebuah _Factory/Registry Pattern_ untuk mencegah _circular dependency_ yang berlebihan antara skrip pengeksekusi dengan sumber scraper.
+Feature utama berada di `frontend/lib/src/features/`:
 
-```mermaid
-graph TD
-    subgraph "app/ (FastAPI)"
-        R["api/router.py"]
-        S["api/v1/sources.py"]
-        SR["api/v1/search.py"]
-        GR["api/v1/genres.py"]
-        IR["api/v1/images.py"]
-        SC["api/v1/scraper.py"]
-        CS["services/chapter_service.py"]
-        IS["services/image_service.py"]
-        SS["services/source_service.py"]
-    end
+- `auth`: login/register/forgot/reset/callback.
+- `home`: home, latest/popular, continue reading preview, section screens.
+- `catalog`: katalog penuh.
+- `search`: pencarian.
+- `comic`: detail komik dan aksi library.
+- `reader`: reader vertical/paged dan progress sync.
+- `library`: bookmark, collection, scenes, history, downloads.
+- `settings`: profile, security, preferences, migration, statistik.
+- `notifications`: notifikasi sync/download.
 
-    subgraph "scraper/ (CLI Pipeline)"
-        BAS["base_scraper.py"]
-        TU["time_utils.py"]
-        M["main.py (1318 baris)"]
-        SFL["sync_full_library.py (1674 baris)"]
-        SCI["sync_chapter_images.py (911 baris)"]
-        CP["check_pending_chapter_images.py"]
-        RS["refresh_source_stats.py"]
-    end
+## 6. Menjalankan Lokal
 
-    subgraph "scraper/sources/"
-        REG["registry.py"]
-        COM["common.py"]
-        KS["komiku_scraper.py"]
-        KAS["komiku_asia_scraper.py"]
-        KCS["komikcast_scraper.py"]
-        SS2["shinigami_scraper.py"]
-        KA["komikcast_api.py"]
-        SA["shinigami_api.py"]
-    end
+Backend:
 
-    S --> CS & IS & SS & REG
-    SR --> IS
-    GR --> IS
-    IR --> IS
-    SS --> REG
-
-    M --> BAS & REG & TU
-    SFL --> BAS & REG & TU
-    SFL -->|"import upsert_comic, upsert_genre"| M
-    SCI --> CS & TU & REG
-    CP --> REG
-    RS --> SS
-
-    REG --> BAS & KS & KAS & KCS & SS2
-    KS & KAS --> BAS & COM
-    KCS --> BAS & COM & KA
-    SS2 --> BAS & COM & SA
-    SA --> TU
+```bash
+cd backend
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+copy .env.example .env
+alembic upgrade head
+uvicorn app.main:app --reload
 ```
 
----
+Frontend:
 
-## 4. Frontend (Flutter)
+```bash
+cd frontend
+flutter pub get
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000/api/v1
+```
 
-Frontend adalah aplikasi mobile native yang berinteraksi dengan API dari backend. Aplikasi dirancang agar cepat (menggunakan cache) dan mendukung mode _offline-first_.
+Untuk iOS simulator, ganti base URL menjadi `http://127.0.0.1:8000/api/v1`. Untuk device fisik, gunakan IP LAN mesin backend.
 
-**Tech Stack Utama:**
+## 7. Script Scraper Umum
 
-- **State Management:** Riverpod (`flutter_riverpod`)
-- **Routing:** Go Router (`go_router`)
-- **Networking:** Dio (`dio`)
-- **Local Storage/Cache:** Hive (`hive_flutter`) & Flutter Secure Storage
-- **Image Handling:** Cached Network Image (`cached_network_image`)
+```bash
+cd backend
+python -m scraper.main --source komiku_asia --max-pages 5
+python -m scraper.sync_full_library --source komiku_asia --mode validate --start 1 --max 20
+python -m scraper.sync_chapter_images --selection random --batch-size 10 --limit 20
+python -m scraper.sync_cover_images --limit 500
+python -m scraper.check_pending_chapter_images --json-only
+```
 
-### Struktur Direktori `frontend/lib/`
+`/api/v1/scraper/sync` tidak menjalankan scraper berat di proses API. Endpoint itu memicu workflow GitHub Actions memakai konfigurasi `GITHUB_PAT`, `GITHUB_REPO_OWNER`, `GITHUB_REPO_NAME`, dan `GITHUB_WORKFLOW_FILE`.
 
-- `main.dart`: Entry point aplikasi Flutter.
-- `src/`: Berisi source code utama aplikasi.
-  - `app.dart`: Konfigurasi root widget dan inisialisasi theme/router.
-  - `core/`: Utilitas, konfigurasi tema, HTTP client (Dio), error handling, dan konstanta global.
-  - `features/`: Fitur-fitur utama aplikasi dengan struktur modular:
-    - `auth/`: Autentikasi pengguna (Guest & Login).
-    - `comic/`: Menampilkan detail komik, metadata, dan daftar chapter.
-    - `home/`: Tampilan layar utama (Discover, Continue Reading, Trending).
-    - `reader/`: Pembaca komik inti dengan mode Vertical & Paged (Manga Mode).
-    - `library/`: (Berada di `shell` atau terpisah) Koleksi komik, bookmark, history, dan unduhan.
-    - `search/` / `shell/` / `splash/` / `onboarding/`: Fitur penunjang UI & navigasi.
-  - `models/`: Definisi struktur data (Dart classes) hasil parsing API.
-  - `repositories/`: Lapisan abstraksi untuk mengambil data dari network (API) maupun lokal (Hive).
-  - `routing/`: Konfigurasi rute menggunakan GoRouter.
-  - `widgets/`: Komponen UI yang dapat digunakan kembali secara global (Shared UI components).
+## 8. Catatan Operasional
 
----
-
-## 5. Alur Kerja & Eksekusi
-
-### Backend
-
-1. **Menjalankan Server API:**
-   Bisa dilakukan dengan perintah uvicorn standar.
-   ```bash
-   cd backend
-   uvicorn app.main:app --reload
-   ```
-2. **Menjalankan Script Scraper:**
-   Modul scraper dapat dijalankan secara terpisah dari server utama sebagai task _batch_ atau terminal process.
-   ```bash
-   cd backend
-   python -m scraper.sync_cover_images --limit 500
-   python -m scraper.sync_full_library
-   ```
-
-### Frontend
-
-1. **Setup & Dependencies:**
-   ```bash
-   cd frontend
-   flutter pub get
-   ```
-2. **Menjalankan Aplikasi:**
-   ```bash
-   flutter run
-   ```
-   Atau menggunakan tombol Run/Debug pada IDE.
-
----
-
-## Catatan Penting
-
-- **Background Task:** Saat ini ada task sinkronisasi (seperti `sync_cover_images`) yang sesekali mengalami _time-out_ atau koneksi terputus ke resource Supabase/Storage. Hal ini memerlukan pengecekan cooldown / validasi koneksi di scraper utils.
-- **Offline First:** Pastikan untuk menjaga _Source of Truth_ di Hive (lokal) untuk pengguna Guest dan sinkronisasi ke PostgreSQL (via API) setelah melakukan proses Login, sesuai spesifikasi pada dokumen `prd_tonztoon.md`.
+- Jangan aktifkan `ALLOW_DEV_USER_HEADER` di environment bersama atau production.
+- File offline chapter tetap lokal di device; backend hanya menyimpan download intent/status.
+- `chapters.images` disimpan sebagai JSONB untuk menghindari tabel page image yang sangat besar.
+- Image URL yang dikirim ke Flutter biasanya sudah lewat proxy backend agar hotlink protection source tidak langsung membebani client.
+- Saat endpoint chapter detail menemukan images kosong, backend mencoba lazy fetch, menyimpan hasil, lalu menjadwalkan prefetch chapter sekitar di background.
