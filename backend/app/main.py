@@ -1,9 +1,9 @@
-"""
-Tonztoon Komik — FastAPI Application Entry Point
+import sys
+import asyncio
 
-Menjalankan:
-    uvicorn app.main:app --reload
-"""
+if sys.platform == "win32":
+    # Playwright/patchright membutuhkan ProactorEventLoop di Windows untuk menjalankan subprocess browser
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 from contextlib import asynccontextmanager
 
@@ -25,9 +25,13 @@ from app.api.router import api_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup & shutdown lifecycle events."""
-    # Startup
+    # Startup — mulai background worker Komiku Asia
+    from app.services.komiku_asia_worker import start_worker, stop_worker
+
+    await start_worker()
     yield
-    # Shutdown — cleanup resources jika perlu
+    # Shutdown — hentikan worker secara graceful
+    await stop_worker()
 
 
 app = FastAPI(

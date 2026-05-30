@@ -87,15 +87,24 @@ class Settings(BaseSettings):
         default="scraper.yml",
         description="GitHub Actions workflow filename"
     )
-    GITHUB_KOMIKU_ASIA_LAZY_WORKFLOW_FILE: str = Field(
-        default="komiku-asia-lazy-images.yml",
-        description="GitHub Actions workflow filename for Komiku Asia lazy image queue",
+
+
+    # --- Komiku Asia In-Process Background Worker ---
+    KOMIKU_ASIA_WORKER_ENABLED: bool = Field(
+        default=True,
+        description="Enable in-process background worker for Komiku Asia chapter images",
     )
-    KOMIKU_ASIA_LAZY_DISPATCH_COOLDOWN_SECONDS: float = Field(
-        default=30.0,
-        ge=0,
-        description="Minimum delay between Komiku Asia lazy worker dispatches per backend process",
+    KOMIKU_ASIA_WORKER_POLL_SECONDS: float = Field(
+        default=3.0,
+        ge=1.0,
+        description="Polling interval in seconds when the worker queue is empty",
     )
+    KOMIKU_ASIA_WORKER_IDLE_CLOSE_SECONDS: float = Field(
+        default=60.0,
+        ge=10.0,
+        description="Close browser session after this many idle seconds to save memory",
+    )
+
 
     # --- App ---
     APP_ENV: str = Field(default="development")

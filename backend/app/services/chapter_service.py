@@ -299,7 +299,6 @@ async def _ensure_chapter_images_loaded(
         from app.services.chapter_image_job_service import (
             REQUESTED_CHAPTER_PRIORITY,
             enqueue_komiku_asia_chapter_image_jobs,
-            schedule_komiku_asia_lazy_worker_dispatch,
         )
 
         await enqueue_komiku_asia_chapter_image_jobs(
@@ -308,7 +307,8 @@ async def _ensure_chapter_images_loaded(
             priority=REQUESTED_CHAPTER_PRIORITY,
         )
         await db.commit()
-        schedule_komiku_asia_lazy_worker_dispatch()
+        # Job akan diproses oleh in-process background worker
+        # (komiku_asia_worker.py) yang berjalan di container Hugging Face
         raise ChapterImagesPendingError(
             "Chapter sedang disiapkan oleh browser worker. Silakan tunggu beberapa saat."
         )
@@ -501,7 +501,6 @@ async def prefetch_nearby_chapters(
             if source_name == "komiku_asia":
                 from app.services.chapter_image_job_service import (
                     enqueue_komiku_asia_nearby_chapters,
-                    schedule_komiku_asia_lazy_worker_dispatch,
                 )
 
                 queued = await enqueue_komiku_asia_nearby_chapters(
@@ -511,8 +510,7 @@ async def prefetch_nearby_chapters(
                     window=PREFETCH_WINDOW,
                 )
                 await db.commit()
-                if queued:
-                    schedule_komiku_asia_lazy_worker_dispatch()
+                # Job akan diproses oleh in-process background worker
                 logger.info(
                     "[Prefetch] %s nearby chapter Komiku Asia masuk antrean browser worker.",
                     queued,
