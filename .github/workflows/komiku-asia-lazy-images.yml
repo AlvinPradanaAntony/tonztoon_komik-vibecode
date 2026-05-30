@@ -1,0 +1,77 @@
+# ==========================================================
+# Tonztoon Komik - Komiku Asia Lazy Chapter Images Worker
+# ==========================================================
+# Menguras antrean chapter yang benar-benar dibuka user.
+# Ini bukan full-catalog backfill.
+
+name: "Komiku Asia: Lazy Chapter Images"
+
+on:
+  workflow_dispatch:
+    inputs:
+      trigger_source:
+        description: "Source that triggered this workflow"
+        required: false
+        default: "manual"
+      limit:
+        description: "Maximum queued chapters to process"
+        required: false
+        default: "10"
+
+concurrency:
+  group: komiku-asia-lazy-images
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  drain:
+    name: Drain Lazy Image Queue
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Check queued chapters
+        id: queue
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          cd backend
+          python -m scraper.process_komiku_asia_lazy_jobs \
+            --check-only \
+            --github-output "${GITHUB_OUTPUT}"
+
+      - name: Install virtual display
+        if: steps.queue.outputs.has_pending == 'true'
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Install Scrapling browser dependencies
+        if: steps.queue.outputs.has_pending == 'true'
+        run: scrapling install
+
+      - name: Drain queued chapters
+        if: steps.queue.outputs.has_pending == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          LIMIT_COUNT: ${{ github.event.inputs.limit || '10' }}
+          KOMIKU_ASIA_HEADLESS: "false"
+        run: |
+          set -euo pipefail
+          cd backend
+          xvfb-run -a -s "-screen 0 1366x768x24" \
+            python -m scraper.process_komiku_asia_lazy_jobs --limit "${LIMIT_COUNT}"

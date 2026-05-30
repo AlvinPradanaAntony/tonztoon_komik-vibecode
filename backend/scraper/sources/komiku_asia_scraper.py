@@ -175,7 +175,7 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
         url: str,
         *,
         wait_selector: str,
-        timeout_ms: int = 45_000,
+        timeout_ms: int = 120_000,
         wait_ms: int = 900,
     ):
         """

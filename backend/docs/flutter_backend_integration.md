@@ -385,6 +385,7 @@ Endpoint auth yang tidak boleh memicu refresh ulang:
 
 | Status | Arti umum |
 |---|---|
+| `202` | Images chapter `komiku_asia` sedang disiapkan lazy browser worker; retry sesuai header `Retry-After` |
 | `400` | Payload/path tidak cocok atau request invalid |
 | `401` | Bearer token kosong/invalid/expired |
 | `403` | User tidak punya akses, terutama account manager |

@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_icons.dart';
+import '../../core/api_client.dart';
 import '../../core/app_snackbar.dart';
 import '../../core/reader_image_cache.dart';
 import '../../models/comic.dart';
@@ -58,6 +59,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   static const _progressSaveDelay = Duration(milliseconds: 500);
   static const _imagePrefetchCooldown = Duration(seconds: 20);
   static const _imagePrefetchHistoryLifetime = Duration(seconds: 60);
+  static const _chapterReadyRetryInterval = Duration(seconds: 5);
 
   ScrollController _scrollController = ScrollController();
   PageController _pageController = PageController();
@@ -78,6 +80,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   Timer? _nearbyReadyNoticeTimer;
   Timer? _progressSaveTimer;
   Timer? _autoNextTimer;
+  Timer? _chapterReadyRetryTimer;
   int _nearbyReadyPolls = 0;
   String? _initialPreloadKey;
   Future<void>? _initialPreloadFuture;
@@ -141,6 +144,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     _nearbyReadyNoticeTimer?.cancel();
     _progressSaveTimer?.cancel();
     _autoNextTimer?.cancel();
+    _chapterReadyRetryTimer?.cancel();
     super.dispose();
   }
 
@@ -195,6 +199,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       _nearbyReadyNoticeTimer?.cancel();
       _progressSaveTimer?.cancel();
       _autoNextTimer?.cancel();
+      _chapterReadyRetryTimer?.cancel();
       if (_scrollController.hasClients) {
         _scrollController.jumpTo(0);
       }
@@ -775,6 +780,17 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       final error = chapterAsync.whenOrNull(
         error: (error, stackTrace) => error,
       );
+      if (error is ApiException && error.statusCode == 202) {
+        _scheduleChapterReadyRetry(request);
+        return _buildBackAwareRoute(
+          _PreparingReaderScaffold(
+            overlayStyle: preparingOverlayStyle,
+            backgroundColor: readerBackground,
+            comicSummary: _comicSummary,
+            chapterTitle: 'Menyiapkan ${widget.chapterTitle}...',
+          ),
+        );
+      }
       return _buildBackAwareRoute(
         Scaffold(
           backgroundColor: readerBackground,
@@ -785,6 +801,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
         ),
       );
     }
+    _chapterReadyRetryTimer?.cancel();
     _ensureActivePages(payload);
     if (_activePages.isEmpty) {
       return _buildBackAwareRoute(
@@ -898,6 +915,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
         },
       ),
     );
+  }
+
+  void _scheduleChapterReadyRetry(ChapterRequest request) {
+    if (_chapterReadyRetryTimer?.isActive == true) return;
+    _chapterReadyRetryTimer = Timer(_chapterReadyRetryInterval, () {
+      if (!mounted) return;
+      ref.invalidate(chapterProvider(request));
+    });
   }
 
   Widget _buildBackAwareRoute(Widget child) {

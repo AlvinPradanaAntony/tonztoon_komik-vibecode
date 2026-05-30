@@ -87,6 +87,15 @@ class Settings(BaseSettings):
         default="scraper.yml",
         description="GitHub Actions workflow filename"
     )
+    GITHUB_KOMIKU_ASIA_LAZY_WORKFLOW_FILE: str = Field(
+        default="komiku-asia-lazy-images.yml",
+        description="GitHub Actions workflow filename for Komiku Asia lazy image queue",
+    )
+    KOMIKU_ASIA_LAZY_DISPATCH_COOLDOWN_SECONDS: float = Field(
+        default=30.0,
+        ge=0,
+        description="Minimum delay between Komiku Asia lazy worker dispatches per backend process",
+    )
 
     # --- App ---
     APP_ENV: str = Field(default="development")

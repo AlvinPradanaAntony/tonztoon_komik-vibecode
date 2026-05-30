@@ -7,6 +7,7 @@ Semua model database di-export dari sini agar mudah di-import:
 
 from app.models.comic import Comic, Genre, comic_genre
 from app.models.chapter import Chapter
+from app.models.chapter_image_job import ChapterImageJob
 from app.models.source_stat import SourceStat
 from app.models.profile import Profile
 from app.models.library import (
@@ -25,6 +26,7 @@ from app.models.library import (
 __all__ = [
     "Comic",
     "Chapter",
+    "ChapterImageJob",
     "Genre",
     "SourceStat",
     "Profile",

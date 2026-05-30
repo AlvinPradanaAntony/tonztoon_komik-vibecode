@@ -10,6 +10,7 @@ from fastapi import HTTPException
 
 
 DEFAULT_ERROR_MESSAGES: dict[int, str] = {
+    202: "Request accepted and still processing.",
     400: "Bad request.",
     401: "Unauthorized.",
     403: "Forbidden.",

@@ -101,6 +101,12 @@ class ImageFetchError(Exception):
     pass
 
 
+class ChapterImagesPendingError(Exception):
+    """Dilempar saat browser worker masih menyiapkan cache images chapter."""
+
+    pass
+
+
 def chapter_images_are_ready(images: list | None) -> bool:
     """
     Validasi ringan apakah payload images chapter sudah layak dipakai sebagai cache.
@@ -289,6 +295,24 @@ async def _ensure_chapter_images_loaded(
             f"tidak bisa menentukan scraper."
         )
 
+    if resolved_source_name == "komiku_asia":
+        from app.services.chapter_image_job_service import (
+            REQUESTED_CHAPTER_PRIORITY,
+            enqueue_komiku_asia_chapter_image_jobs,
+            schedule_komiku_asia_lazy_worker_dispatch,
+        )
+
+        await enqueue_komiku_asia_chapter_image_jobs(
+            db,
+            [chapter.id],
+            priority=REQUESTED_CHAPTER_PRIORITY,
+        )
+        await db.commit()
+        schedule_komiku_asia_lazy_worker_dispatch()
+        raise ChapterImagesPendingError(
+            "Chapter sedang disiapkan oleh browser worker. Silakan tunggu beberapa saat."
+        )
+
     logger.info(
         f"Lazy loading: Chapter {chapter.id} (Ch {chapter.chapter_number}) "
         f"belum punya images — on-demand scraping (timeout={ON_DEMAND_TIMEOUT}s)..."
@@ -472,6 +496,27 @@ async def prefetch_nearby_chapters(
 
             if not source_name:
                 logger.warning(f"[Prefetch] Comic {comic_id} tidak ditemukan, batal.")
+                return
+
+            if source_name == "komiku_asia":
+                from app.services.chapter_image_job_service import (
+                    enqueue_komiku_asia_nearby_chapters,
+                    schedule_komiku_asia_lazy_worker_dispatch,
+                )
+
+                queued = await enqueue_komiku_asia_nearby_chapters(
+                    db,
+                    comic_id=comic_id,
+                    current_chapter_number=current_chapter_number,
+                    window=PREFETCH_WINDOW,
+                )
+                await db.commit()
+                if queued:
+                    schedule_komiku_asia_lazy_worker_dispatch()
+                logger.info(
+                    "[Prefetch] %s nearby chapter Komiku Asia masuk antrean browser worker.",
+                    queued,
+                )
                 return
 
             lower = current_chapter_number - PREFETCH_WINDOW

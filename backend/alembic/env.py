@@ -26,6 +26,7 @@ from app.database import Base
 # Import semua model agar Alembic mendeteksi table definitions
 from app.models import (  # noqa: F401
     Chapter,
+    ChapterImageJob,
     Comic,
     Genre,
     Profile,
