@@ -6,8 +6,8 @@ untuk menghindari jutaan baris di tabel terpisah.
 
 Format JSONB `images`:
 [
-    {"page": 1, "url": "https://cdn.example.com/chap1/001.jpg"},
-    {"page": 2, "url": "https://cdn.example.com/chap1/002.jpg"},
+    {"page": 1, "url": "https://cdn.example.com/chap1/001.jpg", "width": 720, "height": 2500},
+    {"page": 2, "url": "https://cdn.example.com/chap1/002.jpg", "width": 720, "height": 1800},
     ...
 ]
 """
@@ -31,7 +31,7 @@ class Chapter(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     comic_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("comics.id", ondelete="CASCADE"), nullable=False, index=True
+        Integer, ForeignKey("comics.id", ondelete="CASCADE"), nullable=False
     )
     chapter_number: Mapped[float] = mapped_column(Float, nullable=False)
     title: Mapped[str | None] = mapped_column(String(500), nullable=True)
@@ -44,7 +44,7 @@ class Chapter(Base):
         DateTime(timezone=True), server_default=func.now()
     )
 
-    # JSONB — array of image objects [{"page": int, "url": str}, ...]
+    # JSONB — array of image objects [{"page": int, "url": str, "width": int, "height": int}, ...]
     images: Mapped[list | None] = mapped_column(JSONB, nullable=True, default=list)
 
     # Relationship

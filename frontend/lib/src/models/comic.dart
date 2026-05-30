@@ -192,17 +192,39 @@ class ChapterListItem {
 }
 
 class ChapterImageItem {
-  const ChapterImageItem({required this.page, required this.url});
+  const ChapterImageItem({
+    required this.page,
+    required this.url,
+    this.width,
+    this.height,
+  });
 
   factory ChapterImageItem.fromJson(Map<String, dynamic> json) {
     return ChapterImageItem(
       page: json['page'] as int? ?? 0,
       url: json['url'] as String? ?? '',
+      width: _positiveDimension(json['width']),
+      height: _positiveDimension(json['height']),
     );
   }
 
   final int page;
   final String url;
+  final int? width;
+  final int? height;
+
+  double? get aspectRatio {
+    final width = this.width;
+    final height = this.height;
+    if (width == null || height == null) return null;
+    return width / height;
+  }
+
+  static int? _positiveDimension(dynamic value) {
+    if (value is! num) return null;
+    final dimension = value.toInt();
+    return dimension > 0 ? dimension : null;
+  }
 }
 
 class ChapterPayload {

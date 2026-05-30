@@ -79,6 +79,28 @@ void main() {
     expect(source.dbComicCount, 1200);
   });
 
+  test('chapter payload parses optional intrinsic image dimensions', () {
+    final payload = ChapterPayload.fromJson(const {
+      'source_name': 'komiku_asia',
+      'chapter_number': 179,
+      'images': [
+        {
+          'page': 1,
+          'url': 'https://example.test/page-1.jpg',
+          'width': 720,
+          'height': 5700,
+        },
+        {'page': 2, 'url': 'https://example.test/page-2.jpg'},
+      ],
+      'total': 2,
+    });
+
+    expect(payload.images.first.width, 720);
+    expect(payload.images.first.height, 5700);
+    expect(payload.images.first.aspectRatio, closeTo(720 / 5700, 0.000001));
+    expect(payload.images.last.aspectRatio, isNull);
+  });
+
   test('progress payload matches backend upsert shape', () {
     final progress = ReadingProgress.fromReader(
       comic: const ComicSummary(

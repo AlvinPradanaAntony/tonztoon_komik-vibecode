@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.models import Chapter, Comic, Genre, comic_genre
 from app.schemas import ComicCreate
+from app.services.image_service import enrich_chapter_image_dimensions
 from scraper.time_utils import now_wib
 
 
@@ -321,7 +322,7 @@ async def upsert_chapter_images(
     images: list[dict],
 ) -> None:
     """Update kolom images chapter yang sudah ada di database."""
-    images_json = [{"page": img["page"], "url": img["url"]} for img in images]
+    images_json = await enrich_chapter_image_dimensions(images)
     stmt = pg_insert(Chapter).values(
         comic_id=comic_id,
         chapter_number=ch_data["chapter_number"],

@@ -67,6 +67,10 @@ from sqlalchemy.sql import cast
 
 from app.database import async_session
 from app.models import Chapter, Comic
+from app.services.image_service import (
+    chapter_image_has_dimensions,
+    enrich_chapter_image_dimensions,
+)
 
 logger = logging.getLogger("service.chapter")
 
@@ -200,7 +204,7 @@ async def fetch_and_save_chapter_images(
             )
             return False
 
-        images_json = [{"page": img["page"], "url": img["url"]} for img in images]
+        images_json = await enrich_chapter_image_dimensions(images)
 
         await db.execute(
             update(Chapter)
@@ -335,6 +339,29 @@ async def _ensure_chapter_images_loaded(
     return chapter
 
 
+async def _ensure_chapter_image_dimensions(
+    db: AsyncSession,
+    chapter: Chapter,
+) -> Chapter:
+    """Lengkapi metadata dimensi record lama sebelum payload reader dikirim."""
+    images = chapter.images or []
+    if not images or all(chapter_image_has_dimensions(image) for image in images):
+        return chapter
+
+    enriched_images = await enrich_chapter_image_dimensions(images)
+    if enriched_images == images:
+        return chapter
+
+    await db.execute(
+        update(Chapter)
+        .where(Chapter.id == chapter.id)
+        .values(images=enriched_images)
+    )
+    await db.commit()
+    chapter.images = enriched_images
+    return chapter
+
+
 async def get_chapter_with_images(
     db: AsyncSession,
     chapter_id: int,
@@ -363,7 +390,8 @@ async def get_chapter_with_images(
     if not chapter:
         raise LookupError(f"Chapter {chapter_id} tidak ditemukan")
 
-    return await _ensure_chapter_images_loaded(db, chapter)
+    chapter = await _ensure_chapter_images_loaded(db, chapter)
+    return await _ensure_chapter_image_dimensions(db, chapter)
 
 
 async def get_chapter_with_images_by_identity(
@@ -387,7 +415,8 @@ async def get_chapter_with_images_by_identity(
         raise LookupError(
             f"Chapter {chapter_number} untuk {source_name}/{comic_slug} tidak ditemukan"
         )
-    return await _ensure_chapter_images_loaded(db, chapter, source_name=source_name)
+    chapter = await _ensure_chapter_images_loaded(db, chapter, source_name=source_name)
+    return await _ensure_chapter_image_dimensions(db, chapter)
 
 
 async def get_chapter_images_only(

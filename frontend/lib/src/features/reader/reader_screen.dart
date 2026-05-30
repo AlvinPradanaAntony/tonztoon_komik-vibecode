@@ -1344,12 +1344,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       }
       _recentPrefetchRequests[imageUrl] = now;
       final filePath = _localFilePath(imageUrl);
-      final ImageProvider provider = filePath == null
-          ? CachedNetworkImageProvider(
-              imageUrl,
-              cacheManager: ReaderImageCacheManager.instance,
-            )
-          : FileImage(File(filePath));
+      final ImageProvider<Object> provider = _readerDecodedImageProvider(
+        filePath == null
+            ? CachedNetworkImageProvider(
+                imageUrl,
+                cacheManager: ReaderImageCacheManager.instance,
+              )
+            : FileImage(File(filePath)),
+      );
       futures.add(_precacheReaderImageProvider(provider, imageUrl));
     }
     if (futures.isEmpty) return;
@@ -1991,29 +1993,38 @@ class _PagedReader extends StatelessWidget {
 }
 
 const _standardWebtoonAspectRatio = 0.68;
-const _minReliableReaderImageAspectRatio = 0.25;
-const _maxReliableReaderImageAspectRatio = 2.5;
+const _maxReaderDecodedImageHeight = 4096;
+const _minFallbackSampleAspectRatio = 0.25;
+const _maxFallbackSampleAspectRatio = 2.5;
 const _minFallbackWebtoonAspectRatio = 0.45;
 const _maxFallbackWebtoonAspectRatio = 0.9;
 
 final Map<String, double> _knownReaderImageAspectRatios = <String, double>{};
+
+ImageProvider<Object> _readerDecodedImageProvider(
+  ImageProvider<Object> provider,
+) {
+  // Some sources publish a full webtoon page as a very tall strip. Keeping the
+  // decoded texture below older Android GPU limits avoids distorted rendering.
+  return ResizeImage(provider, height: _maxReaderDecodedImageHeight);
+}
 
 void _rememberReaderImageAspectRatio(String url, ImageInfo info) {
   final width = info.image.width.toDouble();
   final height = info.image.height.toDouble();
   if (width <= 0 || height <= 0) return;
   final aspectRatio = width / height;
-  if (!aspectRatio.isFinite ||
-      aspectRatio < _minReliableReaderImageAspectRatio ||
-      aspectRatio > _maxReliableReaderImageAspectRatio) {
-    return;
-  }
+  if (!aspectRatio.isFinite || aspectRatio <= 0) return;
   _knownReaderImageAspectRatios[url] = aspectRatio;
 }
 
 double _readerPageAspectRatio(_ReaderPageUi page) {
   final known = _knownReaderImageAspectRatios[page.imageUrl];
   if (known != null && known > 0) return known;
+  final intrinsic = page.intrinsicAspectRatio;
+  if (intrinsic != null && intrinsic > 0 && intrinsic.isFinite) {
+    return intrinsic;
+  }
   return _dynamicReaderFallbackAspectRatio(page.aspectRatio);
 }
 
@@ -2023,8 +2034,8 @@ double _dynamicReaderFallbackAspectRatio(double seedAspectRatio) {
           .where(
             (ratio) =>
                 ratio.isFinite &&
-                ratio >= _minReliableReaderImageAspectRatio &&
-                ratio <= _maxReliableReaderImageAspectRatio,
+                ratio >= _minFallbackSampleAspectRatio &&
+                ratio <= _maxFallbackSampleAspectRatio,
           )
           .toList()
         ..sort();
@@ -2103,7 +2114,7 @@ class _ReaderPageState extends State<_ReaderPage> {
     }
   }
 
-  void _rememberImageAspectRatio(ImageProvider provider, String url) {
+  void _rememberImageAspectRatio(ImageProvider<Object> provider, String url) {
     if (_knownReaderImageAspectRatios.containsKey(url) ||
         _aspectRatioResolveUrl == url) {
       return;
@@ -2168,10 +2179,14 @@ class _ReaderPageState extends State<_ReaderPage> {
             cacheManager: ReaderImageCacheManager.instance,
             width: double.infinity,
             fit: fit,
+            memCacheHeight: _maxReaderDecodedImageHeight,
             imageBuilder: (context, imageProvider) {
-              _rememberImageAspectRatio(imageProvider, imageUrl);
+              final decodedProvider = _readerDecodedImageProvider(
+                imageProvider,
+              );
+              _rememberImageAspectRatio(decodedProvider, imageUrl);
               return Image(
-                image: imageProvider,
+                image: decodedProvider,
                 width: double.infinity,
                 fit: fit,
               );
@@ -2212,10 +2227,13 @@ class _ReaderPageState extends State<_ReaderPage> {
 
     return DecoratedBox(
       decoration: decoration,
-      child: _ReaderPageStack(
-        image: image,
-        actionsVisible: widget.actionsVisible,
-        onDownload: widget.onDownload,
+      child: AspectRatio(
+        aspectRatio: aspectRatio,
+        child: _ReaderPageStack(
+          image: image,
+          actionsVisible: widget.actionsVisible,
+          onDownload: widget.onDownload,
+        ),
       ),
     );
   }
@@ -2226,7 +2244,7 @@ class _ReaderPageState extends State<_ReaderPage> {
     required BoxFit fit,
     required double reservedHeight,
   }) {
-    final provider = FileImage(File(filePath));
+    final provider = _readerDecodedImageProvider(FileImage(File(filePath)));
     _rememberImageAspectRatio(provider, imageUrl);
     return Image(
       image: provider,
@@ -2870,6 +2888,7 @@ class _ReaderPageUi {
     required this.chapterNumber,
     required this.chapterTitle,
     required this.aspectRatio,
+    this.intrinsicAspectRatio,
     required this.background,
     required this.imageUrl,
   });
@@ -2880,6 +2899,7 @@ class _ReaderPageUi {
   final double chapterNumber;
   final String chapterTitle;
   final double aspectRatio;
+  final double? intrinsicAspectRatio;
   final Color background;
   final String imageUrl;
 }
@@ -2908,6 +2928,7 @@ List<_ReaderPageUi> _pagesFromChapter(
               : fallbackChapterNumber,
           chapterTitle: chapterTitle,
           aspectRatio: 0.68,
+          intrinsicAspectRatio: entry.value.aspectRatio,
           background: Colors.black,
           imageUrl: entry.value.url,
         ),

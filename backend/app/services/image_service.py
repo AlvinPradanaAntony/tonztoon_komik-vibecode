@@ -5,16 +5,21 @@ Utility functions untuk image proxy logic.
 Digunakan oleh route /api/v1/images/proxy.
 """
 
+import asyncio
+import logging
 import re
 from typing import Any
 from urllib.parse import urlencode, urlparse
 
 import httpx
+from PIL import ImageFile
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models import Comic
+
+logger = logging.getLogger("service.image")
 
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -33,6 +38,8 @@ KOMIKCAST_IMAGE_HOSTS = (
     "imgkc.my.id",
 )
 KOMIKCAST_COVER_PATH_RE = re.compile(r"^/prod/series/([^/]+)/cover/")
+IMAGE_DIMENSION_PROBE_MAX_BYTES = 256 * 1024
+IMAGE_DIMENSION_PROBE_CONCURRENCY = 8
 
 # Mapping host suffix -> Referer header yang benar untuk source non-Komikcast.
 REFERER_BY_HOST_SUFFIX = {
@@ -165,6 +172,103 @@ def get_proxy_headers(image_url: str) -> dict[str, str]:
         "Referer": _referer_for_image_url(image_url),
         "User-Agent": DEFAULT_USER_AGENT,
     }
+
+
+def _positive_dimension(value: Any) -> int | None:
+    """Normalisasi nilai dimensi tanpa menerima bool atau angka non-positif."""
+    if isinstance(value, bool):
+        return None
+    try:
+        dimension = int(value)
+    except (TypeError, ValueError):
+        return None
+    return dimension if dimension > 0 else None
+
+
+def chapter_image_has_dimensions(image: dict[str, Any]) -> bool:
+    """True jika item gambar sudah memiliki dimensi intrinsik yang valid."""
+    return (
+        _positive_dimension(image.get("width")) is not None
+        and _positive_dimension(image.get("height")) is not None
+    )
+
+
+def normalize_chapter_image(image: dict[str, Any]) -> dict[str, Any]:
+    """Simpan hanya kontrak JSONB reader dan pertahankan dimensi valid."""
+    normalized = {
+        "page": image["page"],
+        "url": image["url"],
+    }
+    width = _positive_dimension(image.get("width"))
+    height = _positive_dimension(image.get("height"))
+    if width is not None and height is not None:
+        normalized["width"] = width
+        normalized["height"] = height
+    return normalized
+
+
+async def probe_image_dimensions(
+    client: httpx.AsyncClient,
+    image_url: str,
+) -> tuple[int, int] | None:
+    """Baca metadata dimensi dari awal stream tanpa mengunduh seluruh gambar."""
+    headers = {
+        **get_proxy_headers(image_url),
+        "Range": f"bytes=0-{IMAGE_DIMENSION_PROBE_MAX_BYTES - 1}",
+    }
+    parser = ImageFile.Parser()
+    received = 0
+
+    try:
+        async with client.stream("GET", image_url, headers=headers) as response:
+            if response.status_code not in (200, 206):
+                return None
+
+            async for chunk in response.aiter_bytes():
+                remaining = IMAGE_DIMENSION_PROBE_MAX_BYTES - received
+                if remaining <= 0:
+                    break
+                parser.feed(chunk[:remaining])
+                received += min(len(chunk), remaining)
+                if parser.image is not None:
+                    width, height = parser.image.size
+                    if width > 0 and height > 0:
+                        return width, height
+                if received >= IMAGE_DIMENSION_PROBE_MAX_BYTES:
+                    break
+    except (httpx.HTTPError, OSError, ValueError):
+        logger.debug("Gagal membaca dimensi image %s", image_url, exc_info=True)
+
+    return None
+
+
+async def enrich_chapter_image_dimensions(
+    images: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Lengkapi dimensi intrinsik image chapter secara paralel dan best-effort."""
+    normalized_images = [normalize_chapter_image(image) for image in images]
+    pending_indexes = [
+        index
+        for index, image in enumerate(normalized_images)
+        if not chapter_image_has_dimensions(image)
+    ]
+    if not pending_indexes:
+        return normalized_images
+
+    semaphore = asyncio.Semaphore(IMAGE_DIMENSION_PROBE_CONCURRENCY)
+    timeout = httpx.Timeout(10.0)
+    async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+        async def enrich(index: int) -> None:
+            async with semaphore:
+                image = normalized_images[index]
+                dimensions = await probe_image_dimensions(client, image["url"])
+                if dimensions is None:
+                    return
+                image["width"], image["height"] = dimensions
+
+        await asyncio.gather(*(enrich(index) for index in pending_indexes))
+
+    return normalized_images
 
 
 def get_komikcast_api_headers() -> dict[str, str]:
