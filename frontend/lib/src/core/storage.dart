@@ -42,6 +42,7 @@ class LocalStore {
           (key) =>
               key == 'reader_preferences' ||
               key == 'reader_preferences_owner' ||
+              key == 'push_notification_preferences' ||
               key == 'guest_cloud_migration_skipped' ||
               key == 'auth_progress_cache_keys' ||
               key == 'auth_completed_chapter_cache_keys' ||

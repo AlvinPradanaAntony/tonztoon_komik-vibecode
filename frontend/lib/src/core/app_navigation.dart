@@ -8,27 +8,29 @@ const libraryBookmarksLocation = '/library';
 const libraryCollectionsLocation = '/library?tab=collections';
 const libraryScenesLocation = '/library?tab=scenes';
 
-bool _pendingDownloadsNavigation = false;
+String? _pendingNotificationLocation;
 
-void openDownloadsFromNotification() {
+void openLocationFromNotification(String location) {
+  if (!location.startsWith('/')) return;
+
   final context = appRootNavigatorKey.currentContext;
   if (context == null) {
-    _pendingDownloadsNavigation = true;
+    _pendingNotificationLocation = location;
     return;
   }
 
   final router = GoRouter.of(context);
   final currentPath = router.routeInformationProvider.value.uri.path;
   if (currentPath == '/splash') {
-    _pendingDownloadsNavigation = true;
+    _pendingNotificationLocation = location;
     return;
   }
 
-  context.go(libraryDownloadsLocation);
+  context.go(location);
 }
 
-bool consumePendingDownloadsNavigation() {
-  final pending = _pendingDownloadsNavigation;
-  _pendingDownloadsNavigation = false;
-  return pending;
+String? consumePendingNotificationLocation() {
+  final location = _pendingNotificationLocation;
+  _pendingNotificationLocation = null;
+  return location;
 }

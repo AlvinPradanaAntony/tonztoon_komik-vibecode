@@ -351,6 +351,7 @@ def _build_profile_data(profile: Profile | None) -> AccountProfileData | None:
         display_name=profile.display_name,
         avatar_url=profile.avatar_url,
         onboarding_completed=profile.onboarding_completed,
+        push_notifications_enabled=profile.push_notifications_enabled,
         created_at=profile.created_at,
         updated_at=profile.updated_at,
     )

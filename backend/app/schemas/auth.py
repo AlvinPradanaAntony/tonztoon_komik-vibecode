@@ -193,6 +193,7 @@ class ProfileResponse(BaseModel):
     display_name: str | None = None
     avatar_url: str | None = None
     onboarding_completed: bool = False
+    push_notifications_enabled: bool = True
     created_at: datetime
     updated_at: datetime
 
@@ -204,6 +205,7 @@ class ProfileUpdateRequest(BaseModel):
     display_name: str | None = Field(default=None, max_length=120)
     avatar_url: str | None = Field(default=None, max_length=1000)
     onboarding_completed: bool | None = None
+    push_notifications_enabled: bool | None = None
 
     @field_validator("username")
     @classmethod

@@ -62,8 +62,8 @@ class ReaderPreference(Base):
     mark_read_on_complete: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
-        default=False,
-        server_default="false",
+        default=True,
+        server_default="true",
     )
     default_binge_mode: Mapped[bool] = mapped_column(
         Boolean,

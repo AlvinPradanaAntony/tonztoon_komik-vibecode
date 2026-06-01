@@ -65,7 +65,7 @@ class ReaderPreferenceUpdateRequest(BaseModel):
 
     default_reading_mode: READING_MODE = "vertical"
     reading_direction: READING_DIRECTION = "ltr"
-    mark_read_on_complete: bool = False
+    mark_read_on_complete: bool = True
     default_binge_mode: bool = False
 
 

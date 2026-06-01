@@ -7,6 +7,7 @@ class AuthUser {
     this.displayName,
     this.username,
     this.avatarUrl,
+    this.pushNotificationsEnabled,
   });
 
   factory AuthUser.fromJson(Map<String, dynamic> json) {
@@ -36,6 +37,7 @@ class AuthUser {
           json['picture'] as String? ??
           userMetadata?['picture'] as String? ??
           rawClaimsMetadata?['picture'] as String?,
+      pushNotificationsEnabled: json['push_notifications_enabled'] as bool?,
     );
   }
 
@@ -44,6 +46,7 @@ class AuthUser {
   final String? displayName;
   final String? username;
   final String? avatarUrl;
+  final bool? pushNotificationsEnabled;
 
   AuthUser copyWith({
     String? id,
@@ -51,6 +54,7 @@ class AuthUser {
     Object? displayName = _authUserUnset,
     Object? username = _authUserUnset,
     Object? avatarUrl = _authUserUnset,
+    Object? pushNotificationsEnabled = _authUserUnset,
   }) {
     return AuthUser(
       id: id ?? this.id,
@@ -64,6 +68,9 @@ class AuthUser {
       avatarUrl: avatarUrl == _authUserUnset
           ? this.avatarUrl
           : avatarUrl as String?,
+      pushNotificationsEnabled: pushNotificationsEnabled == _authUserUnset
+          ? this.pushNotificationsEnabled
+          : pushNotificationsEnabled as bool?,
     );
   }
 
@@ -74,6 +81,7 @@ class AuthUser {
       'display_name': displayName,
       'username': username,
       'avatar_url': avatarUrl,
+      'push_notifications_enabled': pushNotificationsEnabled,
     };
   }
 }

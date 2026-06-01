@@ -8,7 +8,7 @@ import '../core/api_client.dart';
 import '../core/app_navigation.dart';
 import '../core/avatar_image.dart';
 import '../core/config.dart';
-import '../core/download_notification_service.dart';
+import '../core/push_notification_service.dart';
 import '../core/storage.dart';
 import '../core/token_store.dart';
 import '../models/auth.dart';
@@ -16,6 +16,7 @@ import '../models/app_notification.dart';
 import '../models/comic.dart';
 import '../models/library.dart';
 import '../models/progress.dart';
+import '../models/push_notification_preferences.dart';
 import '../models/source_info.dart';
 import 'auth_repository.dart';
 import 'catalog_repository.dart';
@@ -31,12 +32,61 @@ final configProvider = Provider<AppConfig>(
 
 final localStoreProvider = Provider<LocalStore>((ref) => LocalStore());
 
-final downloadNotificationServiceProvider =
-    Provider<DownloadNotificationService>(
-      (ref) => DownloadNotificationService(
-        onOpenDownloads: openDownloadsFromNotification,
-      ),
-    );
+final pushNotificationPreferencesProvider =
+    NotifierProvider<
+      PushNotificationPreferencesController,
+      PushNotificationPreferences
+    >(PushNotificationPreferencesController.new);
+
+final pushNotificationServiceProvider = Provider<PushNotificationService>(
+  (ref) => PushNotificationService(
+    readPreferences: () => ref.read(pushNotificationPreferencesProvider),
+    onOpenLocation: openLocationFromNotification,
+  ),
+);
+
+final downloadNotificationServiceProvider = pushNotificationServiceProvider;
+
+class PushNotificationPreferencesController
+    extends Notifier<PushNotificationPreferences> {
+  static const _storageKey = 'push_notification_preferences';
+
+  @override
+  PushNotificationPreferences build() {
+    final auth = ref.watch(authControllerProvider);
+    final remoteEnabled = auth.user?.pushNotificationsEnabled;
+    if (auth.isAuthenticated && remoteEnabled != null) {
+      return PushNotificationPreferences(enabled: remoteEnabled);
+    }
+
+    final raw = ref.watch(localStoreProvider).settings.get(_storageKey);
+    return raw is Map
+        ? PushNotificationPreferences.fromJson(raw)
+        : const PushNotificationPreferences();
+  }
+
+  Future<void> setEnabled(bool value) {
+    return _setEnabled(value);
+  }
+
+  Future<void> _setEnabled(bool value) async {
+    final auth = ref.read(authControllerProvider);
+    if (auth.isAuthenticated) {
+      await ref
+          .read(authControllerProvider.notifier)
+          .updatePushNotificationsEnabled(value);
+    }
+    await _save(state.copyWith(enabled: value));
+  }
+
+  Future<void> _save(PushNotificationPreferences preferences) async {
+    state = preferences;
+    await ref
+        .read(localStoreProvider)
+        .settings
+        .put(_storageKey, preferences.toJson());
+  }
+}
 
 final appThemeModeProvider =
     NotifierProvider<AppThemeModeController, ThemeMode>(
@@ -335,6 +385,17 @@ class AuthController extends Notifier<AuthState> {
 
   Future<void> updatePassword(String password) {
     return ref.read(authRepositoryProvider).updatePassword(password: password);
+  }
+
+  Future<void> updatePushNotificationsEnabled(bool enabled) async {
+    final currentUser = state.user;
+    if (currentUser == null) return;
+    state = await ref
+        .read(authRepositoryProvider)
+        .updatePushNotificationsEnabled(
+          currentUser: currentUser,
+          enabled: enabled,
+        );
   }
 
   Future<void> updateProfile({
@@ -902,11 +963,20 @@ class NotificationsController extends AsyncNotifier<List<AppNotification>> {
   }
 
   Future<void> recordLatestChapterUpdates(List<ComicSummary> comics) async {
-    state = AsyncData(
-      await ref
-          .read(notificationRepositoryProvider)
-          .recordLatestChapterUpdates(comics),
-    );
+    final repository = ref.read(notificationRepositoryProvider);
+    final previous = state.asData?.value ?? await repository.getNotifications();
+    final knownIds = previous.map((item) => item.id).toSet();
+    final notifications = await repository.recordLatestChapterUpdates(comics);
+    state = AsyncData(notifications);
+
+    for (final notification in notifications) {
+      if (knownIds.contains(notification.id)) continue;
+      unawaited(
+        ref
+            .read(pushNotificationServiceProvider)
+            .showAppNotification(notification),
+      );
+    }
   }
 }
 

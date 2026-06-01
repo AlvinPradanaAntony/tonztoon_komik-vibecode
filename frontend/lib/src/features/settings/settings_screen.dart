@@ -140,16 +140,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     const _SettingsDivider(),
                     _MyDownloadsSettingsRow(summary: librarySummary),
                     const _SettingsDivider(),
-                    _SettingsRow(
-                      icon: TonztoonIcons.bell,
-                      title: 'Push Notifications',
-                      subtitle: 'Belum aktif, coming soon',
-                      onTap: () => _openAccountFlow(
-                        context,
-                        const _PushNotificationsScreen(),
-                      ),
-                      trailing: const _ComingSoonSwitchTrailing(),
-                    ),
+                    const _PushNotificationsSettingsRow(),
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -2072,94 +2063,73 @@ class _MyDownloadsScreen extends StatelessWidget {
   }
 }
 
-class _PushNotificationsScreen extends StatelessWidget {
-  const _PushNotificationsScreen();
+class _PushNotificationsSettingsRow extends ConsumerStatefulWidget {
+  const _PushNotificationsSettingsRow();
 
   @override
-  Widget build(BuildContext context) {
-    return _AccountFlowScaffold(
-      title: 'Push Notifications',
-      children: [
-        const _NotificationPreviewCard(),
-        const SizedBox(height: 18),
-        const _SectionLabel(text: 'Categories'),
-        const SizedBox(height: 8),
-        _SettingsSection(
-          children: [
-            _SettingsRow(
-              icon: TonztoonIcons.bookOpen,
-              title: 'New Chapters',
-              subtitle: 'Notify when followed comics update',
-              trailing: const _DisabledSwitch(),
-            ),
-            const _SettingsDivider(),
-            _SettingsRow(
-              icon: TonztoonIcons.library,
-              title: 'Library Sync',
-              subtitle: 'Collections, bookmarks, and offline status',
-              trailing: const _DisabledSwitch(),
-            ),
-            const _SettingsDivider(),
-            _SettingsRow(
-              icon: TonztoonIcons.autoAwesome,
-              title: 'Recommendations',
-              subtitle: 'New picks based on your taste',
-              trailing: const _DisabledSwitch(),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-        const _SectionLabel(text: 'Delivery'),
-        const SizedBox(height: 8),
-        _SettingsSection(
-          children: [
-            _SettingsRow(
-              icon: TonztoonIcons.clock,
-              title: 'Quiet Hours',
-              subtitle: 'Pause alerts between 22:00 - 07:00',
-              trailing: const _DisabledSwitch(),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+  ConsumerState<_PushNotificationsSettingsRow> createState() =>
+      _PushNotificationsSettingsRowState();
 }
 
-class _NotificationPreviewCard extends StatelessWidget {
-  const _NotificationPreviewCard();
+class _PushNotificationsSettingsRowState
+    extends ConsumerState<_PushNotificationsSettingsRow> {
+  bool _saving = false;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final preferences = ref.watch(pushNotificationPreferencesProvider);
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colorScheme.secondary.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: const [
-            _IconBubble(icon: TonztoonIcons.bell),
-            SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _StatusBadge(label: 'Coming soon'),
-                  SizedBox(height: 8),
-                  Text(
-                    'Pengaturan push notification belum terhubung ke sistem notifikasi.',
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+    return _SettingsRow(
+      icon: TonztoonIcons.bell,
+      title: 'Push Notifications',
+      subtitle: preferences.enabled
+          ? 'Update chapter dan status download aktif'
+          : 'Aktifkan alert untuk perangkat ini',
+      onTap: _saving ? null : () => _setEnabled(!preferences.enabled),
+      trailing: Switch.adaptive(
+        value: preferences.enabled,
+        onChanged: _saving ? null : _setEnabled,
       ),
     );
+  }
+
+  Future<void> _setEnabled(bool value) async {
+    setState(() => _saving = true);
+    try {
+      if (value) {
+        final granted = await ref
+            .read(pushNotificationServiceProvider)
+            .requestPermissions();
+        if (!granted) {
+          if (!mounted) return;
+          showAppSnackBar(
+            context,
+            message:
+                'Izin notifikasi belum diberikan. Aktifkan izin TonzToon dari pengaturan perangkat.',
+            type: AppSnackBarType.warning,
+          );
+          return;
+        }
+      }
+
+      await ref
+          .read(pushNotificationPreferencesProvider.notifier)
+          .setEnabled(value);
+      if (!value) {
+        await ref.read(pushNotificationServiceProvider).dismissAll();
+      }
+    } catch (error, stackTrace) {
+      if (!mounted) return;
+      showAppErrorSnackBar(
+        context,
+        error: error,
+        stackTrace: stackTrace,
+        logContext: 'Update push notification preference failed',
+        fallbackMessage: 'Pengaturan notifikasi belum dapat disimpan.',
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 }
 
@@ -2212,31 +2182,6 @@ class _StatusBadge extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _ComingSoonSwitchTrailing extends StatelessWidget {
-  const _ComingSoonSwitchTrailing();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _StatusBadge(label: 'Coming soon'),
-        SizedBox(width: 8),
-        _DisabledSwitch(),
-      ],
-    );
-  }
-}
-
-class _DisabledSwitch extends StatelessWidget {
-  const _DisabledSwitch();
-
-  @override
-  Widget build(BuildContext context) {
-    return Switch.adaptive(value: false, onChanged: null);
   }
 }
 

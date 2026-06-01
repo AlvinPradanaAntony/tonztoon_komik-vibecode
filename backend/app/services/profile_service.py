@@ -33,6 +33,7 @@ def build_profile_response(profile: Profile) -> ProfileResponse:
         display_name=profile.display_name,
         avatar_url=profile.avatar_url,
         onboarding_completed=profile.onboarding_completed,
+        push_notifications_enabled=profile.push_notifications_enabled,
         created_at=profile.created_at,
         updated_at=profile.updated_at,
     )
@@ -153,6 +154,9 @@ async def update_profile(
 
     if payload.onboarding_completed is not None:
         profile.onboarding_completed = payload.onboarding_completed
+
+    if payload.push_notifications_enabled is not None:
+        profile.push_notifications_enabled = payload.push_notifications_enabled
 
     profile.updated_at = _utcnow()
     await db.commit()

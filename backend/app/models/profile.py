@@ -38,6 +38,12 @@ class Profile(Base):
         default=False,
         server_default="false",
     )
+    push_notifications_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

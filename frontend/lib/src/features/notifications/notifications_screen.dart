@@ -344,17 +344,18 @@ class _NotificationTile extends StatelessWidget {
 
     return Material(
       color: colorScheme.surface,
-      borderRadius: BorderRadius.circular(16),
+      elevation: 1.5,
+      shadowColor: Colors.black.withValues(alpha: 0.05),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            border: Border.all(
-              color: item.unread
-                  ? colorScheme.primary.withValues(alpha: 0.38)
-                  : colorScheme.outlineVariant,
-            ),
+            border: item.unread
+                ? Border.all(color: colorScheme.primary.withValues(alpha: 0.38))
+                : null,
             borderRadius: BorderRadius.circular(16),
           ),
           child: Padding(

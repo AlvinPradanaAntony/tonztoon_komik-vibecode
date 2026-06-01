@@ -412,7 +412,8 @@ class _ErrorPane extends StatelessWidget {
             Text(
               friendlyErrorMessage(
                 error,
-                fallbackMessage: 'Gagal memuat data offline. Silakan coba lagi.',
+                fallbackMessage:
+                    'Gagal memuat data offline. Silakan coba lagi.',
               ),
               textAlign: TextAlign.center,
             ),
@@ -715,6 +716,7 @@ Future<void> _showScenePreview(BuildContext context, FavoriteScene scene) {
     },
   );
 }
+
 class _OfflineBatchTile extends ConsumerWidget {
   const _OfflineBatchTile({required this.batch});
 
@@ -727,6 +729,9 @@ class _OfflineBatchTile extends ConsumerWidget {
 
     return AppSurfaceInk(
       onTap: () => _openComicDetail(context, batch.comic.toSummary()),
+      showBorder: false,
+      elevation: 1.5,
+      shadowColor: Colors.black.withValues(alpha: 0.05),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -821,6 +826,9 @@ class _OfflineChapterTile extends ConsumerWidget {
       onTap: () => ready
           ? _openOfflineChapter(context, chapter)
           : _openComicDetail(context, chapter.comic.toSummary()),
+      showBorder: false,
+      elevation: 1.5,
+      shadowColor: Colors.black.withValues(alpha: 0.05),
       child: Row(
         children: [
           ComicCover(
@@ -916,6 +924,9 @@ class _OfflineChapterGroupTile extends StatelessWidget {
 
     return AppSurfaceInk(
       onTap: () => _openOfflineGroup(context),
+      showBorder: false,
+      elevation: 1.5,
+      shadowColor: Colors.black.withValues(alpha: 0.05),
       child: Row(
         children: [
           ComicCover(
@@ -1014,6 +1025,9 @@ class _DownloadEntryTile extends ConsumerWidget {
 
     return AppSurfaceInk(
       onTap: () => _openComicDetail(context, entry.comic.toSummary()),
+      showBorder: false,
+      elevation: 1.5,
+      shadowColor: Colors.black.withValues(alpha: 0.05),
       child: Row(
         children: [
           ComicCover(
@@ -1120,6 +1134,9 @@ class _DownloadEntryGroupTile extends StatelessWidget {
 
     return AppSurfaceInk(
       onTap: () => _openWishlistGroup(context),
+      showBorder: false,
+      elevation: 1.5,
+      shadowColor: Colors.black.withValues(alpha: 0.05),
       child: Row(
         children: [
           ComicCover(

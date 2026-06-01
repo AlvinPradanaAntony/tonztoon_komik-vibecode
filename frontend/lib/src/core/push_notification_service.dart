@@ -1,32 +1,105 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import '../models/app_notification.dart';
 import '../models/comic.dart';
 import '../models/library.dart';
+import '../models/push_notification_preferences.dart';
+import 'app_navigation.dart';
 
-class DownloadNotificationService {
-  DownloadNotificationService({
-    required VoidCallback onOpenDownloads,
+class PushNotificationService {
+  PushNotificationService({
+    required PushNotificationPreferences Function() readPreferences,
+    required ValueChanged<String> onOpenLocation,
     FlutterLocalNotificationsPlugin? plugin,
-  }) : _onOpenDownloads = onOpenDownloads,
+  }) : _readPreferences = readPreferences,
+       _onOpenLocation = onOpenLocation,
        _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
   static const _progressChannelId = 'download_progress';
   static const _progressChannelName = 'Progress download';
-  static const _statusChannelId = 'download_status';
-  static const _statusChannelName = 'Status download';
+  static const _legacyStatusChannelId = 'download_status';
+  static const _updatesChannelId = 'comic_updates';
+  static const _updatesChannelName = 'Notifikasi TonzToon';
   static const _androidSmallIcon = 'ic_stat_tonztoon';
 
   final FlutterLocalNotificationsPlugin _plugin;
-  final VoidCallback _onOpenDownloads;
+  final PushNotificationPreferences Function() _readPreferences;
+  final ValueChanged<String> _onOpenLocation;
   final Map<String, int> _lastProgressByBatch = {};
   bool _available = true;
   bool _initialized = false;
-  bool _permissionsRequested = false;
   Future<void>? _initializing;
 
   Future<void> initialize() {
     return _ensureInitialized();
+  }
+
+  Future<bool> requestPermissions() async {
+    await _ensureInitialized();
+    if (!_canShowNotifications) return false;
+
+    try {
+      final androidGranted = await _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.requestNotificationsPermission();
+      if (androidGranted == false) return false;
+
+      final iosGranted = await _plugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >()
+          ?.requestPermissions(alert: true, badge: true, sound: true);
+      if (iosGranted == false) return false;
+
+      final macGranted = await _plugin
+          .resolvePlatformSpecificImplementation<
+            MacOSFlutterLocalNotificationsPlugin
+          >()
+          ?.requestPermissions(alert: true, badge: true, sound: true);
+      return macGranted != false;
+    } catch (_) {
+      _available = false;
+      return false;
+    }
+  }
+
+  Future<bool> showAppNotification(AppNotification notification) async {
+    if (!_shouldDeliver) return false;
+    await _ensureInitialized();
+    if (!_canShowNotifications) return false;
+
+    try {
+      await _plugin.show(
+        id: _notificationId(notification.id),
+        title: notification.title,
+        body: notification.message,
+        notificationDetails: const NotificationDetails(
+          android: AndroidNotificationDetails(
+            _updatesChannelId,
+            _updatesChannelName,
+            channelDescription: 'Update chapter dan status pustaka',
+            icon: _androidSmallIcon,
+            importance: Importance.high,
+            priority: Priority.high,
+            autoCancel: true,
+          ),
+          iOS: DarwinNotificationDetails(threadIdentifier: 'tonztoon_updates'),
+          macOS: DarwinNotificationDetails(
+            threadIdentifier: 'tonztoon_updates',
+          ),
+          linux: LinuxNotificationDetails(),
+          windows: WindowsNotificationDetails(),
+        ),
+        payload: notification.actionRoute ?? '/notifications',
+      );
+      return true;
+    } catch (_) {
+      _available = false;
+      return false;
+    }
   }
 
   Future<void> showStarted(OfflineDownloadBatch batch) {
@@ -37,13 +110,14 @@ class DownloadNotificationService {
     OfflineDownloadBatch batch, {
     bool force = false,
   }) async {
+    if (!_shouldDeliver) return;
+
     final percent = _percent(batch);
     if (!force && _lastProgressByBatch[batch.id] == percent) return;
     _lastProgressByBatch[batch.id] = percent;
 
     await _ensureInitialized();
     if (!_canShowNotifications) return;
-    if (!await _requestPermissions()) return;
 
     try {
       await _plugin.show(
@@ -93,7 +167,7 @@ class DownloadNotificationService {
             ],
           ),
         ),
-        payload: batch.id,
+        payload: libraryDownloadsLocation,
       );
     } catch (_) {
       _available = false;
@@ -102,7 +176,7 @@ class DownloadNotificationService {
 
   Future<void> showCompleted(OfflineDownloadBatch batch) {
     _lastProgressByBatch.remove(batch.id);
-    return _showStatus(
+    return _showDownloadStatus(
       batch,
       title: 'Download selesai',
       body: '${batch.comic.title} siap dibaca offline.',
@@ -111,7 +185,7 @@ class DownloadNotificationService {
 
   Future<void> showFailed(OfflineDownloadBatch batch) {
     _lastProgressByBatch.remove(batch.id);
-    return _showStatus(
+    return _showDownloadStatus(
       batch,
       title: 'Download gagal',
       body: batch.lastError?.isNotEmpty == true
@@ -122,7 +196,7 @@ class DownloadNotificationService {
 
   Future<void> showCancelled(OfflineDownloadBatch batch) {
     _lastProgressByBatch.remove(batch.id);
-    return _showStatus(
+    return _showDownloadStatus(
       batch,
       title: 'Download dibatalkan',
       body: '${batch.comic.title} tidak jadi diunduh.',
@@ -140,14 +214,24 @@ class DownloadNotificationService {
     }
   }
 
-  Future<void> _showStatus(
+  Future<void> dismissAll() async {
+    await _ensureInitialized();
+    if (!_canShowNotifications) return;
+    try {
+      await _plugin.cancelAll();
+    } catch (_) {
+      _available = false;
+    }
+  }
+
+  Future<void> _showDownloadStatus(
     OfflineDownloadBatch batch, {
     required String title,
     required String body,
   }) async {
+    if (!_shouldDeliver) return;
     await _ensureInitialized();
     if (!_canShowNotifications) return;
-    if (!await _requestPermissions()) return;
 
     try {
       await _plugin.show(
@@ -156,12 +240,12 @@ class DownloadNotificationService {
         body: body,
         notificationDetails: const NotificationDetails(
           android: AndroidNotificationDetails(
-            _statusChannelId,
-            _statusChannelName,
-            channelDescription: 'Status download komik offline',
+            _updatesChannelId,
+            _updatesChannelName,
+            channelDescription: 'Update chapter dan status pustaka',
             icon: _androidSmallIcon,
-            importance: Importance.defaultImportance,
-            priority: Priority.defaultPriority,
+            importance: Importance.high,
+            priority: Priority.high,
             onlyAlertOnce: true,
             autoCancel: true,
           ),
@@ -176,7 +260,7 @@ class DownloadNotificationService {
           ),
           windows: WindowsNotificationDetails(),
         ),
-        payload: batch.id,
+        payload: libraryDownloadsLocation,
       );
     } catch (_) {
       _available = false;
@@ -214,10 +298,13 @@ class DownloadNotificationService {
         ),
         onDidReceiveNotificationResponse: _handleNotificationResponse,
       );
+      await _deleteLegacyAndroidChannels();
 
       final launchDetails = await _plugin.getNotificationAppLaunchDetails();
-      if (launchDetails?.didNotificationLaunchApp == true) {
-        _onOpenDownloads();
+      final launchPayload = launchDetails?.notificationResponse?.payload;
+      if (launchDetails?.didNotificationLaunchApp == true &&
+          launchPayload != null) {
+        _onOpenLocation(launchPayload);
       }
     } catch (_) {
       _available = false;
@@ -226,43 +313,25 @@ class DownloadNotificationService {
     _initialized = true;
   }
 
-  Future<bool> _requestPermissions() async {
-    if (_permissionsRequested || !_canShowNotifications) return true;
-    _permissionsRequested = true;
+  void _handleNotificationResponse(NotificationResponse response) {
+    final location = response.payload;
+    if (location == null || location.isEmpty) return;
+    _onOpenLocation(location);
+  }
 
+  Future<void> _deleteLegacyAndroidChannels() async {
     try {
-      final androidGranted = await _plugin
+      await _plugin
           .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin
           >()
-          ?.requestNotificationsPermission();
-      if (androidGranted == false) return false;
-
-      final iosGranted = await _plugin
-          .resolvePlatformSpecificImplementation<
-            IOSFlutterLocalNotificationsPlugin
-          >()
-          ?.requestPermissions(alert: true, badge: false, sound: true);
-      if (iosGranted == false) return false;
-
-      final macGranted = await _plugin
-          .resolvePlatformSpecificImplementation<
-            MacOSFlutterLocalNotificationsPlugin
-          >()
-          ?.requestPermissions(alert: true, badge: false, sound: true);
-      if (macGranted == false) return false;
-
-      return true;
+          ?.deleteNotificationChannel(channelId: _legacyStatusChannelId);
     } catch (_) {
-      _available = false;
-      return false;
+      // Keep notifications available if a platform cannot remove stale channels.
     }
   }
 
-  void _handleNotificationResponse(NotificationResponse response) {
-    if (response.payload == null) return;
-    _onOpenDownloads();
-  }
+  bool get _shouldDeliver => _readPreferences().shouldDeliver;
 
   String _progressBody(OfflineDownloadBatch batch, int percent) {
     final chapter = batch.currentChapterNumber;
@@ -276,9 +345,9 @@ class DownloadNotificationService {
     return (batch.progress * 100).clamp(0, 100).round();
   }
 
-  int _notificationId(String batchId) {
+  int _notificationId(String value) {
     var hash = 0;
-    for (final unit in batchId.codeUnits) {
+    for (final unit in value.codeUnits) {
       hash = (hash * 31 + unit) & 0x7fffffff;
     }
     return hash == 0 ? 1 : hash;

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 import 'package:tonztoon/src/core/api_client.dart';
+import 'package:tonztoon/src/core/app_navigation.dart';
 import 'package:tonztoon/src/core/config.dart';
 import 'package:tonztoon/src/core/storage.dart';
 import 'package:tonztoon/src/core/token_store.dart';
@@ -13,6 +14,7 @@ import 'package:tonztoon/src/models/auth.dart';
 import 'package:tonztoon/src/models/library.dart';
 import 'package:tonztoon/src/models/comic.dart';
 import 'package:tonztoon/src/models/progress.dart';
+import 'package:tonztoon/src/models/push_notification_preferences.dart';
 import 'package:tonztoon/src/repositories/auth_repository.dart';
 import 'package:tonztoon/src/repositories/catalog_repository.dart';
 import 'package:tonztoon/src/repositories/google_auth_client.dart';
@@ -385,6 +387,56 @@ void main() {
     expect(store.auth.get('user'), containsPair('username', 'tonz_reader'));
   });
 
+  test(
+    'auth repository updates push notifications through profile endpoint',
+    () async {
+      final tokenStore = MemoryTokenStore();
+      Map<String, dynamic>? profileRequestBody;
+      final dio = Dio(BaseOptions(baseUrl: 'https://api.test'));
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            if (options.method == 'PATCH' && options.path == '/auth/profile') {
+              profileRequestBody = Map<String, dynamic>.from(
+                options.data as Map,
+              );
+              handler.resolve(
+                Response<Object?>(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: {'id': 'user-1', 'push_notifications_enabled': false},
+                ),
+              );
+              return;
+            }
+            handler.reject(DioException(requestOptions: options));
+          },
+        ),
+      );
+      final repository = AuthRepository(
+        TonztoonApi(
+          config: const AppConfig(apiBaseUrl: 'https://api.test'),
+          tokenStore: tokenStore,
+          dio: dio,
+        ),
+        tokenStore,
+        store,
+      );
+
+      final state = await repository.updatePushNotificationsEnabled(
+        currentUser: const AuthUser(id: 'user-1'),
+        enabled: false,
+      );
+
+      expect(profileRequestBody, {'push_notifications_enabled': false});
+      expect(state.user?.pushNotificationsEnabled, isFalse);
+      expect(
+        store.auth.get('user'),
+        containsPair('push_notifications_enabled', false),
+      );
+    },
+  );
+
   test('auth repository logout clears local user-scoped data', () async {
     final tokenStore = MemoryTokenStore();
     await tokenStore.save(
@@ -404,6 +456,9 @@ void main() {
       'reading_direction': 'ltr',
     });
     await store.settings.put('reader_preferences_owner', 'auth_cache');
+    await store.settings.put('push_notification_preferences', {
+      'enabled': true,
+    });
     await store.settings.put('auth_progress_cache_keys', ['komiku|lookism']);
     await store.settings.put('auth_completed_chapter_cache_keys', [
       'komiku|lookism|1.0',
@@ -435,6 +490,7 @@ void main() {
     expect(store.library.isEmpty, isTrue);
     expect(store.settings.get('reader_preferences'), isNull);
     expect(store.settings.get('reader_preferences_owner'), isNull);
+    expect(store.settings.get('push_notification_preferences'), isNull);
     expect(store.settings.get('auth_progress_cache_keys'), isNull);
     expect(store.settings.get('auth_completed_chapter_cache_keys'), isNull);
     expect(store.settings.get('reading_time_total_seconds_guest'), isNull);
@@ -739,6 +795,114 @@ void main() {
       );
     },
   );
+
+  test('push notification preferences keep core alerts enabled', () {
+    const preferences = PushNotificationPreferences(enabled: true);
+
+    expect(preferences.shouldDeliver, isTrue);
+    expect(
+      PushNotificationPreferences.fromJson(preferences.toJson()).toJson(),
+      preferences.toJson(),
+    );
+  });
+
+  test('push notification preferences default to disabled for guests', () {
+    expect(const PushNotificationPreferences().enabled, isFalse);
+    expect(PushNotificationPreferences.fromJson(const {}).enabled, isFalse);
+  });
+
+  test('push notification preferences persist on the device', () async {
+    final container = ProviderContainer(
+      overrides: [localStoreProvider.overrideWithValue(store)],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(
+      pushNotificationPreferencesProvider.notifier,
+    );
+    await controller.setEnabled(true);
+
+    final restored = PushNotificationPreferences.fromJson(
+      store.settings.get('push_notification_preferences') as Map,
+    );
+    expect(restored.enabled, isTrue);
+    expect(restored.toJson(), {'enabled': true});
+  });
+
+  test(
+    'push notification preferences follow the authenticated profile',
+    () async {
+      final repository = _PushPreferenceAuthRepository();
+      final container = ProviderContainer(
+        overrides: [
+          localStoreProvider.overrideWithValue(store),
+          authRepositoryProvider.overrideWithValue(repository),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container
+          .read(authControllerProvider.notifier)
+          .login('reader@tonztoon.app', 'secret');
+
+      expect(
+        container.read(pushNotificationPreferencesProvider).enabled,
+        isFalse,
+      );
+
+      await container
+          .read(pushNotificationPreferencesProvider.notifier)
+          .setEnabled(true);
+
+      expect(repository.updatedEnabled, isTrue);
+      expect(
+        container.read(pushNotificationPreferencesProvider).enabled,
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'logout resets push notification preferences to guest default',
+    () async {
+      await store.settings.put('push_notification_preferences', {
+        'enabled': true,
+      });
+      final container = ProviderContainer(
+        overrides: [
+          localStoreProvider.overrideWithValue(store),
+          authRepositoryProvider.overrideWithValue(
+            _ClearingAuthRepository(store),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container
+          .read(authControllerProvider.notifier)
+          .login('reader@tonztoon.app', 'secret');
+      expect(
+        container.read(pushNotificationPreferencesProvider).enabled,
+        isTrue,
+      );
+
+      await container.read(authControllerProvider.notifier).logout();
+
+      expect(
+        container.read(pushNotificationPreferencesProvider).enabled,
+        isFalse,
+      );
+      expect(store.settings.get('push_notification_preferences'), isNull);
+    },
+  );
+
+  test('notification deep link waits until app navigation is ready', () {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    openLocationFromNotification('/notifications');
+
+    expect(consumePendingNotificationLocation(), '/notifications');
+    expect(consumePendingNotificationLocation(), isNull);
+  });
 
   test('progress repository saves guest progress locally', () async {
     final repository = ProgressRepository(
@@ -1314,6 +1478,34 @@ class _FakeGoogleAuthClient implements GoogleAuthClient {
 
   @override
   Future<void> signOut() async {}
+}
+
+class _PushPreferenceAuthRepository implements AuthRepository {
+  bool? updatedEnabled;
+
+  @override
+  Future<AuthState> login({
+    required String identifier,
+    required String password,
+  }) async {
+    return const AuthState.authenticated(
+      AuthUser(id: 'user-1', pushNotificationsEnabled: false),
+    );
+  }
+
+  @override
+  Future<AuthState> updatePushNotificationsEnabled({
+    required AuthUser currentUser,
+    required bool enabled,
+  }) async {
+    updatedEnabled = enabled;
+    return AuthState.authenticated(
+      currentUser.copyWith(pushNotificationsEnabled: enabled),
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _ClearingAuthRepository implements AuthRepository {

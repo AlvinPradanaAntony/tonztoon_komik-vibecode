@@ -57,11 +57,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     }
     if (!mounted) return;
 
-    final nextLocation = consumePendingDownloadsNavigation()
-        ? libraryDownloadsLocation
-        : onboardingDone
-        ? '/'
-        : '/onboarding';
+    final nextLocation =
+        consumePendingNotificationLocation() ??
+        (onboardingDone ? '/' : '/onboarding');
     context.go(nextLocation);
   }
 

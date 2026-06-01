@@ -197,6 +197,22 @@ class AuthRepository {
     return AuthState.authenticated(updated);
   }
 
+  Future<AuthState> updatePushNotificationsEnabled({
+    required AuthUser currentUser,
+    required bool enabled,
+  }) async {
+    final response = await _api.patch<Map<String, dynamic>>(
+      '/auth/profile',
+      data: {'push_notifications_enabled': enabled},
+    );
+    final profile = AuthUser.fromJson(response.data ?? const {});
+    final updated = currentUser.copyWith(
+      pushNotificationsEnabled: profile.pushNotificationsEnabled ?? enabled,
+    );
+    await _store.auth.put('user', updated.toJson());
+    return AuthState.authenticated(updated);
+  }
+
   Future<AuthState> uploadAvatar({
     required AuthUser currentUser,
     required Uint8List bytes,
@@ -291,6 +307,7 @@ class AuthRepository {
         displayName: profile.displayName,
         username: profile.username,
         avatarUrl: profile.avatarUrl,
+        pushNotificationsEnabled: profile.pushNotificationsEnabled,
       );
     } catch (_) {
       return user;

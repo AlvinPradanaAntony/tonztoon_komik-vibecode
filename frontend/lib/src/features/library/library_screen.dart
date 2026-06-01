@@ -1208,6 +1208,9 @@ class _CollectionTile extends ConsumerWidget {
 
     return AppSurfaceInk(
       onTap: () => _open(context),
+      showBorder: false,
+      elevation: 1.5,
+      shadowColor: Colors.black.withValues(alpha: 0.05),
       child: Row(
         children: [
           SizedBox(
@@ -1513,6 +1516,9 @@ class _CollectionComicTile extends StatelessWidget {
 
     return AppSurfaceInk(
       onTap: () => _openComicDetail(context, summary),
+      showBorder: false,
+      elevation: 1.5,
+      shadowColor: Colors.black.withValues(alpha: 0.05),
       child: Row(
         children: [
           ComicCover(imageUrl: comic.coverImageUrl, width: 58, height: 82),
@@ -1559,6 +1565,9 @@ class _AddComicTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppSurfaceInk(
       onTap: () => Navigator.of(context).pop(comic),
+      showBorder: false,
+      elevation: 1.5,
+      shadowColor: Colors.black.withValues(alpha: 0.05),
       child: Row(
         children: [
           ComicCover(imageUrl: comic.coverImageUrl, width: 58, height: 82),

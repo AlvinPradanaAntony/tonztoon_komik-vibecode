@@ -18,6 +18,7 @@ class AccountProfileData(BaseModel):
     display_name: str | None = None
     avatar_url: str | None = None
     onboarding_completed: bool = False
+    push_notifications_enabled: bool = True
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
