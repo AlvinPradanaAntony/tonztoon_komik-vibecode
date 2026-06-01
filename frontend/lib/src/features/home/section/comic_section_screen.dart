@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -64,6 +66,9 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
   bool _isFirstPageLoading = true;
   bool _isLoadingMore = false;
   bool _isGrid = true;
+  bool _isLatestStatsLoading = false;
+  bool _hasLoadedComicSectionPage = false;
+  LatestComicStats? _latestStats;
 
   bool get _isPopularSection =>
       ComicSortOption.normalize(widget.initialSort) == ComicSortOption.popular;
@@ -73,10 +78,13 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
     super.initState();
     _comics = widget.comics;
     _sourceName = _normalizedSource(widget.sourceName);
-    _page = widget.comics.isEmpty ? 0 : 1;
-    _hasNextPage = widget.comics.length >= _pageSize;
-    _hasLoadedSection = widget.comics.isNotEmpty;
-    _isFirstPageLoading = widget.comics.isEmpty;
+    _hasLoadedComicSectionPage = false;
+    _loadCachedComicSection();
+    _loadCachedLatestStats();
+    _page = _comics.isEmpty ? 0 : 1;
+    _hasNextPage = _comics.length >= _pageSize;
+    _hasLoadedSection = _comics.isNotEmpty;
+    _isFirstPageLoading = _comics.isEmpty;
     _scrollController = ScrollController()..addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadFirstPage());
   }
@@ -89,6 +97,11 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
       return;
     }
     _sourceName = _normalizedSource(widget.sourceName);
+    _comics = widget.comics;
+    _hasLoadedComicSectionPage = false;
+    _loadCachedComicSection();
+    _latestStats = null;
+    _loadCachedLatestStats();
     _loadFirstPage();
   }
 
@@ -150,9 +163,20 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
                           sliver: SliverList(
                             delegate: SliverChildListDelegate.fixed([
                               _SectionHero(
-                                title: widget.title,
-                                subtitle: widget.subtitle,
-                                countLabel: '${_comics.length}',
+                                title: _isPopularSection
+                                    ? 'Sedang Hangat di Kalangan Pembaca'
+                                    : widget.title,
+                                subtitle: _isPopularSection
+                                    ? 'Temukan komik yang sedang ramai dibaca dan menjadi favorit pembaca saat ini.'
+                                    : widget.subtitle,
+                                countLabel: _isPopularSection
+                                    ? null
+                                    : '${_latestStats?.updatedComicCount ?? '-'}',
+                                countCaption: _isPopularSection
+                                    ? null
+                                    : 'update / ${_latestStats?.periodDays ?? 7} hari',
+                                countLoading:
+                                    !_isPopularSection && _latestStats == null,
                               ),
                               const SizedBox(height: 18),
                               Row(
@@ -163,13 +187,24 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
                                       style: theme.textTheme.titleMedium,
                                     ),
                                   ),
-                                  Text(
-                                    '${_comics.length} komik',
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: colorScheme.secondary,
-                                      fontWeight: FontWeight.w800,
+                                  if (_isFirstPageLoading &&
+                                      !_hasLoadedComicSectionPage)
+                                    const AppShimmer(
+                                      child: AppShimmerBlock(
+                                        width: 112,
+                                        height: 16,
+                                        borderRadius: 8,
+                                      ),
+                                    )
+                                  else
+                                    Text(
+                                      '${_comics.length} komik dimuat',
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                            color: colorScheme.secondary,
+                                            fontWeight: FontWeight.w800,
+                                          ),
                                     ),
-                                  ),
                                 ],
                               ),
                               const SizedBox(height: 12),
@@ -187,10 +222,12 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
                             sliver: _isGrid
                                 ? _SectionGrid(
                                     comics: _comics,
+                                    showNewBadges: !_isPopularSection,
                                     onTap: _openComicDetail,
                                   )
                                 : _SectionList(
                                     comics: _comics,
+                                    showNewBadges: !_isPopularSection,
                                     onTap: _openComicDetail,
                                   ),
                           ),
@@ -232,6 +269,7 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
     if (!mounted) return;
     final serial = ++_requestSerial;
     final hadSection = _hasLoadedSection;
+    final previousComics = _comics;
     setState(() {
       _isFirstPageLoading = true;
       _isLoadingMore = false;
@@ -245,6 +283,7 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
 
     try {
       final sourceName = await _resolveSourceName();
+      _loadCachedLatestStats(sourceName);
       final comics = await _loadPage(sourceName, 1);
 
       if (!mounted || serial != _requestSerial) return;
@@ -256,7 +295,19 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
         _hasNextPage = comics.length >= _pageSize;
         _isFirstPageLoading = false;
         _hasLoadedSection = true;
+        _hasLoadedComicSectionPage = true;
       });
+      _cacheComicSection(sourceName);
+      if (!_isPopularSection) {
+        final latestChanged = !_sameLatestPage(previousComics, comics);
+        if (_latestStats == null ||
+            latestChanged ||
+            ref
+                .read(catalogRepositoryProvider)
+                .shouldRefreshLatestStats(sourceName)) {
+          unawaited(_refreshLatestStats(sourceName, serial));
+        }
+      }
       WidgetsBinding.instance.addPostFrameCallback((_) => _onScroll());
     } catch (error, stackTrace) {
       if (!mounted || serial != _requestSerial) return;
@@ -310,6 +361,7 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
         _hasNextPage = comics.length >= _pageSize && addedCount > 0;
         _isLoadingMore = false;
       });
+      _cacheComicSection(sourceName);
     } catch (error, stackTrace) {
       if (!mounted || serial != _requestSerial) return;
       setState(() => _isLoadingMore = false);
@@ -345,6 +397,84 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
       return repository.getPopular(sourceName, page: page, pageSize: _pageSize);
     }
     return repository.getLatest(sourceName, page: page, pageSize: _pageSize);
+  }
+
+  Future<void> _refreshLatestStats(String sourceName, int serial) async {
+    if (_isLatestStatsLoading) return;
+    setState(() => _isLatestStatsLoading = true);
+    try {
+      final stats = await ref
+          .read(catalogRepositoryProvider)
+          .getLatestStats(sourceName);
+      if (!mounted || serial != _requestSerial) return;
+      setState(() {
+        _latestStats = stats;
+        _isLatestStatsLoading = false;
+      });
+    } catch (_) {
+      // Daftar rilis tetap berguna walau statistik tambahan belum tersedia.
+      if (mounted && serial == _requestSerial) {
+        setState(() => _isLatestStatsLoading = false);
+      }
+    }
+  }
+
+  void _loadCachedLatestStats([String? sourceName]) {
+    if (_isPopularSection) return;
+    final source = _normalizedSource(sourceName ?? _sourceName);
+    if (source == null) return;
+    final cached = ref
+        .read(catalogRepositoryProvider)
+        .getCachedLatestStats(source);
+    if (cached == null || cached == _latestStats) return;
+    _latestStats = cached;
+  }
+
+  void _loadCachedComicSection([String? sourceName]) {
+    final source = _normalizedSource(sourceName ?? _sourceName);
+    if (source == null) return;
+    final cached = ref
+        .read(catalogRepositoryProvider)
+        .getCachedComicSection(source, popular: _isPopularSection);
+    if (ref
+        .read(catalogRepositoryProvider)
+        .hasCachedComicSection(source, popular: _isPopularSection)) {
+      _hasLoadedComicSectionPage = true;
+    }
+    if (cached.length > _comics.length) {
+      _comics = cached;
+    }
+  }
+
+  void _cacheComicSection(String sourceName) {
+    ref
+        .read(catalogRepositoryProvider)
+        .cacheComicSection(
+          sourceName,
+          popular: _isPopularSection,
+          comics: _comics,
+        );
+  }
+
+  bool _sameLatestPage(List<ComicSummary> previous, List<ComicSummary> next) {
+    if (previous.isEmpty || next.isEmpty) {
+      return previous.isEmpty && next.isEmpty;
+    }
+    final comparableLength = previous.length < next.length
+        ? previous.length
+        : next.length;
+    for (var index = 0; index < comparableLength; index++) {
+      final oldComic = previous[index];
+      final newComic = next[index];
+      if (oldComic.sourceName != newComic.sourceName ||
+          oldComic.slug != newComic.slug ||
+          oldComic.latestChapterNumber != newComic.latestChapterNumber ||
+          oldComic.latestChapterReleaseDate !=
+              newComic.latestChapterReleaseDate) {
+        return false;
+      }
+    }
+    return true;
   }
 
   Future<String> _resolveSourceName() async {
@@ -386,12 +516,16 @@ class _SectionHero extends StatelessWidget {
   const _SectionHero({
     required this.title,
     required this.subtitle,
-    required this.countLabel,
+    this.countLabel,
+    this.countCaption,
+    this.countLoading = false,
   });
 
   final String title;
   final String subtitle;
-  final String countLabel;
+  final String? countLabel;
+  final String? countCaption;
+  final bool countLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -442,8 +576,14 @@ class _SectionHero extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 10),
-            _CountBadge(label: countLabel),
+            if (countLabel != null) ...[
+              const SizedBox(width: 10),
+              _CountBadge(
+                label: countLabel!,
+                caption: countCaption,
+                loading: countLoading,
+              ),
+            ],
           ],
         ),
       ),
@@ -452,9 +592,11 @@ class _SectionHero extends StatelessWidget {
 }
 
 class _CountBadge extends StatelessWidget {
-  const _CountBadge({required this.label});
+  const _CountBadge({required this.label, this.caption, this.loading = false});
 
   final String label;
+  final String? caption;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
@@ -467,22 +609,44 @@ class _CountBadge extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-        child: Text(
-          label,
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-            color: colorScheme.primary,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
+        child: loading
+            ? const AppShimmer(
+                child: AppShimmerBlock(width: 72, height: 30, borderRadius: 12),
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: colorScheme.primary,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  if (caption != null)
+                    Text(
+                      caption!,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                ],
+              ),
       ),
     );
   }
 }
 
 class _SectionGrid extends StatelessWidget {
-  const _SectionGrid({required this.comics, required this.onTap});
+  const _SectionGrid({
+    required this.comics,
+    required this.showNewBadges,
+    required this.onTap,
+  });
 
   final List<ComicSummary> comics;
+  final bool showNewBadges;
   final ValueChanged<ComicSummary> onTap;
 
   @override
@@ -500,6 +664,7 @@ class _SectionGrid extends StatelessWidget {
           comic: comic,
           source: comicSourceNameLabel(comic.sourceName),
           width: double.infinity,
+          showNewBadge: showNewBadges,
           onTap: () => onTap(comic),
         );
       }, childCount: comics.length),
@@ -508,9 +673,14 @@ class _SectionGrid extends StatelessWidget {
 }
 
 class _SectionList extends StatelessWidget {
-  const _SectionList({required this.comics, required this.onTap});
+  const _SectionList({
+    required this.comics,
+    required this.showNewBadges,
+    required this.onTap,
+  });
 
   final List<ComicSummary> comics;
+  final bool showNewBadges;
   final ValueChanged<ComicSummary> onTap;
 
   @override
@@ -522,16 +692,25 @@ class _SectionList extends StatelessWidget {
       delegate: SliverChildBuilderDelegate((context, index) {
         if (index.isOdd) return const SizedBox(height: 12);
         final comic = comics[index ~/ 2];
-        return _SectionListTile(comic: comic, onTap: () => onTap(comic));
+        return _SectionListTile(
+          comic: comic,
+          showNewBadge: showNewBadges,
+          onTap: () => onTap(comic),
+        );
       }, childCount: childCount),
     );
   }
 }
 
 class _SectionListTile extends StatelessWidget {
-  const _SectionListTile({required this.comic, required this.onTap});
+  const _SectionListTile({
+    required this.comic,
+    required this.showNewBadge,
+    required this.onTap,
+  });
 
   final ComicSummary comic;
+  final bool showNewBadge;
   final VoidCallback onTap;
 
   @override
@@ -541,27 +720,39 @@ class _SectionListTile extends StatelessWidget {
     final source = comicSourceNameLabel(comic.sourceName);
     final type = comicTypeFilterLabel(comic.type);
     final status = comicStatusFilterLabel(comic.status);
-    final genre = comic.genres.isEmpty ? type : comic.genres.first.name;
+    final genre = comic.genres.isEmpty ? null : comic.genres.first.name;
+    final showGenre =
+        genre != null && genre.toLowerCase() != type.toLowerCase();
     final rating = comic.rating;
 
     return Material(
       color: colorScheme.surface,
       elevation: 1.5,
       shadowColor: Colors.black.withValues(alpha: 0.05),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(11),
           child: Row(
             children: [
-              ComicCover(
-                imageUrl: comic.coverImageUrl,
-                width: 74,
-                height: 106,
-                borderRadius: 10,
+              SizedBox(
+                width: 78,
+                height: 112,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ComicCover(imageUrl: comic.coverImageUrl, borderRadius: 11),
+                    if (showNewBadge && comic.hasNewChapter())
+                      const Positioned(
+                        right: 5,
+                        bottom: 5,
+                        child: ComicNewBadge(compact: true),
+                      ),
+                  ],
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -574,20 +765,10 @@ class _SectionListTile extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.titleMedium,
                     ),
-                    const SizedBox(height: 7),
+                    const SizedBox(height: 6),
                     Row(
                       children: [
-                        Expanded(
-                          child: Text(
-                            '$source • ${comicTypeFlag(comic.type)} $type',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              color: colorScheme.secondary,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
+                        Expanded(child: _SectionSourceText(source: source)),
                         if (rating != null) ...[
                           const SizedBox(width: 8),
                           _SectionRatingText(rating: rating),
@@ -600,16 +781,29 @@ class _SectionListTile extends StatelessWidget {
                       runSpacing: 6,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        ComicGenreBadge(genre: genre, compact: true),
+                        _SectionTypeBadge(type: type, rawType: comic.type),
                         ComicStatusBadge(status: status),
+                        if (showGenre)
+                          ComicGenreBadge(genre: genre, compact: true),
                       ],
                     ),
                     if (comic.latestChapterNumber != null) ...[
                       const SizedBox(height: 10),
-                      ComicMetaBadge(
-                        label:
-                            'Chapter ${formatChapterNumber(comic.latestChapterNumber!)}',
-                        color: colorScheme.primary,
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          ComicMetaBadge(
+                            label:
+                                'Chapter ${formatChapterNumber(comic.latestChapterNumber!)}',
+                            color: colorScheme.primary,
+                          ),
+                          if (comic.latestChapterReleaseDate != null)
+                            _SectionUpdateTime(
+                              releaseDate: comic.latestChapterReleaseDate!,
+                            ),
+                        ],
                       ),
                     ],
                   ],
@@ -625,6 +819,118 @@ class _SectionListTile extends StatelessWidget {
   }
 }
 
+class _SectionSourceText extends StatelessWidget {
+  const _SectionSourceText({required this.source});
+
+  final String source;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Row(
+      children: [
+        Icon(
+          TonztoonIcons.travelExplore,
+          size: 14,
+          color: colorScheme.secondary,
+        ),
+        const SizedBox(width: 5),
+        Flexible(
+          child: Text(
+            source,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: colorScheme.secondary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SectionTypeBadge extends StatelessWidget {
+  const _SectionTypeBadge({required this.type, required this.rawType});
+
+  final String type;
+  final String? rawType;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.secondaryContainer.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(comicTypeFlag(rawType), style: const TextStyle(fontSize: 12)),
+            const SizedBox(width: 4),
+            Text(
+              type,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: colorScheme.onSecondaryContainer,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionUpdateTime extends StatelessWidget {
+  const _SectionUpdateTime({required this.releaseDate});
+
+  final DateTime releaseDate;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          TonztoonIcons.clock,
+          size: 13,
+          color: colorScheme.onSurfaceVariant,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          _relativeUpdateTime(releaseDate),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+String _relativeUpdateTime(DateTime value) {
+  final difference = DateTime.now().difference(value);
+  if (difference.isNegative || difference.inMinutes < 1) return 'Baru saja';
+  if (difference.inMinutes < 60) return '${difference.inMinutes} menit lalu';
+  if (difference.inHours < 24) return '${difference.inHours} jam lalu';
+  if (difference.inDays < 7) return '${difference.inDays} hari lalu';
+  if (difference.inDays < 30) return '${difference.inDays ~/ 7} minggu lalu';
+  if (difference.inDays < 365) return '${difference.inDays ~/ 30} bulan lalu';
+  return '${difference.inDays ~/ 365} tahun lalu';
+}
+
 class _SectionRatingText extends StatelessWidget {
   const _SectionRatingText({required this.rating});
 
@@ -634,19 +940,28 @@ class _SectionRatingText extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Icon(TonztoonIcons.starFilled, size: 15, color: Colors.amber),
-        const SizedBox(width: 4),
-        Text(
-          rating.toStringAsFixed(1),
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-            color: colorScheme.onSurface,
-            fontWeight: FontWeight.w900,
-          ),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.amber.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(TonztoonIcons.starFilled, size: 14, color: Colors.amber),
+            const SizedBox(width: 3),
+            Text(
+              rating.toStringAsFixed(1),
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: colorScheme.onSurface,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

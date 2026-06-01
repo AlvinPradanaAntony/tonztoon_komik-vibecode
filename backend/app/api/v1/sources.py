@@ -14,6 +14,7 @@ Endpoint publik utama untuk navigasi katalog per source:
 
 import asyncio
 import logging
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from sqlalchemy import func, or_, select
@@ -27,6 +28,7 @@ from app.schemas import (
     GenreResponse,
     SourceComicListItem,
     SourceComicListResponse,
+    SourceLatestComicStats,
     SourceChapterListItem,
     SourceChapterResponse,
     SourceInfoResponse,
@@ -180,6 +182,7 @@ def _build_source_comic_list_item(
     source_name: str,
     comic: Comic,
     latest_chapter_number: float | None,
+    latest_chapter_release_date: datetime | None = None,
 ) -> SourceComicListItem:
     """Bangun item response katalog komik source-scoped."""
     base_url = _get_request_base_url(request)
@@ -200,6 +203,7 @@ def _build_source_comic_list_item(
             for genre in comic.genres
         ],
         latest_chapter_number=latest_chapter_number,
+        latest_chapter_release_date=latest_chapter_release_date,
         detail_url=_build_absolute_url(
             request,
             _build_source_comic_detail_url(source_name, comic.slug),
@@ -378,7 +382,11 @@ async def get_source_latest_comics(
     source = _get_source_or_404(source_name)
     offset = (page - 1) * page_size
     stmt = (
-        select(Comic, _latest_chapter_number_subq.label("latest_chapter_number"))
+        select(
+            Comic,
+            _latest_chapter_number_subq.label("latest_chapter_number"),
+            _latest_chapter_release_subq.label("latest_chapter_release_date"),
+        )
         .options(noload(Comic.genres), noload(Comic.chapters))
         .where(Comic.source_name == source["id"])
         .order_by(
@@ -394,9 +402,35 @@ async def get_source_latest_comics(
     result = await db.execute(stmt)
     rows = result.unique().all()
     return [
-        _build_source_comic_list_item(request, source["id"], comic, latest_chapter_number)
-        for comic, latest_chapter_number in rows
+        _build_source_comic_list_item(
+            request,
+            source["id"],
+            comic,
+            latest_chapter_number,
+            latest_chapter_release_date,
+        )
+        for comic, latest_chapter_number, latest_chapter_release_date in rows
     ]
+
+
+@router.get("/{source_name}/comics/latest/stats", response_model=SourceLatestComicStats)
+async def get_source_latest_comic_stats(
+    source_name: str = Path(..., description="Filter by source name"),
+    period_days: int = Query(7, ge=1, le=30),
+    db: AsyncSession = Depends(get_db),
+):
+    """Hitung komik yang memiliki rilis chapter dalam rentang waktu terbaru."""
+    source = _get_source_or_404(source_name)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=period_days)
+    stmt = select(func.count(Comic.id)).where(
+        Comic.source_name == source["id"],
+        _latest_chapter_release_subq >= cutoff,
+    )
+    updated_comic_count = (await db.execute(stmt)).scalar() or 0
+    return SourceLatestComicStats(
+        period_days=period_days,
+        updated_comic_count=updated_comic_count,
+    )
 
 
 @router.get("/{source_name}/comics/popular", response_model=list[SourceComicListItem])
@@ -411,7 +445,11 @@ async def get_source_popular_comics(
     source = _get_source_or_404(source_name)
     offset = (page - 1) * page_size
     stmt = (
-        select(Comic, _latest_chapter_number_subq.label("latest_chapter_number"))
+        select(
+            Comic,
+            _latest_chapter_number_subq.label("latest_chapter_number"),
+            _latest_chapter_release_subq.label("latest_chapter_release_date"),
+        )
         .options(noload(Comic.genres), noload(Comic.chapters))
         .where(Comic.source_name == source["id"])
         .order_by(
@@ -427,8 +465,14 @@ async def get_source_popular_comics(
     result = await db.execute(stmt)
     rows = result.unique().all()
     return [
-        _build_source_comic_list_item(request, source["id"], comic, latest_chapter_number)
-        for comic, latest_chapter_number in rows
+        _build_source_comic_list_item(
+            request,
+            source["id"],
+            comic,
+            latest_chapter_number,
+            latest_chapter_release_date,
+        )
+        for comic, latest_chapter_number, latest_chapter_release_date in rows
     ]
 
 

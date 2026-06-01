@@ -138,6 +138,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 _ComicRail(
                   title: 'Rilis Terbaru',
                   comics: latestComics.take(6).toList(),
+                  showNewBadges: true,
                   actionLabel: 'Lihat semua',
                   onAction: () => _openComicSection(
                     context,
@@ -753,12 +754,14 @@ class _ComicRail extends StatelessWidget {
     required this.comics,
     this.actionLabel,
     this.onAction,
+    this.showNewBadges = false,
   });
 
   final String title;
   final List<ComicSummary> comics;
   final String? actionLabel;
   final VoidCallback? onAction;
+  final bool showNewBadges;
 
   @override
   Widget build(BuildContext context) {
@@ -783,6 +786,7 @@ class _ComicRail extends StatelessWidget {
               final comic = comics[index];
               return ComicCard(
                 comic: comic,
+                showNewBadge: showNewBadges,
                 onTap: () => _openComicDetail(context, comic),
               );
             },

@@ -275,6 +275,37 @@ class _FakeCatalogRepository implements CatalogRepository {
   }) async => const [comic];
 
   @override
+  Future<LatestComicStats> getLatestStats(String sourceName) async {
+    return const LatestComicStats(periodDays: 7, updatedComicCount: 1);
+  }
+
+  @override
+  LatestComicStats? getCachedLatestStats(String sourceName) => null;
+
+  @override
+  bool shouldRefreshLatestStats(
+    String sourceName, {
+    Duration maxAge = const Duration(hours: 1),
+  }) => true;
+
+  @override
+  List<ComicSummary> getCachedComicSection(
+    String sourceName, {
+    required bool popular,
+  }) => const [];
+
+  @override
+  bool hasCachedComicSection(String sourceName, {required bool popular}) =>
+      false;
+
+  @override
+  void cacheComicSection(
+    String sourceName, {
+    required bool popular,
+    required List<ComicSummary> comics,
+  }) {}
+
+  @override
   Future<List<Genre>> getGenres() async => const [
     Genre(id: 1, name: 'Action', slug: 'action'),
   ];

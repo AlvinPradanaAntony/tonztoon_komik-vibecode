@@ -15,6 +15,7 @@ class ComicCard extends StatefulWidget {
     this.source,
     this.rating,
     this.width = 138,
+    this.showNewBadge = false,
   });
 
   final ComicSummary comic;
@@ -22,6 +23,7 @@ class ComicCard extends StatefulWidget {
   final String? source;
   final String? rating;
   final double? width;
+  final bool showNewBadge;
 
   @override
   State<ComicCard> createState() => _ComicCardState();
@@ -102,6 +104,13 @@ class _ComicCardState extends State<ComicCard> {
                                   type: widget.comic.type!,
                                 ),
                               ),
+                            if (widget.showNewBadge &&
+                                widget.comic.hasNewChapter())
+                              const Positioned(
+                                right: 8,
+                                bottom: 8,
+                                child: ComicNewBadge(),
+                              ),
                           ],
                         ),
                       ),
@@ -143,6 +152,44 @@ class _ComicCardState extends State<ComicCard> {
                 ),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ComicNewBadge extends StatelessWidget {
+  const ComicNewBadge({super.key, this.compact = false});
+
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFFE11D48),
+        borderRadius: BorderRadius.circular(compact ? 10 : 14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: compact ? 5 : 8,
+            offset: Offset(0, compact ? 2 : 3),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 6 : 8,
+          vertical: compact ? 3 : 5,
+        ),
+        child: Text(
+          'NEW',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.w900,
+            fontSize: compact ? 9 : null,
+            letterSpacing: compact ? 0.5 : 0.7,
           ),
         ),
       ),

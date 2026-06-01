@@ -88,11 +88,16 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               ),
               loading: () => const _NotificationsLoading(),
               error: (error, stackTrace) {
-                logAppError(error, stackTrace, context: 'Notifications provider failed',);
+                logAppError(
+                  error,
+                  stackTrace,
+                  context: 'Notifications provider failed',
+                );
                 return _NotificationsError(
                   message: friendlyErrorMessage(
                     error,
-                    fallbackMessage: 'Notifikasi belum dapat dimuat. Silakan coba lagi.',
+                    fallbackMessage:
+                        'Notifikasi belum dapat dimuat. Silakan coba lagi.',
                   ),
                   onRetry: () => ref.invalidate(notificationsProvider),
                 );
@@ -121,7 +126,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         error: error,
         stackTrace: stackTrace,
         logContext: 'Mark all notifications read failed',
-        fallbackMessage: 'Gagal menandai semua notifikasi dibaca. Silakan coba lagi.',
+        fallbackMessage:
+            'Gagal menandai semua notifikasi dibaca. Silakan coba lagi.',
       );
     }
   }
@@ -477,12 +483,11 @@ class _NotificationEmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        border: Border.all(color: colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(16),
-      ),
+    return Material(
+      color: colorScheme.surface,
+      elevation: 2.6,
+      shadowColor: Colors.black.withValues(alpha: 0.18),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 28),
         child: Column(

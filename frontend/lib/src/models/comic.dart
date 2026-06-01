@@ -25,6 +25,7 @@ class ComicSummary {
     this.rating,
     this.totalView,
     this.latestChapterNumber,
+    this.latestChapterReleaseDate,
     this.genres = const [],
   });
 
@@ -39,6 +40,9 @@ class ComicSummary {
       rating: _readRating(json),
       totalView: json['total_view'] as int?,
       latestChapterNumber: (json['latest_chapter_number'] as num?)?.toDouble(),
+      latestChapterReleaseDate: DateTime.tryParse(
+        json['latest_chapter_release_date'] as String? ?? '',
+      ),
       genres: ((json['genres'] as List?) ?? const [])
           .whereType<Map>()
           .map((item) => Genre.fromJson(Map<String, dynamic>.from(item)))
@@ -56,6 +60,7 @@ class ComicSummary {
     'rating': rating,
     'total_view': totalView,
     'latest_chapter_number': latestChapterNumber,
+    'latest_chapter_release_date': latestChapterReleaseDate?.toIso8601String(),
     'genres': genres
         .map(
           (genre) => {'id': genre.id, 'name': genre.name, 'slug': genre.slug},
@@ -72,7 +77,17 @@ class ComicSummary {
   final double? rating;
   final int? totalView;
   final double? latestChapterNumber;
+  final DateTime? latestChapterReleaseDate;
   final List<Genre> genres;
+
+  bool hasNewChapter({DateTime? now}) {
+    final releaseDate = latestChapterReleaseDate;
+    if (releaseDate == null) return false;
+    final elapsed = (now ?? DateTime.now()).toUtc().difference(
+      releaseDate.toUtc(),
+    );
+    return !elapsed.isNegative && elapsed <= const Duration(days: 7);
+  }
 
   @override
   bool operator ==(Object other) {
@@ -83,6 +98,23 @@ class ComicSummary {
 
   @override
   int get hashCode => Object.hash(sourceName, slug);
+}
+
+class LatestComicStats {
+  const LatestComicStats({
+    required this.periodDays,
+    required this.updatedComicCount,
+  });
+
+  factory LatestComicStats.fromJson(Map<String, dynamic> json) {
+    return LatestComicStats(
+      periodDays: json['period_days'] as int? ?? 7,
+      updatedComicCount: json['updated_comic_count'] as int? ?? 0,
+    );
+  }
+
+  final int periodDays;
+  final int updatedComicCount;
 }
 
 class ComicDetail {

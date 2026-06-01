@@ -9,6 +9,7 @@ class CatalogRepository {
   final TonztoonApi _api;
   final LocalStore _store;
   static const _genresCacheKey = 'genres';
+  final Map<String, List<ComicSummary>> _comicSectionCache = {};
 
   Future<List<SourceInfo>> getSources() async {
     const cacheKey = 'sources';
@@ -106,6 +107,92 @@ class CatalogRepository {
       '/sources/$sourceName/comics/popular',
       queryParameters: {'page': page, 'page_size': pageSize},
     );
+  }
+
+  List<ComicSummary> getCachedComicSection(
+    String sourceName, {
+    required bool popular,
+  }) {
+    return List.unmodifiable(
+      _comicSectionCache[_comicSectionCacheKey(sourceName, popular)] ??
+          const [],
+    );
+  }
+
+  bool hasCachedComicSection(String sourceName, {required bool popular}) {
+    return _comicSectionCache.containsKey(
+      _comicSectionCacheKey(sourceName, popular),
+    );
+  }
+
+  void cacheComicSection(
+    String sourceName, {
+    required bool popular,
+    required List<ComicSummary> comics,
+  }) {
+    _comicSectionCache[_comicSectionCacheKey(sourceName, popular)] = [
+      ...comics,
+    ];
+  }
+
+  String _comicSectionCacheKey(String sourceName, bool popular) {
+    return '${popular ? 'popular' : 'latest'}|${sourceName.trim()}';
+  }
+
+  Future<LatestComicStats> getLatestStats(String sourceName) async {
+    final path = '/sources/$sourceName/comics/latest/stats';
+    const queryParameters = {'period_days': 7};
+    final cacheKey = _latestStatsCacheKey(path, queryParameters);
+    try {
+      final response = await _api.get<Map<String, dynamic>>(
+        path,
+        queryParameters: queryParameters,
+      );
+      final data = response.data ?? const {};
+      await _store.cache.put(cacheKey, {
+        'data': data,
+        'cached_at': DateTime.now().toUtc().toIso8601String(),
+      });
+      return LatestComicStats.fromJson(data);
+    } catch (_) {
+      final cached = getCachedLatestStats(sourceName);
+      if (cached != null) return cached;
+      rethrow;
+    }
+  }
+
+  LatestComicStats? getCachedLatestStats(String sourceName) {
+    final path = '/sources/$sourceName/comics/latest/stats';
+    const queryParameters = {'period_days': 7};
+    final cached = _store.cache.get(
+      _latestStatsCacheKey(path, queryParameters),
+    );
+    if (cached is! Map) return null;
+    final data = cached['data'];
+    if (data is Map) {
+      return LatestComicStats.fromJson(Map<String, dynamic>.from(data));
+    }
+    // Kompatibel dengan cache yang ditulis versi aplikasi sebelumnya.
+    return LatestComicStats.fromJson(Map<String, dynamic>.from(cached));
+  }
+
+  bool shouldRefreshLatestStats(
+    String sourceName, {
+    Duration maxAge = const Duration(hours: 1),
+  }) {
+    final path = '/sources/$sourceName/comics/latest/stats';
+    const queryParameters = {'period_days': 7};
+    final cached = _store.cache.get(
+      _latestStatsCacheKey(path, queryParameters),
+    );
+    if (cached is! Map || cached['data'] is! Map) return true;
+    final cachedAt = DateTime.tryParse(cached['cached_at'] as String? ?? '');
+    if (cachedAt == null) return true;
+    return DateTime.now().toUtc().difference(cachedAt.toUtc()) >= maxAge;
+  }
+
+  String _latestStatsCacheKey(String path, Map<String, dynamic> parameters) {
+    return 'latest-comic-stats|$path|$parameters';
   }
 
   Future<SourceComicPage> getSourceComics({

@@ -93,6 +93,56 @@ void main() {
     expect(genres.map((genre) => genre.name), ['Action', 'Romance']);
   });
 
+  test('catalog repository parses latest comic stats', () async {
+    final repository = CatalogRepository(
+      _apiWithResponses({
+        'GET /sources/komiku/comics/latest/stats': {
+          'period_days': 7,
+          'updated_comic_count': 42,
+        },
+      }),
+      store,
+    );
+
+    final stats = await repository.getLatestStats('komiku');
+
+    expect(stats.periodDays, 7);
+    expect(stats.updatedComicCount, 42);
+
+    final cached = CatalogRepository(
+      _failingApi(),
+      store,
+    ).getCachedLatestStats('komiku');
+    expect(cached?.periodDays, 7);
+    expect(cached?.updatedComicCount, 42);
+  });
+
+  test('catalog repository caches loaded comic sections per feed', () {
+    final repository = CatalogRepository(_failingApi(), store);
+    const latest = ComicSummary(title: 'Latest', slug: 'latest');
+    const popular = ComicSummary(title: 'Popular', slug: 'popular');
+
+    repository.cacheComicSection(
+      'komiku',
+      popular: false,
+      comics: const [latest],
+    );
+    repository.cacheComicSection(
+      'komiku',
+      popular: true,
+      comics: const [popular],
+    );
+
+    expect(repository.getCachedComicSection('komiku', popular: false), const [
+      latest,
+    ]);
+    expect(repository.getCachedComicSection('komiku', popular: true), const [
+      popular,
+    ]);
+    expect(repository.hasCachedComicSection('komiku', popular: false), isTrue);
+    expect(repository.hasCachedComicSection('other', popular: false), isFalse);
+  });
+
   test(
     'catalog repository exposes pending chapter images as API 202',
     () async {

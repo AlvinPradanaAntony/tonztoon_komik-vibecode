@@ -36,6 +36,7 @@ void main() {
       'cover_image_url': 'https://example.test/cover.jpg',
       'rating': 9.2,
       'latest_chapter_number': 201,
+      'latest_chapter_release_date': '2026-05-30T12:00:00Z',
       'genres': [
         {'id': 1, 'name': 'Action', 'slug': 'action'},
       ],
@@ -44,6 +45,14 @@ void main() {
     expect(comic.title, 'Solo Leveling');
     expect(comic.sourceName, 'komiku_asia');
     expect(comic.latestChapterNumber, 201);
+    expect(
+      comic.hasNewChapter(now: DateTime.parse('2026-06-01T12:00:00Z')),
+      isTrue,
+    );
+    expect(
+      comic.hasNewChapter(now: DateTime.parse('2026-06-08T12:00:01Z')),
+      isFalse,
+    );
     expect(comic.genres.single.name, 'Action');
   });
 

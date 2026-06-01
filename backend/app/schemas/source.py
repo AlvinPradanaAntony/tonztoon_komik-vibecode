@@ -76,10 +76,18 @@ class SourceComicListItem(BaseModel):
     total_view: int | None = Field(default=None, ge=0, examples=[238500])
     genres: list[GenreResponse] = Field(default_factory=list)
     latest_chapter_number: float | None = Field(default=None, ge=0, examples=[201.0])
+    latest_chapter_release_date: datetime | None = Field(default=None)
     detail_url: str = Field(
         ...,
         examples=["http://127.0.0.1:8000/api/v1/sources/komiku_asia/comics/solo-leveling"],
     )
+
+
+class SourceLatestComicStats(BaseModel):
+    """Statistik aktivitas chapter terbaru untuk satu source."""
+
+    period_days: int = Field(..., ge=1)
+    updated_comic_count: int = Field(..., ge=0)
 
 
 class SourceComicListResponse(BaseModel):
