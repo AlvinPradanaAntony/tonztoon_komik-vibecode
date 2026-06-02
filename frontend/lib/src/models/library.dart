@@ -401,7 +401,9 @@ class OfflineDownloadBatch {
   }
 
   bool get canCancel => status == 'pending' || status == 'downloading';
-  bool get canResume => status == 'pending' || status == 'paused';
+  bool get canResume =>
+      status == 'pending' || status == 'paused' || status == 'failed';
+  bool get canAutoResume => status == 'pending' || status == 'paused';
 
   final String id;
   final LibraryComicRef comic;

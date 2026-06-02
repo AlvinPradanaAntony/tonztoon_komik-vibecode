@@ -124,6 +124,39 @@ Future<bool?> showTonztoonConfirmDialog(
   );
 }
 
+Future<bool?> showTonztoonAsyncConfirmDialog(
+  BuildContext context, {
+  required String title,
+  required String message,
+  required Future<void> Function() onConfirm,
+  void Function(Object error, StackTrace stackTrace)? onError,
+  String? eyebrow,
+  String? helperText,
+  IconData helperIcon = TonztoonIcons.shieldCheck,
+  String cancelLabel = 'Batal',
+  String confirmLabel = 'Ya',
+  TonztoonModalVariant variant = TonztoonModalVariant.primary,
+  TonztoonModalArt art = TonztoonModalArt.logoutAccount,
+}) {
+  return showTonztoonModal<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => _TonztoonAsyncConfirmDialog(
+      title: title,
+      message: message,
+      onConfirm: onConfirm,
+      onError: onError,
+      eyebrow: eyebrow,
+      helperText: helperText,
+      helperIcon: helperIcon,
+      cancelLabel: cancelLabel,
+      confirmLabel: confirmLabel,
+      variant: variant,
+      art: art,
+    ),
+  );
+}
+
 Future<void> showTonztoonNoticeDialog(
   BuildContext context, {
   required String title,
@@ -157,6 +190,80 @@ Future<void> showTonztoonNoticeDialog(
       },
     ),
   );
+}
+
+class _TonztoonAsyncConfirmDialog extends StatefulWidget {
+  const _TonztoonAsyncConfirmDialog({
+    required this.title,
+    required this.message,
+    required this.onConfirm,
+    required this.cancelLabel,
+    required this.confirmLabel,
+    required this.variant,
+    required this.art,
+    this.onError,
+    this.eyebrow,
+    this.helperText,
+    this.helperIcon = TonztoonIcons.shieldCheck,
+  });
+
+  final String title;
+  final String message;
+  final Future<void> Function() onConfirm;
+  final void Function(Object error, StackTrace stackTrace)? onError;
+  final String? eyebrow;
+  final String? helperText;
+  final IconData helperIcon;
+  final String cancelLabel;
+  final String confirmLabel;
+  final TonztoonModalVariant variant;
+  final TonztoonModalArt art;
+
+  @override
+  State<_TonztoonAsyncConfirmDialog> createState() =>
+      _TonztoonAsyncConfirmDialogState();
+}
+
+class _TonztoonAsyncConfirmDialogState
+    extends State<_TonztoonAsyncConfirmDialog> {
+  bool _loading = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_loading,
+      child: TonztoonModalDialog(
+        title: widget.title,
+        message: widget.message,
+        eyebrow: widget.eyebrow,
+        helperText: widget.helperText,
+        helperIcon: widget.helperIcon,
+        variant: widget.variant,
+        art: widget.art,
+        showCloseButton: !_loading,
+        secondaryLabel: widget.cancelLabel,
+        onSecondaryPressed: _loading
+            ? null
+            : () => Navigator.of(context).pop(false),
+        primaryLabel: widget.confirmLabel,
+        primaryLoading: _loading,
+        onPrimaryPressed: _loading ? null : _submit,
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    try {
+      await widget.onConfirm();
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (error, stackTrace) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      widget.onError?.call(error, stackTrace);
+    }
+  }
 }
 
 class TonztoonModalDialog extends StatelessWidget {

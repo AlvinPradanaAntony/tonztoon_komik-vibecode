@@ -992,6 +992,7 @@ final offlineQueueProvider =
 class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
   final Map<String, CancelToken> _cancelTokens = {};
   final Set<String> _deletedBatchIds = {};
+  final Set<String> _startingChapterKeys = {};
 
   @override
   Future<List<OfflineDownloadBatch>> build() {
@@ -1007,18 +1008,50 @@ class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
     required List<ChapterListItem> chapters,
   }) async {
     if (chapters.isEmpty) return;
-    final chapterNumbers = chapters.map((item) => item.chapterNumber).toList();
-    final batch = OfflineDownloadBatch.create(
-      id: '${comic.sourceName}|${comic.slug}|${DateTime.now().microsecondsSinceEpoch}',
-      comic: comic,
-      chapterNumbers: chapterNumbers,
-    );
-    await ref
-        .read(libraryRepositoryProvider)
-        .enqueueDownloadBatch(comic, chapterNumbers);
-    await ref.read(offlineRepositoryProvider).saveBatch(batch);
-    await refresh();
-    unawaited(_runBatch(batch));
+    final batches = state.asData?.value ?? await build();
+    final comicKey = '${comic.sourceName}|${comic.slug}';
+    final activeChapterNumbers = batches
+        .where(
+          (batch) =>
+              batch.comic.key == comicKey &&
+              (batch.status == 'pending' ||
+                  batch.status == 'downloading' ||
+                  batch.status == 'paused'),
+        )
+        .expand((batch) => batch.chapterNumbers)
+        .toSet();
+    final queuedChapters = <ChapterListItem>[];
+    final queuedKeys = <String>{};
+    for (final chapter in chapters) {
+      final key = '$comicKey|${chapter.chapterNumber}';
+      if (activeChapterNumbers.contains(chapter.chapterNumber) ||
+          _startingChapterKeys.contains(key) ||
+          !queuedKeys.add(key)) {
+        continue;
+      }
+      queuedChapters.add(chapter);
+    }
+    if (queuedChapters.isEmpty) return;
+
+    _startingChapterKeys.addAll(queuedKeys);
+    try {
+      final chapterNumbers = queuedChapters
+          .map((item) => item.chapterNumber)
+          .toList();
+      final batch = OfflineDownloadBatch.create(
+        id: '${comic.sourceName}|${comic.slug}|${DateTime.now().microsecondsSinceEpoch}',
+        comic: comic,
+        chapterNumbers: chapterNumbers,
+      );
+      await ref
+          .read(libraryRepositoryProvider)
+          .enqueueDownloadBatch(comic, chapterNumbers);
+      await ref.read(offlineRepositoryProvider).saveBatch(batch);
+      await refresh();
+      unawaited(_runBatch(batch));
+    } finally {
+      _startingChapterKeys.removeAll(queuedKeys);
+    }
   }
 
   Future<void> resumeBatch(String batchId) async {
@@ -1037,7 +1070,7 @@ class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
   Future<void> resumeRecoverableBatches() async {
     final batches = await ref.read(offlineRepositoryProvider).getBatches();
     state = AsyncData(batches);
-    for (final batch in batches.where((batch) => batch.canResume)) {
+    for (final batch in batches.where((batch) => batch.canAutoResume)) {
       unawaited(_runBatch(batch));
     }
   }
@@ -1087,8 +1120,12 @@ class OfflineQueueController extends AsyncNotifier<List<OfflineDownloadBatch>> {
     _cancelTokens[initialBatch.id] = token;
     var batch = initialBatch.copyWith(
       status: 'downloading',
-      completedChapters: 0,
-      progressValue: 0,
+      completedImages: 0,
+      totalImages: 0,
+      progressValue: initialBatch.totalChapters == 0
+          ? 0
+          : initialBatch.completedChapters / initialBatch.totalChapters,
+      clearCurrentChapterNumber: true,
       clearLastError: true,
     );
     await _saveBatch(batch);

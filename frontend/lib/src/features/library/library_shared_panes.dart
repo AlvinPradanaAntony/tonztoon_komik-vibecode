@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/app_error.dart';
 import '../../core/app_icons.dart';
+import '../../core/app_navigation.dart';
 import '../../core/app_snackbar.dart';
 import '../../models/comic.dart';
 import '../../models/library.dart';
@@ -13,6 +14,7 @@ import '../../repositories/providers.dart';
 import '../../widgets/app_loading_placeholder.dart';
 import '../../widgets/app_surface_ink.dart';
 import '../../widgets/comic_cover.dart';
+import '../../widgets/tonztoon_modal_dialog.dart';
 import 'library_error.dart';
 
 class FavoriteScenesPane extends ConsumerWidget {
@@ -120,14 +122,24 @@ class OfflineDownloadsPane extends ConsumerWidget {
 
     final queue = queueAsync.asData?.value ?? const <OfflineDownloadBatch>[];
     final downloads = downloadsAsync.asData?.value ?? const <DownloadEntry>[];
-    final activeQueue = queue
+    final visibleQueue = queue
         .where(
           (item) => item.status != 'completed' && item.status != 'cancelled',
         )
         .toList();
+    final activeQueueCount = visibleQueue
+        .where(
+          (item) => item.status == 'pending' || item.status == 'downloading',
+        )
+        .length;
     return _LibraryList(
       padding: padding,
-      children: _libraryDownloadChildren(activeQueue, offline, downloads),
+      children: _libraryDownloadChildren(
+        visibleQueue,
+        activeQueueCount,
+        offline,
+        downloads,
+      ),
       onRefresh: () => refreshDownloads(ref),
     );
   }
@@ -185,37 +197,41 @@ class OfflineDownloadsPane extends ConsumerWidget {
   }
 
   List<Widget> _libraryDownloadChildren(
-    List<OfflineDownloadBatch> activeQueue,
+    List<OfflineDownloadBatch> visibleQueue,
+    int activeQueueCount,
     List<OfflineChapter> offline,
     List<DownloadEntry> downloads,
   ) {
-    final localKeys = offline.map(_offlineChapterKey).toSet();
-    final localGroups = _groupOfflineChaptersByComic(offline);
+    final readyOffline = offline
+        .where((chapter) => chapter.isCompleted)
+        .toList();
+    final localKeys = readyOffline.map(_offlineChapterKey).toSet();
+    final localGroups = _groupOfflineChaptersByComic(readyOffline);
     final downloadGroups = _groupDownloadEntriesByComic(downloads);
 
     return [
       _SectionHeader(
         icon: TonztoonIcons.download,
         title: 'Unduhan offline',
-        trailing: '${activeQueue.length} aktif',
+        trailing: '$activeQueueCount aktif',
       ),
       const SizedBox(height: 10),
-      if (activeQueue.isEmpty && offline.isEmpty && downloads.isEmpty)
+      if (visibleQueue.isEmpty && readyOffline.isEmpty && downloads.isEmpty)
         const _EmptyState(
           icon: TonztoonIcons.download,
           title: 'Belum ada unduhan',
           message: 'Download chapter dari halaman detail untuk mode offline.',
         )
       else ...[
-        if (activeQueue.isNotEmpty) ...[
-          const _SubHeader(title: 'Antrean aktif'),
+        if (visibleQueue.isNotEmpty) ...[
+          const _SubHeader(title: 'Antrean unduhan'),
           const SizedBox(height: 8),
-          for (final batch in activeQueue) ...[
+          for (final batch in visibleQueue) ...[
             _OfflineBatchTile(batch: batch),
             const SizedBox(height: 12),
           ],
         ],
-        if (offline.isNotEmpty) ...[
+        if (readyOffline.isNotEmpty) ...[
           const _SubHeader(title: 'File lokal'),
           const SizedBox(height: 8),
           for (final group in localGroups) ...[
@@ -293,6 +309,30 @@ String _offlineChapterKey(OfflineChapter chapter) {
 
 String _downloadEntryKey(DownloadEntry entry) {
   return '${entry.comic.key}|${entry.chapterNumber}';
+}
+
+OfflineDownloadBatch? _queuedBatchForEntry(
+  DownloadEntry entry,
+  List<OfflineDownloadBatch> batches,
+) {
+  for (final status in const ['downloading', 'pending', 'paused', 'failed']) {
+    for (final batch in batches) {
+      if (batch.status == status &&
+          batch.comic.key == entry.comic.key &&
+          batch.chapterNumbers.contains(entry.chapterNumber)) {
+        return batch;
+      }
+    }
+  }
+  return null;
+}
+
+double _queuedChapterProgress(DownloadEntry entry, OfflineDownloadBatch batch) {
+  final chapterIndex = batch.chapterNumbers.indexOf(entry.chapterNumber);
+  if (chapterIndex < 0 || batch.totalChapters <= 0) return 0;
+  return (batch.progress * batch.totalChapters - chapterIndex)
+      .clamp(0, 1)
+      .toDouble();
 }
 
 Future<void> refreshFavoriteScenes(WidgetRef ref) async {
@@ -766,16 +806,47 @@ class _OfflineBatchTile extends ConsumerWidget {
                 icon: const Icon(TonztoonIcons.moreHoriz),
                 onSelected: (value) async {
                   final controller = ref.read(offlineQueueProvider.notifier);
+                  if (value == 'delete') {
+                    final confirmed = await showTonztoonAsyncConfirmDialog(
+                      context,
+                      title: 'Hapus antrean unduhan',
+                      message:
+                          'Hapus antrean unduhan "${batch.comic.title}" dari perangkat ini?',
+                      helperText:
+                          'Progress antrean yang sedang berjalan akan dihentikan dan dihapus.',
+                      helperIcon: TonztoonIcons.trash,
+                      cancelLabel: 'Batal',
+                      confirmLabel: 'Hapus',
+                      variant: TonztoonModalVariant.danger,
+                      art: TonztoonModalArt.trash,
+                      onConfirm: () async {
+                        await controller.deleteBatch(batch.id);
+                        await _reloadDownloadsAfterDelete(ref);
+                      },
+                      onError: (error, stackTrace) {
+                        if (context.mounted) {
+                          showLibraryActionError(context, error, stackTrace);
+                        }
+                      },
+                    );
+                    if (!context.mounted || confirmed != true) return;
+                    _returnToDownloadsAfterDelete(
+                      context,
+                      'Antrean unduhan dihapus.',
+                    );
+                    return;
+                  }
                   if (value == 'resume') await controller.resumeBatch(batch.id);
                   if (value == 'cancel') await controller.cancelBatch(batch.id);
-                  if (value == 'delete') await controller.deleteBatch(batch.id);
                   ref.invalidate(downloadsProvider);
                 },
                 itemBuilder: (context) => [
                   if (batch.canResume)
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'resume',
-                      child: Text('Lanjutkan'),
+                      child: Text(
+                        batch.status == 'failed' ? 'Coba lagi' : 'Lanjutkan',
+                      ),
                     ),
                   if (batch.canCancel)
                     const PopupMenuItem(
@@ -877,20 +948,37 @@ class _OfflineChapterTile extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) async {
-    try {
-      final matchingDownload = await _matchingDownload(ref, chapter);
-      await ref.read(offlineRepositoryProvider).deleteOfflineChapter(chapter);
-      if (matchingDownload != null) {
-        await ref
-            .read(libraryRepositoryProvider)
-            .deleteDownloadEntry(matchingDownload);
-      }
-      ref.invalidate(offlineChaptersProvider);
-      ref.invalidate(downloadsProvider);
-      if (context.mounted) _showMessage(context, 'Unduhan offline dihapus.');
-    } catch (error, stackTrace) {
-      if (context.mounted) showLibraryActionError(context, error, stackTrace);
-    }
+    final chapterLabel = formatChapterNumber(chapter.chapterNumber);
+    final confirmed = await showTonztoonAsyncConfirmDialog(
+      context,
+      title: 'Hapus unduhan offline',
+      message:
+          'Hapus "${chapter.comic.title}" chapter $chapterLabel dari perangkat ini?',
+      helperText:
+          'File offline dan wishlist chapter terkait akan dihapus. Chapter perlu diunduh ulang agar dapat dibaca tanpa internet.',
+      helperIcon: TonztoonIcons.trash,
+      cancelLabel: 'Batal',
+      confirmLabel: 'Hapus',
+      variant: TonztoonModalVariant.danger,
+      art: TonztoonModalArt.trash,
+      onConfirm: () async {
+        final matchingDownload = await _matchingDownload(ref, chapter);
+        await ref.read(offlineRepositoryProvider).deleteOfflineChapter(chapter);
+        if (matchingDownload != null) {
+          await ref
+              .read(libraryRepositoryProvider)
+              .deleteDownloadEntry(matchingDownload);
+        }
+        await _reloadDownloadsAfterDelete(ref);
+      },
+      onError: (error, stackTrace) {
+        if (context.mounted) {
+          showLibraryActionError(context, error, stackTrace);
+        }
+      },
+    );
+    if (!context.mounted || confirmed != true) return;
+    _returnToDownloadsAfterDelete(context, 'Unduhan offline dihapus.');
   }
 
   Future<DownloadEntry?> _matchingDownload(
@@ -1015,13 +1103,9 @@ class _DownloadEntryTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final trailing = hasLocalFile
-        ? const Icon(TonztoonIcons.chevronRight)
-        : IconButton(
-            tooltip: 'Download ke perangkat ini',
-            onPressed: () => _downloadToThisDevice(context, ref),
-            icon: const Icon(TonztoonIcons.download),
-          );
+    final queue = ref.watch(offlineQueueProvider).asData?.value ?? const [];
+    final queuedBatch = _queuedBatchForEntry(entry, queue);
+    final trailing = _trailing(context, ref, queuedBatch);
 
     return AppSurfaceInk(
       onTap: () => _openComicDetail(context, entry.comic.toSummary()),
@@ -1047,11 +1131,14 @@ class _DownloadEntryTile extends ConsumerWidget {
                   style: theme.textTheme.titleMedium,
                 ),
                 const SizedBox(height: 5),
-                Text(_statusLabel, style: theme.textTheme.bodySmall),
+                Text(
+                  _statusLabel(queuedBatch),
+                  style: theme.textTheme.bodySmall,
+                ),
               ],
             ),
           ),
-          if (allowDelete && !hasLocalFile) ...[
+          if (allowDelete && !hasLocalFile && queuedBatch == null) ...[
             IconButton(
               tooltip: 'Hapus wishlist offline',
               onPressed: () => _deleteEntry(context, ref),
@@ -1065,9 +1152,64 @@ class _DownloadEntryTile extends ConsumerWidget {
     );
   }
 
-  String get _statusLabel {
+  Widget _trailing(
+    BuildContext context,
+    WidgetRef ref,
+    OfflineDownloadBatch? queuedBatch,
+  ) {
+    if (hasLocalFile) return const Icon(TonztoonIcons.chevronRight);
+    if (queuedBatch == null) {
+      return IconButton(
+        tooltip: 'Download ke perangkat ini',
+        onPressed: () => _downloadToThisDevice(context, ref),
+        icon: const Icon(TonztoonIcons.download),
+      );
+    }
+    if (queuedBatch.status == 'paused' || queuedBatch.status == 'failed') {
+      return IconButton(
+        tooltip: queuedBatch.status == 'failed'
+            ? 'Coba lagi download'
+            : 'Lanjutkan download',
+        onPressed: () =>
+            ref.read(offlineQueueProvider.notifier).resumeBatch(queuedBatch.id),
+        icon: const Icon(TonztoonIcons.play),
+      );
+    }
+
+    final progress = _queuedChapterProgress(entry, queuedBatch);
+    final progressPercent = (progress * 100).round().clamp(0, 100);
+    return Tooltip(
+      message: 'Download berlangsung $progressPercent%',
+      child: SizedBox.square(
+        dimension: 48,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: CircularProgressIndicator(
+            value: queuedBatch.status == 'pending' ? null : progress,
+            strokeWidth: 3,
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _statusLabel(OfflineDownloadBatch? queuedBatch) {
     final chapter = 'Ch ${formatChapterNumber(entry.chapterNumber)}';
     if (hasLocalFile) return '$chapter tersedia untuk dibaca offline';
+    if (queuedBatch?.status == 'paused') {
+      return '$chapter dijeda, tekan lanjutkan untuk resume';
+    }
+    if (queuedBatch?.status == 'failed') {
+      return '$chapter gagal diunduh, tekan coba lagi';
+    }
+    if (queuedBatch?.status == 'pending') {
+      return '$chapter menunggu antrean download';
+    }
+    if (queuedBatch != null) {
+      final progress = _queuedChapterProgress(entry, queuedBatch);
+      final progressPercent = (progress * 100).round().clamp(0, 100);
+      return '$chapter sedang diunduh - $progressPercent%';
+    }
     return '$chapter ada di wishlist offline, belum tersedia di perangkat ini';
   }
 
@@ -1091,7 +1233,6 @@ class _DownloadEntryTile extends ConsumerWidget {
             ],
           );
       ref.invalidate(downloadsProvider);
-      ref.invalidate(offlineQueueProvider);
       if (context.mounted) {
         _showMessage(context, 'Chapter masuk antrean download perangkat ini.');
       }
@@ -1101,13 +1242,31 @@ class _DownloadEntryTile extends ConsumerWidget {
   }
 
   Future<void> _deleteEntry(BuildContext context, WidgetRef ref) async {
-    try {
-      await ref.read(libraryRepositoryProvider).deleteDownloadEntry(entry);
-      ref.invalidate(downloadsProvider);
-      if (context.mounted) _showMessage(context, 'Wishlist offline dihapus.');
-    } catch (error, stackTrace) {
-      if (context.mounted) showLibraryActionError(context, error, stackTrace);
-    }
+    final chapterLabel = formatChapterNumber(entry.chapterNumber);
+    final confirmed = await showTonztoonAsyncConfirmDialog(
+      context,
+      title: 'Hapus wishlist offline',
+      message:
+          'Hapus "${entry.comic.title}" chapter $chapterLabel dari wishlist offline?',
+      helperText:
+          'Status wishlist akan dihapus. File lokal yang sudah tersedia di perangkat tidak ikut terhapus.',
+      helperIcon: TonztoonIcons.trash,
+      cancelLabel: 'Batal',
+      confirmLabel: 'Hapus',
+      variant: TonztoonModalVariant.danger,
+      art: TonztoonModalArt.trash,
+      onConfirm: () async {
+        await ref.read(libraryRepositoryProvider).deleteDownloadEntry(entry);
+        await _reloadDownloadsAfterDelete(ref);
+      },
+      onError: (error, stackTrace) {
+        if (context.mounted) {
+          showLibraryActionError(context, error, stackTrace);
+        }
+      },
+    );
+    if (!context.mounted || confirmed != true) return;
+    _returnToDownloadsAfterDelete(context, 'Wishlist offline dihapus.');
   }
 }
 
@@ -1184,7 +1343,7 @@ class _DownloadEntryGroupTile extends StatelessWidget {
   }
 }
 
-class _DownloadEntryGroupScreen extends StatelessWidget {
+class _DownloadEntryGroupScreen extends ConsumerWidget {
   const _DownloadEntryGroupScreen({
     required this.group,
     required this.localKeys,
@@ -1196,7 +1355,17 @@ class _DownloadEntryGroupScreen extends StatelessWidget {
   final bool allowDelete;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final liveLocalKeys =
+        ref
+            .watch(offlineChaptersProvider)
+            .asData
+            ?.value
+            .where((chapter) => chapter.isCompleted)
+            .map(_offlineChapterKey)
+            .toSet() ??
+        localKeys;
+
     return Scaffold(
       appBar: AppBar(title: Text(group.comic.title)),
       body: ListView(
@@ -1211,9 +1380,10 @@ class _DownloadEntryGroupScreen extends StatelessWidget {
           for (final entry in group.entries) ...[
             _DownloadEntryTile(
               entry: entry,
-              hasLocalFile: localKeys.contains(_downloadEntryKey(entry)),
+              hasLocalFile: liveLocalKeys.contains(_downloadEntryKey(entry)),
               allowDelete:
-                  allowDelete && !localKeys.contains(_downloadEntryKey(entry)),
+                  allowDelete &&
+                  !liveLocalKeys.contains(_downloadEntryKey(entry)),
             ),
             const SizedBox(height: 12),
           ],
@@ -1378,4 +1548,23 @@ void _showMessage(BuildContext context, String message) {
     type: AppSnackBarType.success,
     hideCurrent: false,
   );
+}
+
+void _returnToDownloadsAfterDelete(BuildContext context, String message) {
+  final navigator = Navigator.of(context);
+  final router = GoRouter.of(context);
+  _showMessage(context, message);
+  navigator.popUntil((route) => route.isFirst);
+  router.go(libraryDownloadsLocation);
+}
+
+Future<void> _reloadDownloadsAfterDelete(WidgetRef ref) async {
+  ref.invalidate(downloadsProvider);
+  ref.invalidate(offlineChaptersProvider);
+  ref.invalidate(librarySummaryProvider);
+  await Future.wait([
+    ref.read(downloadsProvider.future),
+    ref.read(offlineChaptersProvider.future),
+    ref.read(librarySummaryProvider.future),
+  ]);
 }

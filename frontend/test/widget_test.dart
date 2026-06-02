@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'package:tonztoon/src/core/storage.dart';
 import 'package:tonztoon/src/core/token_store.dart';
 import 'package:tonztoon/src/features/auth/auth_screen.dart';
 import 'package:tonztoon/src/features/comic/comic_detail_screen.dart';
+import 'package:tonztoon/src/features/library/library_shared_panes.dart';
 import 'package:tonztoon/src/features/notifications/notifications_screen.dart';
 import 'package:tonztoon/src/features/reader/reader_screen.dart';
 import 'package:tonztoon/src/models/comic.dart';
@@ -17,6 +19,7 @@ import 'package:tonztoon/src/models/source_info.dart';
 import 'package:tonztoon/src/repositories/catalog_repository.dart';
 import 'package:tonztoon/src/repositories/providers.dart';
 import 'package:tonztoon/src/routing/app_router.dart';
+import 'package:tonztoon/src/widgets/tonztoon_modal_dialog.dart';
 
 void main() {
   late Directory hiveDir;
@@ -207,6 +210,249 @@ void main() {
 
     expect(find.byType(ReaderScreen), findsOneWidget);
   });
+
+  testWidgets('wishlist download shows active chapter progress', (
+    tester,
+  ) async {
+    await _pumpWishlistDownloads(
+      tester,
+      _wishlistBatch(status: 'downloading', progressValue: 0.42),
+    );
+
+    expect(find.text('Ch 12 sedang diunduh - 42%'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byTooltip('Download ke perangkat ini'), findsNothing);
+  });
+
+  testWidgets('wishlist paused download shows resume action', (tester) async {
+    await _pumpWishlistDownloads(
+      tester,
+      _wishlistBatch(status: 'paused', progressValue: 0.42),
+    );
+
+    expect(
+      find.text('Ch 12 dijeda, tekan lanjutkan untuk resume'),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('Lanjutkan download'), findsOneWidget);
+    expect(find.byTooltip('Download ke perangkat ini'), findsNothing);
+  });
+
+  testWidgets('wishlist failed download shows retry action', (tester) async {
+    await _pumpWishlistDownloads(
+      tester,
+      _wishlistBatch(status: 'failed', progressValue: 0.42),
+    );
+
+    expect(find.text('Ch 12 gagal diunduh, tekan coba lagi'), findsOneWidget);
+    expect(find.byTooltip('Coba lagi download'), findsOneWidget);
+    expect(find.byTooltip('Download ke perangkat ini'), findsNothing);
+  });
+
+  testWidgets('failed queue exposes retry menu action', (tester) async {
+    await _pumpWishlistDownloads(
+      tester,
+      _wishlistBatch(status: 'failed', progressValue: 0.42),
+      false,
+    );
+
+    await tester.tap(find.byTooltip('Opsi unduhan'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Coba lagi'), findsOneWidget);
+  });
+
+  testWidgets('failed local record stays out of ready files and allows retry', (
+    tester,
+  ) async {
+    await _pumpWishlistDownloads(
+      tester,
+      _wishlistBatch(status: 'failed', progressValue: 0),
+      false,
+      [_offlineChapter(status: 'failed')],
+    );
+
+    expect(find.text('0 aktif'), findsOneWidget);
+    expect(find.text('File lokal'), findsNothing);
+    expect(find.text('1 chapter wishlist, 0 tersedia lokal'), findsOneWidget);
+
+    await tester.tap(find.text('Solo Leveling').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ch 12 gagal diunduh, tekan coba lagi'), findsOneWidget);
+    expect(find.byTooltip('Coba lagi download'), findsOneWidget);
+  });
+
+  testWidgets('wishlist delete asks for confirmation', (tester) async {
+    await _pumpWishlistDownloads(tester);
+
+    await tester.tap(find.byTooltip('Hapus wishlist offline'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Hapus wishlist offline'), findsOneWidget);
+    expect(
+      find.text('Hapus "Solo Leveling" chapter 12 dari wishlist offline?'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('offline file delete asks for confirmation', (tester) async {
+    await _pumpOfflineDownloads(tester);
+
+    await tester.tap(find.byTooltip('Hapus file offline'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Hapus unduhan offline'), findsOneWidget);
+    expect(
+      find.text('Hapus "Solo Leveling" chapter 12 dari perangkat ini?'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('download queue delete asks for confirmation', (tester) async {
+    await _pumpWishlistDownloads(
+      tester,
+      _wishlistBatch(status: 'downloading', progressValue: 0.42),
+      false,
+    );
+
+    await tester.tap(find.byTooltip('Opsi unduhan'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hapus'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Hapus antrean unduhan'), findsOneWidget);
+    expect(
+      find.text('Hapus antrean unduhan "Solo Leveling" dari perangkat ini?'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('delete dialog stays open and shows spinner while processing', (
+    tester,
+  ) async {
+    final deletion = Completer<void>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showTonztoonAsyncConfirmDialog(
+                context,
+                title: 'Hapus wishlist offline',
+                message: 'Hapus chapter ini?',
+                confirmLabel: 'Hapus',
+                onConfirm: () => deletion.future,
+              ),
+              child: const Text('Buka dialog'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Buka dialog'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hapus'));
+    await tester.pump();
+
+    expect(find.text('Hapus wishlist offline'), findsOneWidget);
+    expect(find.text('Hapus'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byTooltip('Tutup'), findsNothing);
+
+    deletion.complete();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Hapus wishlist offline'), findsNothing);
+  });
+}
+
+const _wishlistEntry = DownloadEntry(
+  id: 1,
+  comic: LibraryComicRef(
+    sourceName: 'komiku',
+    slug: 'solo-leveling',
+    title: 'Solo Leveling',
+  ),
+  chapterNumber: 12,
+  status: 'pending',
+);
+
+OfflineDownloadBatch _wishlistBatch({
+  required String status,
+  required double progressValue,
+}) {
+  final now = DateTime.now();
+  return OfflineDownloadBatch(
+    id: 'wishlist-batch',
+    comic: _wishlistEntry.comic,
+    chapterNumbers: const [12],
+    status: status,
+    completedChapters: 0,
+    totalChapters: 1,
+    completedImages: 0,
+    totalImages: 10,
+    progressValue: progressValue,
+    createdAt: now,
+    updatedAt: now,
+  );
+}
+
+Future<void> _pumpWishlistDownloads(
+  WidgetTester tester, [
+  OfflineDownloadBatch? batch,
+  bool openWishlist = true,
+  List<OfflineChapter> offlineChapters = const [],
+]) async {
+  final batches = batch == null ? const <OfflineDownloadBatch>[] : [batch];
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        offlineChaptersProvider.overrideWith((ref) async => offlineChapters),
+        downloadsProvider.overrideWith((ref) async => const [_wishlistEntry]),
+        offlineQueueProvider.overrideWith(
+          () => _FakeOfflineQueueController(batches),
+        ),
+      ],
+      child: const MaterialApp(
+        home: Scaffold(body: OfflineDownloadsPane(padding: EdgeInsets.all(16))),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+  if (!openWishlist) return;
+  await tester.tap(find.text('Solo Leveling').last);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _pumpOfflineDownloads(WidgetTester tester) async {
+  final chapter = _offlineChapter(status: 'completed');
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        offlineChaptersProvider.overrideWith((ref) async => [chapter]),
+        downloadsProvider.overrideWith((ref) async => const []),
+        offlineQueueProvider.overrideWith(_FakeOfflineQueueController.new),
+      ],
+      child: const MaterialApp(
+        home: Scaffold(body: OfflineDownloadsPane(padding: EdgeInsets.all(16))),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Solo Leveling').last);
+  await tester.pumpAndSettle();
+}
+
+OfflineChapter _offlineChapter({required String status}) {
+  return OfflineChapter(
+    comic: _wishlistEntry.comic,
+    chapterNumber: 12,
+    status: status,
+    localPaths: status == 'completed' ? const ['offline-page.jpg'] : const [],
+    updatedAt: DateTime.now(),
+  );
 }
 
 ProviderContainer _testContainer() {
@@ -234,8 +480,12 @@ ProviderContainer _testContainer() {
 }
 
 class _FakeOfflineQueueController extends OfflineQueueController {
+  _FakeOfflineQueueController([this.batches = const []]);
+
+  final List<OfflineDownloadBatch> batches;
+
   @override
-  Future<List<OfflineDownloadBatch>> build() async => const [];
+  Future<List<OfflineDownloadBatch>> build() async => batches;
 }
 
 class _FakeCatalogRepository implements CatalogRepository {
