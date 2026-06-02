@@ -188,7 +188,7 @@ void main() {
         child: const TonztoonApp(),
       ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.byType(ComicDetailScreen), findsOneWidget);
     expect(find.text('Daftar Chapter'), findsOneWidget);

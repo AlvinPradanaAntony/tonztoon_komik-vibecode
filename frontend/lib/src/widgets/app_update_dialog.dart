@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:ota_update/ota_update.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -226,6 +227,7 @@ class _ReleaseNotes extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final colorScheme = Theme.of(context).colorScheme;
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -237,11 +239,35 @@ class _ReleaseNotes extends StatelessWidget {
         child: Scrollbar(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(14),
-            child: Text(
-              notes,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(height: 1.45),
+            child: MarkdownBody(
+              data: notes,
+              selectable: true,
+              styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
+                p: theme.textTheme.bodySmall?.copyWith(height: 1.45),
+                h1: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+                h2: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+                h3: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+                listBullet: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.primary,
+                  fontWeight: FontWeight.w900,
+                ),
+                strong: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+                blockSpacing: 9,
+                listIndent: 18,
+              ),
+              onTapLink: (text, href, title) {
+                final uri = href == null ? null : Uri.tryParse(href);
+                if (uri == null) return;
+                unawaited(launchUrl(uri, mode: LaunchMode.externalApplication));
+              },
             ),
           ),
         ),

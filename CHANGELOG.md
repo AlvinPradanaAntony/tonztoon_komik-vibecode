@@ -6,29 +6,55 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
-## [1.11.0] - 2026-05-25
+## [1.12.0] - 2026-06-02
 
 ### Added
-- Login email/password kini mendukung identifier berupa email atau username publik.
-- Sistem `TonztoonModalDialog` terpadu untuk dialog konfirmasi, notifikasi, helper text, loading action, dan support action.
-- Asset ilustrasi dialog baru untuk auth error, setup akun/password, sinkronisasi cloud, logout, hapus data, email, dan profile editing.
-- Validasi login baru di frontend untuk field "Email atau username".
+- Sistem update aplikasi OTA dari GitHub Releases, lengkap dengan pengecekan otomatis saat startup, pengecekan manual, dialog update, changelog terpasang, dan instalasi APK Android.
+- Source scraper cadangan Kiryuu beserta registry source aktif/cadangan, observability source, dan skrip backfill metadata.
+- Pagination untuk bookmarks, history per chapter, dan continue reading, termasuk summary Library serta halaman penuh continue reading.
+- Lazy-load image queue Komiku Asia dengan worker background dalam proses FastAPI dan status persiapan chapter di frontend.
+- Preferensi push notification end-to-end dari profile backend hingga toggle Settings dan deep link notifikasi.
+- Statistik aktivitas source, tanggal rilis chapter terbaru, serta badge `NEW` untuk update komik terkini.
+- Dukungan dimensi intrinsik gambar chapter untuk menjaga aspect ratio reader dan mengurangi layout shift.
 
 ### Changed
-- Backend auth kini resolve username ke email sebelum melakukan login Supabase password grant.
-- Dialog Auth, Settings, Library, shell, dan migrasi guest dipindahkan ke desain modal TonzToon yang konsisten.
-- Pesan error login diperjelas dengan aksi reset password langsung dari dialog.
-- Reader preferences otomatis direfresh setelah login agar pengaturan akun segera tersinkron.
+- Riwayat baca backend kini disimpan per chapter agar daftar aktivitas lebih granular dan mudah dipaginasi.
+- Pemrosesan lazy image Komiku Asia dipindahkan dari GitHub Actions ke worker asyncio FastAPI untuk memangkas waktu tunggu pengguna.
+- Reader memakai metadata width/height, resize constraint untuk strip resolusi tinggi, dan fallback ratio yang lebih stabil.
+- Offline download pane membedakan antrean aktif dan file lokal siap baca, mendukung retry batch gagal, serta mencegah duplikasi chapter.
+- Default `mark_read_on_complete` diaktifkan kembali dan pengelolaan notifikasi lokal disatukan dalam `PushNotificationService`.
 
 ### Fixed
-- Perubahan username setelah pembuatan akun dibatasi agar identitas publik tetap stabil.
-- Relation preview account manager kini menyertakan status `mark_read`.
-- Preservasi cover storage di scraper diperluas agar tidak mudah tertimpa URL source.
+- Request chapter Komiku Asia yang belum siap kini mengembalikan status `202 Accepted` dan otomatis dicoba ulang oleh frontend.
+- Reader tidak lagi bergantung penuh pada perhitungan fallback ukuran gambar yang dapat menyebabkan pergeseran layout.
+- Antrean download offline gagal dapat dilanjutkan kembali dengan progress berdasarkan jumlah gambar.
+- API client membaca pesan error backend bertingkat dengan lebih baik.
 
 ---
 
 <details>
 <summary><strong>Riwayat versi sebelumnya</strong></summary>
+
+### [1.11.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.11.0) - 2026-05-25
+
+#### Added
+- Login email/password kini mendukung identifier berupa email atau username publik.
+- Sistem `TonztoonModalDialog` terpadu untuk dialog konfirmasi, notifikasi, helper text, loading action, dan support action.
+- Asset ilustrasi dialog baru untuk auth error, setup akun/password, sinkronisasi cloud, logout, hapus data, email, dan profile editing.
+- Validasi login baru di frontend untuk field "Email atau username".
+
+#### Changed
+- Backend auth kini resolve username ke email sebelum melakukan login Supabase password grant.
+- Dialog Auth, Settings, Library, shell, dan migrasi guest dipindahkan ke desain modal TonzToon yang konsisten.
+- Pesan error login diperjelas dengan aksi reset password langsung dari dialog.
+- Reader preferences otomatis direfresh setelah login agar pengaturan akun segera tersinkron.
+
+#### Fixed
+- Perubahan username setelah pembuatan akun dibatasi agar identitas publik tetap stabil.
+- Relation preview account manager kini menyertakan status `mark_read`.
+- Preservasi cover storage di scraper diperluas agar tidak mudah tertimpa URL source.
+
+---
 
 ### [1.10.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.10.0) - 2026-05-24
 
