@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/api_client.dart';
 import '../core/app_navigation.dart';
+import '../core/app_update_service.dart';
 import '../core/avatar_image.dart';
 import '../core/config.dart';
 import '../core/push_notification_service.dart';
@@ -31,6 +32,13 @@ final configProvider = Provider<AppConfig>(
 );
 
 final localStoreProvider = Provider<LocalStore>((ref) => LocalStore());
+
+final appUpdateServiceProvider = Provider<AppUpdateService>((ref) {
+  return AppUpdateService(
+    githubRepository: ref.watch(configProvider).githubRepository,
+    store: ref.watch(localStoreProvider),
+  );
+});
 
 final pushNotificationPreferencesProvider =
     NotifierProvider<

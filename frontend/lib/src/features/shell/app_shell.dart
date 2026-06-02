@@ -3,9 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/app_error.dart';
 import '../../core/app_navigation.dart';
 import '../../core/app_icons.dart';
 import '../../repositories/providers.dart';
+import '../../widgets/app_update_dialog.dart';
 import '../../widgets/tonztoon_modal_dialog.dart';
 
 class AppShell extends ConsumerStatefulWidget {
@@ -26,6 +28,9 @@ class _AppShellState extends ConsumerState<AppShell> {
   void initState() {
     super.initState();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _runStartupUpdateFlow(),
+    );
   }
 
   @override
@@ -183,6 +188,29 @@ class _AppShellState extends ConsumerState<AppShell> {
     _exitDialogOpen = false;
     if (!mounted || shouldExit != true) return;
     await SystemNavigator.pop();
+  }
+
+  Future<void> _runStartupUpdateFlow() async {
+    if (!isSupportedUpdatePlatform) return;
+    final service = ref.read(appUpdateServiceProvider);
+    try {
+      final changelog = await service.consumeInstalledChangelog();
+      if (!mounted) return;
+      if (changelog != null) {
+        await showInstalledChangelogDialog(context, release: changelog);
+      }
+
+      if (!mounted) return;
+      final release = await service.checkForUpdate();
+      if (!mounted || release == null) return;
+      await showAppUpdateDialog(context, release: release, service: service);
+    } catch (error, stackTrace) {
+      logAppError(
+        error,
+        stackTrace,
+        context: 'Startup app update check failed',
+      );
+    }
   }
 }
 

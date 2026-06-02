@@ -18,6 +18,7 @@ import '../../repositories/providers.dart';
 import '../../widgets/app_async_view.dart';
 import '../../widgets/app_loading_placeholder.dart';
 import '../../widgets/guest_migration_dialog.dart';
+import '../../widgets/app_update_dialog.dart';
 import '../../widgets/tonztoon_modal_dialog.dart';
 import '../library/library_shared_panes.dart';
 
@@ -40,6 +41,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late final Future<PackageInfo> _packageInfoFuture;
   bool _loggingOut = false;
+  bool _checkingForUpdate = false;
   bool _profileSetupPromptInFlight = false;
   String? _passwordSetupCheckedUserId;
   String? _usernameSetupCheckedUserId;
@@ -198,7 +200,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               const SizedBox(height: 24),
               const _SectionLabel(text: 'About'),
               const SizedBox(height: 8),
-              _AppVersionSection(packageInfoFuture: _packageInfoFuture),
+              _AppVersionSection(
+                packageInfoFuture: _packageInfoFuture,
+                checkingForUpdate: _checkingForUpdate,
+                onCheckForUpdate: _checkForUpdates,
+              ),
             ],
           );
         },
@@ -288,6 +294,43 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         logContext: 'Clear catalog cache failed',
         fallbackMessage: 'Cache belum dapat dibersihkan. Silakan coba lagi.',
       );
+    }
+  }
+
+  Future<void> _checkForUpdates() async {
+    if (_checkingForUpdate) return;
+    setState(() => _checkingForUpdate = true);
+    try {
+      final service = ref.read(appUpdateServiceProvider);
+      final release = await service.checkForUpdate();
+      if (!mounted) return;
+      if (release == null) {
+        await showTonztoonNoticeDialog(
+          context,
+          eyebrow: 'Pembaruan Aplikasi',
+          title: 'TonzToon sudah terbaru',
+          message: 'Tidak ada versi baru yang perlu dipasang saat ini.',
+          helperText: 'Kamu sudah memakai rilis TonzToon paling baru.',
+          helperIcon: TonztoonIcons.badgeCheck,
+          primaryLabel: 'OK',
+          variant: TonztoonModalVariant.success,
+          art: TonztoonModalArt.cloudSync,
+        );
+        return;
+      }
+      await showAppUpdateDialog(context, release: release, service: service);
+    } catch (error, stackTrace) {
+      if (!mounted) return;
+      showAppErrorSnackBar(
+        context,
+        error: error,
+        stackTrace: stackTrace,
+        logContext: 'Manual app update check failed',
+        fallbackMessage:
+            'Pembaruan belum dapat diperiksa. Pastikan koneksi internet aktif.',
+      );
+    } finally {
+      if (mounted) setState(() => _checkingForUpdate = false);
     }
   }
 
@@ -2406,9 +2449,15 @@ class _SectionLabel extends StatelessWidget {
 }
 
 class _AppVersionSection extends StatelessWidget {
-  const _AppVersionSection({required this.packageInfoFuture});
+  const _AppVersionSection({
+    required this.packageInfoFuture,
+    required this.checkingForUpdate,
+    required this.onCheckForUpdate,
+  });
 
   final Future<PackageInfo> packageInfoFuture;
+  final bool checkingForUpdate;
+  final VoidCallback onCheckForUpdate;
 
   @override
   Widget build(BuildContext context) {
@@ -2437,6 +2486,19 @@ class _AppVersionSection extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                 ),
               ),
+            ),
+            const _SettingsDivider(),
+            _SettingsRow(
+              icon: Icons.system_update_alt_rounded,
+              title: 'Check for Update',
+              subtitle: 'Periksa rilis terbaru dari GitHub',
+              trailing: checkingForUpdate
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : null,
+              onTap: checkingForUpdate ? null : onCheckForUpdate,
             ),
           ],
         );
