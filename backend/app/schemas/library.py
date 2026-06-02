@@ -7,7 +7,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 READING_MODE = Literal["vertical", "paged"]
@@ -20,6 +20,11 @@ DOWNLOAD_STATUS = Literal[
     "cancelled",
     "missing",
 ]
+DOWNLOAD_BATCH_MAX_CHAPTER_NUMBERS = 5_000
+SYNC_IMPORT_CATEGORY_MAX_ITEMS = 2_000
+SYNC_IMPORT_MAX_COLLECTIONS = 200
+SYNC_IMPORT_MAX_COMICS_PER_COLLECTION = 1_000
+SYNC_IMPORT_MAX_TOTAL_ITEMS = 10_000
 
 
 class ComicSelector(BaseModel):
@@ -250,6 +255,7 @@ class DownloadBatchRequest(ComicSelector):
 
     chapter_numbers: list[float] | None = Field(
         default=None,
+        max_length=DOWNLOAD_BATCH_MAX_CHAPTER_NUMBERS,
         description="Jika kosong, backend akan enqueue semua chapter komik.",
     )
     status: DOWNLOAD_STATUS = "pending"
@@ -306,7 +312,10 @@ class SyncCollectionImport(BaseModel):
     """Payload koleksi untuk import migrasi local -> cloud."""
 
     name: str = Field(..., min_length=1, max_length=120)
-    comics: list[ComicSelector] = Field(default_factory=list)
+    comics: list[ComicSelector] = Field(
+        default_factory=list,
+        max_length=SYNC_IMPORT_MAX_COMICS_PER_COLLECTION,
+    )
 
     @field_validator("name")
     @classmethod
@@ -320,17 +329,54 @@ class SyncCollectionImport(BaseModel):
 class LibrarySyncImportRequest(BaseModel):
     """Batch import snapshot library untuk one-time migration."""
 
-    bookmarks: list[ComicSelector] = Field(default_factory=list)
-    collections: list[SyncCollectionImport] = Field(default_factory=list)
-    progress: list[ProgressUpsertRequest] = Field(default_factory=list)
-    history: list[ProgressUpsertRequest] = Field(default_factory=list)
-    completed_chapters: list[CompletedChapterImportRequest] = Field(
-        default_factory=list
+    bookmarks: list[ComicSelector] = Field(
+        default_factory=list,
+        max_length=SYNC_IMPORT_CATEGORY_MAX_ITEMS,
     )
-    favorite_scenes: list[FavoriteSceneCreateRequest] = Field(default_factory=list)
-    downloads: list[DownloadEntryUpsertRequest] = Field(default_factory=list)
+    collections: list[SyncCollectionImport] = Field(
+        default_factory=list,
+        max_length=SYNC_IMPORT_MAX_COLLECTIONS,
+    )
+    progress: list[ProgressUpsertRequest] = Field(
+        default_factory=list,
+        max_length=SYNC_IMPORT_CATEGORY_MAX_ITEMS,
+    )
+    history: list[ProgressUpsertRequest] = Field(
+        default_factory=list,
+        max_length=SYNC_IMPORT_CATEGORY_MAX_ITEMS,
+    )
+    completed_chapters: list[CompletedChapterImportRequest] = Field(
+        default_factory=list,
+        max_length=SYNC_IMPORT_CATEGORY_MAX_ITEMS,
+    )
+    favorite_scenes: list[FavoriteSceneCreateRequest] = Field(
+        default_factory=list,
+        max_length=SYNC_IMPORT_CATEGORY_MAX_ITEMS,
+    )
+    downloads: list[DownloadEntryUpsertRequest] = Field(
+        default_factory=list,
+        max_length=SYNC_IMPORT_CATEGORY_MAX_ITEMS,
+    )
     reader_preferences: ReaderPreferenceUpdateRequest | None = None
     reading_time_seconds: int = Field(default=0, ge=0)
+
+    @model_validator(mode="after")
+    def validate_total_items(self) -> LibrarySyncImportRequest:
+        total_items = (
+            len(self.bookmarks)
+            + len(self.collections)
+            + sum(len(collection.comics) for collection in self.collections)
+            + len(self.progress)
+            + len(self.history)
+            + len(self.completed_chapters)
+            + len(self.favorite_scenes)
+            + len(self.downloads)
+        )
+        if total_items > SYNC_IMPORT_MAX_TOTAL_ITEMS:
+            raise ValueError(
+                f"Snapshot library maksimal {SYNC_IMPORT_MAX_TOTAL_ITEMS} item."
+            )
+        return self
 
 
 class LibrarySyncImportResponse(BaseModel):

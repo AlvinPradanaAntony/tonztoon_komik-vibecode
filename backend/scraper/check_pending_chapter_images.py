@@ -17,21 +17,16 @@ import json
 import sys
 from pathlib import Path
 
-from sqlalchemy import case, func, or_, select
-from sqlalchemy.dialects.postgresql import JSONPATH
-from sqlalchemy.sql import cast
+from sqlalchemy import func, select
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.database import async_session
 from app.models import Chapter, Comic
+from app.services.chapter_service import chapter_images_are_invalid_expression
 from scraper.sources.registry import get_supported_source_names
 
 SUPPORTED_SOURCES = tuple(get_supported_source_names())
-INVALID_IMAGES_JSONPATH = cast(
-    '$[*] ? (!exists(@.page) || !exists(@.url) || @.url == "")',
-    JSONPATH,
-)
 
 
 def parse_args(argv: list[str]) -> dict:
@@ -62,24 +57,12 @@ def parse_args(argv: list[str]) -> dict:
 
 
 async def collect_pending_stats(source_name: str | None = None) -> dict:
-    invalid_images = case(
-        (Chapter.images.is_(None), True),
-        (func.jsonb_typeof(Chapter.images) != "array", True),
-        else_=or_(
-            func.jsonb_array_length(Chapter.images) == 0,
-            func.jsonb_path_exists(
-                Chapter.images,
-                INVALID_IMAGES_JSONPATH,
-            ),
-        ),
-    )
-
     async with async_session() as session:
         total_stmt = (
             select(func.count())
             .select_from(Chapter)
             .join(Comic, Comic.id == Chapter.comic_id)
-            .where(invalid_images)
+            .where(chapter_images_are_invalid_expression())
         )
         if source_name:
             total_stmt = total_stmt.where(Comic.source_name == source_name)
@@ -90,7 +73,7 @@ async def collect_pending_stats(source_name: str | None = None) -> dict:
             select(Comic.source_name, func.count())
             .select_from(Chapter)
             .join(Comic, Comic.id == Chapter.comic_id)
-            .where(invalid_images)
+            .where(chapter_images_are_invalid_expression())
             .group_by(Comic.source_name)
             .order_by(Comic.source_name.asc())
         )

@@ -16,11 +16,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.services.image_service import (
+    ImageProxyPayloadTooLargeError,
+    ImageProxyValidationError,
     extract_komikcast_series_slug_from_cover_url,
-    get_proxy_headers,
+    open_validated_image_proxy_response,
     refresh_komikcast_cover_url,
+    stream_image_response_with_limit,
     update_komikcast_cover_url_for_slug,
 )
+from app.services.http_client_service import get_image_proxy_http_client
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -39,25 +43,21 @@ async def proxy_image(
     2. Backend fetch gambar dari server asli dengan header Referer yang benar
     3. Response di-stream langsung ke client tanpa buffering penuh di RAM
     """
-    if not url.startswith("http"):
-        raise HTTPException(status_code=400, detail="Invalid image URL")
-
-    client = httpx.AsyncClient(follow_redirects=True, timeout=30.0)
-    response: httpx.Response | None = None
+    client = get_image_proxy_http_client()
+    proxy_result = None
     try:
-        request = client.build_request("GET", url, headers=get_proxy_headers(url))
-        response = await client.send(request, stream=True)
+        proxy_result = await open_validated_image_proxy_response(url, client=client)
+        response = proxy_result.response
 
         if response.status_code != 200:
             await response.aclose()
             fresh_url = await refresh_komikcast_cover_url(client, url)
             if fresh_url:
-                request = client.build_request(
-                    "GET",
+                proxy_result = await open_validated_image_proxy_response(
                     fresh_url,
-                    headers=get_proxy_headers(fresh_url),
+                    client=client,
                 )
-                response = await client.send(request, stream=True)
+                response = proxy_result.response
                 if response.status_code == 200:
                     slug = extract_komikcast_series_slug_from_cover_url(url)
                     if slug:
@@ -73,53 +73,41 @@ async def proxy_image(
                                 "Failed to persist refreshed Komikcast cover URL for slug=%s",
                                 slug,
                             )
-                    url = fresh_url
                 else:
                     await response.aclose()
-                    await client.aclose()
                     raise HTTPException(
                         status_code=response.status_code,
                         detail="Failed to fetch refreshed image from source",
                     )
             else:
-                await client.aclose()
                 raise HTTPException(
                     status_code=response.status_code,
                     detail="Failed to fetch image from source",
                 )
 
         if response.status_code != 200:
-            await client.aclose()
             raise HTTPException(
                 status_code=response.status_code,
                 detail="Failed to fetch image from source",
             )
 
-        content_type = response.headers.get("content-type", "image/jpeg")
-
-        async def stream_content():
-            try:
-                async for chunk in response.aiter_bytes():
-                    yield chunk
-            finally:
-                await response.aclose()
-                await client.aclose()
-
         return StreamingResponse(
-            stream_content(),
-            media_type=content_type,
+            stream_image_response_with_limit(response),
+            media_type=proxy_result.content_type,
             headers={
                 "Cache-Control": "public, max-age=86400",  # 24h cache
             },
         )
 
+    except ImageProxyPayloadTooLargeError as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
+    except ImageProxyValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except httpx.TimeoutException:
-        if response is not None:
-            await response.aclose()
-        await client.aclose()
+        if proxy_result is not None:
+            await proxy_result.response.aclose()
         raise HTTPException(status_code=504, detail="Image source timed out")
     except httpx.RequestError as e:
-        if response is not None:
-            await response.aclose()
-        await client.aclose()
+        if proxy_result is not None:
+            await proxy_result.response.aclose()
         raise HTTPException(status_code=502, detail=f"Failed to fetch image: {str(e)}")

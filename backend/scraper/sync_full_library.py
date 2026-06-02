@@ -98,18 +98,17 @@ from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select, update
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 # Tambahkan parent directory ke path agar bisa import app.*
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.database import async_session
-from app.models import Chapter, Comic, comic_genre
+from app.models import Comic
 from app.schemas import ComicCreate
 from app.services.image_service import is_public_supabase_storage_url
 
 from scraper.base_scraper import BaseComicScraper
-from scraper.db_ops import upsert_comic, upsert_genre
+from scraper.db_ops import sync_comic_genres, upsert_chapter_metadata_many, upsert_comic
 from scraper.sources.registry import create_scraper, get_supported_source_names
 from scraper.time_utils import now_wib
 from scraper.utils import (
@@ -693,6 +692,7 @@ async def save_chapter_metadata(
         1 if any(chapter.get("source_url", "") for chapter in chapters_data) else 0
     )
 
+    valid_chapters: list[dict[str, Any]] = []
     for chapter_index, ch_data in enumerate(chapters_data, start=1):
         ch_num = ch_data.get("chapter_number", 0)
         ch_url = ch_data.get("source_url", "")
@@ -714,23 +714,7 @@ async def save_chapter_metadata(
                 f"upsert ch {ch_num}"
             )
 
-        stmt = pg_insert(Chapter).values(
-            comic_id=comic_id,
-            chapter_number=ch_num,
-            title=ch_data.get("title"),
-            source_url=ch_url,
-            release_date=ch_data.get("release_date"),
-            created_at=now_wib(),
-        )
-        stmt = stmt.on_conflict_do_update(
-            constraint="uq_comic_chapter",
-            set_={
-                "title": ch_data.get("title"),
-                "source_url": ch_url,
-                "release_date": ch_data.get("release_date"),
-            },
-        )
-        await session.execute(stmt)
+        valid_chapters.append(ch_data)
         ch_saved += 1
         if progress is not None:
             progress.advance(
@@ -745,6 +729,7 @@ async def save_chapter_metadata(
             progress.set_detail(
                 f"commit final | langkah {total_progress_steps}/{total_progress_steps}"
             )
+        await upsert_chapter_metadata_many(session, comic_id, valid_chapters)
         await session.commit()
         if progress is not None:
             progress.advance(
@@ -948,23 +933,17 @@ async def process_comic(
                 "commit transaksi (tanpa genre)"
             )
 
-        for genre_index, genre_name in enumerate(validated.genres, start=1):
-            genre_step = genre_index + 1
+        if genre_total:
             upsert_progress.set_detail(
-                f"genre {genre_index}/{genre_total} | "
-                f"langkah {genre_step}/{upsert_total_steps}: {genre_name}"
+                f"langkah 2/{upsert_total_steps}: bulk sinkron {genre_total} genre"
             )
-            genre_id = await upsert_genre(session, genre_name)
-            genre_link = pg_insert(comic_genre).values(
-                comic_id=comic_id,
-                genre_id=genre_id,
-            )
-            genre_link = genre_link.on_conflict_do_nothing()
-            await session.execute(genre_link)
-            upsert_progress.advance(
-                f"genre {genre_index}/{genre_total} | "
-                f"langkah {genre_step}/{upsert_total_steps}: tersinkron"
-            )
+            await sync_comic_genres(session, comic_id, validated.genres)
+            for genre_index, genre_name in enumerate(validated.genres, start=1):
+                genre_step = genre_index + 1
+                upsert_progress.advance(
+                    f"genre {genre_index}/{genre_total} | "
+                    f"langkah {genre_step}/{upsert_total_steps}: {genre_name}"
+                )
 
         upsert_progress.set_detail(
             f"commit final | langkah {upsert_total_steps}/{upsert_total_steps}"

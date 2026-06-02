@@ -12,6 +12,7 @@ import httpx
 from PIL import Image, UnidentifiedImageError
 
 from app.config import settings
+from app.services.http_client_service import get_shared_http_client
 
 
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
@@ -119,36 +120,37 @@ async def upload_avatar(*, user_id: UUID, content: bytes) -> str:
         "x-upsert": "true",
     }
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        for attempt in range(UPLOAD_MAX_ATTEMPTS):
-            try:
-                response = await client.put(
-                    upload_url,
-                    content=optimized,
-                    headers=headers,
-                )
-            except httpx.RequestError as exc:
-                if attempt < UPLOAD_MAX_ATTEMPTS - 1:
-                    continue
-                raise AvatarStorageError(
-                    "Upload avatar ke storage gagal.",
-                    status_code=502,
-                ) from exc
-
-            if response.status_code in {200, 201}:
-                return f"{_public_storage_url(bucket, object_path)}?v={version}"
-
-            retryable = response.status_code in {429, 500, 502, 503, 504}
-            if retryable and attempt < UPLOAD_MAX_ATTEMPTS - 1:
+    client = get_shared_http_client()
+    for attempt in range(UPLOAD_MAX_ATTEMPTS):
+        try:
+            response = await client.put(
+                upload_url,
+                content=optimized,
+                headers=headers,
+                timeout=30.0,
+            )
+        except httpx.RequestError as exc:
+            if attempt < UPLOAD_MAX_ATTEMPTS - 1:
                 continue
-
-            message = (
-                f"Upload avatar gagal status={response.status_code}: "
-                f"{response.text[:200]}"
-            )
             raise AvatarStorageError(
-                message,
+                "Upload avatar ke storage gagal.",
                 status_code=502,
-            )
+            ) from exc
+
+        if response.status_code in {200, 201}:
+            return f"{_public_storage_url(bucket, object_path)}?v={version}"
+
+        retryable = response.status_code in {429, 500, 502, 503, 504}
+        if retryable and attempt < UPLOAD_MAX_ATTEMPTS - 1:
+            continue
+
+        message = (
+            f"Upload avatar gagal status={response.status_code}: "
+            f"{response.text[:200]}"
+        )
+        raise AvatarStorageError(
+            message,
+            status_code=502,
+        )
 
     raise AvatarStorageError("Upload avatar ke storage gagal.", status_code=502)

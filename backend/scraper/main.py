@@ -94,7 +94,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 
 # Tambahkan parent directory ke path agar bisa import app.*
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent))
@@ -105,11 +105,11 @@ from app.schemas import ComicCreate
 
 from scraper.base_scraper import BaseComicScraper
 from scraper.db_ops import (
-    mark_comic_seen_in_latest_feed,
-    mark_comic_seen_in_popular_feed,
+    mark_comics_seen_in_latest_feed,
+    mark_comics_seen_in_popular_feed,
     sync_comic_genres,
     upsert_chapter_images,
-    upsert_chapter_metadata,
+    upsert_chapter_metadata_many,
     upsert_comic_with_feed_markers,
 )
 from scraper.sources.registry import (
@@ -325,6 +325,154 @@ async def get_existing_comic_id(
         return result.scalar_one_or_none()
 
     return None
+
+
+async def get_existing_comic_ids_for_listing(
+    session,
+    *,
+    scraper: BaseComicScraper,
+    comics_list: list[dict[str, Any]],
+) -> dict[int, int]:
+    """Bulk lookup comic existing untuk satu halaman listing."""
+    slugs = {
+        comic_basic.get("slug")
+        for comic_basic in comics_list
+        if comic_basic.get("slug")
+    }
+    source_urls = {
+        comic_basic.get("source_url")
+        for comic_basic in comics_list
+        if comic_basic.get("source_url")
+    }
+    if not slugs and not source_urls:
+        return {}
+
+    filters = []
+    if slugs:
+        filters.append(Comic.slug.in_(slugs))
+    if source_urls:
+        filters.append(Comic.source_url.in_(source_urls))
+    result = await session.execute(
+        select(Comic.id, Comic.slug, Comic.source_url).where(
+            Comic.source_name == scraper.SOURCE_NAME,
+            or_(*filters),
+        )
+    )
+    slug_to_id: dict[str, int] = {}
+    source_url_to_id: dict[str, int] = {}
+    for comic_id, slug, source_url in result.all():
+        if slug:
+            slug_to_id.setdefault(slug, comic_id)
+        if source_url:
+            source_url_to_id.setdefault(source_url, comic_id)
+
+    existing_by_position: dict[int, int] = {}
+    for position, comic_basic in enumerate(comics_list, start=1):
+        slug = comic_basic.get("slug")
+        source_url = comic_basic.get("source_url")
+        comic_id = slug_to_id.get(slug) if slug else None
+        if comic_id is None and source_url:
+            comic_id = source_url_to_id.get(source_url)
+        if comic_id is not None:
+            existing_by_position[position] = comic_id
+    return existing_by_position
+
+
+async def analyze_latest_listing_page(
+    session,
+    *,
+    scraper: BaseComicScraper,
+    comics_list: list[dict[str, Any]],
+) -> dict[int, tuple[bool, str, int | None]]:
+    """Bulk precheck latest listing agar tidak query per item."""
+    existing_by_position = await get_existing_comic_ids_for_listing(
+        session,
+        scraper=scraper,
+        comics_list=comics_list,
+    )
+    decisions: dict[int, tuple[bool, str, int | None]] = {}
+    latest_url_pairs: dict[int, tuple[int, str]] = {}
+    latest_number_by_position: dict[int, tuple[int, float]] = {}
+
+    for position, comic_basic in enumerate(comics_list, start=1):
+        detail_url = comic_basic.get("source_url", "")
+        if not detail_url:
+            decisions[position] = (False, "no detail url", None)
+            continue
+
+        comic_id = existing_by_position.get(position)
+        if comic_id is None:
+            decisions[position] = (True, "comic baru", None)
+            continue
+
+        latest_chapter_url = comic_basic.get("latest_chapter_url")
+        latest_chapter_number = _extract_listing_chapter_number(scraper, comic_basic)
+
+        if latest_chapter_url and latest_chapter_url != detail_url:
+            latest_url_pairs[position] = (comic_id, latest_chapter_url)
+            continue
+
+        if latest_chapter_number > 0:
+            latest_number_by_position[position] = (comic_id, latest_chapter_number)
+            continue
+
+        decisions[position] = (
+            True,
+            "listing tidak punya sinyal update yang andal",
+            comic_id,
+        )
+
+    if latest_url_pairs:
+        comic_ids = {comic_id for comic_id, _ in latest_url_pairs.values()}
+        chapter_urls = {chapter_url for _, chapter_url in latest_url_pairs.values()}
+        chapter_result = await session.execute(
+            select(Chapter.comic_id, Chapter.source_url).where(
+                Chapter.comic_id.in_(comic_ids),
+                Chapter.source_url.in_(chapter_urls),
+            )
+        )
+        existing_chapter_pairs = set(chapter_result.all())
+        for position, (comic_id, chapter_url) in latest_url_pairs.items():
+            if (comic_id, chapter_url) in existing_chapter_pairs:
+                decisions[position] = (
+                    False,
+                    "Latest chapter sudah ada (berdasarkan URL)",
+                    comic_id,
+                )
+            else:
+                decisions[position] = (
+                    True,
+                    "Latest chapter baru (berdasarkan URL)",
+                    comic_id,
+                )
+
+    if latest_number_by_position:
+        comic_ids = {comic_id for comic_id, _ in latest_number_by_position.values()}
+        max_result = await session.execute(
+            select(Chapter.comic_id, func.max(Chapter.chapter_number))
+            .where(Chapter.comic_id.in_(comic_ids))
+            .group_by(Chapter.comic_id)
+        )
+        max_chapter_by_comic_id = {
+            comic_id: latest_chapter_number or 0.0
+            for comic_id, latest_chapter_number in max_result.all()
+        }
+        for position, (comic_id, latest_chapter_number) in latest_number_by_position.items():
+            db_latest_chapter_number = max_chapter_by_comic_id.get(comic_id, 0.0)
+            if db_latest_chapter_number + 0.0001 < latest_chapter_number:
+                decisions[position] = (
+                    True,
+                    "Latest chapter baru (berdasarkan nomor)",
+                    comic_id,
+                )
+            else:
+                decisions[position] = (
+                    False,
+                    "Latest chapter sudah ada (berdasarkan nomor)",
+                    comic_id,
+                )
+
+    return decisions
 
 
 async def should_process_comic_update(
@@ -566,6 +714,7 @@ async def save_chapter_metadata(
     try:
         total_chapters = len(chapters_data)
         total_progress_steps = total_chapters + (1 if valid_chapter_total else 0)
+        valid_chapters: list[dict[str, Any]] = []
         for chapter_index, ch_data in enumerate(chapters_data, start=1):
             ch_num = ch_data.get("chapter_number", 0)
             if not ch_data.get("source_url"):
@@ -583,28 +732,28 @@ async def save_chapter_metadata(
                     "chapter "
                     f"{chapter_index}/{total_chapters} | "
                     f"langkah {chapter_index}/{total_progress_steps}: "
-                    f"upsert ch {ch_num}"
+                    f"siapkan ch {ch_num}"
                 )
-            await upsert_chapter_metadata(session, comic_id, ch_data)
+            valid_chapters.append(ch_data)
             saved_count += 1
             if progress is not None:
                 progress.advance(
                     "chapter "
                     f"{chapter_index}/{total_chapters} | "
                     f"langkah {chapter_index}/{total_progress_steps}: "
-                    f"tersimpan ch {ch_num}"
+                    f"siap bulk ch {ch_num}"
                 )
 
         if valid_chapter_total and progress is not None:
             progress.set_detail(
-                f"flush final | langkah {total_progress_steps}/{total_progress_steps}"
+                f"bulk upsert final | langkah {total_progress_steps}/{total_progress_steps}"
             )
-            await session.flush()
+            await upsert_chapter_metadata_many(session, comic_id, valid_chapters)
             progress.advance(
-                f"flush final selesai | langkah {total_progress_steps}/{total_progress_steps}"
+                f"bulk upsert final selesai | langkah {total_progress_steps}/{total_progress_steps}"
             )
         elif valid_chapter_total:
-            await session.flush()
+            await upsert_chapter_metadata_many(session, comic_id, valid_chapters)
     finally:
         await _stop_progress(progress)
 
@@ -811,15 +960,28 @@ async def process_latest_pages(
 
         page_candidates = 0
         page_unchanged = 0
+        latest_decisions = await analyze_latest_listing_page(
+            session,
+            scraper=scraper,
+            comics_list=comics_list,
+        )
+        latest_markers = [
+            {
+                "comic_id": comic_id,
+                "latest_feed_batch_at": latest_feed_batch_at,
+                "latest_feed_page": page,
+                "latest_feed_position": position,
+            }
+            for position, (should_process, reason, comic_id) in latest_decisions.items()
+            if not should_process and comic_id is not None and reason != "no detail url"
+        ]
+        if latest_markers:
+            await mark_comics_seen_in_latest_feed(session, latest_markers)
+            await session.commit()
 
         for position, comic_basic in enumerate(comics_list, start=1):
             title = comic_basic.get("title", "???")
-
-            should_process, reason, comic_id = await should_process_comic_update(
-                session,
-                scraper=scraper,
-                comic_basic=comic_basic,
-            )
+            should_process, reason, comic_id = latest_decisions[position]
             if not should_process:
                 if reason == "no detail url":
                     stats.total_skipped += 1
@@ -828,15 +990,6 @@ async def process_latest_pages(
                         f"Skip invalid listing: {title} ({reason})"
                     )
                 else:
-                    if comic_id is not None:
-                        await mark_comic_seen_in_latest_feed(
-                            session,
-                            comic_id=comic_id,
-                            latest_feed_batch_at=latest_feed_batch_at,
-                            latest_feed_page=page,
-                            latest_feed_position=position,
-                        )
-                        await session.commit()
                     page_unchanged += 1
                     stats.total_unchanged_listing += 1
                     logger.info(
@@ -951,24 +1104,29 @@ async def process_popular_pages(
 
         page_candidates = 0
         page_unchanged = 0
+        existing_popular_by_position = await get_existing_comic_ids_for_listing(
+            session,
+            scraper=scraper,
+            comics_list=comics_list,
+        )
+        popular_markers = [
+            {
+                "comic_id": comic_id,
+                "popular_feed_batch_at": popular_feed_batch_at,
+                "popular_feed_page": page,
+                "popular_feed_position": position,
+            }
+            for position, comic_id in existing_popular_by_position.items()
+        ]
+        if popular_markers:
+            await mark_comics_seen_in_popular_feed(session, popular_markers)
+            await session.commit()
 
         for position, comic_basic in enumerate(comics_list, start=1):
             title = comic_basic.get("title", "???")
-            comic_id = await get_existing_comic_id(
-                session,
-                scraper=scraper,
-                comic_basic=comic_basic,
-            )
+            comic_id = existing_popular_by_position.get(position)
 
             if comic_id is not None:
-                await mark_comic_seen_in_popular_feed(
-                    session,
-                    comic_id=comic_id,
-                    popular_feed_batch_at=popular_feed_batch_at,
-                    popular_feed_page=page,
-                    popular_feed_position=position,
-                )
-                await session.commit()
                 page_unchanged += 1
                 stats.total_unchanged_listing += 1
                 logger.info(

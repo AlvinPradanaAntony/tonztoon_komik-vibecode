@@ -163,7 +163,7 @@ class UserCollection(Base):
         "UserCollectionComic",
         back_populates="collection",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="raise",
     )
 
 

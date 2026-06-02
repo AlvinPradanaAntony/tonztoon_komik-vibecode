@@ -1702,7 +1702,7 @@ class _ProfileSetupDialogState extends State<_ProfileSetupDialog> {
                     decoration: const InputDecoration(
                       labelText: 'Username',
                       helperText:
-                          'Tampil sebagai @username dan tidak dapat diubah setelah dibuat. Huruf, angka, titik, strip, atau underscore.',
+                          'Tidak dapat diubah kembali setelah dibuat.',
                     ),
                     validator: _validateUsernameValue,
                     onFieldSubmitted: (_) {

@@ -57,6 +57,7 @@ from app.services.library_service import (
     delete_favorite_scene,
     enqueue_download_batch,
     add_reading_time_delta,
+    get_collection_detail as load_collection_detail,
     get_library_state_for_comic,
     get_library_summary,
     get_or_create_reader_preferences,
@@ -64,9 +65,9 @@ from app.services.library_service import (
     get_progress_for_comic,
     import_library_snapshot,
     list_bookmarks,
-    list_collections,
-    list_continue_reading,
-    list_download_entries,
+    list_collection_summaries,
+    list_continue_reading_responses,
+    list_download_entry_responses,
     list_favorite_scenes,
     list_history_responses,
     remove_comic_from_collection,
@@ -128,14 +129,13 @@ async def get_continue_reading(
     user_id: UUID = Depends(get_current_user_id),
 ):
     """Daftar continue reading terbaru."""
-    items = await list_continue_reading(
+    return await list_continue_reading_responses(
         db,
         user_id,
         page_size=page_size,
         offset=(page - 1) * page_size,
+        base_url=_get_request_base_url(request),
     )
-    base_url = _get_request_base_url(request)
-    return [build_progress_response(item, base_url=base_url) for item in items]
 
 
 @router.get(
@@ -248,7 +248,7 @@ async def get_collections(
     user_id: UUID = Depends(get_current_user_id),
 ):
     """List koleksi/folder user."""
-    items = await list_collections(db, user_id)
+    items = await list_collection_summaries(db, user_id)
     return [build_collection_summary_response(item) for item in items]
 
 
@@ -279,8 +279,7 @@ async def get_collection_detail(
     user_id: UUID = Depends(get_current_user_id),
 ):
     """Detail isi koleksi."""
-    collections = await list_collections(db, user_id)
-    collection = next((item for item in collections if item.id == collection_id), None)
+    collection = await load_collection_detail(db, user_id, collection_id)
     if collection is None:
         raise HTTPException(status_code=404, detail="Collection tidak ditemukan.")
     return build_collection_response(collection, base_url=_get_request_base_url(request))
@@ -440,9 +439,12 @@ async def get_downloads(
     user_id: UUID = Depends(get_current_user_id),
 ):
     """List intent/status download chapter."""
-    items = await list_download_entries(db, user_id, limit=limit)
-    base_url = _get_request_base_url(request)
-    return [build_download_response(item, base_url=base_url) for item in items]
+    return await list_download_entry_responses(
+        db,
+        user_id,
+        limit=limit,
+        base_url=_get_request_base_url(request),
+    )
 
 
 @router.put(

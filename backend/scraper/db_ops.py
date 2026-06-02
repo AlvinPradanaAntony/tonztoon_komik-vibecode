@@ -10,7 +10,7 @@ dan Genre. Diekstrak dari main.py agar:
 3. Mudah diuji secara independen
 """
 
-from sqlalchemy import case, delete, or_, select, update
+from sqlalchemy import DateTime, Integer, case, column, delete, or_, select, update, values
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,16 +28,72 @@ from scraper.time_utils import now_wib
 
 async def upsert_genre(session: AsyncSession, genre_name: str) -> int:
     """Insert genre jika belum ada, return genre id."""
-    slug = genre_name.lower().replace(" ", "-")
-    stmt = pg_insert(Genre).values(name=genre_name, slug=slug)
-    stmt = stmt.on_conflict_do_nothing(index_elements=["slug"])
-    await session.execute(stmt)
-    await session.flush()
+    genre_ids = await upsert_genres(session, [genre_name])
+    return genre_ids[genre_name.lower().replace(" ", "-")]
 
-    result = await session.execute(
-        select(Genre.id).where(Genre.slug == slug)
+
+async def upsert_genres(
+    session: AsyncSession,
+    genre_names: list[str],
+) -> dict[str, int]:
+    """Bulk upsert genre dan return map slug -> id."""
+    genres_by_slug = {
+        genre_name.lower().replace(" ", "-"): genre_name
+        for genre_name in genre_names
+        if genre_name
+    }
+    if not genres_by_slug:
+        return {}
+
+    rows = [
+        {"name": genre_name, "slug": slug}
+        for slug, genre_name in genres_by_slug.items()
+    ]
+    stmt = pg_insert(Genre).values(rows)
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["slug"],
+        set_={"name": stmt.excluded.name},
+    ).returning(Genre.slug, Genre.id)
+    result = await session.execute(stmt)
+    return {
+        row.slug: row.id
+        for row in result.all()
+    }
+
+
+async def sync_comic_genre_ids(
+    session: AsyncSession,
+    comic_id: int,
+    target_genre_ids: list[int],
+) -> None:
+    """Sinkronkan association comic_genre dari daftar genre id final."""
+    target_genre_ids_set = set(target_genre_ids)
+    current_ids_result = await session.execute(
+        select(comic_genre.c.genre_id).where(comic_genre.c.comic_id == comic_id)
     )
-    return result.scalar_one()
+    current_genre_ids = set(current_ids_result.scalars().all())
+
+    stale_genre_ids = current_genre_ids - target_genre_ids_set
+    if stale_genre_ids:
+        await session.execute(
+            delete(comic_genre).where(
+                comic_genre.c.comic_id == comic_id,
+                comic_genre.c.genre_id.in_(stale_genre_ids),
+            )
+        )
+
+    missing_genre_ids = target_genre_ids_set - current_genre_ids
+    if missing_genre_ids:
+        genre_link = pg_insert(comic_genre).values(
+            [
+                {
+                    "comic_id": comic_id,
+                    "genre_id": genre_id,
+                }
+                for genre_id in missing_genre_ids
+            ]
+        )
+        await session.execute(genre_link.on_conflict_do_nothing())
 
 
 async def sync_comic_genres(
@@ -51,41 +107,9 @@ async def sync_comic_genres(
     - Tambahkan genre baru yang belum terhubung.
     - Hapus relasi genre lama yang sudah tidak ada di source detail.
     """
-    target_genre_ids: list[int] = []
-    seen_genre_ids: set[int] = set()
-
-    for genre_name in genre_names:
-        genre_id = await upsert_genre(session, genre_name)
-        if genre_id in seen_genre_ids:
-            continue
-        seen_genre_ids.add(genre_id)
-        target_genre_ids.append(genre_id)
-
-    current_ids_result = await session.execute(
-        select(comic_genre.c.genre_id).where(comic_genre.c.comic_id == comic_id)
-    )
-    current_genre_ids = set(current_ids_result.scalars().all())
-    target_genre_ids_set = set(target_genre_ids)
-
-    # Hapus genre yang sudah tidak relevan
-    stale_genre_ids = current_genre_ids - target_genre_ids_set
-    if stale_genre_ids:
-        await session.execute(
-            delete(comic_genre).where(
-                comic_genre.c.comic_id == comic_id,
-                comic_genre.c.genre_id.in_(stale_genre_ids),
-            )
-        )
-
-    # Tambah genre baru
-    missing_genre_ids = target_genre_ids_set - current_genre_ids
-    for genre_id in missing_genre_ids:
-        genre_link = pg_insert(comic_genre).values(
-            comic_id=comic_id,
-            genre_id=genre_id,
-        )
-        genre_link = genre_link.on_conflict_do_nothing()
-        await session.execute(genre_link)
+    genre_ids_by_slug = await upsert_genres(session, genre_names)
+    target_genre_ids = list(dict.fromkeys(genre_ids_by_slug.values()))
+    await sync_comic_genre_ids(session, comic_id, target_genre_ids)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -220,17 +244,93 @@ async def upsert_comic_with_feed_markers(
     stmt = stmt.on_conflict_do_update(
         constraint="uq_source_slug",
         set_=update_values,
-    )
-    await session.execute(stmt)
-    await session.flush()
+    ).returning(Comic.id)
+    result = await session.execute(stmt)
+    return result.scalar_one()
 
-    result = await session.execute(
-        select(Comic.id).where(
-            Comic.slug == validated.slug,
-            Comic.source_name == validated.source_name
+
+def build_latest_feed_marker_update_statement(markers: list[dict]):
+    marker_values = (
+        values(
+            column("comic_id", Integer),
+            column("latest_feed_batch_at", DateTime(timezone=True)),
+            column("latest_feed_page", Integer),
+            column("latest_feed_position", Integer),
+            name="latest_feed_markers",
+        )
+        .data(
+            [
+                (
+                    marker["comic_id"],
+                    marker["latest_feed_batch_at"],
+                    marker["latest_feed_page"],
+                    marker["latest_feed_position"],
+                )
+                for marker in markers
+            ]
+        )
+        .alias("latest_feed_markers")
+    )
+    return (
+        update(Comic)
+        .where(Comic.id == marker_values.c.comic_id)
+        .values(
+            latest_feed_batch_at=marker_values.c.latest_feed_batch_at,
+            latest_feed_page=marker_values.c.latest_feed_page,
+            latest_feed_position=marker_values.c.latest_feed_position,
         )
     )
-    return result.scalar_one()
+
+
+def build_popular_feed_marker_update_statement(markers: list[dict]):
+    marker_values = (
+        values(
+            column("comic_id", Integer),
+            column("popular_feed_batch_at", DateTime(timezone=True)),
+            column("popular_feed_page", Integer),
+            column("popular_feed_position", Integer),
+            name="popular_feed_markers",
+        )
+        .data(
+            [
+                (
+                    marker["comic_id"],
+                    marker["popular_feed_batch_at"],
+                    marker["popular_feed_page"],
+                    marker["popular_feed_position"],
+                )
+                for marker in markers
+            ]
+        )
+        .alias("popular_feed_markers")
+    )
+    return (
+        update(Comic)
+        .where(Comic.id == marker_values.c.comic_id)
+        .values(
+            popular_feed_batch_at=marker_values.c.popular_feed_batch_at,
+            popular_feed_page=marker_values.c.popular_feed_page,
+            popular_feed_position=marker_values.c.popular_feed_position,
+        )
+    )
+
+
+async def mark_comics_seen_in_latest_feed(
+    session: AsyncSession,
+    markers: list[dict],
+) -> None:
+    """Bulk update marker latest feed untuk banyak comic dalam satu statement."""
+    if markers:
+        await session.execute(build_latest_feed_marker_update_statement(markers))
+
+
+async def mark_comics_seen_in_popular_feed(
+    session: AsyncSession,
+    markers: list[dict],
+) -> None:
+    """Bulk update marker popular feed untuk banyak comic dalam satu statement."""
+    if markers:
+        await session.execute(build_popular_feed_marker_update_statement(markers))
 
 
 async def mark_comic_seen_in_latest_feed(
@@ -248,14 +348,16 @@ async def mark_comic_seen_in_latest_feed(
     tersebut tetap muncul di feed terbaru meskipun kita tidak perlu fetch
     detail ulang. Dengan begitu urutan `/latest` tetap mengikuti source.
     """
-    await session.execute(
-        update(Comic)
-        .where(Comic.id == comic_id)
-        .values(
-            latest_feed_batch_at=latest_feed_batch_at,
-            latest_feed_page=latest_feed_page,
-            latest_feed_position=latest_feed_position,
-        )
+    await mark_comics_seen_in_latest_feed(
+        session,
+        [
+            {
+                "comic_id": comic_id,
+                "latest_feed_batch_at": latest_feed_batch_at,
+                "latest_feed_page": latest_feed_page,
+                "latest_feed_position": latest_feed_position,
+            }
+        ],
     )
 
 
@@ -274,14 +376,16 @@ async def mark_comic_seen_in_popular_feed(
     tetap perlu disalin ke DB agar endpoint `/popular` mengikuti source of
     truth dan tidak fallback ke `rating`.
     """
-    await session.execute(
-        update(Comic)
-        .where(Comic.id == comic_id)
-        .values(
-            popular_feed_batch_at=popular_feed_batch_at,
-            popular_feed_page=popular_feed_page,
-            popular_feed_position=popular_feed_position,
-        )
+    await mark_comics_seen_in_popular_feed(
+        session,
+        [
+            {
+                "comic_id": comic_id,
+                "popular_feed_batch_at": popular_feed_batch_at,
+                "popular_feed_page": popular_feed_page,
+                "popular_feed_position": popular_feed_position,
+            }
+        ],
     )
 
 
@@ -313,6 +417,55 @@ async def upsert_chapter_metadata(
         },
     )
     await session.execute(stmt)
+
+
+def build_chapter_metadata_upsert_statement(
+    comic_id: int,
+    chapters_data: list[dict],
+):
+    """Bangun bulk upsert metadata chapter tanpa kolom images."""
+    current_time = now_wib()
+    rows = [
+        {
+            "comic_id": comic_id,
+            "chapter_number": ch_data["chapter_number"],
+            "title": ch_data.get("title"),
+            "source_url": ch_data["source_url"],
+            "release_date": ch_data.get("release_date"),
+            "created_at": current_time,
+        }
+        for ch_data in chapters_data
+        if ch_data.get("source_url")
+    ]
+    stmt = pg_insert(Chapter).values(rows)
+    return stmt.on_conflict_do_update(
+        constraint="uq_comic_chapter",
+        set_={
+            "title": stmt.excluded.title,
+            "source_url": stmt.excluded.source_url,
+            "release_date": stmt.excluded.release_date,
+        },
+    )
+
+
+async def upsert_chapter_metadata_many(
+    session: AsyncSession,
+    comic_id: int,
+    chapters_data: list[dict],
+) -> int:
+    """Bulk upsert metadata chapter, return jumlah row valid yang dikirim."""
+    valid_chapters = [
+        ch_data
+        for ch_data in chapters_data
+        if ch_data.get("source_url")
+    ]
+    if not valid_chapters:
+        return 0
+
+    await session.execute(
+        build_chapter_metadata_upsert_statement(comic_id, valid_chapters)
+    )
+    return len(valid_chapters)
 
 
 async def upsert_chapter_images(

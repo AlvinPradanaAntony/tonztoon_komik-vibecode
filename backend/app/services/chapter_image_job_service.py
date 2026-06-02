@@ -19,6 +19,57 @@ KOMIKU_ASIA_SOURCE = "komiku_asia"
 REQUESTED_CHAPTER_PRIORITY = 100
 NEARBY_CHAPTER_PRIORITY = 10
 RETRY_AFTER_SECONDS = 5
+CHAPTER_IMAGE_JOB_UPSERT_CHUNK_SIZE = 500
+
+
+def _chunked(items: list[int], size: int = CHAPTER_IMAGE_JOB_UPSERT_CHUNK_SIZE):
+    for offset in range(0, len(items), size):
+        yield items[offset : offset + size]
+
+
+def build_chapter_image_job_upsert_statement(
+    chapter_ids: Sequence[int],
+    *,
+    priority: int,
+):
+    """Bangun bulk upsert job image chapter tanpa commit transaction caller."""
+    rows = [
+        {
+            "chapter_id": chapter_id,
+            "priority": priority,
+            "status": "pending",
+        }
+        for chapter_id in chapter_ids
+    ]
+    stmt = insert(ChapterImageJob).values(rows)
+    return stmt.on_conflict_do_update(
+        index_elements=[ChapterImageJob.chapter_id],
+        set_={
+            "priority": func.greatest(ChapterImageJob.priority, priority),
+            "status": case(
+                (ChapterImageJob.status == "processing", "processing"),
+                (ChapterImageJob.status == "failed", "failed"),
+                else_="pending",
+            ),
+            "available_at": case(
+                (
+                    ChapterImageJob.status.in_(("pending", "processing", "failed")),
+                    ChapterImageJob.available_at,
+                ),
+                else_=func.now(),
+            ),
+            "completed_at": None,
+            "attempts": case(
+                (ChapterImageJob.status == "completed", 0),
+                else_=ChapterImageJob.attempts,
+            ),
+            "last_error": case(
+                (ChapterImageJob.status == "failed", ChapterImageJob.last_error),
+                else_=None,
+            ),
+            "updated_at": func.now(),
+        },
+    )
 
 
 async def enqueue_komiku_asia_chapter_image_jobs(
@@ -32,41 +83,13 @@ async def enqueue_komiku_asia_chapter_image_jobs(
     if not normalized_ids:
         return 0
 
-    for chapter_id in normalized_ids:
-        stmt = insert(ChapterImageJob).values(
-            chapter_id=chapter_id,
-            priority=priority,
-            status="pending",
+    for chunk in _chunked(normalized_ids):
+        await db.execute(
+            build_chapter_image_job_upsert_statement(
+                chunk,
+                priority=priority,
+            )
         )
-        stmt = stmt.on_conflict_do_update(
-            index_elements=[ChapterImageJob.chapter_id],
-            set_={
-                "priority": func.greatest(ChapterImageJob.priority, priority),
-                "status": case(
-                    (ChapterImageJob.status == "processing", "processing"),
-                    (ChapterImageJob.status == "failed", "failed"),
-                    else_="pending",
-                ),
-                "available_at": case(
-                    (
-                        ChapterImageJob.status.in_(("pending", "processing", "failed")),
-                        ChapterImageJob.available_at,
-                    ),
-                    else_=func.now(),
-                ),
-                "completed_at": None,
-                "attempts": case(
-                    (ChapterImageJob.status == "completed", 0),
-                    else_=ChapterImageJob.attempts,
-                ),
-                "last_error": case(
-                    (ChapterImageJob.status == "failed", ChapterImageJob.last_error),
-                    else_=None,
-                ),
-                "updated_at": func.now(),
-            },
-        )
-        await db.execute(stmt)
     return len(normalized_ids)
 
 

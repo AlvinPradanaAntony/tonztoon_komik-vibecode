@@ -7,16 +7,23 @@ Endpoints:
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import noload, selectinload
 
 from app.database import get_db
-from app.models import Comic, Genre
+from app.models import Chapter, Comic, Genre
 from app.schemas.comic import GenreResponse, ComicResponse
 from app.services.image_service import build_proxy_image_url
 
 router = APIRouter()
+
+_chapter_count_subq = (
+    select(func.count(Chapter.id))
+    .where(Chapter.comic_id == Comic.id)
+    .correlate(Comic)
+    .scalar_subquery()
+)
 
 
 @router.get("", response_model=list[GenreResponse])
@@ -47,8 +54,8 @@ async def get_comics_by_genre(
 
     offset = (page - 1) * page_size
     stmt = (
-        select(Comic)
-        .options(selectinload(Comic.genres))
+        select(Comic, _chapter_count_subq.label("total_chapters"))
+        .options(selectinload(Comic.genres), noload(Comic.chapters))
         .join(Comic.genres)
         .where(Genre.slug == slug)
         .order_by(Comic.updated_at.desc())
@@ -56,7 +63,7 @@ async def get_comics_by_genre(
         .limit(page_size)
     )
     result = await db.execute(stmt)
-    comics = result.scalars().unique().all()
+    rows = result.unique().all()
     base_url = str(request.base_url).rstrip("/")
 
     return [
@@ -74,7 +81,7 @@ async def get_comics_by_genre(
                 if c not in ("genres", "total_chapters")
             },
             genres=[{"id": g.id, "name": g.name, "slug": g.slug} for g in comic.genres],
-            total_chapters=len(comic.chapters) if comic.chapters else 0,
+            total_chapters=total_chapters,
         )
-        for comic in comics
+        for comic, total_chapters in rows
     ]

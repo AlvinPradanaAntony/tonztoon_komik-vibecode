@@ -109,9 +109,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from sqlalchemy import Select, case, func, or_, select
-from sqlalchemy.dialects.postgresql import JSONPATH
-from sqlalchemy.sql import cast
+from sqlalchemy import Select, func, select
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -119,6 +117,7 @@ from app.database import async_session
 from app.models import Chapter, Comic
 from app.services.chapter_service import (
     ImageFetchError,
+    chapter_images_are_invalid_expression,
     chapter_images_are_ready,
     fetch_and_save_chapter_images,
 )
@@ -149,11 +148,6 @@ BACKOFF_MAX = 120.0
 MAX_CONSECUTIVE_ERRORS = 5
 IMAGE_FETCH_TIMEOUT = 25.0
 CHAPTER_IMAGES_ADVISORY_LOCK_NAMESPACE = 41021
-INVALID_IMAGES_JSONPATH = cast(
-    '$[*] ? (!exists(@.page) || !exists(@.url) || @.url == "")',
-    JSONPATH,
-)
-
 _shutdown = GracefulShutdown()
 _shutdown.install()
 
@@ -359,22 +353,10 @@ def _build_pending_query(
     last_processed_chapter_id: int,
     limit: int,
 ) -> Select:
-    invalid_images = case(
-        (Chapter.images.is_(None), True),
-        (func.jsonb_typeof(Chapter.images) != "array", True),
-        else_=or_(
-            func.jsonb_array_length(Chapter.images) == 0,
-            func.jsonb_path_exists(
-                Chapter.images,
-                INVALID_IMAGES_JSONPATH,
-            ),
-        ),
-    )
-
     stmt = (
         select(Chapter, Comic.source_name, Comic.title)
         .join(Comic, Comic.id == Chapter.comic_id)
-        .where(invalid_images)
+        .where(chapter_images_are_invalid_expression())
     )
     if source_name:
         stmt = stmt.where(Comic.source_name == source_name)
@@ -421,22 +403,11 @@ async def _load_pending_batch(
 
 async def _count_pending(*, source_name: str | None) -> int:
     async with async_session() as session:
-        invalid_images = case(
-            (Chapter.images.is_(None), True),
-            (func.jsonb_typeof(Chapter.images) != "array", True),
-            else_=or_(
-                func.jsonb_array_length(Chapter.images) == 0,
-                func.jsonb_path_exists(
-                    Chapter.images,
-                    INVALID_IMAGES_JSONPATH,
-                ),
-            ),
-        )
         stmt = (
             select(func.count())
             .select_from(Chapter)
             .join(Comic, Comic.id == Chapter.comic_id)
-            .where(invalid_images)
+            .where(chapter_images_are_invalid_expression())
         )
         if source_name:
             stmt = stmt.where(Comic.source_name == source_name)
@@ -707,22 +678,20 @@ async def run_image_backfill(
     batch_number = 0
     end_state = "complete"
     end_note = "Sync chapter images selesai"
+    pending_total = await _count_pending(source_name=source_name)
+    logger.info("📊 Pending chapter images awal: %s", pending_total)
+    if pending_total == 0:
+        logger.info("ℹ️ Tidak ada backlog images. Proses selesai.")
+        update_progress(
+            checkpoint,
+            current_pending_total=0,
+            state="idle",
+            note="Tidak ada backlog images",
+        )
+        end_state = "complete"
+        end_note = "Tidak ada backlog images"
 
-    while not _shutdown.requested:
-        pending_total = await _count_pending(source_name=source_name)
-        logger.info("📊 Pending chapter images: %s", pending_total)
-        if pending_total == 0:
-            logger.info("ℹ️ Tidak ada backlog images. Proses selesai.")
-            update_progress(
-                checkpoint,
-                current_pending_total=0,
-                state="idle",
-                note="Tidak ada backlog images",
-            )
-            end_state = "complete"
-            end_note = "Tidak ada backlog images"
-            break
-
+    while not _shutdown.requested and pending_total > 0:
         current_batch_size = batch_size
         if remaining_budget is not None:
             if remaining_budget <= 0:
@@ -733,6 +702,7 @@ async def run_image_backfill(
 
         batch_number += 1
         stats.total_batches = batch_number
+        fetched_before_batch = stats.total_fetched
         processed = await process_pending_images_batch(
             batch_number=batch_number,
             pending_total=pending_total,
@@ -742,6 +712,8 @@ async def run_image_backfill(
             checkpoint=checkpoint,
             stats=stats,
         )
+        pending_total = max(0, pending_total - (stats.total_fetched - fetched_before_batch))
+        logger.info("📊 Estimasi pending chapter images: %s", pending_total)
         checkpoint["stats"] = {
             "total_batches": stats.total_batches,
             "total_scanned": stats.total_scanned,

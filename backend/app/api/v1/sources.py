@@ -17,7 +17,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload, selectinload
 
@@ -220,6 +220,28 @@ def _slugify_query_value(value: str) -> str:
     return "-".join(value.replace("_", " ").split())
 
 
+def _latest_feed_order():
+    return (
+        Comic.latest_feed_batch_at.desc().nullslast(),
+        Comic.latest_feed_page.asc().nullslast(),
+        Comic.latest_feed_position.asc().nullslast(),
+        Comic.updated_at.desc(),
+        Comic.id.asc(),
+    )
+
+
+def _popular_feed_order():
+    return (
+        Comic.popular_feed_batch_at.desc().nullslast(),
+        Comic.popular_feed_page.asc().nullslast(),
+        Comic.popular_feed_position.asc().nullslast(),
+        Comic.rating.desc().nullslast(),
+        Comic.total_view.desc().nullslast(),
+        Comic.updated_at.desc(),
+        Comic.id.asc(),
+    )
+
+
 def _apply_source_comic_sort(base_query, sort: str | None):
     sort_value = _normalize_query_value(sort)
     if sort_value:
@@ -228,21 +250,12 @@ def _apply_source_comic_sort(base_query, sort: str | None):
     match sort_value:
         case "update_terbaru" | "update_newest" | "latest" | "newest":
             return base_query.order_by(
-                Comic.latest_feed_batch_at.desc().nullslast(),
-                Comic.latest_feed_page.asc().nullslast(),
-                Comic.latest_feed_position.asc().nullslast(),
-                _latest_chapter_release_subq.desc().nullslast(),
-                Comic.updated_at.desc(),
+                *_latest_feed_order(),
                 Comic.title.asc(),
             )
         case "popular" | "populer":
             return base_query.order_by(
-                Comic.popular_feed_batch_at.desc().nullslast(),
-                Comic.popular_feed_page.asc().nullslast(),
-                Comic.popular_feed_position.asc().nullslast(),
-                Comic.rating.desc().nullslast(),
-                Comic.total_view.desc().nullslast(),
-                Comic.updated_at.desc(),
+                *_popular_feed_order(),
                 Comic.title.asc(),
             )
         case "rating_high" | "rating_tinggi" | "rating":
@@ -387,15 +400,9 @@ async def get_source_latest_comics(
             _latest_chapter_number_subq.label("latest_chapter_number"),
             _latest_chapter_release_subq.label("latest_chapter_release_date"),
         )
-        .options(noload(Comic.genres), noload(Comic.chapters))
+        .options(selectinload(Comic.genres), noload(Comic.chapters))
         .where(Comic.source_name == source["id"])
-        .order_by(
-            Comic.latest_feed_batch_at.desc().nullslast(),
-            Comic.latest_feed_page.asc().nullslast(),
-            Comic.latest_feed_position.asc().nullslast(),
-            _latest_chapter_release_subq.desc().nullslast(),
-            Comic.updated_at.desc(),
-        )
+        .order_by(*_latest_feed_order())
         .offset(offset)
         .limit(page_size)
     )
@@ -450,15 +457,9 @@ async def get_source_popular_comics(
             _latest_chapter_number_subq.label("latest_chapter_number"),
             _latest_chapter_release_subq.label("latest_chapter_release_date"),
         )
-        .options(noload(Comic.genres), noload(Comic.chapters))
+        .options(selectinload(Comic.genres), noload(Comic.chapters))
         .where(Comic.source_name == source["id"])
-        .order_by(
-            Comic.popular_feed_batch_at.desc().nullslast(),
-            Comic.popular_feed_page.asc().nullslast(),
-            Comic.popular_feed_position.asc().nullslast(),
-            Comic.rating.desc().nullslast(),
-            Comic.updated_at.desc(),
-        )
+        .order_by(*_popular_feed_order())
         .offset(offset)
         .limit(page_size)
     )
@@ -492,7 +493,7 @@ async def search_source_comics(
 
     stmt = (
         select(Comic, _latest_chapter_number_subq.label("latest_chapter_number"))
-        .options(noload(Comic.genres), noload(Comic.chapters))
+        .options(selectinload(Comic.genres), noload(Comic.chapters))
         .where(
             Comic.source_name == source["id"],
             or_(
@@ -552,11 +553,23 @@ async def get_source_comic_chapters(
         raise HTTPException(status_code=404, detail="Comic not found")
 
     result = await db.execute(
-        select(Chapter)
+        select(
+            Chapter.chapter_number,
+            Chapter.title,
+            Chapter.release_date,
+            Chapter.created_at,
+            case(
+                (
+                    func.jsonb_typeof(Chapter.images) == "array",
+                    func.jsonb_array_length(Chapter.images),
+                ),
+                else_=0,
+            ).label("total_images"),
+        )
         .where(Chapter.comic_id == comic.id)
         .order_by(Chapter.chapter_number.desc())
     )
-    chapters = result.scalars().all()
+    chapters = result.all()
     return [
         SourceChapterListItem(
             chapter_number=chapter.chapter_number,
@@ -571,7 +584,7 @@ async def get_source_comic_chapters(
             ),
             release_date=chapter.release_date,
             created_at=chapter.created_at,
-            total_images=len(chapter.images) if chapter.images else 0,
+            total_images=chapter.total_images,
         )
         for chapter in chapters
     ]

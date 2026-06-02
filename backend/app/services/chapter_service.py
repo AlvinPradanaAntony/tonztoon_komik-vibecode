@@ -59,11 +59,11 @@ import asyncio
 import logging
 import random
 import time
+from collections import OrderedDict
 
-from sqlalchemy import case, func, or_, select, update
-from sqlalchemy.dialects.postgresql import JSONPATH
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql import cast
+from sqlalchemy.orm import noload
 
 from app.database import async_session
 from app.models import Chapter, Comic
@@ -79,20 +79,18 @@ ON_DEMAND_TIMEOUT        = 10   # detik — batas waktu lazy load realtime
 PREFETCH_TIMEOUT         = 20   # detik — batas waktu per chapter saat background prefetch
 PREFETCH_WINDOW          = 5    # radius chapter kiri & kanan yang di-prefetch
 PREFETCH_COOLDOWN_SECONDS = 60  # detik — jeda minimum antar-trigger prefetch per komik
+PREFETCH_COOLDOWN_MAX_ENTRIES = 2_048  # batas entry cooldown per worker process
 CHAPTER_NUMBER_TOLERANCE = 0.0001
-INVALID_IMAGES_JSONPATH = cast(
-    '$[*] ? (!exists(@.page) || !exists(@.url) || @.url == "")',
-    JSONPATH,
-)
 
 # Delay antar-request images saat prefetch (random untuk anti-bot detection)
 PREFETCH_DELAY_MIN = 1.5
 PREFETCH_DELAY_MAX = 3.0
 
 # ── In-memory Cooldown Tracker ───────────────────────────────────────────────
-# {comic_id: unix_timestamp_last_triggered}
+# {comic_id: monotonic_timestamp_last_triggered}
 # Mencegah prefetch berantai saat user membaca cepat lintas chapter.
-_prefetch_cooldowns: dict[int, float] = {}
+# OrderedDict menjaga eviction deterministik agar map tidak tumbuh monoton.
+_prefetch_cooldowns: OrderedDict[int, float] = OrderedDict()
 
 
 # ── Custom Exception ─────────────────────────────────────────────────────────
@@ -109,6 +107,47 @@ class ChapterImagesPendingError(Exception):
     """Dilempar saat browser worker masih menyiapkan cache images chapter."""
 
     pass
+
+
+def _prune_prefetch_cooldowns(now: float | None = None) -> None:
+    """Remove expired cooldown entries and keep the map bounded."""
+    current_time = time.monotonic() if now is None else now
+    expired_before = current_time - PREFETCH_COOLDOWN_SECONDS
+
+    for comic_id, triggered_at in list(_prefetch_cooldowns.items()):
+        if triggered_at > expired_before:
+            continue
+        _prefetch_cooldowns.pop(comic_id, None)
+
+    while len(_prefetch_cooldowns) > PREFETCH_COOLDOWN_MAX_ENTRIES:
+        _prefetch_cooldowns.popitem(last=False)
+
+
+def _register_prefetch_cooldown(
+    comic_id: int,
+    *,
+    now: float | None = None,
+) -> tuple[bool, float]:
+    """
+    Return whether a prefetch may run and the elapsed time since last trigger.
+    """
+    current_time = time.monotonic() if now is None else now
+    _prune_prefetch_cooldowns(current_time)
+
+    last_triggered = _prefetch_cooldowns.get(comic_id)
+    if last_triggered is not None:
+        elapsed_since_last = current_time - last_triggered
+        if elapsed_since_last < PREFETCH_COOLDOWN_SECONDS:
+            _prefetch_cooldowns.move_to_end(comic_id)
+            return False, elapsed_since_last
+    else:
+        elapsed_since_last = PREFETCH_COOLDOWN_SECONDS
+
+    # Catat timestamp sebelum mulai agar request berikutnya langsung terkena cooldown.
+    _prefetch_cooldowns[comic_id] = current_time
+    _prefetch_cooldowns.move_to_end(comic_id)
+    _prune_prefetch_cooldowns(current_time)
+    return True, elapsed_since_last
 
 
 def chapter_images_are_ready(images: list | None) -> bool:
@@ -137,15 +176,8 @@ def chapter_images_are_ready(images: list | None) -> bool:
 
 
 def chapter_images_are_invalid_expression():
-    """SQL expression: chapter images belum layak dipakai reader."""
-    return case(
-        (Chapter.images.is_(None), True),
-        (func.jsonb_typeof(Chapter.images) != "array", True),
-        else_=or_(
-            func.jsonb_array_length(Chapter.images) == 0,
-            func.jsonb_path_exists(Chapter.images, INVALID_IMAGES_JSONPATH),
-        ),
-    )
+    """Indexed SQL expression: chapter images belum layak dipakai reader."""
+    return Chapter.images_are_invalid.is_(True)
 
 
 # ── Factory Scraper ──────────────────────────────────────────────────────────
@@ -241,7 +273,9 @@ async def get_comic_by_source_and_slug(
 ) -> Comic | None:
     """Ambil comic berdasarkan source publik dan slug."""
     result = await db.execute(
-        select(Comic).where(
+        select(Comic)
+        .options(noload(Comic.genres), noload(Comic.chapters))
+        .where(
             Comic.source_name == source_name,
             Comic.slug == comic_slug,
         )
@@ -496,20 +530,15 @@ async def prefetch_nearby_chapters(
         current_chapter_number : Nomor chapter yang sedang dibuka
     """
     # ── Cek Cooldown (Pencegahan Prefetch Berantai) ───────────────────────────
-    now = time.monotonic()
-    last_triggered = _prefetch_cooldowns.get(comic_id, 0.0)
-    elapsed_since_last = now - last_triggered
+    should_prefetch, elapsed_since_last = _register_prefetch_cooldown(comic_id)
 
-    if elapsed_since_last < PREFETCH_COOLDOWN_SECONDS:
+    if not should_prefetch:
         logger.debug(
             f"[Prefetch] Diabaikan — comic_id={comic_id} baru dipicu "
             f"{elapsed_since_last:.0f}s lalu (cooldown={PREFETCH_COOLDOWN_SECONDS}s). "
             f"Ch {current_chapter_number} tidak akan memicu prefetch baru."
         )
         return
-
-    # Catat timestamp sebelum mulai agar request berikutnya langsung terkena cooldown
-    _prefetch_cooldowns[comic_id] = now
 
     logger.info(
         f"[Prefetch] Mulai untuk Ch {current_chapter_number} "

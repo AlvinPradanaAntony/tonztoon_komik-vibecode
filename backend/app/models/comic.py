@@ -18,6 +18,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -30,6 +31,7 @@ comic_genre = Table(
     Base.metadata,
     Column("comic_id", Integer, ForeignKey("comics.id", ondelete="CASCADE"), primary_key=True),
     Column("genre_id", Integer, ForeignKey("genres.id", ondelete="CASCADE"), primary_key=True),
+    Index("ix_comic_genre_genre_id", "genre_id"),
 )
 
 
@@ -84,6 +86,43 @@ class Comic(Base):
             "popular_feed_page",
             "popular_feed_position",
         ),
+        Index(
+            "ix_comics_source_latest_feed_order",
+            "source_name",
+            text("latest_feed_batch_at DESC NULLS LAST"),
+            text("latest_feed_page ASC NULLS LAST"),
+            text("latest_feed_position ASC NULLS LAST"),
+            text("updated_at DESC"),
+            "id",
+        ),
+        Index(
+            "ix_comics_source_popular_feed_order",
+            "source_name",
+            text("popular_feed_batch_at DESC NULLS LAST"),
+            text("popular_feed_page ASC NULLS LAST"),
+            text("popular_feed_position ASC NULLS LAST"),
+            text("rating DESC NULLS LAST"),
+            text("total_view DESC NULLS LAST"),
+            text("updated_at DESC"),
+            "id",
+        ),
+        Index(
+            "ix_comics_source_name_source_url",
+            "source_name",
+            "source_url",
+        ),
+        Index(
+            "ix_comics_title_trgm",
+            "title",
+            postgresql_using="gin",
+            postgresql_ops={"title": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_comics_alternative_titles_trgm",
+            "alternative_titles",
+            postgresql_using="gin",
+            postgresql_ops={"alternative_titles": "gin_trgm_ops"},
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -137,7 +176,7 @@ class Comic(Base):
         back_populates="comic",
         cascade="all, delete-orphan",
         order_by="Chapter.chapter_number.desc()",
-        lazy="selectin",
+        lazy="raise",
     )
 
     def __repr__(self) -> str:

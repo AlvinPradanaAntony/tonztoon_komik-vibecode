@@ -29,7 +29,6 @@ class ChapterImageJob(Base):
         ForeignKey("chapters.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
-        index=True,
     )
     priority: Mapped[int] = mapped_column(
         Integer,
@@ -76,4 +75,3 @@ class ChapterImageJob(Base):
     )
 
     chapter = relationship("Chapter")
-

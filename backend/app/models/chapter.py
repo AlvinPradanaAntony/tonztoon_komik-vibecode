@@ -14,11 +14,37 @@ Format JSONB `images`:
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy import (
+    Boolean,
+    Computed,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+
+
+CHAPTER_IMAGES_ARE_INVALID_SQL = """
+CASE
+    WHEN images IS NULL THEN true
+    WHEN jsonb_typeof(images) <> 'array' THEN true
+    ELSE
+        jsonb_array_length(images) = 0
+        OR jsonb_path_exists(
+            images,
+            '$[*] ? (!exists(@.page) || !exists(@.url) || @.url == "")'::jsonpath
+        )
+END
+"""
 
 
 class Chapter(Base):
@@ -27,6 +53,11 @@ class Chapter(Base):
     __tablename__ = "chapters"
     __table_args__ = (
         UniqueConstraint("comic_id", "chapter_number", name="uq_comic_chapter"),
+        Index(
+            "ix_chapters_images_are_invalid_pending",
+            "id",
+            postgresql_where=text("images_are_invalid IS TRUE"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -46,6 +77,11 @@ class Chapter(Base):
 
     # JSONB — array of image objects [{"page": int, "url": str, "width": int, "height": int}, ...]
     images: Mapped[list | None] = mapped_column(JSONB, nullable=True, default=list)
+    images_are_invalid: Mapped[bool] = mapped_column(
+        Boolean,
+        Computed(CHAPTER_IMAGES_ARE_INVALID_SQL, persisted=True),
+        nullable=False,
+    )
 
     # Relationship
     comic = relationship("Comic", back_populates="chapters")

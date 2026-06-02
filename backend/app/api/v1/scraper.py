@@ -16,6 +16,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
 from app.config import settings
+from app.services.http_client_service import get_shared_http_client
 
 router = APIRouter()
 
@@ -95,8 +96,12 @@ async def trigger_manual_sync(sync_request: ScraperSyncRequest | None = None):
     }
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.post(api_url, json=payload, headers=headers)
+        response = await get_shared_http_client().post(
+            api_url,
+            json=payload,
+            headers=headers,
+            timeout=15.0,
+        )
 
         # GitHub returns 204 No Content on success
         if response.status_code == 204:

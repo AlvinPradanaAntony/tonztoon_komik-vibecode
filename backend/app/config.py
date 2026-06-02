@@ -88,6 +88,26 @@ class Settings(BaseSettings):
         description="GitHub Actions workflow filename"
     )
 
+    # --- Image Proxy Protection ---
+    IMAGE_PROXY_ALLOWED_HOSTS: str = Field(
+        default="",
+        description=(
+            "Comma-separated host suffixes allowed by image proxy, appended to "
+            "the built-in source allowlist."
+        ),
+    )
+    IMAGE_PROXY_MAX_BYTES: int = Field(
+        default=10 * 1024 * 1024,
+        ge=1,
+        description="Maximum upstream image payload size accepted by proxy.",
+    )
+    IMAGE_PROXY_MAX_REDIRECTS: int = Field(
+        default=3,
+        ge=0,
+        le=10,
+        description="Maximum validated redirects followed by image proxy.",
+    )
+
 
     # --- Komiku Asia In-Process Background Worker ---
     KOMIKU_ASIA_WORKER_ENABLED: bool = Field(

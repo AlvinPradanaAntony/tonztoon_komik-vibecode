@@ -41,6 +41,7 @@ from app.schemas import (
     AccountRelationPreview,
     AccountRelationPreviewItem,
 )
+from app.services.http_client_service import get_auth_http_client
 from app.services.profile_service import normalize_username
 
 _UNSET = object()
@@ -114,21 +115,21 @@ async def _request_admin(
     auth_base = _require_admin_config()
     expected_statuses = expected_statuses or {200}
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        try:
-            response = await client.request(
-                method,
-                f"{auth_base}{path}",
-                headers=_admin_headers(),
-                json=json,
-                params=params,
-            )
-        except httpx.TimeoutException as exc:
-            logger.error(f"Supabase Admin request timeout ({method} {path})")
-            raise AccountManagerRequestError(
-                f"Request to Supabase Auth timed out after 60s: {str(exc)}",
-                status_code=504
-            ) from exc
+    try:
+        response = await get_auth_http_client().request(
+            method,
+            f"{auth_base}{path}",
+            headers=_admin_headers(),
+            json=json,
+            params=params,
+            timeout=60.0,
+        )
+    except httpx.TimeoutException as exc:
+        logger.error(f"Supabase Admin request timeout ({method} {path})")
+        raise AccountManagerRequestError(
+            f"Request to Supabase Auth timed out after 60s: {str(exc)}",
+            status_code=504
+        ) from exc
 
     if response.status_code not in expected_statuses:
         raise AccountManagerRequestError(

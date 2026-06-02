@@ -8,7 +8,20 @@ import uuid
 from collections import Counter
 from datetime import UTC, datetime
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import (
+    Float,
+    String,
+    and_,
+    case,
+    column,
+    delete,
+    exists,
+    func,
+    literal,
+    select,
+    union_all,
+    values,
+)
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -55,6 +68,7 @@ from app.schemas.library import (
 from app.services.image_service import build_proxy_image_url
 
 CHAPTER_NUMBER_TOLERANCE = 0.0001
+BULK_DML_CHUNK_SIZE = 500
 
 
 def _utcnow() -> datetime:
@@ -209,12 +223,12 @@ def build_bookmark_response(
     )
 
 
-def build_collection_summary_response(collection: UserCollection) -> CollectionSummaryResponse:
+def build_collection_summary_response(collection) -> CollectionSummaryResponse:
     """Ringkasan collection untuk list dan picker."""
     return CollectionSummaryResponse(
         id=collection.id,
         name=collection.name,
-        total_items=len(collection.items),
+        total_items=collection.total_items,
         created_at=collection.created_at,
         updated_at=collection.updated_at,
     )
@@ -441,6 +455,103 @@ async def list_bookmarks(
     return result.scalars().all()
 
 
+def _chapter_total_images_expression():
+    return case(
+        (
+            func.jsonb_typeof(Chapter.images) == "array",
+            func.jsonb_array_length(Chapter.images),
+        ),
+        else_=0,
+    )
+
+
+def _comic_projection_columns():
+    return (
+        Comic.id.label("comic_id"),
+        Comic.source_name.label("source_name"),
+        Comic.slug.label("comic_slug"),
+        Comic.title.label("comic_title"),
+        Comic.cover_image_url.label("cover_image_url"),
+        Comic.author.label("author"),
+        Comic.status.label("comic_status"),
+        Comic.type.label("comic_type"),
+        Comic.rating.label("rating"),
+        Comic.total_view.label("total_view"),
+    )
+
+
+def _chapter_projection_columns():
+    return (
+        Chapter.id.label("chapter_id"),
+        Chapter.chapter_number.label("chapter_number"),
+        Chapter.title.label("chapter_title"),
+        Chapter.release_date.label("release_date"),
+        _chapter_total_images_expression().label("total_images"),
+    )
+
+
+def _build_comic_ref_from_projection(row, base_url: str | None = None) -> LibraryComicRef:
+    return LibraryComicRef(
+        comic_id=row.comic_id,
+        source_name=row.source_name,
+        slug=row.comic_slug,
+        title=row.comic_title,
+        cover_image_url=build_proxy_image_url(row.cover_image_url, base_url=base_url),
+        author=row.author,
+        status=row.comic_status,
+        type=row.comic_type,
+        rating=row.rating,
+        total_view=row.total_view,
+    )
+
+
+def _build_chapter_ref_from_projection(row) -> LibraryChapterRef:
+    return LibraryChapterRef(
+        chapter_id=row.chapter_id,
+        chapter_number=row.chapter_number,
+        title=row.chapter_title,
+        release_date=row.release_date,
+        total_images=row.total_images,
+    )
+
+
+def build_progress_projection_response(
+    row,
+    base_url: str | None = None,
+) -> ProgressResponse:
+    return ProgressResponse(
+        id=row.id,
+        comic=_build_comic_ref_from_projection(row, base_url=base_url),
+        chapter=_build_chapter_ref_from_projection(row),
+        reading_mode=row.reading_mode,
+        scroll_offset=row.scroll_offset,
+        page_index=row.page_index,
+        last_read_page_item_index=row.last_read_page_item_index,
+        total_page_items=row.total_page_items,
+        is_completed=row.is_completed,
+        last_read_at=row.last_read_at,
+        updated_at=row.updated_at,
+    )
+
+
+def build_download_projection_response(
+    row,
+    base_url: str | None = None,
+) -> DownloadEntryResponse:
+    return DownloadEntryResponse(
+        id=row.id,
+        comic=_build_comic_ref_from_projection(row, base_url=base_url),
+        chapter=_build_chapter_ref_from_projection(row),
+        status=row.download_status,
+        source_device_id=row.source_device_id,
+        last_error=row.last_error,
+        requested_at=row.requested_at,
+        downloaded_at=row.downloaded_at,
+        updated_at=row.updated_at,
+    )
+    return result.scalars().all()
+
+
 async def set_bookmark(
     db: AsyncSession,
     user_id: uuid.UUID,
@@ -505,18 +616,65 @@ async def _load_collection(
     return result.scalars().first()
 
 
-async def list_collections(
+async def get_collection_detail(
     db: AsyncSession,
     user_id: uuid.UUID,
-) -> list[UserCollection]:
-    """List semua collection user."""
-    result = await db.execute(
-        select(UserCollection)
-        .options(selectinload(UserCollection.items).selectinload(UserCollectionComic.comic))
+    collection_id: int,
+) -> UserCollection | None:
+    """Load detail satu collection beserta item secara eksplisit."""
+    return await _load_collection(db, user_id, collection_id)
+
+
+def _collection_summary_statement(
+    user_id: uuid.UUID,
+    comic_id: int | None = None,
+):
+    statement = (
+        select(
+            UserCollection.id.label("id"),
+            UserCollection.name.label("name"),
+            UserCollection.created_at.label("created_at"),
+            UserCollection.updated_at.label("updated_at"),
+            func.count(UserCollectionComic.id).label("total_items"),
+        )
+        .outerjoin(
+            UserCollectionComic,
+            UserCollectionComic.collection_id == UserCollection.id,
+        )
         .where(UserCollection.user_id == user_id)
+        .group_by(
+            UserCollection.id,
+            UserCollection.name,
+            UserCollection.created_at,
+            UserCollection.updated_at,
+        )
         .order_by(UserCollection.updated_at.desc(), UserCollection.id.desc())
     )
-    return result.scalars().unique().all()
+    if comic_id is not None:
+        membership_comics = UserCollectionComic.__table__.alias("membership_comics")
+        membership = (
+            select(membership_comics.c.id)
+            .where(
+                membership_comics.c.collection_id == UserCollection.id,
+                membership_comics.c.comic_id == comic_id,
+            )
+            .exists()
+        )
+        statement = statement.where(membership)
+    return statement
+
+
+async def list_collection_summaries(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    *,
+    comic_id: int | None = None,
+):
+    """List collection summary dengan aggregate count tanpa load item."""
+    result = await db.execute(
+        _collection_summary_statement(user_id, comic_id=comic_id)
+    )
+    return result.all()
 
 
 async def create_collection(
@@ -798,6 +956,47 @@ async def mark_chapter_completed(
     await db.commit()
 
 
+def _progress_projection_statement(user_id: uuid.UUID):
+    return (
+        select(
+            UserProgress.id.label("id"),
+            UserProgress.reading_mode.label("reading_mode"),
+            UserProgress.scroll_offset.label("scroll_offset"),
+            UserProgress.page_index.label("page_index"),
+            UserProgress.last_read_page_item_index.label("last_read_page_item_index"),
+            UserProgress.total_page_items.label("total_page_items"),
+            UserProgress.is_completed.label("is_completed"),
+            UserProgress.last_read_at.label("last_read_at"),
+            UserProgress.updated_at.label("updated_at"),
+            *_comic_projection_columns(),
+            *_chapter_projection_columns(),
+        )
+        .join(Comic, Comic.id == UserProgress.comic_id)
+        .join(Chapter, Chapter.id == UserProgress.chapter_id)
+        .where(UserProgress.user_id == user_id)
+    )
+
+
+async def list_continue_reading_responses(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    page_size: int = 20,
+    offset: int = 0,
+    base_url: str | None = None,
+) -> list[ProgressResponse]:
+    """List continue reading dengan projection ringan tanpa JSONB images."""
+    result = await db.execute(
+        _progress_projection_statement(user_id)
+        .order_by(UserProgress.last_read_at.desc(), UserProgress.id.desc())
+        .offset(offset)
+        .limit(page_size)
+    )
+    return [
+        build_progress_projection_response(row, base_url=base_url)
+        for row in result.all()
+    ]
+
+
 async def list_continue_reading(
     db: AsyncSession,
     user_id: uuid.UUID,
@@ -859,6 +1058,7 @@ async def list_history_responses(
     page_size: int = 20,
     offset: int = 0,
     base_url: str | None = None,
+    comic_id: int | None = None,
 ) -> list[HistoryItemResponse]:
     """List history terbaru memakai projection ringan untuk UI list."""
     is_completed = (
@@ -869,7 +1069,7 @@ async def list_history_responses(
         )
         .exists()
     )
-    result = await db.execute(
+    statement = (
         select(
             UserHistoryEntry.id.label("id"),
             UserHistoryEntry.reading_mode.label("reading_mode"),
@@ -904,6 +1104,9 @@ async def list_history_responses(
         .offset(offset)
         .limit(page_size)
     )
+    if comic_id is not None:
+        statement = statement.where(UserHistoryEntry.comic_id == comic_id)
+    result = await db.execute(statement)
     return [
         build_history_projection_response(row, base_url=base_url)
         for row in result.all()
@@ -999,6 +1202,50 @@ async def list_download_entries(
     return result.scalars().all()
 
 
+def _download_projection_statement(user_id: uuid.UUID):
+    return (
+        select(
+            UserDownloadEntry.id.label("id"),
+            UserDownloadEntry.status.label("download_status"),
+            UserDownloadEntry.source_device_id.label("source_device_id"),
+            UserDownloadEntry.last_error.label("last_error"),
+            UserDownloadEntry.requested_at.label("requested_at"),
+            UserDownloadEntry.downloaded_at.label("downloaded_at"),
+            UserDownloadEntry.updated_at.label("updated_at"),
+            *_comic_projection_columns(),
+            *_chapter_projection_columns(),
+        )
+        .join(Comic, Comic.id == UserDownloadEntry.comic_id)
+        .join(Chapter, Chapter.id == UserDownloadEntry.chapter_id)
+        .where(UserDownloadEntry.user_id == user_id)
+    )
+
+
+async def list_download_entry_responses(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    *,
+    limit: int | None = 200,
+    comic_id: int | None = None,
+    base_url: str | None = None,
+) -> list[DownloadEntryResponse]:
+    """List download intents dengan projection ringan tanpa JSONB images."""
+    statement = _download_projection_statement(user_id)
+    if comic_id is not None:
+        statement = statement.where(UserDownloadEntry.comic_id == comic_id)
+    statement = statement.order_by(
+        UserDownloadEntry.updated_at.desc(),
+        UserDownloadEntry.id.desc(),
+    )
+    if limit is not None:
+        statement = statement.limit(limit)
+    result = await db.execute(statement)
+    return [
+        build_download_projection_response(row, base_url=base_url)
+        for row in result.all()
+    ]
+
+
 async def upsert_download_entry(
     db: AsyncSession,
     user_id: uuid.UUID,
@@ -1067,17 +1314,39 @@ async def delete_download_entry(
     return deleted_id is not None
 
 
+def _download_batch_upsert_statement(rows: list[dict]):
+    statement = insert(UserDownloadEntry).values(rows)
+    return statement.on_conflict_do_update(
+        index_elements=[
+            UserDownloadEntry.user_id,
+            UserDownloadEntry.chapter_id,
+        ],
+        set_={
+            "comic_id": statement.excluded.comic_id,
+            "status": statement.excluded.status,
+            "source_device_id": statement.excluded.source_device_id,
+            "last_error": statement.excluded.last_error,
+            "updated_at": statement.excluded.updated_at,
+            "downloaded_at": statement.excluded.downloaded_at,
+        },
+    )
+
+
 async def enqueue_download_batch(
     db: AsyncSession,
     user_id: uuid.UUID,
     payload: DownloadBatchRequest,
     base_url: str | None = None,
 ) -> DownloadBatchResponse:
-    """Enqueue download intent untuk banyak chapter sekaligus."""
+    """Enqueue download intent dengan lookup sekali dan bulk upsert."""
     comic = await resolve_comic_or_raise(db, payload.source_name, payload.comic_slug)
-    stmt = select(Chapter).where(Chapter.comic_id == comic.id)
+    stmt = select(
+        Chapter.id.label("chapter_id"),
+        Chapter.comic_id.label("comic_id"),
+        Chapter.chapter_number.label("chapter_number"),
+    ).where(Chapter.comic_id == comic.id)
     chapters_result = await db.execute(stmt.order_by(Chapter.chapter_number.desc()))
-    chapters = chapters_result.scalars().all()
+    chapters = chapters_result.all()
 
     if payload.chapter_numbers:
         requested_numbers = set(payload.chapter_numbers)
@@ -1095,44 +1364,76 @@ async def enqueue_download_batch(
     if not filtered:
         raise LookupError("Tidak ada chapter yang cocok untuk download batch.")
 
-    created_total = 0
-    updated_total = 0
-    requested_chapter_numbers: list[float] = []
+    chapter_ids = [chapter.chapter_id for chapter in filtered]
+    existing_result = await db.execute(
+        select(UserDownloadEntry.chapter_id).where(
+            UserDownloadEntry.user_id == user_id,
+            UserDownloadEntry.chapter_id.in_(chapter_ids),
+        )
+    )
+    existing_chapter_ids = set(existing_result.scalars().all())
+    now = _utcnow()
+    rows = [
+        {
+            "user_id": user_id,
+            "comic_id": chapter.comic_id,
+            "chapter_id": chapter.chapter_id,
+            "status": payload.status,
+            "source_device_id": payload.source_device_id,
+            "last_error": None,
+            "updated_at": now,
+            "downloaded_at": now if payload.status == "completed" else None,
+        }
+        for chapter in filtered
+    ]
 
-    for chapter in filtered:
-        requested_chapter_numbers.append(chapter.chapter_number)
-        result = await db.execute(
-            select(UserDownloadEntry).where(
-                UserDownloadEntry.user_id == user_id,
-                UserDownloadEntry.chapter_id == chapter.id,
+    for offset in range(0, len(rows), BULK_DML_CHUNK_SIZE):
+        await db.execute(
+            _download_batch_upsert_statement(
+                rows[offset : offset + BULK_DML_CHUNK_SIZE]
             )
         )
-        entry = result.scalars().first()
-        if entry is None:
-            entry = UserDownloadEntry(
-                user_id=user_id,
-                comic_id=comic.id,
-                chapter_id=chapter.id,
-            )
-            db.add(entry)
-            created_total += 1
-        else:
-            updated_total += 1
-
-        entry.status = payload.status
-        entry.source_device_id = payload.source_device_id
-        entry.last_error = None
-        entry.updated_at = _utcnow()
-        entry.downloaded_at = _utcnow() if payload.status == "completed" else None
 
     await db.commit()
+    created_total = len(set(chapter_ids) - existing_chapter_ids)
+    updated_total = len(existing_chapter_ids)
     return DownloadBatchResponse(
         comic=build_comic_ref(comic, base_url=base_url),
         requested_total=len(filtered),
         created_total=created_total,
         updated_total=updated_total,
-        chapter_numbers=sorted(requested_chapter_numbers, reverse=True),
+        chapter_numbers=sorted(
+            [chapter.chapter_number for chapter in filtered],
+            reverse=True,
+        ),
     )
+
+
+async def _get_library_summary_counts(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+) -> LibrarySummaryCounts:
+    statements = (
+        ("bookmarks", UserBookmark),
+        ("collections", UserCollection),
+        ("favorite_scenes", UserFavoriteScene),
+        ("history", UserHistoryEntry),
+        ("downloads", UserDownloadEntry),
+        ("continue_reading", UserProgress),
+    )
+    result = await db.execute(
+        union_all(
+            *[
+                select(
+                    literal(key).label("key"),
+                    func.count(model.id).label("total"),
+                ).where(model.user_id == user_id)
+                for key, model in statements
+            ]
+        )
+    )
+    counts = {row.key: row.total for row in result.all()}
+    return LibrarySummaryCounts(**counts)
 
 
 async def get_library_summary(
@@ -1141,64 +1442,29 @@ async def get_library_summary(
     base_url: str | None = None,
 ) -> LibrarySummaryResponse:
     """Ringkasan utama library untuk home/library screen."""
-    bookmark_count = (
-        await db.execute(
-            select(func.count(UserBookmark.id)).where(UserBookmark.user_id == user_id)
-        )
-    ).scalar_one()
-    collection_count = (
-        await db.execute(
-            select(func.count(UserCollection.id)).where(UserCollection.user_id == user_id)
-        )
-    ).scalar_one()
-    favorite_scene_count = (
-        await db.execute(
-            select(func.count(UserFavoriteScene.id)).where(UserFavoriteScene.user_id == user_id)
-        )
-    ).scalar_one()
-    history_count = (
-        await db.execute(
-            select(func.count(UserHistoryEntry.id)).where(UserHistoryEntry.user_id == user_id)
-        )
-    ).scalar_one()
-    download_count = (
-        await db.execute(
-            select(func.count(UserDownloadEntry.id)).where(UserDownloadEntry.user_id == user_id)
-        )
-    ).scalar_one()
-    progress_count = (
-        await db.execute(
-            select(func.count(UserProgress.id)).where(UserProgress.user_id == user_id)
-        )
-    ).scalar_one()
-
-    continue_reading = await list_continue_reading(db, user_id, page_size=10)
+    counts = await _get_library_summary_counts(db, user_id)
+    continue_reading = await list_continue_reading_responses(
+        db,
+        user_id,
+        page_size=10,
+        base_url=base_url,
+    )
     history = await list_history_responses(
         db,
         user_id,
         page_size=10,
         base_url=base_url,
     )
-    collections = await list_collections(db, user_id)
+    collections = await list_collection_summaries(db, user_id)
     preferences = await db.get(ReaderPreference, user_id)
     reading_stat = await db.get(UserReadingStat, user_id)
 
     return LibrarySummaryResponse(
-        counts=LibrarySummaryCounts(
-            bookmarks=bookmark_count or 0,
-            collections=collection_count or 0,
-            favorite_scenes=favorite_scene_count or 0,
-            history=history_count or 0,
-            downloads=download_count or 0,
-            continue_reading=progress_count or 0,
-        ),
+        counts=counts,
         reading_time_seconds=(
             reading_stat.total_reading_seconds if reading_stat is not None else 0
         ),
-        continue_reading=[
-            build_progress_response(item, base_url=base_url)
-            for item in continue_reading
-        ],
+        continue_reading=continue_reading,
         recent_history=history,
         collections=[build_collection_summary_response(item) for item in collections],
         reader_preferences=(
@@ -1219,62 +1485,51 @@ async def get_library_state_for_comic(
     """State terpadu satu komik untuk CTA detail page."""
     comic = await resolve_comic_or_raise(db, source_name, comic_slug)
 
-    bookmark_result = await db.execute(
-        select(UserBookmark).where(
-            UserBookmark.user_id == user_id,
-            UserBookmark.comic_id == comic.id,
-        )
-    )
-    bookmark = bookmark_result.scalars().first()
-
-    progress_result = await db.execute(
-        select(UserProgress).where(
-            UserProgress.user_id == user_id,
-            UserProgress.comic_id == comic.id,
-        )
-    )
-    progress = progress_result.scalars().first()
-
-    history_result = await db.execute(
-        select(UserHistoryEntry)
-        .where(
-            UserHistoryEntry.user_id == user_id,
-            UserHistoryEntry.comic_id == comic.id,
-        )
-        .order_by(UserHistoryEntry.last_read_at.desc(), UserHistoryEntry.id.desc())
-    )
-    history = history_result.scalars().first()
-
-    collection_rows = await db.execute(
-        select(UserCollection)
-        .join(UserCollectionComic, UserCollectionComic.collection_id == UserCollection.id)
-        .options(selectinload(UserCollection.items).selectinload(UserCollectionComic.comic))
-        .where(
-            UserCollection.user_id == user_id,
-            UserCollectionComic.comic_id == comic.id,
-        )
-        .order_by(UserCollection.updated_at.desc())
-    )
-    collections = collection_rows.scalars().unique().all()
-
-    favorite_scene_count = (
+    overview = (
         await db.execute(
-            select(func.count(UserFavoriteScene.id)).where(
-                UserFavoriteScene.user_id == user_id,
-                UserFavoriteScene.comic_id == comic.id,
+            select(
+                exists(
+                    select(UserBookmark.id).where(
+                        UserBookmark.user_id == user_id,
+                        UserBookmark.comic_id == comic.id,
+                    )
+                ).label("bookmarked"),
+                select(func.count(UserFavoriteScene.id))
+                .where(
+                    UserFavoriteScene.user_id == user_id,
+                    UserFavoriteScene.comic_id == comic.id,
+                )
+                .scalar_subquery()
+                .label("favorite_scene_count"),
             )
         )
-    ).scalar_one()
-
-    download_rows = await db.execute(
-        select(UserDownloadEntry)
-        .where(
-            UserDownloadEntry.user_id == user_id,
-            UserDownloadEntry.comic_id == comic.id,
+    ).one()
+    progress_row = (
+        await db.execute(
+            _progress_projection_statement(user_id).where(
+                UserProgress.comic_id == comic.id
+            )
         )
-        .order_by(UserDownloadEntry.updated_at.desc(), UserDownloadEntry.id.desc())
+    ).first()
+    history_items = await list_history_responses(
+        db,
+        user_id,
+        page_size=1,
+        comic_id=comic.id,
+        base_url=base_url,
     )
-    download_entries = download_rows.scalars().all()
+    collections = await list_collection_summaries(
+        db,
+        user_id,
+        comic_id=comic.id,
+    )
+    download_entries = await list_download_entry_responses(
+        db,
+        user_id,
+        limit=None,
+        comic_id=comic.id,
+        base_url=base_url,
+    )
     download_status_counts = dict(Counter(entry.status for entry in download_entries))
 
     completed_rows = await db.execute(
@@ -1290,26 +1545,151 @@ async def get_library_state_for_comic(
 
     return LibraryComicStateResponse(
         comic=build_comic_ref(comic, base_url=base_url),
-        bookmarked=bookmark is not None,
+        bookmarked=overview.bookmarked,
         collections=[build_collection_summary_response(item) for item in collections],
         progress=(
-            build_progress_response(progress, base_url=base_url)
-            if progress is not None
+            build_progress_projection_response(progress_row, base_url=base_url)
+            if progress_row is not None
             else None
         ),
-        history=(
-            build_history_response(history, base_url=base_url)
-            if history is not None
-            else None
-        ),
+        history=history_items[0] if history_items else None,
         completed_chapter_numbers=completed_chapter_numbers,
-        favorite_scene_count=favorite_scene_count or 0,
+        favorite_scene_count=overview.favorite_scene_count or 0,
         download_status_counts=download_status_counts,
-        download_entries=[
-            build_download_response(entry, base_url=base_url)
-            for entry in download_entries
-        ],
+        download_entries=download_entries,
     )
+
+
+def _chunked(items: list, size: int = BULK_DML_CHUNK_SIZE):
+    for offset in range(0, len(items), size):
+        yield items[offset : offset + size]
+
+
+async def _bulk_upsert(
+    db: AsyncSession,
+    model,
+    rows: list[dict],
+    *,
+    index_elements: list,
+    update_columns: tuple[str, ...],
+) -> None:
+    for chunk in _chunked(rows):
+        statement = insert(model).values(chunk)
+        await db.execute(
+            statement.on_conflict_do_update(
+                index_elements=index_elements,
+                set_={
+                    name: getattr(statement.excluded, name)
+                    for name in update_columns
+                },
+            )
+        )
+
+
+def _comic_selector_key(payload) -> tuple[str, str]:
+    return payload.source_name, payload.comic_slug
+
+
+def _chapter_selector_key(payload) -> tuple[str, str, float]:
+    return payload.source_name, payload.comic_slug, float(payload.chapter_number)
+
+
+async def _resolve_comic_selector_ids(
+    db: AsyncSession,
+    selector_keys: set[tuple[str, str]],
+) -> dict[tuple[str, str], int]:
+    resolved: dict[tuple[str, str], int] = {}
+    for chunk in _chunked(sorted(selector_keys)):
+        selector_values = (
+            values(
+                column("source_name", String),
+                column("comic_slug", String),
+                name="requested_comics",
+            )
+            .data(chunk)
+            .alias("requested_comics")
+        )
+        result = await db.execute(
+            select(
+                selector_values.c.source_name,
+                selector_values.c.comic_slug,
+                Comic.id.label("comic_id"),
+            ).join(
+                Comic,
+                and_(
+                    Comic.source_name == selector_values.c.source_name,
+                    Comic.slug == selector_values.c.comic_slug,
+                ),
+            )
+        )
+        for row in result.all():
+            resolved[(row.source_name, row.comic_slug)] = row.comic_id
+
+    missing = selector_keys - resolved.keys()
+    if missing:
+        source_name, comic_slug = sorted(missing)[0]
+        raise LookupError(f"Comic {source_name}/{comic_slug} tidak ditemukan.")
+    return resolved
+
+
+async def _resolve_chapter_selector_ids(
+    db: AsyncSession,
+    selector_keys: set[tuple[str, str, float]],
+) -> dict[tuple[str, str, float], tuple[int, int]]:
+    resolved: dict[tuple[str, str, float], tuple[int, int]] = {}
+    for chunk in _chunked(sorted(selector_keys)):
+        selector_values = (
+            values(
+                column("source_name", String),
+                column("comic_slug", String),
+                column("chapter_number", Float),
+                name="requested_chapters",
+            )
+            .data(chunk)
+            .alias("requested_chapters")
+        )
+        result = await db.execute(
+            select(
+                selector_values.c.source_name,
+                selector_values.c.comic_slug,
+                selector_values.c.chapter_number.label("requested_chapter_number"),
+                Chapter.id.label("chapter_id"),
+                Chapter.comic_id.label("comic_id"),
+            )
+            .join(
+                Comic,
+                and_(
+                    Comic.source_name == selector_values.c.source_name,
+                    Comic.slug == selector_values.c.comic_slug,
+                ),
+            )
+            .join(
+                Chapter,
+                and_(
+                    Chapter.comic_id == Comic.id,
+                    Chapter.chapter_number
+                    >= selector_values.c.chapter_number - CHAPTER_NUMBER_TOLERANCE,
+                    Chapter.chapter_number
+                    <= selector_values.c.chapter_number + CHAPTER_NUMBER_TOLERANCE,
+                ),
+            )
+            .order_by(Chapter.id)
+        )
+        for row in result.all():
+            key = (
+                row.source_name,
+                row.comic_slug,
+                float(row.requested_chapter_number),
+            )
+            resolved.setdefault(key, (row.chapter_id, row.comic_id))
+
+    missing = selector_keys - resolved.keys()
+    if missing:
+        source_name, comic_slug, chapter_number = sorted(missing)[0]
+        raise LookupError(
+            f"Chapter {chapter_number} untuk {source_name}/{comic_slug} tidak ditemukan."
+        )
+    return resolved
 
 
 async def import_library_snapshot(
@@ -1317,70 +1697,309 @@ async def import_library_snapshot(
     user_id: uuid.UUID,
     payload: LibrarySyncImportRequest,
 ) -> LibrarySyncImportResponse:
-    """Batch import snapshot local -> cloud untuk migrasi pertama."""
-    response = LibrarySyncImportResponse()
+    """Import snapshot memakai satu transaction atomic dan bulk DML."""
+    now = _utcnow()
+    comic_selector_keys = {
+        _comic_selector_key(item)
+        for item in payload.bookmarks
+    }
+    comic_selector_keys.update(
+        _comic_selector_key(item)
+        for collection in payload.collections
+        for item in collection.comics
+    )
+    chapter_payloads = [
+        *payload.progress,
+        *payload.history,
+        *payload.completed_chapters,
+        *payload.favorite_scenes,
+        *payload.downloads,
+    ]
+    chapter_selector_keys = {
+        _chapter_selector_key(item)
+        for item in chapter_payloads
+    }
 
-    for bookmark_payload in payload.bookmarks:
-        await set_bookmark(
-            db,
-            user_id,
-            bookmark_payload.source_name,
-            bookmark_payload.comic_slug,
-        )
-        response.bookmarks_upserted += 1
+    async with db.begin():
+        comic_ids = await _resolve_comic_selector_ids(db, comic_selector_keys)
+        chapter_ids = await _resolve_chapter_selector_ids(db, chapter_selector_keys)
 
-    for collection_payload in payload.collections:
-        collection = await get_or_create_collection_by_name(
+        bookmark_rows = {
+            comic_ids[_comic_selector_key(item)]: {
+                "user_id": user_id,
+                "comic_id": comic_ids[_comic_selector_key(item)],
+                "updated_at": now,
+            }
+            for item in payload.bookmarks
+        }
+        await _bulk_upsert(
             db,
-            user_id,
-            collection_payload.name,
+            UserBookmark,
+            list(bookmark_rows.values()),
+            index_elements=[UserBookmark.user_id, UserBookmark.comic_id],
+            update_columns=("updated_at",),
         )
-        response.collections_upserted += 1
-        for comic_payload in collection_payload.comics:
-            before_count = len(collection.items)
-            collection = await add_comic_to_collection(
-                db,
-                user_id,
-                collection.id,
-                comic_payload.source_name,
-                comic_payload.comic_slug,
+
+        collection_payloads = {
+            normalize_collection_name(item.name): item
+            for item in payload.collections
+        }
+        collection_rows = [
+            {
+                "user_id": user_id,
+                "name": item.name,
+                "normalized_name": normalized_name,
+                "updated_at": now,
+            }
+            for normalized_name, item in collection_payloads.items()
+        ]
+        collection_ids: dict[str, int] = {}
+        for chunk in _chunked(collection_rows):
+            statement = insert(UserCollection).values(chunk)
+            result = await db.execute(
+                statement.on_conflict_do_update(
+                    index_elements=[
+                        UserCollection.user_id,
+                        UserCollection.normalized_name,
+                    ],
+                    set_={
+                        "name": statement.excluded.name,
+                        "updated_at": statement.excluded.updated_at,
+                    },
+                ).returning(UserCollection.id, UserCollection.normalized_name)
             )
-            after_count = len(collection.items)
-            if after_count > before_count:
-                response.collection_items_upserted += 1
+            collection_ids.update(
+                {
+                    row.normalized_name: row.id
+                    for row in result.all()
+                }
+            )
 
-    for progress_payload in payload.progress:
-        await upsert_progress(db, user_id, progress_payload)
-        response.progress_upserted += 1
+        collection_item_rows = {
+            (
+                collection_ids[normalized_name],
+                comic_ids[_comic_selector_key(comic)],
+            ): {
+                "collection_id": collection_ids[normalized_name],
+                "comic_id": comic_ids[_comic_selector_key(comic)],
+            }
+            for normalized_name, collection in collection_payloads.items()
+            for comic in collection.comics
+        }
+        collection_items_upserted = 0
+        for chunk in _chunked(list(collection_item_rows.values())):
+            statement = (
+                insert(UserCollectionComic)
+                .values(chunk)
+                .on_conflict_do_nothing(
+                    index_elements=[
+                        UserCollectionComic.collection_id,
+                        UserCollectionComic.comic_id,
+                    ]
+                )
+                .returning(UserCollectionComic.id)
+            )
+            collection_items_upserted += len((await db.execute(statement)).all())
 
-    for history_payload in payload.history:
-        chapter = await resolve_chapter_or_raise(
+        progress_rows: dict[int, dict] = {}
+        history_rows: dict[int, dict] = {}
+        completed_rows: dict[tuple[int, int], dict] = {}
+        for item in payload.progress:
+            chapter_id, comic_id = chapter_ids[_chapter_selector_key(item)]
+            shared = {
+                "user_id": user_id,
+                "comic_id": comic_id,
+                "chapter_id": chapter_id,
+                "reading_mode": item.reading_mode,
+                "scroll_offset": item.scroll_offset,
+                "page_index": item.page_index,
+                "last_read_page_item_index": item.last_read_page_item_index,
+                "total_page_items": item.total_page_items,
+                "last_read_at": now,
+                "updated_at": now,
+            }
+            progress_rows[comic_id] = {**shared, "is_completed": item.is_completed}
+            history_rows[chapter_id] = shared
+            if item.is_completed:
+                completed_rows[(comic_id, chapter_id)] = {
+                    "user_id": user_id,
+                    "comic_id": comic_id,
+                    "chapter_id": chapter_id,
+                    "completed_at": now,
+                }
+
+        for item in payload.history:
+            chapter_id, comic_id = chapter_ids[_chapter_selector_key(item)]
+            history_rows[chapter_id] = {
+                "user_id": user_id,
+                "comic_id": comic_id,
+                "chapter_id": chapter_id,
+                "reading_mode": item.reading_mode,
+                "scroll_offset": item.scroll_offset,
+                "page_index": item.page_index,
+                "last_read_page_item_index": item.last_read_page_item_index,
+                "total_page_items": item.total_page_items,
+                "last_read_at": now,
+                "updated_at": now,
+            }
+
+        for item in payload.completed_chapters:
+            chapter_id, comic_id = chapter_ids[_chapter_selector_key(item)]
+            completed_rows[(comic_id, chapter_id)] = {
+                "user_id": user_id,
+                "comic_id": comic_id,
+                "chapter_id": chapter_id,
+                "completed_at": now,
+            }
+
+        await _bulk_upsert(
             db,
-            history_payload.source_name,
-            history_payload.comic_slug,
-            history_payload.chapter_number,
+            UserProgress,
+            list(progress_rows.values()),
+            index_elements=[UserProgress.user_id, UserProgress.comic_id],
+            update_columns=(
+                "chapter_id",
+                "reading_mode",
+                "scroll_offset",
+                "page_index",
+                "last_read_page_item_index",
+                "total_page_items",
+                "is_completed",
+                "last_read_at",
+                "updated_at",
+            ),
         )
-        await upsert_history_from_progress(db, user_id, chapter, history_payload)
-        response.history_upserted += 1
+        await _bulk_upsert(
+            db,
+            UserHistoryEntry,
+            list(history_rows.values()),
+            index_elements=[UserHistoryEntry.user_id, UserHistoryEntry.chapter_id],
+            update_columns=(
+                "comic_id",
+                "reading_mode",
+                "scroll_offset",
+                "page_index",
+                "last_read_page_item_index",
+                "total_page_items",
+                "last_read_at",
+                "updated_at",
+            ),
+        )
+        await _bulk_upsert(
+            db,
+            UserCompletedChapter,
+            list(completed_rows.values()),
+            index_elements=[
+                UserCompletedChapter.user_id,
+                UserCompletedChapter.comic_id,
+                UserCompletedChapter.chapter_id,
+            ],
+            update_columns=("completed_at",),
+        )
 
-    for completed_payload in payload.completed_chapters:
-        await mark_chapter_completed(db, user_id, completed_payload)
-        response.completed_chapters_upserted += 1
+        favorite_rows: dict[tuple[int, int], dict] = {}
+        for item in payload.favorite_scenes:
+            chapter_id, comic_id = chapter_ids[_chapter_selector_key(item)]
+            favorite_rows[(chapter_id, item.page_item_index)] = {
+                "user_id": user_id,
+                "comic_id": comic_id,
+                "chapter_id": chapter_id,
+                "page_item_index": item.page_item_index,
+                "image_url": item.image_url,
+                "note": item.note,
+                "updated_at": now,
+            }
+        await _bulk_upsert(
+            db,
+            UserFavoriteScene,
+            list(favorite_rows.values()),
+            index_elements=[
+                UserFavoriteScene.user_id,
+                UserFavoriteScene.chapter_id,
+                UserFavoriteScene.page_item_index,
+            ],
+            update_columns=("comic_id", "image_url", "note", "updated_at"),
+        )
 
-    for scene_payload in payload.favorite_scenes:
-        await upsert_favorite_scene(db, user_id, scene_payload)
-        response.favorite_scenes_upserted += 1
+        download_rows: dict[int, dict] = {}
+        for item in payload.downloads:
+            chapter_id, comic_id = chapter_ids[_chapter_selector_key(item)]
+            download_rows[chapter_id] = {
+                "user_id": user_id,
+                "comic_id": comic_id,
+                "chapter_id": chapter_id,
+                "status": item.status,
+                "source_device_id": item.source_device_id,
+                "last_error": item.last_error,
+                "downloaded_at": now if item.status == "completed" else None,
+                "updated_at": now,
+            }
+        await _bulk_upsert(
+            db,
+            UserDownloadEntry,
+            list(download_rows.values()),
+            index_elements=[UserDownloadEntry.user_id, UserDownloadEntry.chapter_id],
+            update_columns=(
+                "comic_id",
+                "status",
+                "source_device_id",
+                "last_error",
+                "downloaded_at",
+                "updated_at",
+            ),
+        )
 
-    for download_payload in payload.downloads:
-        await upsert_download_entry(db, user_id, download_payload)
-        response.downloads_upserted += 1
+        if payload.reader_preferences is not None:
+            preference = payload.reader_preferences
+            await _bulk_upsert(
+                db,
+                ReaderPreference,
+                [
+                    {
+                        "user_id": user_id,
+                        "default_reading_mode": preference.default_reading_mode,
+                        "reading_direction": preference.reading_direction,
+                        "mark_read_on_complete": preference.mark_read_on_complete,
+                        "default_binge_mode": preference.default_binge_mode,
+                        "updated_at": now,
+                    }
+                ],
+                index_elements=[ReaderPreference.user_id],
+                update_columns=(
+                    "default_reading_mode",
+                    "reading_direction",
+                    "mark_read_on_complete",
+                    "default_binge_mode",
+                    "updated_at",
+                ),
+            )
 
-    if payload.reader_preferences is not None:
-        await update_reader_preferences(db, user_id, payload.reader_preferences)
-        response.reader_preferences_updated = True
+        if payload.reading_time_seconds > 0:
+            statement = insert(UserReadingStat).values(
+                user_id=user_id,
+                total_reading_seconds=payload.reading_time_seconds,
+                updated_at=now,
+            )
+            await db.execute(
+                statement.on_conflict_do_update(
+                    index_elements=[UserReadingStat.user_id],
+                    set_={
+                        "total_reading_seconds": UserReadingStat.total_reading_seconds
+                        + payload.reading_time_seconds,
+                        "updated_at": now,
+                    },
+                )
+            )
 
-    if payload.reading_time_seconds > 0:
-        await add_reading_time_delta(db, user_id, payload.reading_time_seconds)
-        response.reading_time_seconds_imported = payload.reading_time_seconds
-
-    return response
+    return LibrarySyncImportResponse(
+        bookmarks_upserted=len(bookmark_rows),
+        collections_upserted=len(collection_rows),
+        collection_items_upserted=collection_items_upserted,
+        progress_upserted=len(progress_rows),
+        history_upserted=len(history_rows),
+        completed_chapters_upserted=len(completed_rows),
+        favorite_scenes_upserted=len(favorite_rows),
+        downloads_upserted=len(download_rows),
+        reader_preferences_updated=payload.reader_preferences is not None,
+        reading_time_seconds_imported=payload.reading_time_seconds,
+    )

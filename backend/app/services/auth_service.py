@@ -35,6 +35,7 @@ from app.schemas import (
     AuthTokenResponse,
     AuthUserResponse,
 )
+from app.services.http_client_service import get_auth_http_client
 from app.services.profile_service import normalize_username
 
 
@@ -153,11 +154,11 @@ async def get_auth_user_by_id(user_id: str) -> dict[str, Any]:
     if not auth_base:
         raise AuthConfigurationError("SUPABASE_URL must be configured.")
 
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        response = await client.get(
-            f"{auth_base}/admin/users/{user_id}",
-            headers=_build_admin_headers(),
-        )
+    response = await get_auth_http_client().get(
+        f"{auth_base}/admin/users/{user_id}",
+        headers=_build_admin_headers(),
+        timeout=20.0,
+    )
 
     if response.status_code >= 400:
         raise AuthRequestError(
@@ -181,12 +182,12 @@ async def mark_auth_user_has_password(user_id: str) -> None:
     if not auth_base:
         raise AuthConfigurationError("SUPABASE_URL must be configured.")
 
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        response = await client.put(
-            f"{auth_base}/admin/users/{user_id}",
-            headers=_build_admin_headers(),
-            json={"app_metadata": app_metadata},
-        )
+    response = await get_auth_http_client().put(
+        f"{auth_base}/admin/users/{user_id}",
+        headers=_build_admin_headers(),
+        json={"app_metadata": app_metadata},
+        timeout=20.0,
+    )
 
     if response.status_code >= 400:
         raise AuthRequestError(
@@ -236,12 +237,12 @@ async def _auth_user_exists_by_email(email: str) -> bool:
         raise AuthConfigurationError("SUPABASE_URL must be configured.")
 
     normalized_email = email.strip().lower()
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.get(
-            f"{auth_base}/admin/users",
-            params={"page": 1, "per_page": 100, "filter": normalized_email},
-            headers=_build_admin_headers(),
-        )
+    response = await get_auth_http_client().get(
+        f"{auth_base}/admin/users",
+        params={"page": 1, "per_page": 100, "filter": normalized_email},
+        headers=_build_admin_headers(),
+        timeout=30.0,
+    )
 
     if response.status_code >= 400:
         raise AuthRequestError(
@@ -289,13 +290,13 @@ async def register_with_email_password(
     redirect_to = payload.email_redirect_to or settings.SUPABASE_AUTH_REDIRECT_URL
     params = {"redirect_to": redirect_to} if redirect_to else None
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.post(
-            f"{auth_base}/signup",
-            params=params,
-            headers=_build_public_headers(),
-            json=body,
-        )
+    response = await get_auth_http_client().post(
+        f"{auth_base}/signup",
+        params=params,
+        headers=_build_public_headers(),
+        json=body,
+        timeout=30.0,
+    )
 
     if response.status_code >= 400:
         raise _build_register_auth_error(response)
@@ -314,16 +315,16 @@ async def login_with_email_password(
 
     email = await _resolve_login_email(db, payload.login_identifier)
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.post(
-            f"{auth_base}/token",
-            params={"grant_type": "password"},
-            headers=_build_public_headers(),
-            json={
-                "email": email,
-                "password": payload.password,
-            },
-        )
+    response = await get_auth_http_client().post(
+        f"{auth_base}/token",
+        params={"grant_type": "password"},
+        headers=_build_public_headers(),
+        json={
+            "email": email,
+            "password": payload.password,
+        },
+        timeout=30.0,
+    )
 
     if response.status_code >= 400:
         raise _build_login_auth_error(response)
@@ -348,13 +349,13 @@ async def login_with_google_id_token(
     if payload.nonce:
         body["nonce"] = payload.nonce
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.post(
-            f"{auth_base}/token",
-            params={"grant_type": "id_token"},
-            headers=_build_public_headers(),
-            json=body,
-        )
+    response = await get_auth_http_client().post(
+        f"{auth_base}/token",
+        params={"grant_type": "id_token"},
+        headers=_build_public_headers(),
+        json=body,
+        timeout=30.0,
+    )
 
     if response.status_code >= 400:
         raise _build_google_auth_error(response)
@@ -405,15 +406,15 @@ async def refresh_auth_session(
     if not auth_base:
         raise AuthConfigurationError("SUPABASE_URL must be configured.")
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.post(
-            f"{auth_base}/token",
-            params={"grant_type": "refresh_token"},
-            headers=_build_public_headers(),
-            json={
-                "refresh_token": payload.refresh_token,
-            },
-        )
+    response = await get_auth_http_client().post(
+        f"{auth_base}/token",
+        params={"grant_type": "refresh_token"},
+        headers=_build_public_headers(),
+        json={
+            "refresh_token": payload.refresh_token,
+        },
+        timeout=30.0,
+    )
 
     if response.status_code >= 400:
         raise _build_refresh_auth_error(response)
@@ -430,13 +431,13 @@ async def request_password_recovery(payload: AuthPasswordRecoveryRequest) -> Non
     redirect_to = payload.email_redirect_to or settings.SUPABASE_AUTH_REDIRECT_URL
     params = {"redirect_to": redirect_to} if redirect_to else None
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.post(
-            f"{auth_base}/recover",
-            params=params,
-            headers=_build_public_headers(),
-            json={"email": str(payload.email)},
-        )
+    response = await get_auth_http_client().post(
+        f"{auth_base}/recover",
+        params=params,
+        headers=_build_public_headers(),
+        json={"email": str(payload.email)},
+        timeout=30.0,
+    )
 
     if response.status_code >= 400:
         raise _build_password_recovery_auth_error(response)
@@ -450,16 +451,16 @@ async def verify_password_recovery(
     if not auth_base:
         raise AuthConfigurationError("SUPABASE_URL must be configured.")
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.post(
-            f"{auth_base}/verify",
-            headers=_build_public_headers(),
-            json={
-                "type": "recovery",
-                "email": str(payload.email),
-                "token_hash": payload.token_hash,
-            },
-        )
+    response = await get_auth_http_client().post(
+        f"{auth_base}/verify",
+        headers=_build_public_headers(),
+        json={
+            "type": "recovery",
+            "email": str(payload.email),
+            "token_hash": payload.token_hash,
+        },
+        timeout=30.0,
+    )
 
     if response.status_code >= 400:
         raise _build_password_recovery_verify_auth_error(response)
@@ -475,16 +476,16 @@ async def verify_email_signup(
     if not auth_base:
         raise AuthConfigurationError("SUPABASE_URL must be configured.")
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.post(
-            f"{auth_base}/verify",
-            headers=_build_public_headers(),
-            json={
-                "type": "signup",
-                "email": str(payload.email),
-                "token_hash": payload.token_hash,
-            },
-        )
+    response = await get_auth_http_client().post(
+        f"{auth_base}/verify",
+        headers=_build_public_headers(),
+        json={
+            "type": "signup",
+            "email": str(payload.email),
+            "token_hash": payload.token_hash,
+        },
+        timeout=30.0,
+    )
 
     if response.status_code >= 400:
         raise _build_email_verification_auth_error(response)
@@ -503,16 +504,16 @@ async def update_auth_password(
 
     _require_supabase_public_config()
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.put(
-            f"{auth_base}/user",
-            headers={
-                "apikey": settings.SUPABASE_PUBLISHABLE_KEY,
-                "Authorization": f"Bearer {access_token}",
-                "Content-Type": "application/json",
-            },
-            json={"password": payload.password},
-        )
+    response = await get_auth_http_client().put(
+        f"{auth_base}/user",
+        headers={
+            "apikey": settings.SUPABASE_PUBLISHABLE_KEY,
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        },
+        json={"password": payload.password},
+        timeout=30.0,
+    )
 
     if response.status_code >= 400:
         raise _build_password_update_auth_error(response)
@@ -526,14 +527,14 @@ async def logout_auth_session(access_token: str) -> None:
 
     _require_supabase_public_config()
 
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        response = await client.post(
-            f"{auth_base}/logout",
-            headers={
-                "apikey": settings.SUPABASE_PUBLISHABLE_KEY,
-                "Authorization": f"Bearer {access_token}",
-            },
-        )
+    response = await get_auth_http_client().post(
+        f"{auth_base}/logout",
+        headers={
+            "apikey": settings.SUPABASE_PUBLISHABLE_KEY,
+            "Authorization": f"Bearer {access_token}",
+        },
+        timeout=20.0,
+    )
 
     if response.status_code not in {200, 204}:
         raise _build_logout_auth_error(response)
@@ -798,11 +799,11 @@ async def _verify_token_remotely(token: str) -> RemoteAuthUser:
         "Authorization": f"Bearer {token}",
     }
 
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        response = await client.get(
-            f"{auth_base}/user",
-            headers=headers,
-        )
+    response = await get_auth_http_client().get(
+        f"{auth_base}/user",
+        headers=headers,
+        timeout=20.0,
+    )
 
     if response.status_code >= 400:
         raise AuthValidationError(_extract_auth_error_payload(response)[0])
