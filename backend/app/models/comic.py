@@ -107,6 +107,14 @@ class Comic(Base):
             "id",
         ),
         Index(
+            "ix_comics_source_top_view_order",
+            "source_name",
+            text("total_view DESC NULLS LAST"),
+            text("rating DESC NULLS LAST"),
+            "title",
+            "id",
+        ),
+        Index(
             "ix_comics_source_name_source_url",
             "source_name",
             "source_url",

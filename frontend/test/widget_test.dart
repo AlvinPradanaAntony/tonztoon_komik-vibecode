@@ -525,6 +525,19 @@ class _FakeCatalogRepository implements CatalogRepository {
   }) async => const [comic];
 
   @override
+  Future<List<ComicSummary>> getRecommendations(
+    String sourceName, {
+    int limit = 4,
+  }) async => const [comic];
+
+  @override
+  Future<List<ComicSummary>> getTopRanking(
+    String sourceName, {
+    int limit = 10,
+    String? type,
+  }) async => const [comic];
+
+  @override
   Future<LatestComicStats> getLatestStats(String sourceName) async {
     return const LatestComicStats(periodDays: 7, updatedComicCount: 1);
   }

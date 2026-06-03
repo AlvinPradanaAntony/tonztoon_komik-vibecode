@@ -26,6 +26,7 @@ Usage:
     python -m scraper.refresh_komikcast_cover_urls --limit 100
     python -m scraper.refresh_komikcast_cover_urls --dry-run --limit 20
     python -m scraper.refresh_komikcast_cover_urls --verify-image --reset
+    python -m scraper.refresh_komikcast_cover_urls --limit 100 --no-anti-blocking
 """
 
 from __future__ import annotations
@@ -321,11 +322,39 @@ async def process_candidate(
 
 
 async def delay_between_covers(args: argparse.Namespace) -> None:
+    if not args.anti_blocking_enabled:
+        logger.debug("⏩ Delay antar-cover dilewati karena --no-anti-blocking")
+        return
     if args.delay is not None:
         if args.delay > 0:
             await random_delay(args.delay, args.delay, "antar-cover")
         return
     await random_delay(args.delay_min, args.delay_max, "antar-cover")
+
+
+async def maybe_backoff_delay(
+    args: argparse.Namespace,
+    attempt: int,
+    label: str,
+    *,
+    maximum: float = BACKOFF_MAX,
+) -> None:
+    if args.anti_blocking_enabled:
+        await backoff_delay(attempt, label, maximum=maximum)
+        return
+    logger.info("⏩ Backoff dilewati karena --no-anti-blocking: %s", label)
+
+
+async def maybe_random_delay(
+    args: argparse.Namespace,
+    min_sec: float,
+    max_sec: float,
+    label: str,
+) -> None:
+    if args.anti_blocking_enabled:
+        await random_delay(min_sec, max_sec, label)
+        return
+    logger.debug("⏩ Random delay dilewati: %s", label)
 
 
 def _stats_payload(stats: RefreshStats) -> dict:
@@ -376,9 +405,16 @@ async def run(args: argparse.Namespace) -> None:
     logger.info("   Dry-run     : %s", args.dry_run)
     logger.info("   Timeout     : %.1fs", args.timeout)
     logger.info(
-        "   Delay       : %s",
-        f"{args.delay:.1f}s" if args.delay is not None else f"{args.delay_min:.1f}-{args.delay_max:.1f}s",
+        "   Anti-blocking: %s",
+        "aktif" if args.anti_blocking_enabled else "nonaktif (--no-anti-blocking)",
     )
+    if args.anti_blocking_enabled:
+        logger.info(
+            "   Delay       : %s",
+            f"{args.delay:.1f}s" if args.delay is not None else f"{args.delay_min:.1f}-{args.delay_max:.1f}s",
+        )
+    else:
+        logger.info("   Delay/cooldown/backoff: dilewati")
     logger.info("   Reset       : %s", args.reset)
     logger.info("   Resume >ID  : %s", after_id)
     logger.info("   Checkpoint  : %s", CHECKPOINT_FILE if checkpoint_enabled else "disabled (dry-run)")
@@ -481,7 +517,8 @@ async def run(args: argparse.Namespace) -> None:
                     remaining -= 1
 
                 if consecutive_errors:
-                    await backoff_delay(
+                    await maybe_backoff_delay(
+                        args,
                         min(consecutive_errors - 1, MAX_CONSECUTIVE_ERRORS - 1),
                         "refresh cover URL komikcast",
                         maximum=BACKOFF_MAX,
@@ -491,17 +528,26 @@ async def run(args: argparse.Namespace) -> None:
                             "  ⛔ %s error berturut-turut. Cooldown sebelum lanjut.",
                             MAX_CONSECUTIVE_ERRORS,
                         )
-                        await random_delay(
+                        await maybe_random_delay(
+                            args,
                             COOLDOWN_MIN,
                             COOLDOWN_MAX,
                             "cooldown error cover URL",
                         )
                         consecutive_errors = 0
 
-                if stats.processed_since_cooldown >= COOLDOWN_EVERY_N_COVERS:
+                if (
+                    args.anti_blocking_enabled
+                    and stats.processed_since_cooldown >= COOLDOWN_EVERY_N_COVERS
+                ):
                     stats.processed_since_cooldown = 0
                     logger.info("  🧊 Cooldown berkala cover URL...")
-                    await random_delay(COOLDOWN_MIN, COOLDOWN_MAX, "cooldown cover URL")
+                    await maybe_random_delay(
+                        args,
+                        COOLDOWN_MIN,
+                        COOLDOWN_MAX,
+                        "cooldown cover URL",
+                    )
 
                 if remaining == 0 and args.limit > 0:
                     break
@@ -559,6 +605,13 @@ def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--verify-image", action="store_true")
     parser.add_argument("--reset", action="store_true", help="Hapus checkpoint sebelum mulai")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--no-anti-blocking",
+        dest="anti_blocking_enabled",
+        action="store_false",
+        help="Matikan random delay, cooldown berkala, dan backoff error.",
+    )
+    parser.set_defaults(anti_blocking_enabled=True)
     args = parser.parse_args(argv)
 
     if args.limit < 0:

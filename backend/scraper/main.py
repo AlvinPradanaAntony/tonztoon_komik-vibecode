@@ -13,6 +13,7 @@ Usage:
     python -m scraper.main --popular-pages 3
     python -m scraper.main --popular-pages 5 --popular-no-early-stop
     python -m scraper.main --max-pages 0 --popular-pages 3
+    python -m scraper.main --source komiku --max-pages 1 --no-anti-blocking
 
 Argumen CLI utama:
 - `--source <source_name>`
@@ -34,6 +35,9 @@ Argumen CLI utama:
     dalam tanpa berhenti walau page awal hanya berisi comic lama.
 - `--log-file <path>`
   - Ubah lokasi file log. Jika relatif, file akan ditulis ke `backend/logs/`.
+- `--no-anti-blocking`
+  - Matikan throttling request: random delay, cooldown berkala, dan backoff
+    error.
 
 Contoh use case:
 - Cron harian ringan satu source:
@@ -185,14 +189,28 @@ MAX_CONSECUTIVE_ERRORS = 3
 # ke scraper.utils untuk menghindari duplikasi lintas CLI scripts.
 
 
+ANTI_BLOCKING_ENABLED = True
+
+
 async def _backoff_delay(attempt: int, label: str) -> None:
     """Gunakan profil backoff legacy milik scraper incremental ini."""
+    if not ANTI_BLOCKING_ENABLED:
+        logger.info("⏩ Backoff dilewati karena --no-anti-blocking: %s", label)
+        return
     await backoff_delay(
         attempt,
         label,
         base=BACKOFF_BASE,
         maximum=BACKOFF_MAX,
     )
+
+
+async def _random_delay(min_sec: float, max_sec: float, label: str = "") -> None:
+    """Jalankan random delay hanya saat strategi anti-blocking aktif."""
+    if ANTI_BLOCKING_ENABLED:
+        await _random_delay(min_sec, max_sec, label)
+        return
+    logger.debug("⏩ Random delay dilewati: %s", label)
 
 
 def _comic_progress_label(comic_position: int, page_total: int) -> str:
@@ -668,7 +686,7 @@ async def prewarm_latest_chapters(
                     f"ch {ch_data.get('chapter_number', '?')}: error fetch images"
                 )
         finally:
-            await random_delay(
+            await _random_delay(
                 DELAY_CHAPTER_MIN,
                 DELAY_CHAPTER_MAX,
                 f"post-chapter {ch_data.get('chapter_number')}",
@@ -793,7 +811,7 @@ async def process_comic(
         logger.warning(f"  ⏭️ {comic_label} Skip (no URL): {title}")
         return
 
-    await random_delay(DELAY_DETAIL_MIN, DELAY_DETAIL_MAX, f"pre-detail {title}")
+    await _random_delay(DELAY_DETAIL_MIN, DELAY_DETAIL_MAX, f"pre-detail {title}")
 
     try:
         logger.info(f"  📖 {comic_label} Mengambil detail: {title}")
@@ -908,14 +926,14 @@ async def process_comic(
 
         await session.commit()
 
-        if stats.comics_since_cooldown >= COOLDOWN_EVERY_N_COMICS:
+        if ANTI_BLOCKING_ENABLED and stats.comics_since_cooldown >= COOLDOWN_EVERY_N_COMICS:
             stats.comics_since_cooldown = 0
             logger.info(
                 f" 🧊 Cooldown berkala ({COOLDOWN_EVERY_N_COMICS} komik tercapai)..."
             )
-            await random_delay(COOLDOWN_MIN, COOLDOWN_MAX, "cooldown berkala")
+            await _random_delay(COOLDOWN_MIN, COOLDOWN_MAX, "cooldown berkala")
 
-        await random_delay(DELAY_COMIC_MIN, DELAY_COMIC_MAX, "antar-komik")
+        await _random_delay(DELAY_COMIC_MIN, DELAY_COMIC_MAX, "antar-komik")
     finally:
         await _stop_progress(fetch_progress)
         await _stop_progress(upsert_progress)
@@ -1042,7 +1060,7 @@ async def process_latest_pages(
                     consecutive_errors,
                     f"error comic pada scraper {scraper.SOURCE_NAME}",
                 )
-                await random_delay(
+                await _random_delay(
                     DELAY_COMIC_MIN,
                     DELAY_COMIC_MAX,
                     "antar-komik (after error)",
@@ -1178,7 +1196,7 @@ async def process_popular_pages(
                     consecutive_errors,
                     f"error popular comic pada scraper {scraper.SOURCE_NAME}",
                 )
-                await random_delay(
+                await _random_delay(
                     DELAY_COMIC_MIN,
                     DELAY_COMIC_MAX,
                     "antar-komik popular (after error)",
@@ -1247,11 +1265,18 @@ async def run_scraper(
             )
     else:
         logger.info("   Popular target: disabled")
-    logger.info(f"   Delay detail  : {DELAY_DETAIL_MIN}-{DELAY_DETAIL_MAX}s (random)")
-    logger.info(f"   Delay chapter : {DELAY_CHAPTER_MIN}-{DELAY_CHAPTER_MAX}s (random)")
-    logger.info(f"   Delay comic   : {DELAY_COMIC_MIN}-{DELAY_COMIC_MAX}s (random)")
-    logger.info(f"   Cooldown      : setiap {COOLDOWN_EVERY_N_COMICS} komik")
-    logger.info(f"   Backoff max   : {BACKOFF_MAX:.0f}s")
+    logger.info(
+        "   Anti-blocking: %s",
+        "aktif" if ANTI_BLOCKING_ENABLED else "nonaktif (--no-anti-blocking)",
+    )
+    if ANTI_BLOCKING_ENABLED:
+        logger.info(f"   Delay detail  : {DELAY_DETAIL_MIN}-{DELAY_DETAIL_MAX}s (random)")
+        logger.info(f"   Delay chapter : {DELAY_CHAPTER_MIN}-{DELAY_CHAPTER_MAX}s (random)")
+        logger.info(f"   Delay comic   : {DELAY_COMIC_MIN}-{DELAY_COMIC_MAX}s (random)")
+        logger.info(f"   Cooldown      : setiap {COOLDOWN_EVERY_N_COMICS} komik")
+        logger.info(f"   Backoff max   : {BACKOFF_MAX:.0f}s")
+    else:
+        logger.info("   Delay/cooldown/backoff: dilewati")
     logger.info(f"   Source filter : {source_name or 'all active sources'}")
     logger.info("═" * 60)
 
@@ -1344,6 +1369,7 @@ def parse_args() -> dict[str, str | int | bool]:
         "popular_pages": DEFAULT_POPULAR_PAGES,
         "popular_allow_early_stop": True,
         "source": "",
+        "anti_blocking_enabled": True,
     }
     supported_sources = get_supported_source_names()
 
@@ -1370,6 +1396,8 @@ def parse_args() -> dict[str, str | int | bool]:
             i += 1
         elif argv[i] == "--popular-no-early-stop":
             args["popular_allow_early_stop"] = False
+        elif argv[i] == "--no-anti-blocking":
+            args["anti_blocking_enabled"] = False
         elif argv[i] == "--help":
             print(__doc__)
             sys.exit(0)
@@ -1387,12 +1415,14 @@ def parse_args() -> dict[str, str | int | bool]:
 
 def main():
     """Entry point synchronous wrapper."""
+    global ANTI_BLOCKING_ENABLED
     try:
         args = parse_args()
     except ValueError as e:
         print(f"Error argumen: {e}")
         sys.exit(1)
 
+    ANTI_BLOCKING_ENABLED = bool(args["anti_blocking_enabled"])
     log_file = resolve_log_path(str(args["log_file"]) if args["log_file"] else "main.log")
     configure_logging(str(log_file))
     asyncio.run(

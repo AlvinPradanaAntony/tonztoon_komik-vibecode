@@ -18,6 +18,7 @@ Usage:
     python -m scraper.sync_cover_images --source komiku_asia --limit 10 --dry-run
     python -m scraper.sync_cover_images --source komiku_asia --force
     python -m scraper.sync_cover_images --source komiku_asia --reset --limit 50
+    python -m scraper.sync_cover_images --source komiku_asia --limit 50 --no-anti-blocking
 
 Strategi anti-blocking:
 - delay acak antar cover
@@ -551,6 +552,7 @@ async def upload_cover(
     bucket: str,
     object_path: str,
     content: bytes,
+    anti_blocking_enabled: bool = True,
 ) -> str:
     storage_base = f"{_strip_trailing_slash(settings.SUPABASE_URL)}/storage/v1/object"
     upload_url = f"{storage_base}/{bucket}/{object_path}"
@@ -574,7 +576,12 @@ async def upload_cover(
         except httpx.RequestError as exc:
             last_error = exc
             if attempt < UPLOAD_MAX_ATTEMPTS - 1:
-                await backoff_delay(attempt, "upload cover storage", maximum=BACKOFF_MAX)
+                if anti_blocking_enabled:
+                    await backoff_delay(attempt, "upload cover storage", maximum=BACKOFF_MAX)
+                else:
+                    logger.info(
+                        "⏩ Backoff upload storage dilewati karena --no-anti-blocking"
+                    )
                 continue
             raise RuntimeError(f"Upload storage gagal: {exc}") from exc
 
@@ -588,7 +595,10 @@ async def upload_cover(
                 attempt + 1,
                 UPLOAD_MAX_ATTEMPTS,
             )
-            await backoff_delay(attempt, "upload cover storage", maximum=BACKOFF_MAX)
+            if anti_blocking_enabled:
+                await backoff_delay(attempt, "upload cover storage", maximum=BACKOFF_MAX)
+            else:
+                logger.info("⏩ Backoff upload storage dilewati karena --no-anti-blocking")
             continue
 
         raise RuntimeError(
@@ -609,11 +619,39 @@ async def update_comic_cover_url(comic_id: int, storage_url: str) -> None:
 
 
 async def delay_between_covers(args: argparse.Namespace) -> None:
+    if not args.anti_blocking_enabled:
+        logger.debug("⏩ Delay antar-cover dilewati karena --no-anti-blocking")
+        return
     if args.delay is not None:
         if args.delay > 0:
             await asyncio.sleep(args.delay)
         return
     await random_delay(args.delay_min, args.delay_max, "antar-cover")
+
+
+async def maybe_backoff_delay(
+    args: argparse.Namespace,
+    attempt: int,
+    label: str,
+    *,
+    maximum: float = BACKOFF_MAX,
+) -> None:
+    if args.anti_blocking_enabled:
+        await backoff_delay(attempt, label, maximum=maximum)
+        return
+    logger.info("⏩ Backoff dilewati karena --no-anti-blocking: %s", label)
+
+
+async def maybe_random_delay(
+    args: argparse.Namespace,
+    min_sec: float,
+    max_sec: float,
+    label: str,
+) -> None:
+    if args.anti_blocking_enabled:
+        await random_delay(min_sec, max_sec, label)
+        return
+    logger.debug("⏩ Random delay dilewati: %s", label)
 
 
 async def process_comic(
@@ -624,6 +662,7 @@ async def process_comic(
     dry_run: bool,
     max_bytes: int,
     max_width: int,
+    anti_blocking_enabled: bool,
 ) -> bool:
     object_path = build_storage_path(comic)
     storage_url = build_public_storage_url(bucket, object_path)
@@ -655,6 +694,7 @@ async def process_comic(
         bucket=bucket,
         object_path=object_path,
         content=optimized,
+        anti_blocking_enabled=anti_blocking_enabled,
     )
     await update_comic_cover_url(comic.id, public_url)
     logger.info("  tersimpan: %s", public_url)
@@ -703,9 +743,16 @@ async def run(args: argparse.Namespace) -> None:
     logger.info("   Max bytes  : %.1fKB", args.max_bytes / 1024)
     logger.info("   Max width  : %spx", args.max_width)
     logger.info(
-        "   Delay      : %s",
-        f"{args.delay:.1f}s" if args.delay is not None else f"{args.delay_min:.1f}-{args.delay_max:.1f}s",
+        "   Anti-blocking: %s",
+        "aktif" if args.anti_blocking_enabled else "nonaktif (--no-anti-blocking)",
     )
+    if args.anti_blocking_enabled:
+        logger.info(
+            "   Delay      : %s",
+            f"{args.delay:.1f}s" if args.delay is not None else f"{args.delay_min:.1f}-{args.delay_max:.1f}s",
+        )
+    else:
+        logger.info("   Delay/cooldown/backoff: dilewati")
     logger.info("   Reset      : %s", args.reset)
     logger.info("   Resume >ID : %s", after_id)
     logger.info("   Checkpoint : %s", checkpoint_file if checkpoint_enabled else "disabled (dry-run)")
@@ -756,6 +803,7 @@ async def run(args: argparse.Namespace) -> None:
                         dry_run=args.dry_run,
                         max_bytes=args.max_bytes,
                         max_width=args.max_width,
+                        anti_blocking_enabled=args.anti_blocking_enabled,
                     ):
                         ok += 1
                         stats.total_uploaded += 1
@@ -803,7 +851,8 @@ async def run(args: argparse.Namespace) -> None:
                 )
 
                 if consecutive_errors:
-                    await backoff_delay(
+                    await maybe_backoff_delay(
+                        args,
                         min(consecutive_errors - 1, MAX_CONSECUTIVE_ERRORS - 1),
                         f"cover {args.source}",
                         maximum=BACKOFF_MAX,
@@ -813,13 +862,21 @@ async def run(args: argparse.Namespace) -> None:
                             "  ⛔ %s error berturut-turut. Cooldown lebih lama sebelum lanjut.",
                             MAX_CONSECUTIVE_ERRORS,
                         )
-                        await random_delay(COOLDOWN_MIN, COOLDOWN_MAX, "cooldown error cover")
+                        await maybe_random_delay(
+                            args,
+                            COOLDOWN_MIN,
+                            COOLDOWN_MAX,
+                            "cooldown error cover",
+                        )
                         consecutive_errors = 0
 
-                if stats.processed_since_cooldown >= COOLDOWN_EVERY_N_COVERS:
+                if (
+                    args.anti_blocking_enabled
+                    and stats.processed_since_cooldown >= COOLDOWN_EVERY_N_COVERS
+                ):
                     stats.processed_since_cooldown = 0
                     logger.info("  🧊 Cooldown berkala cover...")
-                    await random_delay(COOLDOWN_MIN, COOLDOWN_MAX, "cooldown cover")
+                    await maybe_random_delay(args, COOLDOWN_MIN, COOLDOWN_MAX, "cooldown cover")
 
                 await delay_between_covers(args)
     finally:
@@ -887,6 +944,13 @@ def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--force", action="store_true", help="Proses ulang cover yang sudah di storage")
     parser.add_argument("--reset", action="store_true", help="Hapus checkpoint source aktif sebelum mulai")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--no-anti-blocking",
+        dest="anti_blocking_enabled",
+        action="store_false",
+        help="Matikan random delay, cooldown berkala, dan backoff error.",
+    )
+    parser.set_defaults(anti_blocking_enabled=True)
     args = parser.parse_args(argv)
     if args.delay_min > args.delay_max:
         parser.error("--delay-min tidak boleh lebih besar dari --delay-max")

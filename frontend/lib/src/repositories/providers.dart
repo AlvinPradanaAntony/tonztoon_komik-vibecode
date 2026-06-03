@@ -474,6 +474,8 @@ class HomeData {
     required this.selectedSource,
     required this.latest,
     required this.popular,
+    required this.recommendations,
+    required this.topRanking,
     required this.continueReading,
   });
 
@@ -481,6 +483,8 @@ class HomeData {
   final SourceInfo selectedSource;
   final List<ComicSummary> latest;
   final List<ComicSummary> popular;
+  final List<ComicSummary> recommendations;
+  final List<ComicSummary> topRanking;
   final List<ReadingProgress> continueReading;
 }
 
@@ -502,6 +506,8 @@ final homeDataProvider = FutureProvider<HomeData>((ref) async {
   final results = await Future.wait([
     repository.getLatest(selected.id, pageSize: _homePreviewPageSize),
     repository.getPopular(selected.id, pageSize: _homePreviewPageSize),
+    repository.getRecommendations(selected.id),
+    repository.getTopRanking(selected.id),
     progressRepository.getContinueReading(pageSize: _homePreviewPageSize),
   ]);
   final latest = results[0] as List<ComicSummary>;
@@ -513,9 +519,38 @@ final homeDataProvider = FutureProvider<HomeData>((ref) async {
     selectedSource: selected,
     latest: latest,
     popular: results[1] as List<ComicSummary>,
-    continueReading: results[2] as List<ReadingProgress>,
+    recommendations: results[2] as List<ComicSummary>,
+    topRanking: results[3] as List<ComicSummary>,
+    continueReading: results[4] as List<ReadingProgress>,
   );
 });
+
+class TopRankingRequest {
+  const TopRankingRequest({required this.sourceName, this.type});
+
+  final String sourceName;
+  final String? type;
+
+  @override
+  bool operator ==(Object other) {
+    return other is TopRankingRequest &&
+        other.sourceName == sourceName &&
+        other.type == type;
+  }
+
+  @override
+  int get hashCode => Object.hash(sourceName, type);
+}
+
+final topRankingProvider =
+    FutureProvider.family<List<ComicSummary>, TopRankingRequest>((
+      ref,
+      request,
+    ) {
+      return ref
+          .watch(catalogRepositoryProvider)
+          .getTopRanking(request.sourceName, type: request.type);
+    });
 
 class ComicRequest {
   const ComicRequest(this.sourceName, this.slug);

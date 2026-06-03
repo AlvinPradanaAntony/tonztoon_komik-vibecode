@@ -3,7 +3,11 @@ import unittest
 from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
-from app.api.v1.sources import _latest_feed_order, _popular_feed_order
+from app.api.v1.sources import (
+    _latest_feed_order,
+    _popular_feed_order,
+    _top_ranking_order,
+)
 from app.models import Comic
 
 
@@ -50,6 +54,21 @@ class SourceFeedSqlTests(unittest.TestCase):
         index_names = {index.name for index in Comic.__table__.indexes}
         self.assertIn("ix_comics_source_latest_feed_order", index_names)
         self.assertIn("ix_comics_source_popular_feed_order", index_names)
+        self.assertIn("ix_comics_source_top_view_order", index_names)
+
+    def test_top_ranking_order_matches_source_scoped_index(self):
+        sql = compile_sql(
+            select(Comic.id)
+            .where(Comic.source_name == "komikcast")
+            .order_by(*_top_ranking_order())
+            .limit(10)
+        )
+        self.assertIn(
+            "ORDER BY comics.total_view DESC NULLS LAST, "
+            "comics.rating DESC NULLS LAST, comics.title ASC, comics.id ASC",
+            sql,
+        )
+        self.assertNotIn("chapters", sql)
 
 
 if __name__ == "__main__":

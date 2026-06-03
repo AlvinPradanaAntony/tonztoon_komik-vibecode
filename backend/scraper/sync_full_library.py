@@ -28,12 +28,14 @@ Usage:
     python -m scraper.sync_full_library --mode validate
     python -m scraper.sync_full_library --mode refresh
     python -m scraper.sync_full_library --mode validate --refresh-fields total_view
+    python -m scraper.sync_full_library --mode validate --refresh-fields total_view,rating --refresh-missing-only --limit 100
     python -m scraper.sync_full_library --log-file validate.log
     python -m scraper.sync_full_library --mode validate --reset   # Hapus checkpoint validate
     python -m scraper.sync_full_library --mode refresh --reset    # Hapus checkpoint refresh
     python -m scraper.sync_full_library --start 5 --max 20  # Jumlah halaman 20 -> target 5-24
     python -m scraper.sync_full_library --start 36 --end 37  # Hanya halaman 36-37
     python -m scraper.sync_full_library --start 70 --end 72 --mode validate --reset --log-file sync.log
+    python -m scraper.sync_full_library --refresh-fields total_view --refresh-missing-only --no-anti-blocking
 
 Argumen CLI utama:
 - `--source <source_name>`
@@ -54,6 +56,15 @@ Argumen CLI utama:
   - Saat dipakai di mode `validate`, comic existing tidak langsung skip total;
     source akan diminta mengembalikan metadata patch lalu hanya field target
     yang berubah yang di-update.
+- `--refresh-missing-only`
+  - Saat dipakai bersama `--refresh-fields`, hanya isi field DB yang masih
+    kosong/NULL. Nilai existing tidak ditimpa.
+  - Mode ini DB-driven: script langsung mencari row comic source terkait yang
+    field targetnya kosong, lalu fetch metadata patch hanya untuk kandidat itu.
+    Tidak scan seluruh halaman katalog source.
+- `--limit <N>`
+  - Batas jumlah kandidat DB untuk `--refresh-missing-only`.
+  - Default: 100. Gunakan `0` untuk tanpa limit.
 - `--start <page>`
   - Halaman awal direktori yang ingin diproses.
 - `--max <N>`
@@ -65,6 +76,9 @@ Argumen CLI utama:
   - Hapus checkpoint aktif (sesuai source + mode) sebelum run dimulai.
 - `--log-file <path>`
   - Ubah lokasi file log. Jika relatif, file akan ditulis ke `backend/logs/`.
+- `--no-anti-blocking`
+  - Matikan throttling request: random delay, cooldown berkala, dan backoff
+    error. Checkpoint/resume dan graceful shutdown tetap aktif.
 
 Contoh use case:
 - Seed katalog baru source tertentu:
@@ -75,6 +89,8 @@ Contoh use case:
   `python -m scraper.sync_full_library --source shinigami --mode validate --refresh-fields total_view`
 - Patch beberapa metadata comic existing:
   `python -m scraper.sync_full_library --source komikcast --mode validate --refresh-fields total_view,rating,status`
+- Backfill hanya metadata yang masih kosong:
+  `python -m scraper.sync_full_library --source komikcast --mode validate --refresh-fields total_view,rating --refresh-missing-only --limit 100 --reset`
 - Ulang dari awal tanpa checkpoint lama:
   `python -m scraper.sync_full_library --source komiku --mode validate --reset`
 
@@ -97,7 +113,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 
 # Tambahkan parent directory ke path agar bisa import app.*
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -175,6 +191,7 @@ logger = logging.getLogger("sync-full-library")
 # -- Halaman --
 DEFAULT_START_PAGE = 1
 DEFAULT_MAX_PAGES = 10  # Jumlah halaman yang di-scrape
+DEFAULT_REFRESH_MISSING_LIMIT = 100
 
 # -- Delay (dalam detik) --
 DELAY_COMIC_MIN = 2.0        # Jeda minimum antar-komik
@@ -209,6 +226,19 @@ SUPPORTED_REFRESH_FIELDS = frozenset(
         "source_url",
     }
 )
+STRING_REFRESH_FIELDS = frozenset(
+    {
+        "title",
+        "alternative_titles",
+        "cover_image_url",
+        "author",
+        "artist",
+        "status",
+        "type",
+        "synopsis",
+        "source_url",
+    }
+)
 
 # -- Checkpoint --
 CHECKPOINT_DIR = Path(__file__).resolve().parent.parent / "checkpoints"
@@ -237,6 +267,15 @@ def get_checkpoint_file(mode: str, source_name: str) -> Path:
 def get_checkpoint_scope_label(mode: str, source_name: str) -> str:
     """Label singkat untuk menjelaskan isolasi checkpoint per mode."""
     return f"{source_name}:{mode} (terpisah per source dan mode)"
+
+
+def get_refresh_missing_checkpoint_file(source_name: str) -> Path:
+    if source_name not in SUPPORTED_SOURCES:
+        raise ValueError(
+            f"Source tidak valid: {source_name}. "
+            f"Gunakan salah satu dari {', '.join(SUPPORTED_SOURCES)}."
+        )
+    return CHECKPOINT_DIR / f"sync_checkpoint_{source_name}_refresh_missing.json"
 
 
 def _default_stats() -> dict:
@@ -273,6 +312,7 @@ def _normalize_checkpoint(data: dict | None) -> dict:
     checkpoint = data or {}
     checkpoint.setdefault("last_completed_page", 0)
     checkpoint.setdefault("last_comic_index", -1)
+    checkpoint.setdefault("last_missing_refresh_comic_id", 0)
     checkpoint.setdefault("completed_slugs", [])
     checkpoint.setdefault("updated_at", None)
 
@@ -490,7 +530,7 @@ async def get_existing_comic_slugs(
 # ═══════════════════════════════════════════════════════════════════
 
 
-def load_checkpoint(mode: str, source_name: str) -> dict:
+def load_checkpoint_from_file(checkpoint_file: Path) -> dict:
     """
     Muat checkpoint dari file JSON.
     
@@ -508,7 +548,6 @@ def load_checkpoint(mode: str, source_name: str) -> dict:
             "updated_at": "2026-04-13T..."
         }
     """
-    checkpoint_file = get_checkpoint_file(mode, source_name)
     if checkpoint_file.exists():
         try:
             with open(checkpoint_file, "r", encoding="utf-8") as f:
@@ -531,13 +570,18 @@ def load_checkpoint(mode: str, source_name: str) -> dict:
             return data
         except (json.JSONDecodeError, KeyError) as e:
             logger.warning(f"⚠️ Checkpoint rusak, akan mulai dari awal: {e}")
-    elif LEGACY_CHECKPOINT_FILE.exists():
+    return _normalize_checkpoint(None)
+
+
+def load_checkpoint(mode: str, source_name: str) -> dict:
+    checkpoint_file = get_checkpoint_file(mode, source_name)
+    if not checkpoint_file.exists() and LEGACY_CHECKPOINT_FILE.exists():
         logger.info(
             f"ℹ️ Checkpoint legacy terdeteksi di {LEGACY_CHECKPOINT_FILE}, "
             f"tetapi diabaikan karena checkpoint kini dipisah per mode. "
             f"Menggunakan file aktif: {checkpoint_file}"
         )
-    return _normalize_checkpoint(None)
+    return load_checkpoint_from_file(checkpoint_file)
 
 
 def save_checkpoint(checkpoint: dict, checkpoint_file: Path) -> None:
@@ -587,6 +631,8 @@ class SyncRuntime:
     stats: dict
     completed_slugs: set[str]
     refresh_fields: frozenset[str]
+    refresh_missing_only: bool = False
+    anti_blocking_enabled: bool = True
     comics_since_cooldown: int = 0
 
 
@@ -600,6 +646,36 @@ def persist_runtime_checkpoint(runtime: SyncRuntime, **progress_kwargs) -> dict:
         mode=runtime.mode,
         **progress_kwargs,
     )
+
+
+async def runtime_random_delay(
+    runtime: SyncRuntime,
+    minimum: float,
+    maximum: float,
+    reason: str,
+) -> None:
+    """Jalankan random delay hanya saat strategi anti-blocking aktif."""
+    if runtime.anti_blocking_enabled:
+        await random_delay(minimum, maximum, reason)
+        return
+    logger.debug("⏩ Random delay dilewati: %s", reason)
+
+
+async def runtime_backoff_delay(
+    runtime: SyncRuntime,
+    consecutive_errors: int,
+    reason: str,
+    *,
+    maximum: float | None = None,
+) -> None:
+    """Jalankan backoff error hanya saat strategi anti-blocking aktif."""
+    if runtime.anti_blocking_enabled:
+        if maximum is None:
+            await backoff_delay(consecutive_errors, reason)
+        else:
+            await backoff_delay(consecutive_errors, reason, maximum=maximum)
+        return
+    logger.info("⏩ Backoff dilewati karena --no-anti-blocking: %s", reason)
 
 
 async def _get_existing_comic_id(
@@ -625,6 +701,7 @@ async def refresh_existing_comic_fields(
     comic_id: int,
     detail_url: str,
     requested_fields: frozenset[str],
+    missing_only: bool = False,
 ) -> tuple[bool, list[str], str]:
     """
     Refresh subset metadata comic existing tanpa full sync chapter.
@@ -648,6 +725,7 @@ async def refresh_existing_comic_fields(
 
     changed_fields: dict[str, Any] = {}
     preserved_storage_cover = False
+    skipped_existing_values: list[str] = []
     for field_name in requested_fields:
         if field_name not in patch or field_name not in SUPPORTED_REFRESH_FIELDS:
             continue
@@ -660,12 +738,18 @@ async def refresh_existing_comic_fields(
         ):
             preserved_storage_cover = True
             continue
+        if missing_only and current_value is not None:
+            if not isinstance(current_value, str) or current_value.strip():
+                skipped_existing_values.append(field_name)
+                continue
         if current_value != new_value:
             changed_fields[field_name] = new_value
 
     if not changed_fields:
         if preserved_storage_cover:
             return False, [], "cover_image_url storage dipertahankan"
+        if missing_only and skipped_existing_values:
+            return False, [], "field target sudah berisi nilai"
         return False, [], "field target unchanged"
 
     changed_fields["updated_at"] = now_wib()
@@ -676,6 +760,201 @@ async def refresh_existing_comic_fields(
     )
     await session.commit()
     return True, sorted(changed_fields.keys() - {"updated_at"}), "field target updated"
+
+
+def _field_missing_condition(field_name: str):
+    column = getattr(Comic, field_name)
+    if field_name in STRING_REFRESH_FIELDS:
+        return column.is_(None) | (column == "")
+    return column.is_(None)
+
+
+def _build_missing_refresh_filter(refresh_fields: frozenset[str]):
+    clauses = [
+        _field_missing_condition(field_name)
+        for field_name in refresh_fields
+        if field_name in SUPPORTED_REFRESH_FIELDS
+    ]
+    return or_(*clauses) if clauses else None
+
+
+async def load_missing_refresh_candidates(
+    session,
+    *,
+    source_name: str,
+    refresh_fields: frozenset[str],
+    resume_after_id: int,
+    limit: int | None,
+) -> list[Comic]:
+    missing_filter = _build_missing_refresh_filter(refresh_fields)
+    if missing_filter is None:
+        return []
+
+    stmt = (
+        select(Comic)
+        .where(
+            Comic.source_name == source_name,
+            Comic.source_url.is_not(None),
+            Comic.source_url != "",
+            Comic.id > resume_after_id,
+            missing_filter,
+        )
+        .order_by(Comic.id.asc())
+    )
+    if limit is not None:
+        stmt = stmt.limit(limit)
+
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def run_refresh_missing_metadata(
+    session,
+    *,
+    scraper: BaseComicScraper,
+    runtime: SyncRuntime,
+    source_name: str,
+    limit: int | None,
+) -> None:
+    """Backfill metadata kosong langsung dari kandidat DB, tanpa scan katalog source."""
+    resume_after_id = int(runtime.checkpoint.get("last_missing_refresh_comic_id", 0) or 0)
+    candidates = await load_missing_refresh_candidates(
+        session,
+        source_name=source_name,
+        refresh_fields=runtime.refresh_fields,
+        resume_after_id=resume_after_id,
+        limit=limit,
+    )
+
+    logger.info("═" * 60)
+    logger.info("🧩 Refresh missing metadata DB-driven")
+    logger.info("   Source       : %s", source_name)
+    logger.info("   Fields       : %s", ", ".join(sorted(runtime.refresh_fields)))
+    logger.info("   Resume id    : comic_id > %s", resume_after_id)
+    logger.info("   Limit        : %s", limit if limit is not None else "tanpa limit")
+    logger.info("   Kandidat DB  : %s komik", len(candidates))
+    logger.info("═" * 60)
+
+    persist_runtime_checkpoint(
+        runtime,
+        current_page=0,
+        page_comics_total=len(candidates),
+        current_comic_index=-1,
+        state="refresh-missing-started",
+        note=f"Refresh missing metadata: {len(candidates)} kandidat DB",
+    )
+
+    consecutive_errors = 0
+    for index, comic in enumerate(candidates):
+        if _shutdown.requested:
+            break
+
+        label = f"[{index + 1}/{len(candidates)}]"
+        logger.info("")
+        logger.info("-" * 60)
+        logger.info(
+            "🔎 %s #%s %s:%s — %s",
+            label,
+            comic.id,
+            comic.source_name,
+            comic.slug,
+            comic.title,
+        )
+
+        persist_runtime_checkpoint(
+            runtime,
+            current_page=0,
+            page_comics_total=len(candidates),
+            current_comic_index=index,
+            current_comic_title=comic.title,
+            current_comic_slug=comic.slug,
+            current_comic_url=comic.source_url,
+            state="refresh-missing-processing",
+            note=f"Refresh missing {label} comic_id={comic.id}",
+        )
+
+        try:
+            refreshed, changed_fields, reason = await refresh_existing_comic_fields(
+                session,
+                scraper=scraper,
+                comic_id=comic.id,
+                detail_url=comic.source_url,
+                requested_fields=runtime.refresh_fields,
+                missing_only=True,
+            )
+            runtime.checkpoint["last_missing_refresh_comic_id"] = comic.id
+
+            if refreshed:
+                runtime.stats["total_refreshed"] += 1
+                logger.info("✅ %s refreshed: %s", label, ", ".join(changed_fields))
+                note = f"Refresh missing {label}: {', '.join(changed_fields)}"
+                state = "refresh-missing-refreshed"
+            else:
+                runtime.stats["total_skipped"] += 1
+                logger.info("⏭️ %s skipped: %s", label, reason)
+                note = f"Refresh missing {label}: {reason}"
+                state = "refresh-missing-skipped"
+
+            consecutive_errors = 0
+            persist_runtime_checkpoint(
+                runtime,
+                current_page=0,
+                page_comics_total=len(candidates),
+                current_comic_index=index,
+                current_comic_title=comic.title,
+                current_comic_slug=comic.slug,
+                current_comic_url=comic.source_url,
+                state=state,
+                note=note,
+            )
+            await runtime_random_delay(
+                runtime,
+                DELAY_COMIC_MIN,
+                DELAY_COMIC_MAX,
+                "antar-komik refresh missing",
+            )
+        except Exception as exc:
+            await session.rollback()
+            consecutive_errors += 1
+            runtime.stats["total_errors"] += 1
+            runtime.checkpoint["last_missing_refresh_comic_id"] = comic.id
+            logger.error(
+                "❌ %s gagal refresh missing comic_id=%s [%s/%s]: %s",
+                label,
+                comic.id,
+                consecutive_errors,
+                MAX_CONSECUTIVE_ERRORS,
+                exc,
+            )
+            persist_runtime_checkpoint(
+                runtime,
+                current_page=0,
+                page_comics_total=len(candidates),
+                current_comic_index=index,
+                current_comic_title=comic.title,
+                current_comic_slug=comic.slug,
+                current_comic_url=comic.source_url,
+                state="refresh-missing-error",
+                note=f"Refresh missing {label} error: {exc}",
+            )
+            if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+                logger.error("⛔ Terlalu banyak error berturut-turut, stop refresh missing.")
+                return
+            await runtime_backoff_delay(
+                runtime,
+                consecutive_errors,
+                "error refresh missing metadata",
+                maximum=BACKOFF_MAX,
+            )
+
+    persist_runtime_checkpoint(
+        runtime,
+        current_page=0,
+        page_comics_total=len(candidates),
+        current_comic_index=-1,
+        state="refresh-missing-complete",
+        note=f"Refresh missing selesai: {len(candidates)} kandidat DB",
+    )
 
 
 async def save_chapter_metadata(
@@ -781,6 +1060,7 @@ async def process_comic(
                 comic_id=comic_id,
                 detail_url=detail_url,
                 requested_fields=runtime.refresh_fields,
+                missing_only=runtime.refresh_missing_only,
             )
             if refreshed:
                 runtime.stats["total_refreshed"] += 1
@@ -856,7 +1136,7 @@ async def process_comic(
         note=f"Mengambil detail komik [{idx + 1}/{page_total}]",
     )
 
-    await random_delay(DELAY_DETAIL_MIN, DELAY_DETAIL_MAX, "delay pre-detail")
+    await runtime_random_delay(runtime, DELAY_DETAIL_MIN, DELAY_DETAIL_MAX, "delay pre-detail")
 
     fetch_progress: CliLiveProgress | None = None
     upsert_progress: CliLiveProgress | None = None
@@ -1040,14 +1320,17 @@ async def process_comic(
             note=f"Komik selesai [{idx + 1}/{page_total}]",
         )
 
-        if runtime.comics_since_cooldown >= COOLDOWN_EVERY_N_COMICS:
+        if (
+            runtime.anti_blocking_enabled
+            and runtime.comics_since_cooldown >= COOLDOWN_EVERY_N_COMICS
+        ):
             runtime.comics_since_cooldown = 0
             logger.info(
                 f" 🧊 Cooldown berkala ({COOLDOWN_EVERY_N_COMICS} komik tercapai)..."
             )
-            await random_delay(COOLDOWN_MIN, COOLDOWN_MAX, "cooldown berkala")
+            await runtime_random_delay(runtime, COOLDOWN_MIN, COOLDOWN_MAX, "cooldown berkala")
 
-        await random_delay(DELAY_COMIC_MIN, DELAY_COMIC_MAX, "delay antar-komik")
+        await runtime_random_delay(runtime, DELAY_COMIC_MIN, DELAY_COMIC_MAX, "delay antar-komik")
         return consecutive_errors, False
 
     except Exception as e:
@@ -1085,7 +1368,7 @@ async def process_comic(
             )
             return consecutive_errors, True
 
-        await backoff_delay(consecutive_errors, f"error pada {title}")
+        await runtime_backoff_delay(runtime, consecutive_errors, f"error pada {title}")
         return consecutive_errors, False
 
 
@@ -1120,7 +1403,7 @@ async def process_page(
             break
         except Exception as e:
             logger.error(f"  ✗ Gagal fetch halaman {page} (attempt {attempt + 1}): {e}")
-            await backoff_delay(attempt, f"retry halaman {page}")
+            await runtime_backoff_delay(runtime, attempt, f"retry halaman {page}")
 
     if not comics_list:
         logger.warning(
@@ -1197,7 +1480,7 @@ async def process_page(
         )
 
         if page < end_page:
-            await random_delay(DELAY_PAGE_MIN, DELAY_PAGE_MAX, "delay antar-halaman")
+            await runtime_random_delay(runtime, DELAY_PAGE_MIN, DELAY_PAGE_MAX, "delay antar-halaman")
 
     return True
 
@@ -1209,13 +1492,24 @@ async def run_sync_full_library(
     mode: str = "validate",
     source: str = "komiku",
     refresh_fields: frozenset[str] = frozenset(),
+    refresh_missing_only: bool = False,
+    refresh_missing_limit: int | None = DEFAULT_REFRESH_MISSING_LIMIT,
+    anti_blocking_enabled: bool = True,
 ):
     """Pipeline utama mass-scraping dengan semua strategi anti-blocking."""
 
     start_time = time.time()
     started_at = now_wib()
-    checkpoint_file = get_checkpoint_file(mode, source)
-    checkpoint = load_checkpoint(mode, source)
+    checkpoint_file = (
+        get_refresh_missing_checkpoint_file(source)
+        if refresh_missing_only
+        else get_checkpoint_file(mode, source)
+    )
+    checkpoint = (
+        load_checkpoint_from_file(checkpoint_file)
+        if refresh_missing_only
+        else load_checkpoint(mode, source)
+    )
     completed_slugs = set(checkpoint.get("completed_slugs", []))
     stats = _default_stats()
     stats.update(checkpoint.get("stats", {}))
@@ -1243,6 +1537,8 @@ async def run_sync_full_library(
         stats=stats,
         completed_slugs=completed_slugs,
         refresh_fields=refresh_fields,
+        refresh_missing_only=refresh_missing_only,
+        anti_blocking_enabled=anti_blocking_enabled,
     )
 
     persist_runtime_checkpoint(
@@ -1263,14 +1559,38 @@ async def run_sync_full_library(
         "   Refresh fields : "
         + (", ".join(sorted(refresh_fields)) if refresh_fields else "-")
     )
+    logger.info(
+        "   Refresh rule   : %s",
+        "hanya field kosong" if runtime.refresh_missing_only else "update jika berbeda",
+    )
+    if runtime.refresh_missing_only:
+        logger.info(
+            "   Refresh source : DB candidates only (tanpa scan katalog source)"
+        )
+        logger.info(
+            "   Refresh limit  : %s",
+            refresh_missing_limit if refresh_missing_limit is not None else "tanpa limit",
+        )
     logger.info(f"   Target halaman  : {start_page} → {end_page}")
     logger.info(f"   Resume dari     : halaman {resume_page}, komik index > {resume_comic_index}")
     logger.info(f"   Resume reason   : {resume_reason}")
     logger.info(f"   Komik sudah done: {len(completed_slugs)}")
-    logger.info(f"   Checkpoint scope: {get_checkpoint_scope_label(mode, source)}")
-    logger.info(f"   Delay komik     : {DELAY_COMIC_MIN}-{DELAY_COMIC_MAX}s (random)")
-    logger.info(f"   Delay halaman   : {DELAY_PAGE_MIN}-{DELAY_PAGE_MAX}s (random)")
-    logger.info(f"   Cooldown setiap : {COOLDOWN_EVERY_N_COMICS} komik")
+    checkpoint_scope = (
+        f"{source}:refresh_missing (terpisah dari validate/refresh)"
+        if runtime.refresh_missing_only
+        else get_checkpoint_scope_label(mode, source)
+    )
+    logger.info(f"   Checkpoint scope: {checkpoint_scope}")
+    logger.info(
+        "   Anti-blocking   : %s",
+        "aktif" if runtime.anti_blocking_enabled else "nonaktif (--no-anti-blocking)",
+    )
+    if runtime.anti_blocking_enabled:
+        logger.info(f"   Delay komik     : {DELAY_COMIC_MIN}-{DELAY_COMIC_MAX}s (random)")
+        logger.info(f"   Delay halaman   : {DELAY_PAGE_MIN}-{DELAY_PAGE_MAX}s (random)")
+        logger.info(f"   Cooldown setiap : {COOLDOWN_EVERY_N_COMICS} komik")
+    else:
+        logger.info("   Delay/cooldown  : dilewati")
     logger.info(f"   Checkpoint file : {checkpoint_file}")
     logger.info("═" * 60)
 
@@ -1280,20 +1600,29 @@ async def run_sync_full_library(
 
     try:
         async with async_session() as session:
-            for page in range(resume_page, end_page + 1):
-                if _shutdown.requested:
-                    break
-                should_continue = await process_page(
+            if runtime.refresh_missing_only and runtime.refresh_fields:
+                await run_refresh_missing_metadata(
                     session,
-                    scraper,
-                    runtime,
-                    page=page,
-                    end_page=end_page,
-                    resume_page=resume_page,
-                    resume_comic_index=resume_comic_index,
+                    scraper=scraper,
+                    runtime=runtime,
+                    source_name=source,
+                    limit=refresh_missing_limit,
                 )
-                if not should_continue:
-                    break
+            else:
+                for page in range(resume_page, end_page + 1):
+                    if _shutdown.requested:
+                        break
+                    should_continue = await process_page(
+                        session,
+                        scraper,
+                        runtime,
+                        page=page,
+                        end_page=end_page,
+                        resume_page=resume_page,
+                        resume_comic_index=resume_comic_index,
+                    )
+                    if not should_continue:
+                        break
     finally:
         try:
             await scraper.close()
@@ -1353,6 +1682,9 @@ def parse_args():
         "reset": False,
         "log_file": None,
         "refresh_fields": frozenset(),
+        "refresh_missing_only": False,
+        "limit": DEFAULT_REFRESH_MISSING_LIMIT,
+        "anti_blocking_enabled": True,
     }
     max_explicitly_set = False
 
@@ -1361,6 +1693,10 @@ def parse_args():
     while i < len(argv):
         if argv[i] == "--reset":
             args["reset"] = True
+        elif argv[i] == "--refresh-missing-only":
+            args["refresh_missing_only"] = True
+        elif argv[i] == "--no-anti-blocking":
+            args["anti_blocking_enabled"] = False
         elif argv[i] == "--source" and i + 1 < len(argv):
             args["source"] = argv[i + 1].lower()
             i += 1
@@ -1370,6 +1706,9 @@ def parse_args():
         elif argv[i] == "--max" and i + 1 < len(argv):
             args["max"] = int(argv[i + 1])
             max_explicitly_set = True
+            i += 1
+        elif argv[i] == "--limit" and i + 1 < len(argv):
+            args["limit"] = int(argv[i + 1])
             i += 1
         elif argv[i] == "--end" and i + 1 < len(argv):
             args["end"] = int(argv[i + 1])
@@ -1413,6 +1752,10 @@ def parse_args():
             f"{', '.join(sorted(SUPPORTED_REFRESH_FIELDS))}. "
             f"Field tidak valid: {', '.join(invalid_refresh_fields)}"
         )
+    if args["refresh_missing_only"] and not args["refresh_fields"]:
+        raise ValueError("--refresh-missing-only harus dipakai bersama --refresh-fields")
+    if args["limit"] < 0:
+        raise ValueError("--limit harus >= 0")
     if "--log-file" in argv and not args["log_file"]:
         raise ValueError("--log-file membutuhkan path file, misalnya --log-file sync.log")
 
@@ -1438,7 +1781,15 @@ def main():
     _shutdown.install()
 
     if args["reset"]:
-        reset_checkpoint(args["mode"], args["source"])
+        if args["refresh_missing_only"]:
+            checkpoint_file = get_refresh_missing_checkpoint_file(args["source"])
+            if checkpoint_file.exists():
+                checkpoint_file.unlink()
+                logger.info("🗑️ Checkpoint refresh missing dihapus: %s", checkpoint_file)
+            else:
+                logger.info("ℹ️ Tidak ada checkpoint refresh missing yang perlu dihapus.")
+        else:
+            reset_checkpoint(args["mode"], args["source"])
 
     try:
         asyncio.run(run_sync_full_library(
@@ -1448,6 +1799,9 @@ def main():
             end_page=args["end"],
             mode=args["mode"],
             refresh_fields=args["refresh_fields"],
+            refresh_missing_only=args["refresh_missing_only"],
+            refresh_missing_limit=None if args["limit"] == 0 else args["limit"],
+            anti_blocking_enabled=args["anti_blocking_enabled"],
         ))
     except ValueError as e:
         print(f"Error konfigurasi sync: {e}")

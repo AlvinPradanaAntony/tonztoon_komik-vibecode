@@ -36,7 +36,7 @@ DOM Structure (verified April 2026):
   - meta[itemprop=additionalType] → type (Manga/Manhwa/Manhua)
   - meta[itemprop=creativeWorkStatus] → status (Ongoing/End)
   - meta[itemprop=genre] → genres (multiple)
-  - table.inftable tr → info table (Judul, Author, Status, etc.)
+  - table.inftable tr → info table (Judul, Author, Status, Pembaca, etc.)
   - p.desc[itemprop=description] → synopsis
   - #daftarChapter tr[itemprop=itemListElement] → chapter rows
     - a[itemprop=url] → chapter link
@@ -234,6 +234,64 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
                 info_map[key] = value
         return info_map
 
+    def _parse_view_count_value(self, text: str | None) -> int | None:
+        """Parse angka view Komiku, termasuk format separator ribuan dan suffix."""
+        cleaned = clean_text(text).lower()
+        if not cleaned:
+            return None
+
+        compact = re.sub(r"\s+", "", cleaned)
+        compact_count = self._parse_compact_number(compact)
+        if compact_count is not None:
+            return compact_count
+
+        digits = re.sub(r"\D", "", cleaned)
+        if not digits:
+            return None
+
+        try:
+            return int(digits)
+        except ValueError:
+            return None
+
+    def _parse_total_view_from_info(self, info_map: dict[str, str]) -> int | None:
+        """
+        Ambil total view dari field `Pembaca`.
+
+        Komiku saat ini menulisnya seperti:
+          Total: 1171 views, Minggu ini: 6 views
+        Parser memprioritaskan angka setelah `Total` agar tidak tertukar
+        dengan jumlah view mingguan.
+        """
+        reader_text = (
+            info_map.get("pembaca")
+            or info_map.get("views")
+            or info_map.get("view")
+            or info_map.get("total view")
+        )
+        if not reader_text:
+            return None
+
+        total_match = re.search(
+            r"\btotal\s*:?\s*([0-9][0-9.,]*\s*[kmb]?)",
+            reader_text,
+            flags=re.IGNORECASE,
+        )
+        if total_match:
+            total_view = self._parse_view_count_value(total_match.group(1))
+            if total_view is not None:
+                return total_view
+
+        view_match = re.search(
+            r"([0-9][0-9.,]*\s*[kmb]?)\s*(?:views?|dilihat|dibaca|pembaca)\b",
+            reader_text,
+            flags=re.IGNORECASE,
+        )
+        if view_match:
+            return self._parse_view_count_value(view_match.group(1))
+
+        return self._parse_view_count_value(reader_text)
+
     async def get_comic_detail(self, url: str) -> dict[str, Any]:
         """
         Ambil detail lengkap komik dari halaman detail.
@@ -351,6 +409,9 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
         if not status:
             status = self._normalize_status(info_map.get("status"))
 
+        # --- Total view ---
+        total_view = self._parse_total_view_from_info(info_map)
+
         # --- Synopsis ---
         synopsis = None
         desc_el = response.css('p.desc[itemprop="description"]')
@@ -444,6 +505,7 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
             type=comic_type,
             synopsis=synopsis,
             rating=None,  # Komiku doesn't expose a numeric rating
+            total_view=total_view,
             genres=genres,
             chapters=chapters,
         )

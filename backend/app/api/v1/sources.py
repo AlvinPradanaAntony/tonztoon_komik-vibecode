@@ -6,6 +6,8 @@ Endpoint publik utama untuk navigasi katalog per source:
     GET /api/v1/sources/{source_name}/comics
     GET /api/v1/sources/{source_name}/comics/latest
     GET /api/v1/sources/{source_name}/comics/popular
+    GET /api/v1/sources/{source_name}/comics/recommendations
+    GET /api/v1/sources/{source_name}/comics/top-ranking
     GET /api/v1/sources/{source_name}/comics/{slug}
     GET /api/v1/sources/{source_name}/comics/{slug}/chapters
     GET /api/v1/sources/{source_name}/comics/{slug}/chapters/{chapter_number}
@@ -14,6 +16,7 @@ Endpoint publik utama untuk navigasi katalog per source:
 
 import asyncio
 import logging
+import random
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
@@ -238,6 +241,15 @@ def _popular_feed_order():
         Comic.rating.desc().nullslast(),
         Comic.total_view.desc().nullslast(),
         Comic.updated_at.desc(),
+        Comic.id.asc(),
+    )
+
+
+def _top_ranking_order():
+    return (
+        Comic.total_view.desc().nullslast(),
+        Comic.rating.desc().nullslast(),
+        Comic.title.asc(),
         Comic.id.asc(),
     )
 
@@ -477,6 +489,122 @@ async def get_source_popular_comics(
     ]
 
 
+@router.get(
+    "/{source_name}/comics/recommendations",
+    response_model=list[SourceComicListItem],
+)
+async def get_source_recommended_comics(
+    request: Request,
+    source_name: str = Path(
+        ...,
+        description=(
+            "Filter by source name "
+            "(e.g. komiku, shinigami, komicast, komiku_asia)"
+        ),
+    ),
+    limit: int = Query(4, ge=1, le=12),
+    pool_size: int = Query(24, ge=4, le=50),
+    db: AsyncSession = Depends(get_db),
+):
+    """Rekomendasi komik dari kandidat populer dengan rating dan total view terbaik."""
+    source = _get_source_or_404(source_name)
+    effective_pool_size = max(pool_size, limit)
+    base_stmt = (
+        select(
+            Comic,
+            _latest_chapter_number_subq.label("latest_chapter_number"),
+            _latest_chapter_release_subq.label("latest_chapter_release_date"),
+        )
+        .options(selectinload(Comic.genres), noload(Comic.chapters))
+        .where(Comic.source_name == source["id"])
+        .order_by(*_popular_feed_order())
+        .limit(effective_pool_size)
+    )
+
+    strict_result = await db.execute(
+        base_stmt.where(Comic.rating.is_not(None), Comic.total_view.is_not(None))
+    )
+    rows = strict_result.unique().all()
+    if not rows:
+        fallback_result = await db.execute(
+            base_stmt.where(
+                or_(Comic.rating.is_not(None), Comic.total_view.is_not(None))
+            )
+        )
+        rows = fallback_result.unique().all()
+    if not rows:
+        fallback_result = await db.execute(base_stmt)
+        rows = fallback_result.unique().all()
+
+    today = datetime.now(timezone.utc).date()
+    shuffled_rows = list(rows)
+    random.Random(f"{source['id']}|{today.isoformat()}").shuffle(shuffled_rows)
+    return [
+        _build_source_comic_list_item(
+            request,
+            source["id"],
+            comic,
+            latest_chapter_number,
+            latest_chapter_release_date,
+        )
+        for comic, latest_chapter_number, latest_chapter_release_date in shuffled_rows[
+            :limit
+        ]
+    ]
+
+
+@router.get(
+    "/{source_name}/comics/top-ranking",
+    response_model=list[SourceComicListItem],
+)
+async def get_source_top_ranking_comics(
+    request: Request,
+    source_name: str = Path(
+        ...,
+        description=(
+            "Filter by source name "
+            "(e.g. komiku, shinigami, komicast, komiku_asia)"
+        ),
+    ),
+    limit: int = Query(10, ge=1, le=10),
+    type: str | None = Query(
+        None,
+        description="Filter by type: manga/manhwa/manhua",
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    """Top ranking komik dari total view tertinggi pada satu source."""
+    source = _get_source_or_404(source_name)
+    type_value = _normalize_query_value(type)
+    filters = [Comic.source_name == source["id"], Comic.total_view.is_not(None)]
+    if type_value:
+        filters.append(func.lower(Comic.type) == type_value)
+
+    stmt = (
+        select(
+            Comic,
+            _latest_chapter_number_subq.label("latest_chapter_number"),
+            _latest_chapter_release_subq.label("latest_chapter_release_date"),
+        )
+        .options(selectinload(Comic.genres), noload(Comic.chapters))
+        .where(*filters)
+        .order_by(*_top_ranking_order())
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    rows = result.unique().all()
+    return [
+        _build_source_comic_list_item(
+            request,
+            source["id"],
+            comic,
+            latest_chapter_number,
+            latest_chapter_release_date,
+        )
+        for comic, latest_chapter_number, latest_chapter_release_date in rows
+    ]
+
+
 @router.get("/{source_name}/search", response_model=list[SourceComicListItem])
 async def search_source_comics(
     request: Request,
@@ -508,7 +636,12 @@ async def search_source_comics(
     result = await db.execute(stmt)
     rows = result.unique().all()
     return [
-        _build_source_comic_list_item(request, source["id"], comic, latest_chapter_number)
+        _build_source_comic_list_item(
+            request,
+            source["id"],
+            comic,
+            latest_chapter_number,
+        )
         for comic, latest_chapter_number in rows
     ]
 

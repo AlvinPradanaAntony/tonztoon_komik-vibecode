@@ -109,6 +109,31 @@ class CatalogRepository {
     );
   }
 
+  Future<List<ComicSummary>> getRecommendations(
+    String sourceName, {
+    int limit = 4,
+  }) {
+    return _getComicList(
+      '/sources/$sourceName/comics/recommendations',
+      queryParameters: {'limit': limit},
+    );
+  }
+
+  Future<List<ComicSummary>> getTopRanking(
+    String sourceName, {
+    int limit = 10,
+    String? type,
+  }) {
+    return _getComicList(
+      '/sources/$sourceName/comics/top-ranking',
+      queryParameters: {
+        'limit': limit,
+        if (type != null && type.trim().isNotEmpty)
+          'type': type.trim().toLowerCase(),
+      },
+    );
+  }
+
   List<ComicSummary> getCachedComicSection(
     String sourceName, {
     required bool popular,

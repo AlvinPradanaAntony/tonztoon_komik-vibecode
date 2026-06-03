@@ -57,6 +57,7 @@ Usage:
     python -m scraper.sync_chapter_images --source komiku_asia
     python -m scraper.sync_chapter_images --source komikcast --limit 50
     python -m scraper.sync_chapter_images --source shinigami --selection random --limit 20
+    python -m scraper.sync_chapter_images --source komikcast --limit 50 --no-anti-blocking
 
 Argumen CLI utama:
 - `--source <source_name>`
@@ -81,6 +82,9 @@ Argumen CLI utama:
 - `--log-file <path>`
   - Ubah lokasi file log. Jika relatif, file akan disimpan di `backend/logs/`.
   - Default tanpa flag akan menjadi `sync_chapter_images_<source>.log`.
+- `--no-anti-blocking`
+  - Matikan throttling request: random delay, cooldown berkala, dan backoff
+    error. Checkpoint/resume dan graceful shutdown tetap aktif.
 
 Contoh use case:
 - Batch lokal fokus source tertentu:
@@ -428,6 +432,29 @@ async def _release_claim(session, chapter_id: int) -> None:
     )
 
 
+async def maybe_backoff_delay(
+    anti_blocking_enabled: bool,
+    attempt: int,
+    label: str,
+) -> None:
+    if anti_blocking_enabled:
+        await backoff_delay(attempt, label)
+        return
+    logger.info("⏩ Backoff dilewati karena --no-anti-blocking: %s", label)
+
+
+async def maybe_random_delay(
+    anti_blocking_enabled: bool,
+    min_sec: float,
+    max_sec: float,
+    label: str,
+) -> None:
+    if anti_blocking_enabled:
+        await random_delay(min_sec, max_sec, label)
+        return
+    logger.debug("⏩ Random delay dilewati: %s", label)
+
+
 async def process_pending_images_batch(
     *,
     batch_number: int,
@@ -437,6 +464,7 @@ async def process_pending_images_batch(
     batch_size: int,
     checkpoint: dict,
     stats: ImageSyncStats,
+    anti_blocking_enabled: bool,
 ) -> int:
     rows = await _load_pending_batch(
         source_name=source_name,
@@ -574,7 +602,11 @@ async def process_pending_images_batch(
                     note=f"Error image fetch chapter {chapter.id}: {exc}",
                 )
                 if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
-                    await backoff_delay(consecutive_errors - 1, f"{row_source_name} images")
+                    await maybe_backoff_delay(
+                        anti_blocking_enabled,
+                        consecutive_errors - 1,
+                        f"{row_source_name} images",
+                    )
                     consecutive_errors = 0
             except Exception as exc:
                 consecutive_errors += 1
@@ -587,7 +619,11 @@ async def process_pending_images_batch(
                     note=f"Error tidak terduga chapter {chapter.id}: {exc}",
                 )
                 if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
-                    await backoff_delay(consecutive_errors - 1, f"{row_source_name} images")
+                    await maybe_backoff_delay(
+                        anti_blocking_enabled,
+                        consecutive_errors - 1,
+                        f"{row_source_name} images",
+                    )
                     consecutive_errors = 0
             finally:
                 try:
@@ -608,12 +644,22 @@ async def process_pending_images_batch(
             },
         )
 
-        if stats.processed_since_cooldown >= COOLDOWN_EVERY_N_CHAPTERS:
+        if anti_blocking_enabled and stats.processed_since_cooldown >= COOLDOWN_EVERY_N_CHAPTERS:
             stats.processed_since_cooldown = 0
             logger.info("  🧊 Cooldown berkala images...")
-            await random_delay(COOLDOWN_MIN, COOLDOWN_MAX, "cooldown images")
+            await maybe_random_delay(
+                anti_blocking_enabled,
+                COOLDOWN_MIN,
+                COOLDOWN_MAX,
+                "cooldown images",
+            )
 
-        await random_delay(DELAY_CHAPTER_MIN, DELAY_CHAPTER_MAX, "antar-chapter images")
+        await maybe_random_delay(
+            anti_blocking_enabled,
+            DELAY_CHAPTER_MIN,
+            DELAY_CHAPTER_MAX,
+            "antar-chapter images",
+        )
 
     logger.info(
         "  ✅ Batch %s selesai: scanned=%s, fetched=%s, skipped=%s, errors=%s",
@@ -643,6 +689,7 @@ async def run_image_backfill(
     batch_size: int,
     limit: int,
     reset: bool,
+    anti_blocking_enabled: bool,
 ) -> None:
     start_time = time.time()
     started_at = now_wib()
@@ -668,9 +715,16 @@ async def run_image_backfill(
     logger.info("   Selection    : %s", selection)
     logger.info("   Batch size   : %s", batch_size)
     logger.info("   Limit        : %s", limit)
-    logger.info("   Delay chapter: %s-%ss (random)", DELAY_CHAPTER_MIN, DELAY_CHAPTER_MAX)
-    logger.info("   Cooldown     : setiap %s chapter", COOLDOWN_EVERY_N_CHAPTERS)
-    logger.info("   Backoff max  : %ss", int(BACKOFF_MAX))
+    logger.info(
+        "   Anti-blocking: %s",
+        "aktif" if anti_blocking_enabled else "nonaktif (--no-anti-blocking)",
+    )
+    if anti_blocking_enabled:
+        logger.info("   Delay chapter: %s-%ss (random)", DELAY_CHAPTER_MIN, DELAY_CHAPTER_MAX)
+        logger.info("   Cooldown     : setiap %s chapter", COOLDOWN_EVERY_N_CHAPTERS)
+        logger.info("   Backoff max  : %ss", int(BACKOFF_MAX))
+    else:
+        logger.info("   Delay/cooldown/backoff: dilewati")
     logger.info("   Checkpoint   : %s", checkpoint_file)
     logger.info("═" * 60)
 
@@ -711,6 +765,7 @@ async def run_image_backfill(
             batch_size=current_batch_size,
             checkpoint=checkpoint,
             stats=stats,
+            anti_blocking_enabled=anti_blocking_enabled,
         )
         pending_total = max(0, pending_total - (stats.total_fetched - fetched_before_batch))
         logger.info("📊 Estimasi pending chapter images: %s", pending_total)
@@ -780,9 +835,13 @@ def parse_args(argv: list[str]) -> dict:
         "limit": 0,
         "reset": False,
         "log_file": None,
+        "anti_blocking_enabled": True,
     }
     i = 0
     while i < len(argv):
+        if argv[i] == "--help":
+            print(__doc__)
+            sys.exit(0)
         if argv[i] == "--source" and i + 1 < len(argv):
             args["source"] = argv[i + 1].strip().lower()
             i += 2
@@ -797,6 +856,9 @@ def parse_args(argv: list[str]) -> dict:
             i += 2
         elif argv[i] == "--reset":
             args["reset"] = True
+            i += 1
+        elif argv[i] == "--no-anti-blocking":
+            args["anti_blocking_enabled"] = False
             i += 1
         elif argv[i] == "--log-file" and i + 1 < len(argv):
             args["log_file"] = argv[i + 1]
@@ -830,6 +892,7 @@ async def main(argv: list[str] | None = None) -> None:
         batch_size=args["batch_size"],
         limit=args["limit"],
         reset=args["reset"],
+        anti_blocking_enabled=args["anti_blocking_enabled"],
     )
 
 
