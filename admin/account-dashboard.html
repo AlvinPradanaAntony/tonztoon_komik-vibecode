@@ -46,7 +46,8 @@
 
       button,
       input,
-      select {
+      select,
+      textarea {
         transition:
           border-color 160ms ease,
           background-color 160ms ease,
@@ -289,7 +290,56 @@
             </div>
           </div>
 
-          <div class="glass-panel overflow-hidden rounded-3xl border border-white/70 shadow-sm">
+          <form id="announcementForm" class="glass-panel relative z-20 rounded-3xl border border-white/70 p-4 shadow-sm">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p class="text-sm font-medium text-muted">Push remote</p>
+                <h2 class="mt-1 text-lg font-semibold text-ink">Kirim pengumuman</h2>
+              </div>
+              <button id="sendAnnouncementBtn" type="submit" class="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-brand px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800">
+                <i data-lucide="send" class="h-4 w-4"></i>
+                <span>Kirim</span>
+              </button>
+            </div>
+            <div class="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px]">
+              <label class="block">
+                <span class="text-sm font-medium text-ink">Judul</span>
+                <input id="announcementTitleField" type="text" required maxlength="120" class="mt-1 h-10 w-full rounded-2xl border border-line bg-white/90 px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" placeholder="Maintenance TonzToon" />
+              </label>
+              <label class="block">
+                <span class="text-sm font-medium text-ink">Kategori</span>
+                <select id="announcementCategoryField" class="mt-1 h-10 w-full rounded-2xl border border-line bg-white/90 px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20">
+                  <option value="Pengumuman">Pengumuman</option>
+                  <option value="Maintenance">Maintenance</option>
+                  <option value="Testing">Testing</option>
+                </select>
+              </label>
+              <label class="block lg:col-span-2">
+                <span class="text-sm font-medium text-ink">Pesan</span>
+                <textarea id="announcementMessageField" required maxlength="500" rows="3" class="mt-1 w-full resize-y rounded-2xl border border-line bg-white/90 px-3 py-2 text-sm leading-6 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" placeholder="Server akan maintenance malam ini pukul 23.00 WIB."></textarea>
+              </label>
+              <label class="block lg:col-span-2">
+                <span class="text-sm font-medium text-ink">Route saat dibuka</span>
+                <select id="announcementRouteField" class="mt-1 h-10 w-full rounded-2xl border border-line bg-white/90 px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20">
+                  <option value="/notifications">Halaman notifikasi (/notifications)</option>
+                  <option value="/">Beranda (/)</option>
+                  <option value="/catalog">Katalog (/catalog)</option>
+                  <option value="/search">Pencarian (/search)</option>
+                  <option value="/library">Pustaka - bookmark (/library)</option>
+                  <option value="/library?tab=collections">Pustaka - koleksi (/library?tab=collections)</option>
+                  <option value="/library?tab=scenes">Pustaka - scenes (/library?tab=scenes)</option>
+                  <option value="/library?tab=history">Pustaka - riwayat (/library?tab=history)</option>
+                  <option value="/library?tab=downloads">Pustaka - download (/library?tab=downloads)</option>
+                  <option value="/library/continue-reading">Lanjut membaca (/library/continue-reading)</option>
+                  <option value="/settings">Pengaturan (/settings)</option>
+                  <option value="/auth">Login (/auth)</option>
+                  <option value="/auth/forgot-password">Lupa password (/auth/forgot-password)</option>
+                </select>
+              </label>
+            </div>
+          </form>
+
+          <div class="glass-panel relative z-0 overflow-hidden rounded-3xl border border-white/70 shadow-sm">
             <div class="grid gap-3 border-b border-line/80 p-4 lg:grid-cols-[minmax(220px,1fr)_160px_160px]">
               <label class="relative block">
                 <span class="sr-only">Cari akun</span>
@@ -509,6 +559,7 @@
           save: false,
           delete: false,
           relations: false,
+          announcement: false,
         },
       };
 
@@ -524,6 +575,12 @@
         reloadBtn: document.querySelector("#reloadBtn"),
         openCreateBtn: document.querySelector("#openCreateBtn"),
         logoutBtn: document.querySelector("#logoutBtn"),
+        announcementForm: document.querySelector("#announcementForm"),
+        sendAnnouncementBtn: document.querySelector("#sendAnnouncementBtn"),
+        announcementTitleField: document.querySelector("#announcementTitleField"),
+        announcementCategoryField: document.querySelector("#announcementCategoryField"),
+        announcementMessageField: document.querySelector("#announcementMessageField"),
+        announcementRouteField: document.querySelector("#announcementRouteField"),
         usersTable: document.querySelector("#usersTable"),
         emptyState: document.querySelector("#emptyState"),
         totalUsers: document.querySelector("#totalUsers"),
@@ -581,6 +638,7 @@
         els.logoutBtn.addEventListener("click", logout);
         els.reloadBtn.addEventListener("click", () => loadAccounts());
         els.openCreateBtn.addEventListener("click", openCreateModal);
+        els.announcementForm.addEventListener("submit", sendAnnouncement);
         els.userForm.addEventListener("submit", saveUser);
         els.confirmCascade.addEventListener("change", () => {
           syncLoadingState();
@@ -860,6 +918,38 @@
           if (requestId === state.relationRequestId) handleRequestError(error);
         } finally {
           if (requestId === state.relationRequestId) setLoading("relations", false);
+        }
+      }
+
+      async function sendAnnouncement(event) {
+        event.preventDefault();
+        if (state.loading.announcement) return;
+
+        const route = els.announcementRouteField.value.trim() || "/notifications";
+        if (!route.startsWith("/")) {
+          notify("Route harus diawali '/'.", true);
+          return;
+        }
+
+        setLoading("announcement", true);
+        try {
+          const payload = await apiFetch("/api/v1/notifications/admin-announcements", {
+            method: "POST",
+            body: {
+              title: els.announcementTitleField.value.trim(),
+              message: els.announcementMessageField.value.trim(),
+              category: els.announcementCategoryField.value,
+              action_route: route,
+            },
+          });
+          notify(
+            `Push terkirim ke ${payload.queued_messages || 0}/${payload.target_devices || 0} device aktif.`,
+          );
+          els.announcementMessageField.value = "";
+        } catch (error) {
+          handleRequestError(error);
+        } finally {
+          setLoading("announcement", false);
         }
       }
 
@@ -1614,6 +1704,12 @@
           loadingIcon: "loader-2",
           idleIcon: "trash-2",
           disabled: !els.confirmCascade.checked,
+        });
+        setButtonLoading(els.sendAnnouncementBtn, state.loading.announcement, {
+          loadingText: "Mengirim...",
+          idleText: "Kirim",
+          loadingIcon: "loader-2",
+          idleIcon: "send",
         });
         renderPagination();
         lucide.createIcons();

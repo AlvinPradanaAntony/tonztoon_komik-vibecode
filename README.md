@@ -128,5 +128,6 @@ Chapter reader memakai lazy loading: jika `chapters.images` kosong, backend menc
 - [Walkthrough backend](docs/walkthrough_backend.md)
 - [Walkthrough frontend](docs/walkthrough_frontend.md)
 - [Library API contract](backend/docs/library_api_contract.md)
+- [Push notification API contract](backend/docs/push_notification_api_contract.md)
 - [Flutter-backend integration](backend/docs/flutter_backend_integration.md)
 - [Supabase Auth setup](backend/docs/supabase_auth_setup.md)

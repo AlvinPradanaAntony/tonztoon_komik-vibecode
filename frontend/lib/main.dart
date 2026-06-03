@@ -6,6 +6,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import 'src/app.dart';
 import 'src/core/app_error.dart';
+import 'src/core/remote_push_bootstrap.dart';
 import 'src/core/storage.dart';
 
 export 'src/app.dart';
@@ -24,6 +25,8 @@ Future<void> main() async {
     logAppError(error, stackTrace, context: 'Uncaught platform error');
     return true;
   };
+
+  await RemotePushBootstrap.initialize();
 
   await Hive.initFlutter();
   await Future.wait([

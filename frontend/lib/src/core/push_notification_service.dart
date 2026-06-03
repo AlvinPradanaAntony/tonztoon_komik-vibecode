@@ -21,6 +21,8 @@ class PushNotificationService {
   static const _legacyStatusChannelId = 'download_status';
   static const _updatesChannelId = 'comic_updates';
   static const _updatesChannelName = 'Notifikasi TonzToon';
+  static const _updatesChannelDescription =
+      'Update chapter dan status pustaka';
   static const _androidSmallIcon = 'ic_stat_tonztoon';
 
   final FlutterLocalNotificationsPlugin _plugin;
@@ -80,7 +82,7 @@ class PushNotificationService {
           android: AndroidNotificationDetails(
             _updatesChannelId,
             _updatesChannelName,
-            channelDescription: 'Update chapter dan status pustaka',
+            channelDescription: _updatesChannelDescription,
             icon: _androidSmallIcon,
             importance: Importance.high,
             priority: Priority.high,
@@ -242,7 +244,7 @@ class PushNotificationService {
           android: AndroidNotificationDetails(
             _updatesChannelId,
             _updatesChannelName,
-            channelDescription: 'Update chapter dan status pustaka',
+            channelDescription: _updatesChannelDescription,
             icon: _androidSmallIcon,
             importance: Importance.high,
             priority: Priority.high,
@@ -298,6 +300,7 @@ class PushNotificationService {
         ),
         onDidReceiveNotificationResponse: _handleNotificationResponse,
       );
+      await _createAndroidNotificationChannels();
       await _deleteLegacyAndroidChannels();
 
       final launchDetails = await _plugin.getNotificationAppLaunchDetails();
@@ -311,6 +314,25 @@ class PushNotificationService {
     }
 
     _initialized = true;
+  }
+
+  Future<void> _createAndroidNotificationChannels() async {
+    try {
+      final android = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+      await android?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          _updatesChannelId,
+          _updatesChannelName,
+          description: _updatesChannelDescription,
+          importance: Importance.high,
+        ),
+      );
+    } catch (_) {
+      // FCM can still use the manifest default channel if explicit creation fails.
+    }
   }
 
   void _handleNotificationResponse(NotificationResponse response) {

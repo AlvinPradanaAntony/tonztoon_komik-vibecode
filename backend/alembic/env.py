@@ -30,6 +30,7 @@ from app.models import (  # noqa: F401
     Comic,
     Genre,
     Profile,
+    PushNotificationEvent,
     ReaderPreference,
     SourceStat,
     UserBookmark,
@@ -39,6 +40,7 @@ from app.models import (  # noqa: F401
     UserFavoriteScene,
     UserHistoryEntry,
     UserProgress,
+    UserPushDevice,
     UserReadingStat,
     comic_genre,
 )

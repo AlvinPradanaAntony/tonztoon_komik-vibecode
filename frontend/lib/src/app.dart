@@ -20,6 +20,7 @@ class _TonztoonAppState extends ConsumerState<TonztoonApp> {
   void initState() {
     super.initState();
     unawaited(ref.read(downloadNotificationServiceProvider).initialize());
+    unawaited(ref.read(remotePushNotificationServiceProvider).initialize());
   }
 
   @override

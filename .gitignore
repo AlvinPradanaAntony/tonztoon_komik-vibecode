@@ -1,5 +1,7 @@
 .env
 backend/.env
+*firebase-adminsdk*.json
+backend/*firebase-adminsdk*.json
 __pycache__/
 *.pyc
 venv/
@@ -17,3 +19,4 @@ backend/logs/
 backend/checkpoints
 backend/exports/
 backend/.cache/komiku_asia_cloak_state.json
+frontend/android/app/google-services.json
