@@ -1,6 +1,6 @@
 # TonzToon Comic - Codebase Walkthrough
 
-Dokumen ini memberi peta cepat codebase TonzToon Komik berdasarkan struktur saat ini. Untuk detail spesifik, baca juga `docs/walkthrough_backend.md`, `docs/walkthrough_frontend.md`, `backend/docs/library_api_contract.md`, dan `backend/docs/flutter_backend_integration.md`.
+Dokumen ini memberi peta cepat codebase TonzToon Komik berdasarkan struktur saat ini. Untuk detail spesifik, baca juga `docs/walkthrough_backend.md`, `docs/walkthrough_frontend.md`, `backend/docs/library_api_contract.md`, `backend/docs/push_notification_api_contract.md`, dan `backend/docs/flutter_backend_integration.md`.
 
 ## 1. Overview
 

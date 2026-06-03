@@ -1701,8 +1701,7 @@ class _ProfileSetupDialogState extends State<_ProfileSetupDialog> {
                         : TextInputAction.done,
                     decoration: const InputDecoration(
                       labelText: 'Username',
-                      helperText:
-                          'Tidak dapat diubah kembali setelah dibuat.',
+                      helperText: 'Tidak dapat diubah kembali setelah dibuat.',
                     ),
                     validator: _validateUsernameValue,
                     onFieldSubmitted: (_) {
@@ -2140,10 +2139,13 @@ class _PushNotificationsSettingsRowState
     setState(() => _saving = true);
     try {
       if (value) {
-        final granted = await ref
+        final localGranted = await ref
             .read(pushNotificationServiceProvider)
             .requestPermissions();
-        if (!granted) {
+        final remoteGranted = await ref
+            .read(remotePushNotificationServiceProvider)
+            .requestPermissions();
+        if (!localGranted || !remoteGranted) {
           if (!mounted) return;
           showAppSnackBar(
             context,

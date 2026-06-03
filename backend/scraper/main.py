@@ -105,7 +105,8 @@ sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.par
 
 from app.database import async_session
 from app.models import Comic, Chapter
-from app.schemas import ComicCreate
+from app.schemas import ChapterUpdateEventRequest, ComicCreate
+from app.services.push_notification_service import handle_chapter_update_event
 
 from scraper.base_scraper import BaseComicScraper
 from scraper.db_ops import (
@@ -208,7 +209,7 @@ async def _backoff_delay(attempt: int, label: str) -> None:
 async def _random_delay(min_sec: float, max_sec: float, label: str = "") -> None:
     """Jalankan random delay hanya saat strategi anti-blocking aktif."""
     if ANTI_BLOCKING_ENABLED:
-        await _random_delay(min_sec, max_sec, label)
+        await random_delay(min_sec, max_sec, label)
         return
     logger.debug("⏩ Random delay dilewati: %s", label)
 
@@ -235,6 +236,8 @@ class ScrapeStats:
     total_comics: int = 0
     total_chapters_meta: int = 0
     total_chapters_images: int = 0
+    total_push_events: int = 0
+    total_push_messages: int = 0
     total_errors: int = 0
     total_skipped: int = 0
     comics_since_cooldown: int = 0
@@ -588,6 +591,79 @@ def _extract_listing_chapter_number(
         return 0.0
 
 
+async def get_current_latest_chapter_number(session, comic_id: int) -> float | None:
+    """Return latest chapter number already stored before the current upsert."""
+    result = await session.execute(
+        select(func.max(Chapter.chapter_number)).where(Chapter.comic_id == comic_id)
+    )
+    value = result.scalar_one_or_none()
+    return float(value) if value is not None else None
+
+
+def build_chapter_update_event(
+    *,
+    validated: ComicCreate,
+    latest_chapter: dict[str, Any],
+) -> ChapterUpdateEventRequest | None:
+    """Build push event payload for the latest chapter in a comic detail."""
+    chapter_number = latest_chapter.get("chapter_number")
+    if not isinstance(chapter_number, int | float):
+        return None
+
+    chapter_label = str(int(chapter_number)) if chapter_number == int(chapter_number) else str(chapter_number)
+    return ChapterUpdateEventRequest(
+        source_name=validated.source_name,
+        comic_slug=validated.slug,
+        comic_title=validated.title,
+        latest_chapter_number=float(chapter_number),
+        latest_chapter_title=latest_chapter.get("title"),
+        release_date=latest_chapter.get("release_date"),
+        event_id=f"chapter:{validated.source_name}:{validated.slug}:{chapter_label}",
+    )
+
+
+async def notify_latest_chapter_update(
+    session,
+    *,
+    event: ChapterUpdateEventRequest | None,
+    stats: ScrapeStats,
+    comic_label: str,
+) -> None:
+    """Send a push event after scraper data has been committed."""
+    if event is None:
+        return
+
+    try:
+        response = await handle_chapter_update_event(session, event)
+    except Exception as exc:  # noqa: BLE001 - push must not break scraper sync
+        stats.total_errors += 1
+        logger.warning(
+            "  ⚠️ %s Push notification event gagal untuk %s: %s",
+            comic_label,
+            event.event_id,
+            exc,
+        )
+        return
+
+    if response.duplicate:
+        logger.info(
+            "  🔔 %s Push event sudah pernah diproses: %s",
+            comic_label,
+            event.event_id,
+        )
+        return
+
+    stats.total_push_events += 1
+    stats.total_push_messages += response.queued_messages
+    logger.info(
+        "  🔔 %s Push event: %s (%s device, %s queued)",
+        comic_label,
+        event.event_id,
+        response.target_devices,
+        response.queued_messages,
+    )
+
+
 async def prewarm_latest_chapters(
     session,
     scraper: BaseComicScraper,
@@ -886,12 +962,30 @@ async def process_comic(
             f"({genre_total} genre) [Total komik: {stats.total_comics}]"
         )
 
+        previous_latest_chapter = await get_current_latest_chapter_number(
+            session,
+            comic_id,
+        )
         chapters_data = comic_detail.get("chapters", [])
         chapters_sorted = sorted(
             chapters_data,
             key=lambda c: c.get("chapter_number", 0),
             reverse=True,
         )
+        latest_chapter = chapters_sorted[0] if chapters_sorted else None
+        push_event = None
+        if latest_chapter is not None:
+            latest_chapter_number = latest_chapter.get("chapter_number")
+            if (
+                isinstance(latest_chapter_number, int | float)
+                and previous_latest_chapter is not None
+                and previous_latest_chapter + 0.0001 < float(latest_chapter_number)
+            ):
+                push_event = build_chapter_update_event(
+                    validated=validated,
+                    latest_chapter=latest_chapter,
+                )
+
         chapter_saved_count = await save_chapter_metadata(
             session,
             comic_id=comic_id,
@@ -925,6 +1019,12 @@ async def process_comic(
         )
 
         await session.commit()
+        await notify_latest_chapter_update(
+            session,
+            event=push_event,
+            stats=stats,
+            comic_label=comic_label,
+        )
 
         if ANTI_BLOCKING_ENABLED and stats.comics_since_cooldown >= COOLDOWN_EVERY_N_COMICS:
             stats.comics_since_cooldown = 0
@@ -1291,6 +1391,8 @@ async def run_scraper(
             scraper_start_comics = stats.total_comics
             scraper_start_meta = stats.total_chapters_meta
             scraper_start_images = stats.total_chapters_images
+            scraper_start_push_events = stats.total_push_events
+            scraper_start_push_messages = stats.total_push_messages
             scraper_start_pages = stats.total_pages_scanned
             scraper_start_listing = stats.total_listing_items
             scraper_start_candidates = stats.total_candidates
@@ -1325,6 +1427,8 @@ async def run_scraper(
                     f"{stats.total_comics - scraper_start_comics} comics, "
                     f"{stats.total_chapters_meta - scraper_start_meta} chapter metadata, "
                     f"{stats.total_chapters_images - scraper_start_images} chapter images pre-warmed, "
+                    f"{stats.total_push_events - scraper_start_push_events} push events, "
+                    f"{stats.total_push_messages - scraper_start_push_messages} push messages, "
                     f"{stats.total_skipped - scraper_start_skipped} skipped, "
                     f"{stats.total_errors - scraper_start_errors} errors"
                 )
@@ -1356,6 +1460,8 @@ async def run_scraper(
     logger.info(f"   Comics      : {stats.total_comics}")
     logger.info(f"   Chapter meta: {stats.total_chapters_meta}")
     logger.info(f"   Pre-warmed  : {stats.total_chapters_images} chapter images")
+    logger.info(f"   Push events : {stats.total_push_events}")
+    logger.info(f"   Push queued : {stats.total_push_messages} messages")
     logger.info(f"   Skipped     : {stats.total_skipped}")
     logger.info(f"   Errors      : {stats.total_errors}")
     logger.info("═" * 60)

@@ -108,6 +108,24 @@ class Settings(BaseSettings):
         description="Maximum validated redirects followed by image proxy.",
     )
 
+    # --- Firebase Cloud Messaging ---
+    FCM_PROJECT_ID: str = Field(
+        default="",
+        description="Firebase project ID used for FCM HTTP v1.",
+    )
+    FCM_SERVICE_ACCOUNT_JSON: str = Field(
+        default="",
+        description="Raw Firebase service account JSON for FCM HTTP v1.",
+    )
+    FCM_SERVICE_ACCOUNT_FILE: str = Field(
+        default="",
+        description="Path to Firebase service account JSON file.",
+    )
+    PUSH_EVENT_API_KEY: str = Field(
+        default="",
+        description="Optional API key for internal push notification event endpoints.",
+    )
+
 
     # --- Komiku Asia In-Process Background Worker ---
     KOMIKU_ASIA_WORKER_ENABLED: bool = Field(

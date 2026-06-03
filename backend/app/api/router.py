@@ -13,6 +13,7 @@ from app.api.v1 import (
     genres,
     images,
     library,
+    notifications,
     scraper,
     search,
     sources,
@@ -28,6 +29,11 @@ api_router.include_router(images.router, prefix="/v1/images", tags=["Images"])
 api_router.include_router(scraper.router, prefix="/v1/scraper", tags=["Scraper"])
 api_router.include_router(library.router, prefix="/v1/library", tags=["Library"])
 api_router.include_router(auth.router, prefix="/v1/auth", tags=["Auth"])
+api_router.include_router(
+    notifications.router,
+    prefix="/v1/notifications",
+    tags=["Notifications"],
+)
 api_router.include_router(
     account_manager.router,
     prefix="/v1/account-manager",

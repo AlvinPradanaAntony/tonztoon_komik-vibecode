@@ -394,6 +394,24 @@ async def mark_comic_seen_in_popular_feed(
 # ═══════════════════════════════════════════════════════════════════
 
 
+def _dedupe_chapter_metadata_rows(chapters_data: list[dict]) -> list[dict]:
+    """Hilangkan duplikat key upsert agar bulk ON CONFLICT tetap valid."""
+    chapters_by_number: dict[object, dict] = {}
+    for ch_data in chapters_data:
+        if not ch_data.get("source_url"):
+            continue
+
+        chapter_number = ch_data["chapter_number"]
+        try:
+            chapter_key = float(chapter_number)
+        except (TypeError, ValueError):
+            chapter_key = chapter_number
+
+        chapters_by_number.setdefault(chapter_key, ch_data)
+
+    return list(chapters_by_number.values())
+
+
 async def upsert_chapter_metadata(
     session: AsyncSession,
     comic_id: int,
@@ -434,8 +452,7 @@ def build_chapter_metadata_upsert_statement(
             "release_date": ch_data.get("release_date"),
             "created_at": current_time,
         }
-        for ch_data in chapters_data
-        if ch_data.get("source_url")
+        for ch_data in _dedupe_chapter_metadata_rows(chapters_data)
     ]
     stmt = pg_insert(Chapter).values(rows)
     return stmt.on_conflict_do_update(
@@ -454,11 +471,7 @@ async def upsert_chapter_metadata_many(
     chapters_data: list[dict],
 ) -> int:
     """Bulk upsert metadata chapter, return jumlah row valid yang dikirim."""
-    valid_chapters = [
-        ch_data
-        for ch_data in chapters_data
-        if ch_data.get("source_url")
-    ]
+    valid_chapters = _dedupe_chapter_metadata_rows(chapters_data)
     if not valid_chapters:
         return 0
 

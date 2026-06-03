@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:tonztoon/src/core/remote_push_inbox.dart';
 import 'package:tonztoon/src/models/auth.dart';
 import 'package:tonztoon/src/models/comic.dart';
 import 'package:tonztoon/src/models/library.dart';
@@ -8,6 +10,30 @@ import 'package:tonztoon/src/models/source_info.dart';
 import 'package:tonztoon/src/widgets/comic_card.dart';
 
 void main() {
+  test('remote push message parses into app notification', () {
+    const message = RemoteMessage(
+      messageId: 'fcm-message-1',
+      notification: RemoteNotification(
+        title: 'Chapter baru tersedia',
+        body: 'Solo Leveling Chapter 201 baru saja rilis.',
+      ),
+      data: {
+        'id': 'chapter:komiku:solo-leveling:201',
+        'kind': 'chapter_update',
+        'category': 'Update',
+        'route': '/comic/komiku/solo-leveling',
+      },
+    );
+
+    final notification = appNotificationFromRemoteMessage(message);
+
+    expect(notification, isNotNull);
+    expect(notification!.id, 'remote:chapter:komiku:solo-leveling:201');
+    expect(notification.title, 'Chapter baru tersedia');
+    expect(notification.kind, 'chapter_update');
+    expect(notification.actionRoute, '/comic/komiku/solo-leveling');
+  });
+
   test('auth security overview exposes password availability', () {
     final overview = AuthSecurityOverview.fromJson(const {
       'email': 'reader@example.test',

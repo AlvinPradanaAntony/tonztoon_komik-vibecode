@@ -152,6 +152,25 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Restore Android Firebase config
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          set -euo pipefail
+
+          if [ -f android/app/google-services.json ]; then
+            echo "✅ android/app/google-services.json tersedia dari repository"
+            exit 0
+          fi
+
+          if [ -z "${GOOGLE_SERVICES_JSON}" ]; then
+            echo "❌ android/app/google-services.json tidak ada dan GOOGLE_SERVICES_JSON secret kosong"
+            exit 1
+          fi
+
+          printf '%s' "${GOOGLE_SERVICES_JSON}" > android/app/google-services.json
+          echo "✅ android/app/google-services.json dibuat dari GitHub Secret"
+
       - name: Analyze project
         run: flutter analyze --no-fatal-infos
 

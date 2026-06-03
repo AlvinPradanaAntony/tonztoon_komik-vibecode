@@ -58,6 +58,9 @@ dependencies:
   url_launcher: ^6.3.2
   pub_semver: ^2.2.0
   flutter_markdown_plus: ^1.0.7
+  firebase_core: ^4.10.0
+  firebase_messaging: ^16.3.0
+  shared_preferences: ^2.5.3
 
 dev_dependencies:
   flutter_test:

@@ -84,6 +84,48 @@ class ScraperDbOpsBulkTests(unittest.TestCase):
         self.assertIn("ON CONFLICT ON CONSTRAINT uq_comic_chapter", sql)
         self.assertIn("excluded.source_url", sql)
 
+    def test_chapter_metadata_bulk_upsert_dedupes_chapter_numbers(self):
+        compiled = build_chapter_metadata_upsert_statement(
+            10,
+            [
+                {
+                    "chapter_number": 1,
+                    "title": "Chapter 1",
+                    "source_url": "https://example.test/ch-1",
+                    "release_date": None,
+                },
+                {
+                    "chapter_number": 1.0,
+                    "title": "Chapter 1 duplicate",
+                    "source_url": "https://example.test/ch-1-dupe",
+                    "release_date": None,
+                },
+                {
+                    "chapter_number": 2,
+                    "title": "Chapter 2",
+                    "source_url": "https://example.test/ch-2",
+                    "release_date": None,
+                },
+            ],
+        ).compile(dialect=postgresql.dialect())
+
+        chapter_numbers = [
+            value
+            for key, value in compiled.params.items()
+            if key.startswith("chapter_number")
+        ]
+        source_urls = [
+            value
+            for key, value in compiled.params.items()
+            if key.startswith("source_url")
+        ]
+
+        self.assertEqual(chapter_numbers, [1, 2])
+        self.assertEqual(
+            source_urls,
+            ["https://example.test/ch-1", "https://example.test/ch-2"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

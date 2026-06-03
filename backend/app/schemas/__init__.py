@@ -82,6 +82,15 @@ from app.schemas.account_manager import (
     AccountRelationPreview,
     AccountRelationPreviewItem,
 )
+from app.schemas.notification import (
+    AdminAnnouncementRequest,
+    AdminAnnouncementResponse,
+    ChapterUpdateEventRequest,
+    ChapterUpdateEventResponse,
+    PushDeviceRegisterRequest,
+    PushDeviceResponse,
+    PushDeviceUnregisterRequest,
+)
 
 __all__ = [
     "ComicBase",
@@ -151,4 +160,11 @@ __all__ = [
     "AccountRelationCounts",
     "AccountRelationPreview",
     "AccountRelationPreviewItem",
+    "AdminAnnouncementRequest",
+    "AdminAnnouncementResponse",
+    "ChapterUpdateEventRequest",
+    "ChapterUpdateEventResponse",
+    "PushDeviceRegisterRequest",
+    "PushDeviceResponse",
+    "PushDeviceUnregisterRequest",
 ]

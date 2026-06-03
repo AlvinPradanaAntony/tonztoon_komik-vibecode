@@ -61,6 +61,8 @@ jobs:
       - name: 🕷️ Run scraper
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          FCM_PROJECT_ID: ${{ secrets.FCM_PROJECT_ID }}
+          FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
           SCRAPER_SOURCE: ${{ github.event.inputs.source || '' }}
           SCRAPER_MAX_PAGES: ${{ github.event.inputs.max_pages || '' }}
           KOMIKU_ASIA_HEADLESS: "false"

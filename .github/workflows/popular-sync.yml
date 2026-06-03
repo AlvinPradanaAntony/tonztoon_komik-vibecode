@@ -65,6 +65,8 @@ jobs:
       - name: 🔥 Run popular sync
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          FCM_PROJECT_ID: ${{ secrets.FCM_PROJECT_ID }}
+          FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
           POPULAR_PAGES: ${{ github.event.inputs.popular_pages || '10' }}
           SCRAPER_SOURCE: ${{ github.event.inputs.source || '' }}
           POPULAR_NO_EARLY_STOP: ${{ github.event.inputs.popular_no_early_stop || 'false' }}

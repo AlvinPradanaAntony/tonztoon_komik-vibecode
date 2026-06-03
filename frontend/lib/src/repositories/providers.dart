@@ -10,6 +10,7 @@ import '../core/app_update_service.dart';
 import '../core/avatar_image.dart';
 import '../core/config.dart';
 import '../core/push_notification_service.dart';
+import '../core/remote_push_notification_service.dart';
 import '../core/storage.dart';
 import '../core/token_store.dart';
 import '../models/auth.dart';
@@ -26,6 +27,7 @@ import 'notification_repository.dart';
 import 'offline_repository.dart';
 import 'progress_repository.dart';
 import 'google_auth_client.dart';
+import 'push_device_repository.dart';
 
 final configProvider = Provider<AppConfig>(
   (ref) => AppConfig.fromEnvironment(),
@@ -54,6 +56,26 @@ final pushNotificationServiceProvider = Provider<PushNotificationService>(
 );
 
 final downloadNotificationServiceProvider = pushNotificationServiceProvider;
+
+final pushDeviceRepositoryProvider = Provider<PushDeviceRepository>((ref) {
+  return PushDeviceRepository(ref.watch(apiProvider));
+});
+
+final remotePushNotificationServiceProvider =
+    Provider<RemotePushNotificationService>((ref) {
+      final service = RemotePushNotificationService(
+        repository: ref.watch(pushDeviceRepositoryProvider),
+        store: ref.watch(localStoreProvider),
+        localNotifications: ref.watch(pushNotificationServiceProvider),
+        readPreferences: () => ref.read(pushNotificationPreferencesProvider),
+        readAuth: () => ref.read(authControllerProvider),
+        onOpenLocation: openLocationFromNotification,
+        onAppNotification: (notification) =>
+            ref.read(notificationsProvider.notifier).add(notification),
+      );
+      ref.onDispose(() => unawaited(service.dispose()));
+      return service;
+    });
 
 class PushNotificationPreferencesController
     extends Notifier<PushNotificationPreferences> {
@@ -85,6 +107,15 @@ class PushNotificationPreferencesController
           .updatePushNotificationsEnabled(value);
     }
     await _save(state.copyWith(enabled: value));
+    if (value) {
+      unawaited(
+        ref.read(remotePushNotificationServiceProvider).syncRegistration(),
+      );
+    } else {
+      unawaited(
+        ref.read(remotePushNotificationServiceProvider).unregisterDevice(),
+      );
+    }
   }
 
   Future<void> _save(PushNotificationPreferences preferences) async {
@@ -337,16 +368,25 @@ class AuthController extends Notifier<AuthState> {
   Future<void> restore() async {
     state = const AuthState.booting();
     state = await ref.read(authRepositoryProvider).restore();
+    unawaited(
+      ref.read(remotePushNotificationServiceProvider).syncRegistration(),
+    );
   }
 
   Future<void> login(String identifier, String password) async {
     state = await ref
         .read(authRepositoryProvider)
         .login(identifier: identifier, password: password);
+    unawaited(
+      ref.read(remotePushNotificationServiceProvider).syncRegistration(),
+    );
   }
 
   Future<void> loginWithGoogle() async {
     state = await ref.read(authRepositoryProvider).loginWithGoogle();
+    unawaited(
+      ref.read(remotePushNotificationServiceProvider).syncRegistration(),
+    );
   }
 
   Future<void> register(
@@ -363,18 +403,27 @@ class AuthController extends Notifier<AuthState> {
           displayName: displayName,
           username: username,
         );
+    unawaited(
+      ref.read(remotePushNotificationServiceProvider).syncRegistration(),
+    );
   }
 
   Future<void> verifyPasswordRecovery(String email, String tokenHash) async {
     state = await ref
         .read(authRepositoryProvider)
         .verifyPasswordRecovery(email: email, tokenHash: tokenHash);
+    unawaited(
+      ref.read(remotePushNotificationServiceProvider).syncRegistration(),
+    );
   }
 
   Future<void> verifyEmailSignup(String email, String tokenHash) async {
     state = await ref
         .read(authRepositoryProvider)
         .verifyEmailSignup(email: email, tokenHash: tokenHash);
+    unawaited(
+      ref.read(remotePushNotificationServiceProvider).syncRegistration(),
+    );
   }
 
   Future<void> useAuthSession({
@@ -389,6 +438,9 @@ class AuthController extends Notifier<AuthState> {
           refreshToken: refreshToken,
           expiresAt: expiresAt,
         );
+    unawaited(
+      ref.read(remotePushNotificationServiceProvider).syncRegistration(),
+    );
   }
 
   Future<void> updatePassword(String password) {
@@ -437,6 +489,7 @@ class AuthController extends Notifier<AuthState> {
   }
 
   Future<void> logout() async {
+    await ref.read(remotePushNotificationServiceProvider).unregisterDevice();
     await ref.read(authRepositoryProvider).logout();
     state = const AuthState.guest();
   }
