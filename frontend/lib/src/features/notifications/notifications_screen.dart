@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -29,83 +30,100 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       _selectedFilter,
     );
     final unreadCount = notifications.where((item) => item.unread).length;
+    final isDark = theme.brightness == Brightness.dark;
+    final overlayStyle = SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarIconBrightness: isDark
+          ? Brightness.light
+          : Brightness.dark,
+      systemNavigationBarDividerColor: Colors.transparent,
+      systemNavigationBarContrastEnforced: false,
+    );
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Notifikasi', style: theme.textTheme.titleLarge),
-        centerTitle: false,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 8),
-          child: IconButton(
-            tooltip: 'Kembali',
-            onPressed: () => context.canPop() ? context.pop() : context.go('/'),
-            icon: const Icon(TonztoonIcons.arrowBack),
-          ),
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: TextButton(
-              onPressed: unreadCount == 0 ? null : _markAllRead,
-              child: const Text('Tandai dibaca'),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlayStyle,
+      child: Scaffold(
+        extendBody: true,
+        appBar: AppBar(
+          title: Text('Notifikasi', style: theme.textTheme.titleLarge),
+          centerTitle: false,
+          leading: Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: IconButton(
+              tooltip: 'Kembali',
+              onPressed: () =>
+                  context.canPop() ? context.pop() : context.go('/'),
+              icon: const Icon(TonztoonIcons.arrowBack),
             ),
           ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: notificationsAsync.when(
-              data: (_) => ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 128),
-                children: [
-                  _NotificationSummary(unreadCount: unreadCount),
-                  const SizedBox(height: 18),
-                  _FilterStrip(
-                    selectedFilter: _selectedFilter,
-                    onChanged: (value) =>
-                        setState(() => _selectedFilter = value),
-                  ),
-                  const SizedBox(height: 20),
-                  _SectionHeader(
-                    title: _selectedFilter == 'Semua'
-                        ? 'Terbaru'
-                        : 'Kategori $_selectedFilter',
-                    count: visibleNotifications.length,
-                  ),
-                  const SizedBox(height: 10),
-                  if (visibleNotifications.isEmpty)
-                    _NotificationEmptyState(filter: _selectedFilter)
-                  else
-                    for (final item in visibleNotifications) ...[
-                      _NotificationTile(
-                        item: item,
-                        onTap: () => _openNotification(item),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                ],
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: TextButton(
+                onPressed: unreadCount == 0 ? null : _markAllRead,
+                child: const Text('Tandai dibaca'),
               ),
-              loading: () => const _NotificationsLoading(),
-              error: (error, stackTrace) {
-                logAppError(
-                  error,
-                  stackTrace,
-                  context: 'Notifications provider failed',
-                );
-                return _NotificationsError(
-                  message: friendlyErrorMessage(
-                    error,
-                    fallbackMessage:
-                        'Notifikasi belum dapat dimuat. Silakan coba lagi.',
-                  ),
-                  onRetry: () => ref.invalidate(notificationsProvider),
-                );
-              },
             ),
-          ),
-          _NotificationsBottomFade(background: theme.scaffoldBackgroundColor),
-        ],
+          ],
+        ),
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: notificationsAsync.when(
+                data: (_) => ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 128),
+                  children: [
+                    _NotificationSummary(unreadCount: unreadCount),
+                    const SizedBox(height: 18),
+                    _FilterStrip(
+                      selectedFilter: _selectedFilter,
+                      onChanged: (value) =>
+                          setState(() => _selectedFilter = value),
+                    ),
+                    const SizedBox(height: 20),
+                    _SectionHeader(
+                      title: _selectedFilter == 'Semua'
+                          ? 'Terbaru'
+                          : 'Kategori $_selectedFilter',
+                      count: visibleNotifications.length,
+                    ),
+                    const SizedBox(height: 10),
+                    if (visibleNotifications.isEmpty)
+                      _NotificationEmptyState(filter: _selectedFilter)
+                    else
+                      for (final item in visibleNotifications) ...[
+                        _NotificationTile(
+                          item: item,
+                          onTap: () => _openNotification(item),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                  ],
+                ),
+                loading: () => const _NotificationsLoading(),
+                error: (error, stackTrace) {
+                  logAppError(
+                    error,
+                    stackTrace,
+                    context: 'Notifications provider failed',
+                  );
+                  return _NotificationsError(
+                    message: friendlyErrorMessage(
+                      error,
+                      fallbackMessage:
+                          'Notifikasi belum dapat dimuat. Silakan coba lagi.',
+                    ),
+                    onRetry: () => ref.invalidate(notificationsProvider),
+                  );
+                },
+              ),
+            ),
+            _NotificationsBottomFade(background: theme.scaffoldBackgroundColor),
+          ],
+        ),
       ),
     );
   }

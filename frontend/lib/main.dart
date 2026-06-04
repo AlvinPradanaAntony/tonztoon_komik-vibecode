@@ -37,7 +37,7 @@ Future<void> main() async {
     Hive.openBox<dynamic>(HiveBoxes.cache),
   ]);
 
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
   runApp(
     const ProviderScope(retry: _disableProviderRetry, child: TonztoonApp()),

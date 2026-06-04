@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/app_navigation.dart';
 import '../features/auth/auth_screen.dart';
 import '../features/catalog/full_catalog_screen.dart';
 import '../features/comic/comic_detail_screen.dart';
@@ -16,6 +17,7 @@ import '../features/search/search_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/shell/app_shell.dart';
 import '../features/splash/splash_screen.dart';
+import '../models/auth.dart';
 import '../models/comic.dart';
 import '../repositories/providers.dart';
 
@@ -31,6 +33,13 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       final auth = ref.read(authControllerProvider);
       final path = state.uri.path;
+      if (auth.status == AuthStatus.booting &&
+          path != '/splash' &&
+          !_isAuthCallbackRoute(path)) {
+        deferNotificationLocation(state.uri.toString());
+        return '/splash';
+      }
+
       final isAuthRoute = path == '/auth' || path == '/auth/forgot-password';
       if (auth.isAuthenticated && isAuthRoute) return '/settings';
       return null;
@@ -217,6 +226,13 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.onDispose(router.dispose);
   return router;
 });
+
+bool _isAuthCallbackRoute(String path) {
+  return path == '/auth/callback' ||
+      path == '/callback' ||
+      path == '/auth/reset-password' ||
+      path == '/reset-password';
+}
 
 int _libraryTabIndex(String? tab) {
   return switch (tab) {

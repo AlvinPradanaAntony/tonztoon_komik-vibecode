@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -22,7 +23,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     Future.microtask(_bootstrap);
+  }
+
+  @override
+  void dispose() {
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    super.dispose();
   }
 
   Future<void> _bootstrap() async {
@@ -60,6 +68,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     final nextLocation =
         consumePendingNotificationLocation() ??
         (onboardingDone ? '/' : '/onboarding');
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     context.go(nextLocation);
   }
 

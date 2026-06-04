@@ -89,12 +89,14 @@ class RemotePushNotificationService with WidgetsBindingObserver {
     await _startMessageListeners();
     if (!RemotePushBootstrap.isAvailable) return;
 
-    if (!_shouldRegister) {
+    final auth = _readAuth();
+    if (auth.status == AuthStatus.booting) return;
+
+    if (!_readPreferences().shouldDeliver || !auth.isAuthenticated) {
       await unregisterDevice();
       return;
     }
 
-    final auth = _readAuth();
     final userId = auth.user?.id;
     if (userId == null || userId.isEmpty) return;
 
@@ -261,7 +263,8 @@ class RemotePushNotificationService with WidgetsBindingObserver {
       logAppError(
         error,
         stackTrace,
-        context: 'Drain background Firebase Cloud Messaging notifications failed',
+        context:
+            'Drain background Firebase Cloud Messaging notifications failed',
       );
     } finally {
       _drainingPendingNotifications = false;

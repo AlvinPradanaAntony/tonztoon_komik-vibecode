@@ -220,11 +220,10 @@ class _OnboardingFullscreenSlide extends StatelessWidget {
             ),
           ),
         ),
-        // Text Content
         Positioned(
           left: 24,
           right: 24,
-          bottom: 140, // Space for dots and button
+          bottom: MediaQuery.paddingOf(context).bottom + 148, // Space for dots and button, calculated responsively
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

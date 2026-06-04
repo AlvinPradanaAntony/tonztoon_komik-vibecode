@@ -10,19 +10,24 @@ const libraryScenesLocation = '/library?tab=scenes';
 
 String? _pendingNotificationLocation;
 
+void deferNotificationLocation(String location) {
+  if (!location.startsWith('/')) return;
+  _pendingNotificationLocation = location;
+}
+
 void openLocationFromNotification(String location) {
   if (!location.startsWith('/')) return;
 
   final context = appRootNavigatorKey.currentContext;
   if (context == null) {
-    _pendingNotificationLocation = location;
+    deferNotificationLocation(location);
     return;
   }
 
   final router = GoRouter.of(context);
   final currentPath = router.routeInformationProvider.value.uri.path;
   if (currentPath == '/splash') {
-    _pendingNotificationLocation = location;
+    deferNotificationLocation(location);
     return;
   }
 
