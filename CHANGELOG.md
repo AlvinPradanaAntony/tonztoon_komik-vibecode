@@ -6,9 +6,35 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
-## [1.12.0] - 2026-06-02
+## [1.13.0] - 2026-06-04
 
 ### Added
+- Feed `top-ranking` dan `recommendations` per source, lengkap dengan endpoint backend, provider frontend, rail UI, shimmer, dan cache repository.
+- Sistem remote push notification Android berbasis Firebase Cloud Messaging untuk device registration, inbox background, token lifecycle, channel notifikasi, dan deep link.
+- Tabel `user_push_devices` dan `push_notification_events` untuk manajemen token, audit, dan idempotensi pengiriman notifikasi.
+- Endpoint notification untuk device management, admin announcement, dan event update chapter dari scraper.
+- Index database `ix_comics_source_top_view_order` untuk mengoptimalkan query ranking berdasarkan view.
+
+### Changed
+- Scraper Komiku kini mengekstrak `total_view`, dan feed source memakai metadata view untuk ranking.
+- Workflow build, scraper, dan popular sync diperbarui untuk mendukung konfigurasi Firebase serta pengiriman event push.
+- Backfill metadata Kiryuu, refresh cover, sync chapter images, sync cover images, dan sync full library mendapat opsi anti-blocking, limit, checkpoint, graceful shutdown, dan refresh missing only.
+- Navigasi notifikasi ditunda sampai bootstrap auth/app siap agar deep link dari push tidak hilang saat startup.
+- UI memakai edge-to-edge/system overlay yang lebih konsisten di splash, onboarding, dan notifications screen.
+
+### Fixed
+- Remote push service memperketat pengecekan auth sebelum registrasi token agar token tidak tersimpan untuk sesi yang belum siap.
+- Admin account dashboard dan dokumentasi kontrak push notification diperbarui mengikuti endpoint serta payload baru.
+- Validasi source stats kini memakai daftar source observable sehingga source cadangan tetap tercatat tanpa diperlakukan sebagai source utama.
+
+---
+
+<details>
+<summary><strong>Riwayat versi sebelumnya</strong></summary>
+
+### [1.12.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.12.0) - 2026-06-02
+
+#### Added
 - Sistem update aplikasi OTA dari GitHub Releases, lengkap dengan pengecekan otomatis saat startup, pengecekan manual, dialog update, changelog terpasang, dan instalasi APK Android.
 - Source scraper cadangan Kiryuu beserta registry source aktif/cadangan, observability source, dan skrip backfill metadata.
 - Pagination untuk bookmarks, history per chapter, dan continue reading, termasuk summary Library serta halaman penuh continue reading.
@@ -17,23 +43,20 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 - Statistik aktivitas source, tanggal rilis chapter terbaru, serta badge `NEW` untuk update komik terkini.
 - Dukungan dimensi intrinsik gambar chapter untuk menjaga aspect ratio reader dan mengurangi layout shift.
 
-### Changed
+#### Changed
 - Riwayat baca backend kini disimpan per chapter agar daftar aktivitas lebih granular dan mudah dipaginasi.
 - Pemrosesan lazy image Komiku Asia dipindahkan dari GitHub Actions ke worker asyncio FastAPI untuk memangkas waktu tunggu pengguna.
 - Reader memakai metadata width/height, resize constraint untuk strip resolusi tinggi, dan fallback ratio yang lebih stabil.
 - Offline download pane membedakan antrean aktif dan file lokal siap baca, mendukung retry batch gagal, serta mencegah duplikasi chapter.
 - Default `mark_read_on_complete` diaktifkan kembali dan pengelolaan notifikasi lokal disatukan dalam `PushNotificationService`.
 
-### Fixed
+#### Fixed
 - Request chapter Komiku Asia yang belum siap kini mengembalikan status `202 Accepted` dan otomatis dicoba ulang oleh frontend.
 - Reader tidak lagi bergantung penuh pada perhitungan fallback ukuran gambar yang dapat menyebabkan pergeseran layout.
 - Antrean download offline gagal dapat dilanjutkan kembali dengan progress berdasarkan jumlah gambar.
 - API client membaca pesan error backend bertingkat dengan lebih baik.
 
 ---
-
-<details>
-<summary><strong>Riwayat versi sebelumnya</strong></summary>
 
 ### [1.11.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.11.0) - 2026-05-25
 
