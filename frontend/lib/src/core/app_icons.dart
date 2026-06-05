@@ -50,6 +50,8 @@ class TonztoonIcons {
   static const IconData trash = LucideIcons.trash2;
   static const IconData check = LucideIcons.check;
   static const IconData warning = LucideIcons.triangleAlert;
+  static const IconData bug = LucideIcons.bug;
+  static const IconData lifeBuoy = LucideIcons.lifeBuoy;
   static const IconData slidersHorizontal = LucideIcons.slidersHorizontal;
   static const IconData messageSquare = LucideIcons.messageSquare;
   static const IconData image = LucideIcons.image;

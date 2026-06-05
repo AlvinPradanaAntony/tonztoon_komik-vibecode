@@ -8,9 +8,9 @@ class AppAssets {
   static const logoAppLarge = 'lib/src/assets/logo_app_lg_250px.png';
   static const logoAppSplash = 'lib/src/assets/logo_app_sm_500px.png';
 
-  static const onboarding1 = 'assets/images/onboarding_1.png';
-  static const onboarding2 = 'assets/images/onboarding_2.png';
-  static const onboarding3 = 'assets/images/onboarding_3.png';
+  static const onboarding1 = 'assets/images/new_onboarding_1.png';
+  static const onboarding2 = 'assets/images/new_onboarding_2.png';
+  static const onboarding3 = 'assets/images/new_onboarding_3.png';
 
   static const dialogAccountSetup =
       'lib/src/assets/icon_dialog/account_setup.png';

@@ -27,6 +27,7 @@ import 'notification_repository.dart';
 import 'offline_repository.dart';
 import 'progress_repository.dart';
 import 'google_auth_client.dart';
+import 'helpdesk_repository.dart';
 import 'push_device_repository.dart';
 
 final configProvider = Provider<AppConfig>(
@@ -59,6 +60,10 @@ final downloadNotificationServiceProvider = pushNotificationServiceProvider;
 
 final pushDeviceRepositoryProvider = Provider<PushDeviceRepository>((ref) {
   return PushDeviceRepository(ref.watch(apiProvider));
+});
+
+final helpdeskRepositoryProvider = Provider<HelpdeskRepository>((ref) {
+  return HelpdeskRepository(ref.watch(apiProvider));
 });
 
 final remotePushNotificationServiceProvider =

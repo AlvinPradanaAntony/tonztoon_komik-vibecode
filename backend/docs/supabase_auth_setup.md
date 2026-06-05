@@ -74,7 +74,9 @@ perlu `GOOGLE_WEB_CLIENT_ID` dan, untuk iOS/macOS, `GOOGLE_IOS_CLIENT_ID`.
 
 ## Endpoint account manager
 
-Dashboard statis di [admin/account-dashboard.html](../../admin/account-dashboard.html) memakai endpoint backend berikut:
+Dashboard statis dimulai dari [admin/index.html](../../admin/index.html). Login dilakukan
+satu kali dari halaman tersebut, lalu sesi yang sama digunakan oleh modul Account Manager
+dan Helpdesk. Modul Account Manager memakai endpoint backend berikut:
 
 - `GET /api/v1/account-manager/accounts`
 - `POST /api/v1/account-manager/accounts`

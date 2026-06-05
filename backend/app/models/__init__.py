@@ -10,6 +10,7 @@ from app.models.chapter import Chapter
 from app.models.chapter_image_job import ChapterImageJob
 from app.models.source_stat import SourceStat
 from app.models.profile import Profile
+from app.models.helpdesk import HelpdeskSubmission
 from app.models.push_notification import PushNotificationEvent, UserPushDevice
 from app.models.library import (
     ReaderPreference,
@@ -31,6 +32,7 @@ __all__ = [
     "Genre",
     "SourceStat",
     "Profile",
+    "HelpdeskSubmission",
     "PushNotificationEvent",
     "UserPushDevice",
     "comic_genre",

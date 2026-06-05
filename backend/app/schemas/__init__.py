@@ -91,6 +91,12 @@ from app.schemas.notification import (
     PushDeviceResponse,
     PushDeviceUnregisterRequest,
 )
+from app.schemas.helpdesk import (
+    HelpdeskSubmissionCreateRequest,
+    HelpdeskSubmissionListResponse,
+    HelpdeskSubmissionResponse,
+    HelpdeskSubmissionUpdateRequest,
+)
 
 __all__ = [
     "ComicBase",
@@ -167,4 +173,8 @@ __all__ = [
     "PushDeviceRegisterRequest",
     "PushDeviceResponse",
     "PushDeviceUnregisterRequest",
+    "HelpdeskSubmissionCreateRequest",
+    "HelpdeskSubmissionListResponse",
+    "HelpdeskSubmissionResponse",
+    "HelpdeskSubmissionUpdateRequest",
 ]

@@ -53,6 +53,7 @@ Endpoint auth dan user-scoped:
 | Prefix | Fungsi |
 |---|---|
 | `/api/v1/auth` | Register, login email/password, login Google, refresh, logout, profile, avatar, reset password, security overview |
+| `/api/v1/helpdesk` | Submit review/report dari guest atau user login, serta workflow admin untuk memproses laporan |
 | `/api/v1/library` | Summary, continue reading, progress, bookmark, collection, favorite scene, history, download intent, reader preferences, reading time, import snapshot guest |
 | `/api/v1/account-manager` | Admin-only user manager untuk Supabase Auth dan data aplikasi |
 | `/api/v1/scraper/sync` | Trigger GitHub Actions workflow scraper manual |

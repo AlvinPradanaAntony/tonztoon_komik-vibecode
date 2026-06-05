@@ -98,6 +98,9 @@ flutter:
     - family: GROBOLD
       fonts:
         - asset: lib/src/assets/fonts/GROBOLD.ttf
+    - family: Suffer Through
+      fonts:
+        - asset: lib/src/assets/fonts/Suffer Through.ttf
 
 flutter_launcher_icons:
   android: true

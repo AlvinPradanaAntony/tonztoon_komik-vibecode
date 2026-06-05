@@ -39,6 +39,23 @@ async def get_current_auth_user(
     raise_api_error(status.HTTP_401_UNAUTHORIZED, "Bearer token required.")
 
 
+async def get_optional_auth_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    x_user_id: UUID | None = Header(default=None, alias="X-User-Id"),
+) -> AuthenticatedUser | None:
+    """Resolve auth user when credentials exist, otherwise allow guest access."""
+    if credentials and credentials.scheme.lower() == "bearer":
+        try:
+            return await validate_supabase_jwt(credentials.credentials)
+        except AuthValidationError as exc:
+            raise_api_error(status.HTTP_401_UNAUTHORIZED, str(exc))
+
+    if settings.ALLOW_DEV_USER_HEADER and x_user_id is not None:
+        return AuthenticatedUser(user_id=x_user_id)
+
+    return None
+
+
 async def get_current_user_id(
     auth_user: AuthenticatedUser = Depends(get_current_auth_user),
 ) -> UUID:

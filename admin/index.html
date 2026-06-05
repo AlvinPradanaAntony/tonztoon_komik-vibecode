@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Pusat administrasi TonzToon untuk pengelolaan akun dan helpdesk."
+    />
+    <title>TonzToon Admin</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css"
+    />
+    <link rel="stylesheet" href="./admin-dashboard.css" />
+    <script src="./admin-dashboard.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+  </head>
+  <body class="min-h-screen text-ink antialiased">
+    <main
+      id="bootView"
+      class="grid min-h-screen place-items-center px-4 py-8"
+      aria-live="polite"
+    >
+      <div
+        class="glass-panel flex items-center gap-3 rounded-3xl border border-white/70 px-5 py-4 shadow-soft"
+      >
+        <i data-lucide="loader-2" class="h-5 w-5 animate-spin text-brand"></i>
+        <div>
+          <p class="text-sm font-semibold text-ink">Memeriksa sesi admin</p>
+          <p class="mt-0.5 text-xs text-muted">Menyiapkan dashboard...</p>
+        </div>
+      </div>
+    </main>
+
+    <main
+      id="loginView"
+      class="hidden"
+      data-admin-login
+      data-title="TonzToon Admin"
+      data-description="Masuk sekali untuk mengakses pengelolaan akun dan helpdesk."
+    ></main>
+
+    <div id="appView" class="hidden min-h-screen">
+      <header
+        data-admin-header
+        data-eyebrow="Control Center"
+        data-title="TonzToon Admin"
+      >
+        <template data-admin-actions>
+          <button
+            id="logoutBtn"
+            type="button"
+            class="inline-flex h-10 items-center gap-2 rounded-2xl border border-line bg-white/90 px-3 text-sm font-medium text-ink shadow-sm hover:bg-slate-50"
+          >
+            <i data-lucide="log-out" class="h-4 w-4"></i>
+            <span>Logout</span>
+          </button>
+        </template>
+      </header>
+
+      <main class="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+        <section
+          class="glass-panel rounded-3xl border border-white/70 p-6 shadow-soft"
+        >
+          <p class="text-sm font-medium text-brand">Pilih modul</p>
+          <h2 class="mt-1 text-2xl font-semibold text-ink">
+            Apa yang ingin dikelola?
+          </h2>
+          <p class="mt-2 max-w-2xl text-sm leading-6 text-muted">
+            Semua modul menggunakan sesi admin yang sama. Anda tidak perlu login
+            ulang ketika berpindah halaman.
+          </p>
+
+          <div class="mt-6 grid gap-4 md:grid-cols-2">
+            <a
+              href="./account-dashboard.html"
+              class="admin-module-card group rounded-3xl border border-line bg-white/90 p-5 shadow-sm"
+            >
+              <span
+                class="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-teal-50 text-brand"
+              >
+                <i data-lucide="users" class="h-5 w-5"></i>
+              </span>
+              <h3 class="mt-4 text-lg font-semibold text-ink">
+                Manajemen Akun
+              </h3>
+              <p class="mt-1 text-sm leading-6 text-muted">
+                Kelola akun, role, status, relasi data, dan pengumuman aplikasi.
+              </p>
+              <span
+                class="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-brand"
+              >
+                Buka modul
+                <i
+                  data-lucide="arrow-right"
+                  class="h-4 w-4 transition-transform group-hover:translate-x-1"
+                ></i>
+              </span>
+            </a>
+
+            <a
+              href="./helpdesk-dashboard.html"
+              class="admin-module-card group rounded-3xl border border-line bg-white/90 p-5 shadow-sm"
+            >
+              <span
+                class="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-50 text-orange-700"
+              >
+                <i data-lucide="life-buoy" class="h-5 w-5"></i>
+              </span>
+              <h3 class="mt-4 text-lg font-semibold text-ink">Helpdesk</h3>
+              <p class="mt-1 text-sm leading-6 text-muted">
+                Tinjau review, laporan masalah, status workflow, dan catatan
+                tindak lanjut.
+              </p>
+              <span
+                class="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-brand"
+              >
+                Buka modul
+                <i
+                  data-lucide="arrow-right"
+                  class="h-4 w-4 transition-transform group-hover:translate-x-1"
+                ></i>
+              </span>
+            </a>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="./admin-index.js"></script>
+  </body>
+</html>

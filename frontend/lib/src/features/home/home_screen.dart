@@ -21,6 +21,7 @@ import '../../widgets/comic_card.dart';
 import '../../widgets/comic_cover.dart';
 import '../../widgets/comic_filter_sort_sheet.dart';
 import '../../widgets/guest_migration_dialog.dart';
+import '../../widgets/helpdesk_dialog.dart';
 import '../../widgets/tonztoon_modal_dialog.dart';
 
 /// [HomeScreen] adalah halaman beranda aplikasi komik.
@@ -176,6 +177,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           },
         ),
       ),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 78),
+        child: FloatingActionButton.small(
+          key: const ValueKey('home-helpdesk-button'),
+          tooltip: 'Buka helpdesk',
+          heroTag: 'home-helpdesk',
+          onPressed: _openHelpdesk,
+          child: const Icon(TonztoonIcons.lifeBuoy),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openHelpdesk() async {
+    final receipt = await showHelpdeskDialog(
+      context,
+      onSubmit: ref.read(helpdeskRepositoryProvider).submit,
+    );
+    if (!mounted || receipt == null) return;
+    showAppSnackBar(
+      context,
+      title: 'Terkirim',
+      message: 'Terima kasih. Kode laporan kamu: ${receipt.referenceCode}.',
+      type: AppSnackBarType.success,
     );
   }
 

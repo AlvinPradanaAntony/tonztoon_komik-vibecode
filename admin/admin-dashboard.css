@@ -1,0 +1,244 @@
+:root {
+  color-scheme: light;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(15, 118, 110, 0.16),
+      transparent 30rem
+    ),
+    linear-gradient(135deg, #eef2f7 0%, #f8fafc 44%, #fff7ed 100%);
+}
+
+button,
+input,
+select,
+textarea {
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+button:not(:disabled):active:not([data-toggle-password]) {
+  transform: translateY(1px);
+}
+
+button[data-toggle-password] {
+  transition: none !important;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(18px);
+}
+
+.admin-login-button {
+  background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);
+  box-shadow:
+    0 10px 24px rgba(15, 118, 110, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.admin-login-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #115e59 0%, #0f766e 100%);
+  box-shadow:
+    0 12px 28px rgba(15, 118, 110, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.admin-login-button:focus-visible {
+  outline: 3px solid rgba(20, 184, 166, 0.28);
+  outline-offset: 3px;
+}
+
+.admin-login-button:disabled {
+  background: #94a3b8;
+  box-shadow: none;
+}
+
+.admin-module-card {
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.admin-module-card:hover {
+  border-color: rgba(15, 118, 110, 0.4);
+  box-shadow: 0 16px 34px rgba(16, 24, 40, 0.1);
+  transform: translateY(-2px);
+}
+
+.submission-row {
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.submission-row:hover {
+  background: rgba(240, 253, 250, 0.72);
+}
+
+.submission-row[data-selected="true"] {
+  background: #f0fdfa;
+  box-shadow: inset 3px 0 0 #0f766e;
+}
+
+.skeleton-row {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 37%, #f1f5f9 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+
+.relation-node {
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.relation-node:hover {
+  border-color: rgba(15, 118, 110, 0.45);
+  box-shadow: 0 12px 28px rgba(15, 118, 110, 0.12);
+  transform: translateY(-1px);
+}
+
+.custom-select-menu {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px) scale(0.98);
+  transform-origin: top;
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.custom-select[data-open="true"] .custom-select-menu {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+.toastify.admin-toast {
+  max-width: min(25rem, calc(100vw - 2rem)) !important;
+  border-radius: 22px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: inherit !important;
+  padding: 0 !important;
+}
+
+.admin-toast-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+  width: 100%;
+  border: 1px solid rgba(217, 222, 229, 0.92);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 48px rgba(16, 24, 40, 0.16);
+  padding: 0.875rem 2.75rem 0.875rem 0.875rem;
+  backdrop-filter: blur(18px);
+}
+
+.admin-toast-card[data-tone="success"] {
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+.admin-toast-card[data-tone="error"] {
+  border-color: rgba(239, 68, 68, 0.28);
+}
+
+.admin-toast-icon {
+  display: inline-grid;
+  height: 2rem;
+  width: 2rem;
+  place-items: center;
+  border-radius: 999px;
+}
+
+.admin-toast-card[data-tone="success"] .admin-toast-icon {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.admin-toast-card[data-tone="error"] .admin-toast-icon {
+  background: #fef2f2;
+  color: #b42318;
+}
+
+.admin-toast-title {
+  margin: 0;
+  color: #161a1d;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.25rem;
+}
+
+.admin-toast-message {
+  margin: 0.125rem 0 0;
+  color: #667085;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.toastify.admin-toast .toast-close {
+  color: #667085 !important;
+  font-size: 1rem;
+  opacity: 0.82;
+  padding: 0 0.25rem;
+  position: absolute;
+  right: 0.875rem;
+  top: 0.875rem;
+}
+
+.fallback-toast-region {
+  display: grid;
+  gap: 0.75rem;
+  max-width: min(25rem, calc(100vw - 2rem));
+  position: fixed;
+  right: 1rem;
+  top: 1rem;
+  z-index: 90;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+
+  100% {
+    background-position: 0 0;
+  }
+}

@@ -326,7 +326,10 @@ class TonztoonModalDialog extends StatelessWidget {
       backgroundColor: Colors.transparent,
       elevation: 0,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 374),
+        constraints: BoxConstraints(
+          maxWidth: 374,
+          maxHeight: MediaQuery.sizeOf(context).height - 48,
+        ),
         child: Stack(
           clipBehavior: Clip.none,
           alignment: Alignment.topCenter,
