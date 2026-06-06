@@ -2,6 +2,20 @@
 
 TonzToon Komik adalah aplikasi baca komik multi-source yang terdiri dari backend FastAPI dan frontend Flutter. Backend menyimpan katalog, chapter, gambar, profil, dan sinkronisasi library di PostgreSQL/Supabase. Frontend menyediakan pengalaman mobile untuk eksplorasi katalog, membaca chapter, continue reading, bookmark, koleksi, favorite scene, riwayat, dan antrean download offline.
 
+## Snapshot Aplikasi
+
+### Getting Started
+
+![TonzToon getting started, onboarding, dan home screen](docs/1.png)
+
+### Navigasi Utama
+
+![TonzToon home, katalog, pencarian, dan pustaka](docs/2.png)
+
+### Alur Membaca
+
+![TonzToon login, detail komik, webtoon reader, dan manga reader](docs/3.png)
+
 ## Struktur Repo
 
 ```text
