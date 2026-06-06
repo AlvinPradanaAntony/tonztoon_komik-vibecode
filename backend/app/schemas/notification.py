@@ -56,6 +56,7 @@ class PushDeviceResponse(BaseModel):
 
 
 class ChapterUpdateEventRequest(BaseModel):
+    comic_id: int | None = Field(default=None, ge=1)
     source_name: str = Field(..., min_length=1, max_length=100)
     comic_slug: str = Field(..., min_length=1, max_length=600)
     comic_title: str = Field(..., min_length=1, max_length=500)

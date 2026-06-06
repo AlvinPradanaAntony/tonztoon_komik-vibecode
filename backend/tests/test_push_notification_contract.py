@@ -11,6 +11,7 @@ from app.schemas import (
     ComicCreate,
     PushDeviceRegisterRequest,
 )
+from app.services.push_notification_service import _chapter_target_device_statement
 from scraper.main import build_chapter_update_event
 
 
@@ -43,17 +44,18 @@ class PushNotificationContractTests(unittest.TestCase):
         }
         self.assertIn("uq_push_notification_events_event_id", constraint_names)
 
-    def test_target_device_query_is_source_independent(self):
-        sql = compile_sql(
-            select(UserPushDevice.id).where(
-                UserPushDevice.provider == "fcm",
-                UserPushDevice.platform == "android",
-                UserPushDevice.active.is_(True),
-            )
+    def test_chapter_target_device_query_requires_matching_bookmark(self):
+        sql = compile_sql(_chapter_target_device_statement(123))
+        self.assertIn("JOIN user_bookmarks", sql)
+        self.assertIn(
+            "user_bookmarks.user_id = user_push_devices.user_id",
+            sql,
         )
+        self.assertIn("user_bookmarks.comic_id =", sql)
         self.assertIn("user_push_devices.provider", sql)
         self.assertIn("user_push_devices.platform", sql)
         self.assertIn("user_push_devices.active IS true", sql)
+        self.assertIn("profiles.push_notifications_enabled IS true", sql)
 
     def test_register_request_trims_token(self):
         payload = PushDeviceRegisterRequest(
@@ -97,6 +99,7 @@ class PushNotificationContractTests(unittest.TestCase):
         )
         event = build_chapter_update_event(
             validated=comic,
+            comic_id=123,
             latest_chapter={
                 "chapter_number": 12,
                 "title": "Chapter 12",
@@ -105,6 +108,7 @@ class PushNotificationContractTests(unittest.TestCase):
         )
 
         self.assertIsNotNone(event)
+        self.assertEqual(event.comic_id, 123)
         self.assertEqual(event.event_id, "chapter:komikcast:example-slug:12")
         self.assertEqual(event.source_name, "komikcast")
         self.assertEqual(event.comic_slug, "example-slug")

@@ -141,6 +141,7 @@ Request body:
 
 ```json
 {
+  "comic_id": 123,
   "source_name": "komikcast",
   "comic_slug": "example-slug",
   "comic_title": "Example Comic",
@@ -168,8 +169,11 @@ Recommended behavior:
 - Idempotent by `event_id`.
 - Kirim hanya ke user dengan `profiles.push_notifications_enabled = true`.
 - Kirim hanya ke token device `active = true`.
-- Jika ada sistem bookmark/follow, targetkan user yang mengikuti komik itu.
-  Jika belum ada follow list, backend boleh mengirim ke semua user opt-in.
+- Kirim hanya ke user yang memiliki bookmark untuk `comic_id` tersebut.
+- `comic_id` direkomendasikan untuk event internal. Jika tidak dikirim, backend
+  mencari komik dari pasangan unik `(source_name, comic_slug)`.
+- Jika komik tidak ditemukan, event tetap dicatat untuk audit tetapi tidak
+  dikirim ke device mana pun.
 - Simpan audit event agar scraper tidak mengirim ulang chapter yang sama.
 
 ## FCM Message Payload

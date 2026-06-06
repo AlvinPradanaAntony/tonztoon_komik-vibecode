@@ -18,7 +18,13 @@ from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import BACKEND_DIR, settings
-from app.models import Profile, PushNotificationEvent, UserPushDevice
+from app.models import (
+    Comic,
+    Profile,
+    PushNotificationEvent,
+    UserBookmark,
+    UserPushDevice,
+)
 from app.schemas import (
     AdminAnnouncementRequest,
     AdminAnnouncementResponse,
@@ -141,14 +147,15 @@ async def handle_chapter_update_event(
     db: AsyncSession,
     payload: ChapterUpdateEventRequest,
 ) -> ChapterUpdateEventResponse:
-    """Record a chapter update event and send FCM notifications to active devices."""
+    """Record a chapter update and notify active devices of bookmarked users."""
+    comic_id = await _resolve_chapter_event_comic_id(db, payload)
     existing = await db.execute(
         select(PushNotificationEvent).where(
             PushNotificationEvent.event_id == payload.event_id
         )
     )
     if existing.scalars().first() is not None:
-        counts = await _target_counts(db)
+        counts = await _chapter_target_counts(db, comic_id)
         return ChapterUpdateEventResponse(
             event_id=payload.event_id,
             matched_users=counts[0],
@@ -157,7 +164,7 @@ async def handle_chapter_update_event(
             duplicate=True,
         )
 
-    devices = await _list_target_devices(db)
+    devices = await _list_chapter_target_devices(db, comic_id)
     matched_users = len({device.user_id for device in devices})
     event = PushNotificationEvent(
         event_id=payload.event_id,
@@ -194,7 +201,7 @@ async def handle_admin_announcement(
         )
     )
     if existing.scalars().first() is not None:
-        counts = await _target_counts(db)
+        counts = await _broadcast_target_counts(db)
         return AdminAnnouncementResponse(
             event_id=event_id,
             matched_users=counts[0],
@@ -203,7 +210,7 @@ async def handle_admin_announcement(
             duplicate=True,
         )
 
-    devices = await _list_target_devices(db)
+    devices = await _list_broadcast_target_devices(db)
     matched_users = len({device.user_id for device in devices})
     event = PushNotificationEvent(
         event_id=event_id,
@@ -232,7 +239,69 @@ async def handle_admin_announcement(
     )
 
 
-async def _target_counts(db: AsyncSession) -> tuple[int, int]:
+async def _resolve_chapter_event_comic_id(
+    db: AsyncSession,
+    payload: ChapterUpdateEventRequest,
+) -> int | None:
+    statement = select(Comic.id).where(
+        Comic.source_name == payload.source_name,
+        Comic.slug == payload.comic_slug,
+    )
+    if payload.comic_id is not None:
+        statement = statement.where(Comic.id == payload.comic_id)
+
+    result = await db.execute(statement)
+    return result.scalar_one_or_none()
+
+
+def _chapter_target_device_statement(comic_id: int):
+    return (
+        select(UserPushDevice)
+        .join(Profile, Profile.id == UserPushDevice.user_id)
+        .join(UserBookmark, UserBookmark.user_id == UserPushDevice.user_id)
+        .where(
+            UserBookmark.comic_id == comic_id,
+            UserPushDevice.provider == "fcm",
+            UserPushDevice.platform == "android",
+            UserPushDevice.active.is_(True),
+            Profile.push_notifications_enabled.is_(True),
+        )
+    )
+
+
+async def _chapter_target_counts(
+    db: AsyncSession,
+    comic_id: int | None,
+) -> tuple[int, int]:
+    if comic_id is None:
+        return 0, 0
+
+    target_devices = _chapter_target_device_statement(comic_id).subquery()
+    result = await db.execute(
+        select(
+            func.count(distinct(target_devices.c.user_id)),
+            func.count(target_devices.c.id),
+        )
+    )
+    row = result.one()
+    return int(row[0] or 0), int(row[1] or 0)
+
+
+async def _list_chapter_target_devices(
+    db: AsyncSession,
+    comic_id: int | None,
+) -> list[UserPushDevice]:
+    if comic_id is None:
+        logger.warning(
+            "Chapter push target comic not found; event will be recorded without delivery."
+        )
+        return []
+
+    result = await db.execute(_chapter_target_device_statement(comic_id))
+    return list(result.scalars().all())
+
+
+async def _broadcast_target_counts(db: AsyncSession) -> tuple[int, int]:
     result = await db.execute(
         select(
             func.count(distinct(UserPushDevice.user_id)),
@@ -250,7 +319,7 @@ async def _target_counts(db: AsyncSession) -> tuple[int, int]:
     return int(row[0] or 0), int(row[1] or 0)
 
 
-async def _list_target_devices(db: AsyncSession) -> list[UserPushDevice]:
+async def _list_broadcast_target_devices(db: AsyncSession) -> list[UserPushDevice]:
     result = await db.execute(
         select(UserPushDevice)
         .join(Profile, Profile.id == UserPushDevice.user_id)

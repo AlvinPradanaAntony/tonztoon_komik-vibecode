@@ -604,6 +604,7 @@ def build_chapter_update_event(
     *,
     validated: ComicCreate,
     latest_chapter: dict[str, Any],
+    comic_id: int | None = None,
 ) -> ChapterUpdateEventRequest | None:
     """Build push event payload for the latest chapter in a comic detail."""
     chapter_number = latest_chapter.get("chapter_number")
@@ -612,6 +613,7 @@ def build_chapter_update_event(
 
     chapter_label = str(int(chapter_number)) if chapter_number == int(chapter_number) else str(chapter_number)
     return ChapterUpdateEventRequest(
+        comic_id=comic_id,
         source_name=validated.source_name,
         comic_slug=validated.slug,
         comic_title=validated.title,
@@ -984,6 +986,7 @@ async def process_comic(
                 push_event = build_chapter_update_event(
                     validated=validated,
                     latest_chapter=latest_chapter,
+                    comic_id=comic_id,
                 )
 
         chapter_saved_count = await save_chapter_metadata(

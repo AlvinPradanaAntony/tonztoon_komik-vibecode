@@ -2,7 +2,7 @@
 # Tonztoon Komik — Popular Feed Sync GitHub Actions Workflow
 # ======================================================
 # Trigger:
-#   1. Cron job populer (terjadwal harian)
+#   1. Cron job populer (terjadwal setiap 2 jam)
 #   2. workflow_dispatch manual untuk popular sync
 
 name: "🔥 Scraper: Popular Sync"
@@ -35,6 +35,10 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+concurrency:
+  group: scraper-push-sync-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   scrape-popular:
     name: Run Popular Feed Sync
@@ -61,6 +65,64 @@ jobs:
 
       - name: 🌐 Install Scrapling browser dependencies
         run: scrapling install
+
+      - name: 🔐 Validate database and FCM configuration
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          FCM_PROJECT_ID: ${{ secrets.FCM_PROJECT_ID }}
+          FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+
+          python - <<'PY'
+          import json
+          import os
+          import sys
+
+          errors = []
+          database_url = os.environ.get("DATABASE_URL", "").strip()
+          project_id = os.environ.get("FCM_PROJECT_ID", "").strip()
+          raw_service_account = os.environ.get(
+              "FCM_SERVICE_ACCOUNT_JSON",
+              "",
+          ).strip()
+
+          if not database_url:
+              errors.append("DATABASE_URL secret is empty.")
+
+          service_account = {}
+          if not raw_service_account:
+              errors.append("FCM_SERVICE_ACCOUNT_JSON secret is empty.")
+          else:
+              try:
+                  service_account = json.loads(raw_service_account)
+              except json.JSONDecodeError:
+                  errors.append("FCM_SERVICE_ACCOUNT_JSON is not valid JSON.")
+
+          for field in ("client_email", "private_key"):
+              if service_account and not service_account.get(field):
+                  errors.append(
+                      f"FCM_SERVICE_ACCOUNT_JSON is missing {field}."
+                  )
+
+          json_project_id = str(service_account.get("project_id") or "").strip()
+          if not project_id and not json_project_id:
+              errors.append(
+                  "FCM project ID is missing from both FCM_PROJECT_ID "
+                  "and FCM_SERVICE_ACCOUNT_JSON."
+              )
+          elif project_id and json_project_id and project_id != json_project_id:
+              errors.append(
+                  "FCM_PROJECT_ID does not match the service account project_id."
+              )
+
+          if errors:
+              for error in errors:
+                  print(f"::error::{error}")
+              sys.exit(1)
+
+          print("Database and FCM configuration are present and valid.")
+          PY
 
       - name: 🔥 Run popular sync
         env:
@@ -172,7 +234,8 @@ jobs:
               r"Selesai scraper ([a-z_]+): "
               r"(\d+) pages, (\d+) listing items, (\d+) candidates, "
               r"(\d+) unchanged, (\d+) comics, (\d+) chapter metadata, "
-              r"(\d+) chapter images pre-warmed, (\d+) skipped, (\d+) errors"
+              r"(\d+) chapter images pre-warmed, (\d+) push events, "
+              r"(\d+) push messages, (\d+) skipped, (\d+) errors"
           )
           popular_page_re = re.compile(r"Ringkasan popular page (\d+): (\d+) kandidat baru, (\d+) existing ditandai")
           new_re = re.compile(r"Kandidat popular baru:\s+(.+?)\s+\(")
@@ -230,11 +293,11 @@ jobs:
           if summaries:
               print("### Per-source popular results")
               print()
-              print("| Source | Pages | Listing | New candidates | Existing/unchanged | Comics updated | Chapter metadata | Images pre-warmed | Skipped | Errors |")
-              print("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
+              print("| Source | Pages | Listing | New candidates | Existing/unchanged | Comics updated | Chapter metadata | Images pre-warmed | Push events | Push queued | Skipped | Errors |")
+              print("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
               for row in summaries:
-                  source, pages, listing, candidates, unchanged, comics, meta, images, skipped, errs = row
-                  print(f"| {source} | {pages} | {listing} | {candidates} | {unchanged} | {comics} | {meta} | {images} | {skipped} | {errs} |")
+                  source, pages, listing, candidates, unchanged, comics, meta, images, push_events, push_messages, skipped, errs = row
+                  print(f"| {source} | {pages} | {listing} | {candidates} | {unchanged} | {comics} | {meta} | {images} | {push_events} | {push_messages} | {skipped} | {errs} |")
               print()
 
               totals = {
@@ -245,11 +308,13 @@ jobs:
                   "Comics updated": 0,
                   "Chapter meta": 0,
                   "Pre-warmed": 0,
+                  "Push events": 0,
+                  "Push queued": 0,
                   "Skipped": 0,
                   "Errors": 0,
               }
               for row in summaries:
-                  _, pages, listing, candidates, unchanged, comics, meta, images, skipped, errs = row
+                  _, pages, listing, candidates, unchanged, comics, meta, images, push_events, push_messages, skipped, errs = row
                   totals["Pages"] += int(pages)
                   totals["Listing"] += int(listing)
                   totals["New candidates"] += int(candidates)
@@ -257,6 +322,8 @@ jobs:
                   totals["Comics updated"] += int(comics)
                   totals["Chapter meta"] += int(meta)
                   totals["Pre-warmed"] += int(images)
+                  totals["Push events"] += int(push_events)
+                  totals["Push queued"] += int(push_messages)
                   totals["Skipped"] += int(skipped)
                   totals["Errors"] += int(errs)
 
@@ -264,7 +331,7 @@ jobs:
               print()
               print("| Metric | Value |")
               print("|---|---:|")
-              for key in ("Pages", "Listing", "New candidates", "Existing/unchanged", "Comics updated", "Chapter meta", "Pre-warmed", "Skipped", "Errors"):
+              for key in ("Pages", "Listing", "New candidates", "Existing/unchanged", "Comics updated", "Chapter meta", "Pre-warmed", "Push events", "Push queued", "Skipped", "Errors"):
                   print(f"| {key} | {totals[key]} |")
               print()
 

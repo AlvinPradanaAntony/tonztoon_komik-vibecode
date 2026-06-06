@@ -160,16 +160,52 @@ jobs:
 
           if [ -f android/app/google-services.json ]; then
             echo "✅ android/app/google-services.json tersedia dari repository"
-            exit 0
+          else
+            if [ -z "${GOOGLE_SERVICES_JSON}" ]; then
+              echo "❌ android/app/google-services.json tidak ada dan GOOGLE_SERVICES_JSON secret kosong"
+              exit 1
+            fi
+
+            printf '%s' "${GOOGLE_SERVICES_JSON}" > android/app/google-services.json
+            echo "✅ android/app/google-services.json dibuat dari GitHub Secret"
           fi
 
-          if [ -z "${GOOGLE_SERVICES_JSON}" ]; then
-            echo "❌ android/app/google-services.json tidak ada dan GOOGLE_SERVICES_JSON secret kosong"
-            exit 1
-          fi
+          python - <<'PY'
+          import json
+          import sys
+          from pathlib import Path
 
-          printf '%s' "${GOOGLE_SERVICES_JSON}" > android/app/google-services.json
-          echo "✅ android/app/google-services.json dibuat dari GitHub Secret"
+          path = Path("android/app/google-services.json")
+          try:
+              config = json.loads(path.read_text(encoding="utf-8"))
+          except (OSError, json.JSONDecodeError) as exc:
+              print(f"::error::google-services.json tidak valid: {exc}")
+              sys.exit(1)
+
+          project_info = config.get("project_info") or {}
+          if not project_info.get("project_id"):
+              print("::error::google-services.json tidak memiliki project_id.")
+              sys.exit(1)
+
+          expected_package = "com.tonzdev.tonztoon"
+          packages = {
+              client.get("client_info", {})
+              .get("android_client_info", {})
+              .get("package_name")
+              for client in config.get("client") or []
+          }
+          if expected_package not in packages:
+              print(
+                  "::error::google-services.json tidak memiliki client Android "
+                  f"untuk {expected_package}."
+              )
+              sys.exit(1)
+
+          print(
+              "Firebase Android config valid untuk "
+              f"{expected_package} (project {project_info['project_id']})."
+          )
+          PY
 
       - name: Analyze project
         run: flutter analyze --no-fatal-infos
