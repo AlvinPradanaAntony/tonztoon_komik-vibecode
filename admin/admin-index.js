@@ -30,9 +30,16 @@
 
   elements.loginForm.addEventListener("submit", session.login);
   elements.logoutBtn.addEventListener("click", session.logout);
+
+  /* Sidebar logout */
   document.addEventListener("click", (event) => {
     const toggle = event.target.closest("[data-toggle-password]");
     if (toggle) TonztoonAdmin.togglePassword(toggle);
+
+    const sidebarAction = event.target.closest("[data-sidebar-action]");
+    if (sidebarAction?.dataset.sidebarAction === "logout") {
+      session.logout();
+    }
   });
 
   session.restoreSession();

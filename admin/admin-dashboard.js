@@ -4,26 +4,89 @@
   const SESSION_KEY = "tonztoon.account-manager.session.v2";
   const DEFAULT_API_BASE = "http://127.0.0.1:8000";
 
-  window.tailwind = window.tailwind || {};
-  window.tailwind.config = {
-    theme: {
-      extend: {
-        colors: {
-          ink: "#161a1d",
-          muted: "#667085",
-          line: "#d9dee5",
-          paper: "#f7f8fa",
-          brand: "#0f766e",
-          accent: "#b42318",
-        },
-        boxShadow: {
-          soft: "0 14px 40px rgba(16, 24, 40, 0.08)",
-        },
-      },
-    },
-  };
+  /* ── Sidebar Configuration ──────────────────────────────────────────── */
+  const SIDEBAR_LINKS = [
+    { id: "dashboard", icon: "layout-grid", tooltip: "Dashboard", href: "./index.html" },
+    { id: "accounts", icon: "users", tooltip: "Manajemen Akun", href: "./account-dashboard.html" },
+    { id: "helpdesk", icon: "life-buoy", tooltip: "Helpdesk", href: "./helpdesk-dashboard.html" },
+  ];
 
+  const SIDEBAR_BOTTOM = [
+    { id: "logout", icon: "log-out", tooltip: "Logout" },
+  ];
+
+  /* ── Shared Utilities ───────────────────────────────────────────────── */
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function trimSlash(value) {
+    return String(value || "").replace(/\/+$/, "");
+  }
+
+  function normalize(value) {
+    return String(value || "").toLowerCase();
+  }
+
+  function formatDate(value) {
+    if (!value) return "-";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return new Intl.DateTimeFormat("id-ID", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(date);
+  }
+
+  function blankPanel(text) {
+    return `<div class="blank-panel">${escapeHtml(text)}</div>`;
+  }
+
+  function detailRow(label, value, mono = false) {
+    return `
+      <div class="detail-row">
+        <dt>${escapeHtml(label)}</dt>
+        <dd ${mono ? 'class="mono text-xs"' : ''} style="word-break:break-all">${escapeHtml(value)}</dd>
+      </div>
+    `;
+  }
+
+  function userIdFromToken(token) {
+    if (!token) return null;
+    try {
+      const payload = token.split(".")[1] || "";
+      const padded = payload
+        .replace(/-/g, "+")
+        .replace(/_/g, "/")
+        .padEnd(Math.ceil(payload.length / 4) * 4, "=");
+      return JSON.parse(atob(padded)).sub || null;
+    } catch {
+      return null;
+    }
+  }
+
+  function animateCounter(element, target, duration = 600) {
+    const start = parseInt(element.textContent, 10) || 0;
+    if (start === target) return;
+    const startTime = performance.now();
+    function step(now) {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      element.textContent = Math.round(start + (target - start) * eased);
+      if (progress < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  /* ── Mount Shell (Login, Header, Sidebar) ───────────────────────────── */
   function mountShell() {
+    /* Login form */
     document.querySelectorAll("[data-admin-login]").forEach((element) => {
       const title = element.dataset.title || "Admin Dashboard";
       const description =
@@ -31,60 +94,117 @@
       const visibilityClass = element.classList.contains("hidden")
         ? "hidden "
         : "";
-      element.className = `${visibilityClass}grid min-h-screen place-items-center px-4 py-8`;
+      element.className = `${visibilityClass}login-page`;
       element.innerHTML = `
-        <form id="loginForm" class="glass-panel w-full max-w-md rounded-3xl border border-white/70 p-6 shadow-soft">
-          <div class="mb-5">
-            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Admin</p>
-            <h1 class="mt-1 text-2xl font-semibold text-ink">${escapeHtml(title)}</h1>
-            <p class="mt-2 text-sm leading-6 text-muted">${escapeHtml(description)}</p>
+        <form id="loginForm" class="login-card">
+          <div class="login-header">
+            <p class="section-eyebrow" style="margin-bottom:8px">Admin</p>
+            <h1>${escapeHtml(title)}</h1>
+            <p>${escapeHtml(description)}</p>
           </div>
-          <label class="block">
-            <span class="text-sm font-medium text-ink">Backend API base URL</span>
-            <input id="apiBaseField" type="url" class="mt-1 h-11 w-full rounded-2xl border border-line bg-white/90 px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" value="${DEFAULT_API_BASE}" />
-          </label>
-          <label class="mt-4 block">
-            <span class="text-sm font-medium text-ink">Email admin</span>
-            <input id="loginEmailField" type="email" required class="mt-1 h-11 w-full rounded-2xl border border-line bg-white/90 px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
-          </label>
-          <label class="mt-4 block">
-            <span class="text-sm font-medium text-ink">Password</span>
-            <div class="relative mt-1">
-              <input id="loginPasswordField" type="password" required minlength="8" class="h-11 w-full rounded-2xl border border-line bg-white/90 pl-3 pr-10 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" />
-              <button type="button" data-toggle-password="loginPasswordField" class="absolute right-1 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl text-muted hover:bg-slate-50 hover:text-ink" title="Lihat password">
-                <i data-lucide="eye" class="eye-icon h-4 w-4"></i>
-                <i data-lucide="eye-off" class="eye-off-icon hidden h-4 w-4"></i>
-              </button>
+          <div class="login-fields">
+            <div class="input-group">
+              <label class="input-label" for="apiBaseField">Backend API base URL</label>
+              <input id="apiBaseField" type="url" class="input" value="${DEFAULT_API_BASE}" />
             </div>
-          </label>
-          <button id="loginBtn" type="submit" class="admin-login-button mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl px-4 text-sm font-semibold text-white">
-            <i data-lucide="log-in" class="h-4 w-4"></i>
-            <span>Masuk</span>
-          </button>
+            <div class="input-group">
+              <label class="input-label" for="loginEmailField">Email admin</label>
+              <input id="loginEmailField" type="email" required class="input" />
+            </div>
+            <div class="input-group">
+              <label class="input-label" for="loginPasswordField">Password</label>
+              <div class="password-wrapper">
+                <input id="loginPasswordField" type="password" required minlength="8" class="input" style="padding-right:44px" />
+                <button type="button" data-toggle-password="loginPasswordField" class="password-toggle" title="Lihat password">
+                  <i data-lucide="eye" class="eye-icon"></i>
+                  <i data-lucide="eye-off" class="eye-off-icon hidden"></i>
+                </button>
+              </div>
+            </div>
+            <button id="loginBtn" type="submit" class="btn btn-primary w-full" style="height:44px;margin-top:4px">
+              <i data-lucide="log-in"></i>
+              <span>Masuk</span>
+            </button>
+          </div>
         </form>
       `;
     });
 
+    /* Header */
     document.querySelectorAll("[data-admin-header]").forEach((element) => {
       const eyebrow = element.dataset.eyebrow || "Admin";
       const title = element.dataset.title || "Dashboard";
       const actions =
         element.querySelector("template[data-admin-actions]")?.innerHTML || "";
-      element.className =
-        "sticky top-0 z-30 border-b border-white/70 bg-white/80 backdrop-blur-xl";
+      element.className = "admin-header";
       element.innerHTML = `
-        <div class="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-          <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand">${escapeHtml(eyebrow)}</p>
-            <h1 class="mt-1 text-2xl font-semibold text-ink sm:text-3xl">${escapeHtml(title)}</h1>
-            <p id="apiBaseLabel" class="mt-1 break-all text-xs text-muted"></p>
+        <div class="header-inner">
+          <div class="header-left">
+            <div class="header-title-container">
+              <h1 class="header-title">${escapeHtml(title)}</h1>
+              <div class="api-status-badge">
+                <span class="pulse-dot"></span>
+                <span id="apiBaseLabel" class="api-base-text"></span>
+              </div>
+            </div>
           </div>
-          <div class="flex flex-wrap items-center gap-2">${actions}</div>
+          <div class="header-actions">${actions}</div>
         </div>
       `;
     });
+
+    /* Sidebar */
+    document.querySelectorAll("[data-admin-sidebar]").forEach((element) => {
+      const activeId = element.dataset.activeModule || "";
+      element.className = "admin-sidebar";
+      const navLinks = SIDEBAR_LINKS.map((link) =>
+        `<a href="${link.href}" class="sidebar-link ${link.id === activeId ? 'active' : ''}" data-tooltip="${escapeHtml(link.tooltip)}">
+          <i data-lucide="${link.icon}"></i>
+        </a>`
+      ).join("");
+      const bottomLinks = SIDEBAR_BOTTOM.map((link) =>
+        `<button type="button" class="sidebar-link" data-tooltip="${escapeHtml(link.tooltip)}" data-sidebar-action="${link.id}">
+          <i data-lucide="${link.icon}"></i>
+        </button>`
+      ).join("");
+      element.innerHTML = `
+        <div class="sidebar-logo">
+          <img src="./logo.png" alt="TonzToon" />
+        </div>
+        <nav class="sidebar-nav">${navLinks}</nav>
+        <div class="sidebar-bottom">${bottomLinks}</div>
+      `;
+    });
+
+    /* Sidebar toggle (mobile) */
+    const sidebar = document.querySelector(".admin-sidebar");
+    if (sidebar) {
+      let toggle = document.querySelector("#sidebarToggle");
+      let overlay = document.querySelector("#sidebarOverlay");
+      if (!toggle) {
+        toggle = document.createElement("button");
+        toggle.id = "sidebarToggle";
+        toggle.type = "button";
+        toggle.className = "sidebar-toggle";
+        toggle.innerHTML = '<i data-lucide="menu"></i>';
+        document.body.appendChild(toggle);
+      }
+      if (!overlay) {
+        overlay = document.createElement("div");
+        overlay.id = "sidebarOverlay";
+        overlay.className = "sidebar-overlay";
+        document.body.appendChild(overlay);
+      }
+      toggle.addEventListener("click", () => {
+        sidebar.classList.toggle("sidebar-open");
+      });
+      overlay.addEventListener("click", () => {
+        sidebar.classList.remove("sidebar-open");
+      });
+    }
   }
 
+  /* ── Session Management ─────────────────────────────────────────────── */
   function createSession(options) {
     const state = options.state;
     const elements = options.elements;
@@ -349,6 +469,7 @@
     };
   }
 
+  /* ── Button Loading Helper ──────────────────────────────────────────── */
   function setButtonLoading(button, isLoading, options) {
     if (!button) return;
     const normalized =
@@ -374,6 +495,7 @@
     if (iconName) icon.setAttribute("data-lucide", iconName);
   }
 
+  /* ── Password Toggle ────────────────────────────────────────────────── */
   function togglePassword(button) {
     const input = document.getElementById(button.dataset.togglePassword);
     if (!input) return;
@@ -384,29 +506,16 @@
     button.title = reveal ? "Sembunyikan password" : "Lihat password";
   }
 
-  function userIdFromToken(token) {
-    if (!token) return null;
-    try {
-      const payload = token.split(".")[1] || "";
-      const padded = payload
-        .replace(/-/g, "+")
-        .replace(/_/g, "/")
-        .padEnd(Math.ceil(payload.length / 4) * 4, "=");
-      return JSON.parse(atob(padded)).sub || null;
-    } catch {
-      return null;
-    }
-  }
-
+  /* ── Toast Notification ─────────────────────────────────────────────── */
   function notify(message, isError = false) {
     const toastNode = document.createElement("div");
     toastNode.className = "admin-toast-card";
     toastNode.dataset.tone = isError ? "error" : "success";
     toastNode.innerHTML = `
       <span class="admin-toast-icon">
-        <i data-lucide="${isError ? "alert-circle" : "check-circle-2"}" class="h-4 w-4"></i>
+        <i data-lucide="${isError ? "alert-circle" : "check-circle-2"}"></i>
       </span>
-      <span class="min-w-0">
+      <span style="min-width:0">
         <p class="admin-toast-title">${isError ? "Terjadi kendala" : "Berhasil"}</p>
         <p class="admin-toast-message"></p>
       </span>
@@ -443,24 +552,17 @@
     setTimeout(() => toastNode.remove(), isError ? 6200 : 4200);
   }
 
-  function trimSlash(value) {
-    return String(value || "").replace(/\/+$/, "");
-  }
-
-  function escapeHtml(value) {
-    return String(value ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
-  }
-
+  /* ── Public API ─────────────────────────────────────────────────────── */
   window.TonztoonAdmin = {
+    animateCounter,
+    blankPanel,
     createFeatureSession,
     createSession,
+    detailRow,
     escapeHtml,
+    formatDate,
     mountShell,
+    normalize,
     notify,
     setButtonLoading,
     togglePassword,

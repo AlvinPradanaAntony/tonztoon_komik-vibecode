@@ -137,6 +137,32 @@ final appThemeModeProvider =
       AppThemeModeController.new,
     );
 
+final homeHelpdeskButtonVisibleProvider =
+    NotifierProvider<HomeHelpdeskButtonVisibleController, bool>(
+      HomeHelpdeskButtonVisibleController.new,
+    );
+
+class HomeHelpdeskButtonVisibleController extends Notifier<bool> {
+  static const _storageKey = 'home_helpdesk_button_visible';
+
+  @override
+  bool build() {
+    final value = ref.watch(localStoreProvider).settings.get(_storageKey);
+    return value is bool ? value : true;
+  }
+
+  Future<void> setVisible(bool value) async {
+    final previous = state;
+    state = value;
+    try {
+      await ref.read(localStoreProvider).settings.put(_storageKey, value);
+    } catch (_) {
+      state = previous;
+      rethrow;
+    }
+  }
+}
+
 final readingTimeProvider = NotifierProvider<ReadingTimeController, Duration>(
   ReadingTimeController.new,
 );

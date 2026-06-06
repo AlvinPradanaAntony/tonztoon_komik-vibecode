@@ -4,6 +4,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/app_assets.dart';
 import '../../core/app_icons.dart';
@@ -42,6 +43,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final continueReadingAsync = ref.watch(continueReadingProvider);
     final auth = ref.watch(authControllerProvider);
     final unreadNotifications = ref.watch(unreadNotificationsCountProvider);
+    final showHelpdeskButton = ref.watch(homeHelpdeskButtonVisibleProvider);
     _maybePromptMigration(auth);
 
     return Scaffold(
@@ -177,16 +179,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           },
         ),
       ),
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 78),
-        child: FloatingActionButton.small(
-          key: const ValueKey('home-helpdesk-button'),
-          tooltip: 'Buka helpdesk',
-          heroTag: 'home-helpdesk',
-          onPressed: _openHelpdesk,
-          child: const Icon(TonztoonIcons.lifeBuoy),
-        ),
-      ),
+      floatingActionButton: showHelpdeskButton
+          ? Padding(
+              padding: const EdgeInsets.only(bottom: 120),
+              child: FloatingActionButton(
+                key: const ValueKey('home-helpdesk-button'),
+                tooltip: 'Buka helpdesk',
+                heroTag: 'home-helpdesk',
+                onPressed: _openHelpdesk,
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                shape: const CircleBorder(),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: SvgPicture.asset(
+                    AppAssets.logoAppSmallSvg,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+            )
+          : null,
     );
   }
 

@@ -10,8 +10,9 @@ class HelpdeskRepository {
   final TonztoonApi _api;
 
   Future<HelpdeskSubmissionReceipt> submit(
-    HelpdeskSubmissionDraft draft,
-  ) async {
+    HelpdeskSubmissionDraft draft, {
+    String clientSource = 'home_helpdesk',
+  }) async {
     PackageInfo? packageInfo;
     try {
       packageInfo = await PackageInfo.fromPlatform();
@@ -30,7 +31,7 @@ class HelpdeskRepository {
         'app_version': packageInfo?.version,
         'app_build': packageInfo?.buildNumber,
         'locale': PlatformDispatcher.instance.locale.toLanguageTag(),
-        'client_context': {'source': 'home_helpdesk'},
+        'client_context': {'source': clientSource},
       },
     );
     return HelpdeskSubmissionReceipt.fromJson(response.data ?? const {});

@@ -3,31 +3,45 @@
 
   TonztoonAdmin.mountShell();
 
+  const escapeHtml = TonztoonAdmin.escapeHtml;
+  const formatDate = TonztoonAdmin.formatDate;
+  const normalize = TonztoonAdmin.normalize;
+  const detailRow = TonztoonAdmin.detailRow;
+  const notify = TonztoonAdmin.notify;
+  const setButtonLoading = TonztoonAdmin.setButtonLoading;
+  const animateCounter = TonztoonAdmin.animateCounter;
+
   const STATUS_LABELS = {
     open: "Open",
     in_progress: "Diproses",
     resolved: "Resolved",
     closed: "Closed",
   };
-  const STATUS_CLASSES = {
-    open: "bg-amber-50 text-amber-700",
-    in_progress: "bg-blue-50 text-blue-700",
-    resolved: "bg-emerald-50 text-emerald-700",
-    closed: "bg-slate-100 text-slate-700",
+  const STATUS_BADGE_CLASS = {
+    open: "badge-amber",
+    in_progress: "badge-blue",
+    resolved: "badge-green",
+    closed: "badge-slate",
   };
+
   const state = {
     apiBase: "http://127.0.0.1:8000",
     token: "",
     items: [],
+    recentItems: [],
     selectedId: null,
     pagination: { page: 1, perPage: 50, total: 0 },
     counts: { all: 0, open: 0, in_progress: 0, resolved: 0, closed: 0 },
     loading: { list: false, save: false },
+    charts: {
+      statusDist: null,
+      ticketsTime: null,
+    }
   };
+
   const els = {
     apiBaseLabel: document.querySelector("#apiBaseLabel"),
     reloadBtn: document.querySelector("#reloadBtn"),
-    logoutBtn: document.querySelector("#logoutBtn"),
     totalCount: document.querySelector("#totalCount"),
     openCount: document.querySelector("#openCount"),
     progressCount: document.querySelector("#progressCount"),
@@ -63,8 +77,6 @@
   const apiFetch = adminSession.apiFetch;
   const handleRequestError = adminSession.handleRequestError;
   const logout = adminSession.logout;
-  const notify = TonztoonAdmin.notify;
-  const setButtonLoading = TonztoonAdmin.setButtonLoading;
 
   const hasSession = adminSession.restoreSession();
   bindEvents();
@@ -75,7 +87,12 @@
   }
 
   function bindEvents() {
-    els.logoutBtn.addEventListener("click", logout);
+    /* Sidebar logout */
+    document.addEventListener("click", (event) => {
+      const sidebarAction = event.target.closest("[data-sidebar-action]");
+      if (sidebarAction?.dataset.sidebarAction === "logout") logout();
+    });
+
     els.reloadBtn.addEventListener("click", loadDashboard);
     els.workflowForm.addEventListener("submit", saveWorkflow);
     els.searchInput.addEventListener("input", renderTable);
@@ -107,6 +124,11 @@
   }
 
   async function loadDashboard() {
+    const statusLoader = document.getElementById("statusChartLoader");
+    const timeLoader = document.getElementById("ticketsTimeChartLoader");
+    if (statusLoader) statusLoader.classList.add("active");
+    if (timeLoader) timeLoader.classList.add("active");
+
     const loaded = await loadSubmissions();
     if (loaded) await loadCounts();
     return loaded;
@@ -120,16 +142,13 @@
         page: String(state.pagination.page),
         per_page: String(state.pagination.perPage),
       });
-      if (els.categoryFilter.value)
-        params.set("category", els.categoryFilter.value);
+      if (els.categoryFilter.value) params.set("category", els.categoryFilter.value);
       if (els.statusFilter.value) params.set("status", els.statusFilter.value);
       const payload = await apiFetch(`/api/v1/helpdesk/submissions?${params}`);
       state.items = payload.items || [];
       state.pagination.total = Number(payload.total || 0);
       state.pagination.page = Number(payload.page || state.pagination.page);
-      state.pagination.perPage = Number(
-        payload.per_page || state.pagination.perPage,
-      );
+      state.pagination.perPage = Number(payload.per_page || state.pagination.perPage);
       if (!state.items.some((item) => item.id === state.selectedId)) {
         state.selectedId = state.items[0]?.id || null;
       }
@@ -149,18 +168,27 @@
       const [allPayload, ...statusPayloads] = await Promise.all([
         apiFetch("/api/v1/helpdesk/submissions?page=1&per_page=1"),
         ...statuses.map((status) =>
-          apiFetch(
-            `/api/v1/helpdesk/submissions?page=1&per_page=1&status=${status}`,
-          ),
+          apiFetch(`/api/v1/helpdesk/submissions?page=1&per_page=1&status=${status}`),
         ),
       ]);
       state.counts.all = Number(allPayload.total || 0);
-      statuses.forEach((status, index) => {
-        state.counts[status] = Number(statusPayloads[index].total || 0);
+      statuses.forEach((status, i) => {
+        state.counts[status] = Number(statusPayloads[i].total || 0);
       });
+
+      // Load recent 200 items for the charts to count tickets over time
+      const recentPayload = await apiFetch("/api/v1/helpdesk/submissions?page=1&per_page=200");
+      state.recentItems = recentPayload.items || [];
+
       renderCounts();
+      renderCharts();
     } catch (error) {
       handleRequestError(error);
+    } finally {
+      const statusLoader = document.getElementById("statusChartLoader");
+      const timeLoader = document.getElementById("ticketsTimeChartLoader");
+      if (statusLoader) statusLoader.classList.remove("active");
+      if (timeLoader) timeLoader.classList.remove("active");
     }
   }
 
@@ -182,20 +210,21 @@
     if (!selected || state.loading.save) return;
     setLoading("save", true);
     try {
-      const updated = await apiFetch(
-        `/api/v1/helpdesk/submissions/${selected.id}`,
-        {
-          method: "PATCH",
-          body: {
-            status: els.workflowStatusField.value,
-            admin_note: els.adminNoteField.value.trim() || null,
-          },
+      const updated = await apiFetch(`/api/v1/helpdesk/submissions/${selected.id}`, {
+        method: "PATCH",
+        body: {
+          status: els.workflowStatusField.value,
+          admin_note: els.adminNoteField.value.trim() || null,
         },
-      );
-      state.items = state.items.map((item) =>
-        item.id === updated.id ? updated : item,
-      );
+      });
+      state.items = state.items.map((item) => (item.id === updated.id ? updated : item));
       render();
+
+      const statusLoader = document.getElementById("statusChartLoader");
+      const timeLoader = document.getElementById("ticketsTimeChartLoader");
+      if (statusLoader) statusLoader.classList.add("active");
+      if (timeLoader) timeLoader.classList.add("active");
+
       await loadCounts();
       notify(`Submission ${updated.reference_code} diperbarui.`);
     } catch (error) {
@@ -205,6 +234,7 @@
     }
   }
 
+  /* ── Render ─────────────────────────────────────────────────────────── */
   function render() {
     renderCounts();
     renderTable();
@@ -214,17 +244,131 @@
     lucide.createIcons();
   }
 
+  function renderCharts() {
+    if (!window.Chart) return;
+
+    // Status Distribution Chart
+    const ctxStatus = document.getElementById("statusChart");
+    if (ctxStatus) {
+      if (state.charts.statusDist) state.charts.statusDist.destroy();
+      
+      const counts = [state.counts.open, state.counts.in_progress, state.counts.resolved, state.counts.closed];
+      const hasData = counts.some(c => c > 0);
+      
+      state.charts.statusDist = new Chart(ctxStatus, {
+        type: 'doughnut',
+        data: {
+          labels: ['Open', 'Diproses', 'Resolved', 'Closed'],
+          datasets: [{
+            data: hasData ? counts : [1, 1, 1, 1],
+            backgroundColor: ['#eab308', '#6366f1', '#14b8a6', '#94a3b8'],
+            borderWidth: 0,
+            hoverOffset: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '70%',
+          plugins: {
+            legend: { position: 'bottom' },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  if (!hasData) return " No data yet";
+                  return ` ${context.label}: ${context.raw}`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Tickets Over Time Chart (Real End-to-End)
+    const ctxTime = document.getElementById("ticketsTimeChart");
+    if (ctxTime) {
+      if (state.charts.ticketsTime) state.charts.ticketsTime.destroy();
+      
+      const labels = [];
+      const countsPerDay = [0, 0, 0, 0, 0, 0, 0];
+      const dateKeys = []; // formats to easily compare like YYYY-MM-DD
+      const now = new Date();
+
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(now.getDate() - i);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        dateKeys.push(`${year}-${month}-${day}`);
+
+        if (i === 0) {
+          labels.push('Hari ini');
+        } else if (i === 1) {
+          labels.push('Kemarin');
+        } else {
+          labels.push(`${i} Hari lalu`);
+        }
+      }
+
+      // Aggregate state.recentItems by date key
+      const items = state.recentItems || [];
+      items.forEach(item => {
+        if (!item.created_at) return;
+        const date = new Date(item.created_at);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const key = `${year}-${month}-${day}`;
+
+        const index = dateKeys.indexOf(key);
+        if (index !== -1) {
+          countsPerDay[index]++;
+        }
+      });
+      
+      state.charts.ticketsTime = new Chart(ctxTime, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Tiket Baru',
+            data: countsPerDay,
+            backgroundColor: 'rgba(99, 102, 241, 0.8)',
+            borderRadius: 4,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            y: { 
+              beginAtZero: true, 
+              ticks: {
+                precision: 0
+              },
+              grid: { color: 'rgba(0,0,0,0.05)' } 
+            },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+    }
+  }
+
   function renderCounts() {
-    els.totalCount.textContent = state.counts.all;
-    els.openCount.textContent = state.counts.open;
-    els.progressCount.textContent = state.counts.in_progress;
-    els.resolvedCount.textContent = state.counts.resolved;
-    els.closedCount.textContent = state.counts.closed;
+    animateCounter(els.totalCount, state.counts.all);
+    animateCounter(els.openCount, state.counts.open);
+    animateCounter(els.progressCount, state.counts.in_progress);
+    animateCounter(els.resolvedCount, state.counts.resolved);
+    animateCounter(els.closedCount, state.counts.closed);
     document.querySelectorAll("[data-summary-status]").forEach((card) => {
       const active = card.dataset.summaryStatus === els.statusFilter.value;
-      card.classList.toggle("border-brand/30", active);
-      card.classList.toggle("ring-2", active);
-      card.classList.toggle("ring-brand/10", active);
+      card.classList.toggle("summary-active", active);
     });
   }
 
@@ -232,13 +376,9 @@
     const query = normalize(els.searchInput.value);
     const visibleItems = state.items.filter((item) => {
       if (!query) return true;
-      return [
-        item.reference_code,
-        item.title,
-        item.message,
-        item.user_id,
-        item.platform,
-      ].some((value) => normalize(value).includes(query));
+      return [item.reference_code, item.title, item.message, item.user_id, item.platform].some(
+        (v) => normalize(v).includes(query),
+      );
     });
     els.emptyState.classList.toggle("hidden", visibleItems.length > 0);
     els.submissionsTable.innerHTML = visibleItems
@@ -247,27 +387,28 @@
           item.category === "review"
             ? `${item.rating || "-"} / 5 - Review pengguna`
             : item.title || "Report tanpa judul";
+        const isSelected = item.id === state.selectedId;
         return `
-            <tr class="submission-row" data-selected="${item.id === state.selectedId}">
-              <td class="px-4 py-3">
-                <p class="font-mono text-xs font-semibold text-brand">${escapeHtml(item.reference_code)}</p>
-                <p class="mt-1 max-w-md truncate text-sm font-semibold text-ink">${escapeHtml(title)}</p>
-                <p class="mt-1 max-w-md truncate text-xs text-muted">${escapeHtml(item.message)}</p>
-              </td>
-              <td class="px-4 py-3">${categoryBadge(item)}</td>
-              <td class="px-4 py-3">${statusBadge(item.status)}</td>
-              <td class="px-4 py-3 text-xs text-muted">
-                ${item.user_id ? `<span class="font-mono">${escapeHtml(shortId(item.user_id))}</span>` : "Guest"}
-              </td>
-              <td class="px-4 py-3 text-xs text-muted">${escapeHtml(formatDate(item.created_at))}</td>
-              <td class="px-4 py-3 text-right">
-                <button type="button" data-select-submission="${escapeHtml(item.id)}" class="inline-flex h-9 items-center gap-2 rounded-2xl border border-line bg-white px-3 text-xs font-semibold text-ink hover:bg-slate-50">
-                  <i data-lucide="panel-right-open" class="h-4 w-4"></i>
-                  Detail
-                </button>
-              </td>
-            </tr>
-          `;
+        <tr class="${isSelected ? "row-selected" : ""}">
+          <td>
+            <p class="mono text-xs font-semibold text-brand">${escapeHtml(item.reference_code)}</p>
+            <p class="truncate text-sm font-semibold" style="margin-top:4px;max-width:400px">${escapeHtml(title)}</p>
+            <p class="truncate text-xs text-muted" style="margin-top:4px;max-width:400px">${escapeHtml(item.message)}</p>
+          </td>
+          <td>${categoryBadge(item)}</td>
+          <td><span class="badge ${STATUS_BADGE_CLASS[item.status] || "badge-slate"}">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span></td>
+          <td class="text-xs text-muted">
+            ${item.user_id ? `<span class="mono">${escapeHtml(shortId(item.user_id))}</span>` : "Guest"}
+          </td>
+          <td class="text-xs text-muted">${escapeHtml(formatDate(item.created_at))}</td>
+          <td style="text-align:right">
+            <button type="button" data-select-submission="${escapeHtml(item.id)}" class="btn btn-secondary" style="height:36px">
+              <i data-lucide="panel-right-open"></i>
+              <span>Detail</span>
+            </button>
+          </td>
+        </tr>
+      `;
       })
       .join("");
     lucide.createIcons();
@@ -277,8 +418,7 @@
     const pages = totalPages();
     els.paginationSummary.textContent = `${state.pagination.total} submission - halaman ${state.pagination.page} dari ${pages}`;
     els.prevPageBtn.disabled = state.loading.list || state.pagination.page <= 1;
-    els.nextPageBtn.disabled =
-      state.loading.list || state.pagination.page >= pages;
+    els.nextPageBtn.disabled = state.loading.list || state.pagination.page >= pages;
   }
 
   function renderDetail() {
@@ -288,57 +428,52 @@
     if (!item) {
       els.detailReference.textContent = "Pilih submission";
       els.detailStatus.textContent = "-";
-      els.detailStatus.className =
-        "shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700";
+      els.detailStatus.className = "badge badge-slate";
       els.detailMeta.textContent = "Data lengkap akan tampil di sini.";
       return;
     }
 
     els.detailReference.textContent = item.reference_code;
     els.detailStatus.textContent = STATUS_LABELS[item.status] || item.status;
-    els.detailStatus.className = `shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_CLASSES[item.status] || "bg-slate-100 text-slate-700"}`;
+    els.detailStatus.className = `badge ${STATUS_BADGE_CLASS[item.status] || "badge-slate"}`;
     els.detailMeta.textContent = `${item.category === "review" ? "Review" : "Report"} - ${formatDate(item.created_at)}`;
     els.workflowStatusField.value = item.status;
     els.adminNoteField.value = item.admin_note || "";
 
     const contextEntries = Object.entries(item.client_context || {});
     els.detailContent.innerHTML = `
-          <section>
-            <p class="text-xs font-semibold uppercase tracking-wide text-muted">Pesan pengguna</p>
-            ${item.title ? `<h3 class="mt-2 text-base font-semibold text-ink">${escapeHtml(item.title)}</h3>` : ""}
-            ${item.rating ? `<div class="mt-2 flex items-center gap-1 text-amber-500">${ratingStars(item.rating)}<span class="ml-1 text-xs font-semibold text-muted">${item.rating}/5</span></div>` : ""}
-            <p class="mt-3 whitespace-pre-wrap break-words rounded-2xl border border-line bg-white/80 p-3 text-sm leading-6 text-ink">${escapeHtml(item.message)}</p>
-          </section>
-          <section>
-            <p class="text-xs font-semibold uppercase tracking-wide text-muted">Identitas dan perangkat</p>
-            <dl class="mt-2 space-y-2 text-sm">
-              ${detailRow("Pengirim", item.user_id || "Guest", Boolean(item.user_id))}
-              ${detailRow("Platform", item.platform || "-")}
-              ${detailRow("Versi", appVersion(item))}
-              ${detailRow("Locale", item.locale || "-")}
-              ${detailRow("Diperbarui", formatDate(item.updated_at))}
-            </dl>
-          </section>
-          <section>
-            <p class="text-xs font-semibold uppercase tracking-wide text-muted">Client context</p>
-            ${
-              contextEntries.length
-                ? `<dl class="mt-2 rounded-2xl border border-line bg-slate-50 p-3">${contextEntries.map(([key, value]) => detailRow(key, String(value))).join("")}</dl>`
-                : `<div class="mt-2 rounded-2xl border border-line bg-slate-50 p-3"><p class="text-sm text-muted">Tidak ada metadata tambahan.</p></div>`
-            }
-          </section>
-        `;
+      <section>
+        <p class="text-xs font-semibold uppercase tracking text-muted">Pesan pengguna</p>
+        ${item.title ? `<h3 class="text-base font-semibold" style="margin-top:8px">${escapeHtml(item.title)}</h3>` : ""}
+        ${item.rating ? `<div class="flex items-center gap-1" style="margin-top:8px;color:var(--accent-yellow)">${ratingStars(item.rating)}<span class="text-xs font-semibold text-muted" style="margin-left:4px">${item.rating}/5</span></div>` : ""}
+        <p style="margin-top:12px;white-space:pre-wrap;word-break:break-word;padding:12px;border-radius:var(--radius-md);border:1px solid var(--line-light);background:var(--white);font-size:0.8125rem;line-height:1.625">${escapeHtml(item.message)}</p>
+      </section>
+      <section>
+        <p class="text-xs font-semibold uppercase tracking text-muted">Identitas dan perangkat</p>
+        <dl class="space-y-2" style="margin-top:8px">
+          ${detailRow("Pengirim", item.user_id || "Guest", Boolean(item.user_id))}
+          ${detailRow("Platform", item.platform || "-")}
+          ${detailRow("Versi", appVersion(item))}
+          ${detailRow("Locale", item.locale || "-")}
+          ${detailRow("Diperbarui", formatDate(item.updated_at))}
+        </dl>
+      </section>
+      <section>
+        <p class="text-xs font-semibold uppercase tracking text-muted">Client context</p>
+        ${
+          contextEntries.length
+            ? `<dl class="space-y-2" style="margin-top:8px;padding:12px;border-radius:var(--radius-md);border:1px solid var(--line-light);background:var(--surface)">${contextEntries.map(([key, value]) => detailRow(key, String(value))).join("")}</dl>`
+            : `<div style="margin-top:8px;padding:12px;border-radius:var(--radius-md);border:1px solid var(--line-light);background:var(--surface)"><p class="text-sm text-muted">Tidak ada metadata tambahan.</p></div>`
+        }
+      </section>
+    `;
     lucide.createIcons();
   }
 
+  /* ── Loading ────────────────────────────────────────────────────────── */
   function syncLoading() {
     setButtonLoading(els.reloadBtn, state.loading.list, "Memuat...", "Reload");
-    setButtonLoading(
-      els.saveWorkflowBtn,
-      state.loading.save,
-      "Menyimpan...",
-      "Simpan perubahan",
-    );
+    setButtonLoading(els.saveWorkflowBtn, state.loading.save, "Menyimpan...", "Simpan perubahan");
     renderPagination();
   }
 
@@ -347,43 +482,28 @@
     syncLoading();
   }
 
+  /* ── Helpers ────────────────────────────────────────────────────────── */
   function selectedSubmission() {
     return state.items.find((item) => item.id === state.selectedId) || null;
   }
 
   function totalPages() {
-    return Math.max(
-      1,
-      Math.ceil(state.pagination.total / state.pagination.perPage),
-    );
-  }
-
-  function statusBadge(status) {
-    return `<span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_CLASSES[status] || "bg-slate-100 text-slate-700"}">${escapeHtml(STATUS_LABELS[status] || status)}</span>`;
+    return Math.max(1, Math.ceil(state.pagination.total / state.pagination.perPage));
   }
 
   function categoryBadge(item) {
     if (item.category === "review") {
-      return `<span class="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700"><i data-lucide="star" class="h-3.5 w-3.5"></i>Review</span>`;
+      return `<span class="badge badge-orange"><i data-lucide="star" style="width:14px;height:14px"></i>Review</span>`;
     }
-    return `<span class="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700"><i data-lucide="bug" class="h-3.5 w-3.5"></i>Report</span>`;
+    return `<span class="badge badge-red"><i data-lucide="bug" style="width:14px;height:14px"></i>Report</span>`;
   }
 
   function ratingStars(rating) {
     return Array.from(
       { length: 5 },
-      (_, index) =>
-        `<i data-lucide="star" class="h-4 w-4 ${index < rating ? "fill-current" : "text-slate-300"}"></i>`,
+      (_, i) =>
+        `<i data-lucide="star" style="width:16px;height:16px;${i < rating ? "fill:currentColor" : "color:var(--line)"}"></i>`,
     ).join("");
-  }
-
-  function detailRow(label, value, mono = false) {
-    return `
-          <div class="flex items-start justify-between gap-4 border-b border-line pb-2 last:border-b-0">
-            <dt class="text-muted">${escapeHtml(label)}</dt>
-            <dd class="min-w-0 break-all text-right ${mono ? "font-mono text-xs" : "text-sm"} text-ink">${escapeHtml(value)}</dd>
-          </div>
-        `;
   }
 
   function appVersion(item) {
@@ -391,31 +511,8 @@
     return `${item.app_version || "-"}${item.app_build ? ` (${item.app_build})` : ""}`;
   }
 
-  function formatDate(value) {
-    if (!value) return "-";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return String(value);
-    return new Intl.DateTimeFormat("id-ID", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(date);
-  }
-
   function shortId(value) {
     const text = String(value || "");
     return text.length > 15 ? `${text.slice(0, 8)}...${text.slice(-4)}` : text;
-  }
-
-  function normalize(value) {
-    return String(value || "").toLowerCase();
-  }
-
-  function escapeHtml(value) {
-    return String(value ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
   }
 })();

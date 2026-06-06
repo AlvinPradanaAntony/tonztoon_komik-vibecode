@@ -3,539 +3,348 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tonztoon Account Manager</title>
+    <meta
+      name="description"
+      content="Dashboard admin TonzToon untuk manajemen akun pengguna."
+    />
+    <title>TonzToon Account Manager</title>
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css"
     />
     <link rel="stylesheet" href="./admin-dashboard.css" />
     <script src="./admin-dashboard.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
   </head>
-  <body class="min-h-screen text-ink antialiased">
-    <div id="appView" class="min-h-screen">
-      <header
-        data-admin-header
-        data-eyebrow="Supabase"
-        data-title="Manajemen Akun"
-      >
-        <template data-admin-actions>
-          <a
-            href="./index.html"
-            class="inline-flex h-10 items-center gap-2 rounded-2xl border border-line bg-white/90 px-3 text-sm font-medium text-ink shadow-sm hover:bg-slate-50"
-            title="Kembali ke dashboard utama"
-          >
-            <i data-lucide="layout-dashboard" class="h-4 w-4"></i>
-            <span>Dashboard</span>
-          </a>
-          <a
-            href="./helpdesk-dashboard.html"
-            class="inline-flex h-10 items-center gap-2 rounded-2xl border border-line bg-white/90 px-3 text-sm font-medium text-ink shadow-sm hover:bg-slate-50"
-            title="Kelola helpdesk"
-          >
-            <i data-lucide="life-buoy" class="h-4 w-4"></i>
-            <span>Helpdesk</span>
-          </a>
-          <button
-            id="reloadBtn"
-            type="button"
-            class="inline-flex h-10 items-center gap-2 rounded-2xl border border-line bg-white/90 px-3 text-sm font-medium text-ink shadow-sm hover:bg-slate-50"
-            title="Muat ulang akun"
-          >
-            <i data-lucide="refresh-cw" class="h-4 w-4"></i>
-            <span>Reload</span>
-          </button>
-          <button
-            id="openCreateBtn"
-            type="button"
-            class="inline-flex h-10 items-center gap-2 rounded-2xl bg-brand px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800"
-            title="Tambah akun"
-          >
-            <i data-lucide="plus" class="h-4 w-4"></i>
-            <span>Akun</span>
-          </button>
-          <button
-            id="logoutBtn"
-            type="button"
-            class="inline-flex h-10 items-center gap-2 rounded-2xl border border-line bg-white/90 px-3 text-sm font-medium text-ink shadow-sm hover:bg-slate-50"
-            title="Keluar"
-          >
-            <i data-lucide="log-out" class="h-4 w-4"></i>
-            <span>Logout</span>
-          </button>
-        </template>
-      </header>
+  <body>
+    <div id="appView" style="min-height:100vh">
+      <nav
+        data-admin-sidebar
+        data-active-module="accounts"
+      ></nav>
 
-      <main
-        class="mx-auto grid max-w-7xl gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:px-8"
-      >
-        <section class="min-w-0 space-y-4">
-          <div class="grid gap-3 sm:grid-cols-3">
-            <div
-              class="glass-panel rounded-3xl border border-white/70 p-4 shadow-sm"
+      <div class="admin-layout">
+        <header
+          data-admin-header
+          data-eyebrow="Supabase"
+          data-title="Manajemen Akun"
+        >
+          <template data-admin-actions>
+            <button
+              id="reloadBtn"
+              type="button"
+              class="btn btn-secondary"
+              title="Muat ulang akun"
             >
-              <p class="text-sm font-medium text-muted">Total akun</p>
-              <p id="totalUsers" class="mt-2 text-3xl font-semibold text-ink">
-                0
-              </p>
-            </div>
-            <div
-              class="glass-panel rounded-3xl border border-white/70 p-4 shadow-sm"
+              <i data-lucide="refresh-cw"></i>
+              <span>Reload</span>
+            </button>
+            <button
+              id="openCreateBtn"
+              type="button"
+              class="btn btn-primary"
+              title="Tambah akun"
             >
-              <p class="text-sm font-medium text-muted">Aktif halaman ini</p>
-              <p id="activeUsers" class="mt-2 text-3xl font-semibold text-ink">
-                0
-              </p>
-            </div>
-            <div
-              class="glass-panel rounded-3xl border border-white/70 p-4 shadow-sm"
-            >
-              <p class="text-sm font-medium text-muted">Relasi halaman ini</p>
-              <p
-                id="relationCount"
-                class="mt-2 text-3xl font-semibold text-ink"
-              >
-                0
-              </p>
-            </div>
-          </div>
+              <i data-lucide="plus"></i>
+              <span>Akun</span>
+            </button>
+          </template>
+        </header>
 
-          <form
-            id="announcementForm"
-            class="glass-panel relative z-20 rounded-3xl border border-white/70 p-4 shadow-sm"
-          >
-            <div
-              class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
-            >
-              <div>
-                <p class="text-sm font-medium text-muted">Push remote</p>
-                <h2 class="mt-1 text-lg font-semibold text-ink">
-                  Kirim pengumuman
-                </h2>
-              </div>
-              <button
-                id="sendAnnouncementBtn"
-                type="submit"
-                class="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-brand px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800"
-              >
-                <i data-lucide="send" class="h-4 w-4"></i>
-                <span>Kirim</span>
-              </button>
-            </div>
-            <div class="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px]">
-              <label class="block">
-                <span class="text-sm font-medium text-ink">Judul</span>
-                <input
-                  id="announcementTitleField"
-                  type="text"
-                  required
-                  maxlength="120"
-                  class="mt-1 h-10 w-full rounded-2xl border border-line bg-white/90 px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                  placeholder="Maintenance TonzToon"
-                />
-              </label>
-              <label class="block">
-                <span class="text-sm font-medium text-ink">Kategori</span>
-                <select
-                  id="announcementCategoryField"
-                  class="mt-1 h-10 w-full rounded-2xl border border-line bg-white/90 px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                >
-                  <option value="Pengumuman">Pengumuman</option>
-                  <option value="Maintenance">Maintenance</option>
-                  <option value="Testing">Testing</option>
-                </select>
-              </label>
-              <label class="block lg:col-span-2">
-                <span class="text-sm font-medium text-ink">Pesan</span>
-                <textarea
-                  id="announcementMessageField"
-                  required
-                  maxlength="500"
-                  rows="3"
-                  class="mt-1 w-full resize-y rounded-2xl border border-line bg-white/90 px-3 py-2 text-sm leading-6 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                  placeholder="Server akan maintenance malam ini pukul 23.00 WIB."
-                ></textarea>
-              </label>
-              <label class="block lg:col-span-2">
-                <span class="text-sm font-medium text-ink"
-                  >Route saat dibuka</span
-                >
-                <select
-                  id="announcementRouteField"
-                  class="mt-1 h-10 w-full rounded-2xl border border-line bg-white/90 px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                >
-                  <option value="/notifications">
-                    Halaman notifikasi (/notifications)
-                  </option>
-                  <option value="/">Beranda (/)</option>
-                  <option value="/catalog">Katalog (/catalog)</option>
-                  <option value="/search">Pencarian (/search)</option>
-                  <option value="/library">
-                    Pustaka - bookmark (/library)
-                  </option>
-                  <option value="/library?tab=collections">
-                    Pustaka - koleksi (/library?tab=collections)
-                  </option>
-                  <option value="/library?tab=scenes">
-                    Pustaka - scenes (/library?tab=scenes)
-                  </option>
-                  <option value="/library?tab=history">
-                    Pustaka - riwayat (/library?tab=history)
-                  </option>
-                  <option value="/library?tab=downloads">
-                    Pustaka - download (/library?tab=downloads)
-                  </option>
-                  <option value="/library/continue-reading">
-                    Lanjut membaca (/library/continue-reading)
-                  </option>
-                  <option value="/settings">Pengaturan (/settings)</option>
-                  <option value="/auth">Login (/auth)</option>
-                  <option value="/auth/forgot-password">
-                    Lupa password (/auth/forgot-password)
-                  </option>
-                </select>
-              </label>
-            </div>
-          </form>
-
-          <div
-            class="glass-panel relative z-0 overflow-hidden rounded-3xl border border-white/70 shadow-sm"
-          >
-            <div
-              class="grid gap-3 border-b border-line/80 p-4 lg:grid-cols-[minmax(220px,1fr)_160px_160px]"
-            >
-              <label class="relative block">
-                <span class="sr-only">Cari akun</span>
-                <i
-                  data-lucide="search"
-                  class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
-                ></i>
-                <input
-                  id="searchInput"
-                  type="search"
-                  class="h-10 w-full rounded-2xl border border-line bg-white/90 pl-10 pr-3 text-sm outline-none placeholder:text-slate-400 focus:border-brand focus:ring-2 focus:ring-brand/20"
-                  placeholder="Cari nama, email, atau user ID"
-                />
-              </label>
-              <select
-                id="roleFilter"
-                class="h-10 w-full rounded-2xl border border-line bg-white/90 px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-              >
-                <option value="all">Semua role</option>
-                <option value="admin">Admin</option>
-                <option value="reader">Reader</option>
-              </select>
-              <select
-                id="statusFilter"
-                class="h-10 w-full rounded-2xl border border-line bg-white/90 px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-              >
-                <option value="all">Semua status</option>
-                <option value="active">Aktif</option>
-                <option value="pending">Pending</option>
-                <option value="suspended">Suspended</option>
-              </select>
-            </div>
-
-            <div class="max-h-[30rem] overflow-auto scrollbar-thin">
-              <table class="w-full min-w-[720px] divide-y divide-line">
-                <thead class="bg-slate-50/80">
-                  <tr>
-                    <th
-                      class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted"
-                    >
-                      Akun
-                    </th>
-                    <th
-                      class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted"
-                    >
-                      Username
-                    </th>
-                    <th
-                      class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted"
-                    >
-                      Role
-                    </th>
-                    <th
-                      class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted"
-                    >
-                      Status
-                    </th>
-                    <th
-                      class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted"
-                    >
-                      Email Confirmed
-                    </th>
-                    <th
-                      class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted"
-                    >
-                      Last Sign In
-                    </th>
-                    <th
-                      class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted"
-                    >
-                      Onboarding
-                    </th>
-                    <th
-                      class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted"
-                    >
-                      Relasi
-                    </th>
-                    <th
-                      class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted"
-                    >
-                      Aksi
-                    </th>
-                  </tr>
-                </thead>
-                <tbody
-                  id="usersTable"
-                  class="divide-y divide-line bg-white"
-                ></tbody>
-              </table>
-            </div>
-            <div id="emptyState" class="hidden px-4 py-14 text-center">
-              <i data-lucide="user-x" class="mx-auto h-8 w-8 text-muted"></i>
-              <p class="mt-3 text-sm font-medium text-ink">
-                Tidak ada akun yang cocok.
-              </p>
-            </div>
-            <div
-              class="flex flex-col gap-3 border-t border-line/80 p-4 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <p id="paginationSummary" class="text-sm text-muted">0 akun</p>
-              <div class="flex flex-wrap items-center gap-2">
-                <select
-                  id="pageSizeSelect"
-                  class="h-10 rounded-2xl border border-line bg-white/90 px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                >
-                  <option value="50">50 / halaman</option>
-                  <option value="100">100 / halaman</option>
-                  <option value="200">200 / halaman</option>
-                </select>
-                <button
-                  id="prevPageBtn"
-                  type="button"
-                  class="inline-flex h-10 items-center gap-2 rounded-2xl border border-line bg-white/90 px-3 text-sm font-medium text-ink shadow-sm hover:bg-slate-50"
-                >
-                  <i data-lucide="chevron-left" class="h-4 w-4"></i>
-                  <span>Prev</span>
-                </button>
-                <button
-                  id="nextPageBtn"
-                  type="button"
-                  class="inline-flex h-10 items-center gap-2 rounded-2xl border border-line bg-white/90 px-3 text-sm font-medium text-ink shadow-sm hover:bg-slate-50"
-                >
-                  <span>Next</span>
-                  <i data-lucide="chevron-right" class="h-4 w-4"></i>
-                </button>
-              </div>
-            </div>
-          </div>
-          <section
-            id="relationTableWorkspace"
-            class="hidden scroll-mt-28"
-          ></section>
-        </section>
-
-        <aside class="min-w-0">
-          <div
-            class="glass-panel sticky top-24 rounded-3xl border border-white/70 shadow-soft"
-          >
-            <div class="border-b border-line/80 p-4">
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <p class="text-sm font-medium text-muted">Detail akun</p>
-                  <h2
-                    id="detailName"
-                    class="mt-1 truncate text-xl font-semibold text-ink"
-                  >
-                    Pilih akun
-                  </h2>
+        <main class="main-content">
+          <div class="dashboard-grid dashboard-grid-aside">
+            <!-- Left Column -->
+            <section style="min-width:0" class="space-y-4">
+              <!-- Stats -->
+              <div class="stats-grid stagger-children">
+                <div class="stat-card stat-brand">
+                  <div class="stat-row">
+                    <span class="stat-label">Total akun</span>
+                    <span class="stat-icon icon-brand">
+                      <i data-lucide="users"></i>
+                    </span>
+                  </div>
+                  <span id="totalUsers" class="stat-value">0</span>
                 </div>
-                <span
-                  id="detailStatus"
-                  class="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700"
-                  >-</span
-                >
+                <div class="stat-card stat-teal">
+                  <div class="stat-row">
+                    <span class="stat-label">Aktif halaman ini</span>
+                    <span class="stat-icon icon-teal">
+                      <i data-lucide="user-check"></i>
+                    </span>
+                  </div>
+                  <span id="activeUsers" class="stat-value">0</span>
+                </div>
+                <div class="stat-card stat-orange">
+                  <div class="stat-row">
+                    <span class="stat-label">Relasi halaman ini</span>
+                    <span class="stat-icon icon-orange">
+                      <i data-lucide="link-2"></i>
+                    </span>
+                  </div>
+                  <span id="relationCount" class="stat-value">0</span>
+                </div>
               </div>
-              <p id="detailEmail" class="mt-1 break-all text-sm text-muted">
-                Relasi muncul berdasarkan user ID.
-              </p>
-            </div>
-            <div class="p-4">
-              <div class="grid grid-cols-3 gap-2">
-                <button
-                  data-panel-tab="profile"
-                  type="button"
-                  class="panel-tab h-9 rounded-2xl border border-brand bg-teal-50 px-2 text-sm font-semibold text-brand"
-                >
-                  Profil
-                </button>
-                <button
-                  data-panel-tab="relations"
-                  type="button"
-                  class="panel-tab h-9 rounded-2xl border border-line bg-white/90 px-2 text-sm font-medium text-muted"
-                >
-                  Relasi
-                </button>
-                <button
-                  data-panel-tab="metadata"
-                  type="button"
-                  class="panel-tab h-9 rounded-2xl border border-line bg-white/90 px-2 text-sm font-medium text-muted"
-                >
-                  Metadata
-                </button>
-              </div>
-              <div id="profilePanel" class="mt-4 space-y-3"></div>
-              <div id="relationsPanel" class="mt-4 space-y-4" hidden></div>
-              <div id="metadataPanel" class="mt-4 space-y-3" hidden></div>
-            </div>
-          </div>
-        </aside>
 
-        <section
-          id="relationDiagramWorkspace"
-          class="hidden scroll-mt-28 lg:col-span-2"
-        ></section>
-      </main>
+              <!-- Announcement -->
+              <form
+                id="announcementForm"
+                class="announcement-card"
+                style="position:relative;z-index:20"
+              >
+                <div class="flex items-start justify-between gap-3" style="flex-wrap:wrap">
+                  <div class="section-header">
+                    <span class="section-eyebrow">Push remote</span>
+                    <h2 class="text-lg font-semibold">Kirim pengumuman</h2>
+                  </div>
+                  <button
+                    id="sendAnnouncementBtn"
+                    type="submit"
+                    class="btn btn-primary"
+                  >
+                    <i data-lucide="send"></i>
+                    <span>Kirim</span>
+                  </button>
+                </div>
+                <div class="form-grid form-grid-2" style="margin-top:16px">
+                  <div class="input-group">
+                    <label class="input-label" for="announcementTitleField">Judul</label>
+                    <input
+                      id="announcementTitleField"
+                      type="text"
+                      required
+                      maxlength="120"
+                      class="input"
+                      placeholder="Maintenance TonzToon"
+                    />
+                  </div>
+                  <div class="input-group">
+                    <label class="input-label" for="announcementCategoryField">Kategori</label>
+                    <select
+                      id="announcementCategoryField"
+                      class="select-input"
+                    >
+                      <option value="Pengumuman">Pengumuman</option>
+                      <option value="Maintenance">Maintenance</option>
+                      <option value="Testing">Testing</option>
+                    </select>
+                  </div>
+                  <div class="input-group form-span-2">
+                    <label class="input-label" for="announcementMessageField">Pesan</label>
+                    <textarea
+                      id="announcementMessageField"
+                      required
+                      maxlength="500"
+                      rows="3"
+                      class="textarea-input"
+                      placeholder="Server akan maintenance malam ini pukul 23.00 WIB."
+                    ></textarea>
+                  </div>
+                  <div class="input-group form-span-2">
+                    <label class="input-label" for="announcementRouteField">Route saat dibuka</label>
+                    <select
+                      id="announcementRouteField"
+                      class="select-input"
+                    >
+                      <option value="/notifications">Halaman notifikasi (/notifications)</option>
+                      <option value="/">Beranda (/)</option>
+                      <option value="/catalog">Katalog (/catalog)</option>
+                      <option value="/search">Pencarian (/search)</option>
+                      <option value="/library">Pustaka - bookmark (/library)</option>
+                      <option value="/library?tab=collections">Pustaka - koleksi (/library?tab=collections)</option>
+                      <option value="/library?tab=scenes">Pustaka - scenes (/library?tab=scenes)</option>
+                      <option value="/library?tab=history">Pustaka - riwayat (/library?tab=history)</option>
+                      <option value="/library?tab=downloads">Pustaka - download (/library?tab=downloads)</option>
+                      <option value="/library/continue-reading">Lanjut membaca (/library/continue-reading)</option>
+                      <option value="/settings">Pengaturan (/settings)</option>
+                      <option value="/auth">Login (/auth)</option>
+                      <option value="/auth/forgot-password">Lupa password (/auth/forgot-password)</option>
+                    </select>
+                  </div>
+                </div>
+              </form>
+
+              <!-- Users Table -->
+              <div class="card card-shadow" style="overflow:hidden;position:relative;z-index:0">
+                <div class="table-filters" style="grid-template-columns:minmax(220px,1fr) 160px 160px">
+                  <div class="input-search">
+                    <i data-lucide="search"></i>
+                    <input
+                      id="searchInput"
+                      type="search"
+                      class="input"
+                      placeholder="Cari nama, email, atau user ID"
+                    />
+                  </div>
+                  <select id="roleFilter" class="select-input">
+                    <option value="all">Semua role</option>
+                    <option value="admin">Admin</option>
+                    <option value="reader">Reader</option>
+                  </select>
+                  <select id="statusFilter" class="select-input">
+                    <option value="all">Semua status</option>
+                    <option value="active">Aktif</option>
+                    <option value="pending">Pending</option>
+                    <option value="suspended">Suspended</option>
+                  </select>
+                </div>
+
+                <div class="table-wrapper" style="max-height:30rem;border:none;border-radius:0">
+                  <table class="data-table" style="min-width:720px">
+                    <thead>
+                      <tr>
+                        <th>Akun</th>
+                        <th>Username</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Email Confirmed</th>
+                        <th>Last Sign In</th>
+                        <th>Onboarding</th>
+                        <th>Relasi</th>
+                        <th style="text-align:right">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody id="usersTable"></tbody>
+                  </table>
+                </div>
+                <div id="emptyState" class="hidden empty-state">
+                  <i data-lucide="user-x"></i>
+                  <p class="text-sm font-medium">Tidak ada akun yang cocok.</p>
+                </div>
+                <div class="table-footer">
+                  <p id="paginationSummary" class="text-sm text-muted">0 akun</p>
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <select id="pageSizeSelect" class="select-input" style="width:auto;min-width:130px">
+                      <option value="50">50 / halaman</option>
+                      <option value="100">100 / halaman</option>
+                      <option value="200">200 / halaman</option>
+                    </select>
+                    <button id="prevPageBtn" type="button" class="btn btn-secondary">
+                      <i data-lucide="chevron-left"></i>
+                      <span>Prev</span>
+                    </button>
+                    <button id="nextPageBtn" type="button" class="btn btn-secondary">
+                      <span>Next</span>
+                      <i data-lucide="chevron-right"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <section id="relationTableWorkspace" class="hidden" style="scroll-margin-top:7rem"></section>
+            </section>
+
+            <!-- Right: Detail Panel -->
+            <aside style="min-width:0">
+              <div class="detail-panel sticky" style="top:88px">
+                <div class="detail-header">
+                  <div class="flex items-start justify-between gap-3">
+                    <div style="min-width:0">
+                      <p class="text-sm font-medium text-muted">Detail akun</p>
+                      <h2 id="detailName" class="text-xl font-semibold truncate" style="margin-top:4px">Pilih akun</h2>
+                    </div>
+                    <span id="detailStatus" class="badge badge-slate">-</span>
+                  </div>
+                  <p id="detailEmail" class="text-sm text-muted" style="margin-top:6px;word-break:break-all">
+                    Relasi muncul berdasarkan user ID.
+                  </p>
+                </div>
+                <div class="detail-body">
+                  <div class="panel-tabs" style="margin-bottom:16px">
+                    <button data-panel-tab="profile" type="button" class="panel-tab tab-active">Profil</button>
+                    <button data-panel-tab="relations" type="button" class="panel-tab">Relasi</button>
+                    <button data-panel-tab="metadata" type="button" class="panel-tab">Metadata</button>
+                  </div>
+                  <div id="profilePanel" class="space-y-3"></div>
+                  <div id="relationsPanel" class="space-y-4" hidden></div>
+                  <div id="metadataPanel" class="space-y-3" hidden></div>
+                </div>
+              </div>
+            </aside>
+
+            <section
+              id="relationDiagramWorkspace"
+              class="hidden"
+              style="grid-column:1/-1;scroll-margin-top:7rem"
+            ></section>
+          </div>
+        </main>
+      </div>
     </div>
 
-    <div
-      id="userModal"
-      class="fixed inset-0 z-40 hidden items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm"
-    >
-      <div class="w-full max-w-2xl rounded-3xl bg-white shadow-soft">
-        <form
-          id="userForm"
-          class="grid max-h-[90vh] grid-rows-[auto_minmax(0,1fr)_auto]"
-        >
-          <div
-            class="flex items-center justify-between border-b border-line p-4"
-          >
-            <h2 id="modalTitle" class="text-lg font-semibold text-ink">
-              Tambah akun
-            </h2>
+    <!-- User Modal -->
+    <div id="userModal" class="modal-backdrop">
+      <div class="modal-content modal-md">
+        <form id="userForm" style="display:grid;grid-template-rows:auto minmax(0,1fr) auto;max-height:90vh">
+          <div class="modal-header">
+            <h2 id="modalTitle">Tambah akun</h2>
             <button
               type="button"
               data-close-modal="userModal"
-              class="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-line text-muted hover:bg-slate-50 hover:text-ink"
+              class="btn-icon"
               title="Tutup"
             >
-              <i data-lucide="x" class="h-4 w-4"></i>
+              <i data-lucide="x"></i>
             </button>
           </div>
-          <div class="overflow-y-auto p-4 scrollbar-thin">
+          <div class="modal-body">
             <input id="editingUserId" type="hidden" />
-            <div class="grid gap-4 sm:grid-cols-2">
-              <label class="block">
-                <span class="text-sm font-medium text-ink">Email</span>
-                <input
-                  id="emailField"
-                  type="email"
-                  required
-                  class="mt-1 h-10 w-full rounded-2xl border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                />
-              </label>
-              <label class="block">
-                <span class="text-sm font-medium text-ink">Password</span>
-                <div class="relative mt-1">
-                  <input
-                    id="passwordField"
-                    type="password"
-                    minlength="8"
-                    class="h-10 w-full rounded-2xl border border-line pl-3 pr-10 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                  />
-                  <button
-                    type="button"
-                    data-toggle-password="passwordField"
-                    class="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
-                    title="Lihat password"
-                  >
-                    <i data-lucide="eye" class="eye-icon h-4 w-4"></i>
-                    <i
-                      data-lucide="eye-off"
-                      class="eye-off-icon h-4 w-4 hidden"
-                    ></i>
+            <div class="form-grid form-grid-2">
+              <div class="input-group">
+                <label class="input-label" for="emailField">Email</label>
+                <input id="emailField" type="email" required class="input" />
+              </div>
+              <div class="input-group">
+                <label class="input-label" for="passwordField">Password</label>
+                <div class="password-wrapper">
+                  <input id="passwordField" type="password" minlength="8" class="input" style="padding-right:44px" />
+                  <button type="button" data-toggle-password="passwordField" class="password-toggle" title="Lihat password">
+                    <i data-lucide="eye" class="eye-icon"></i>
+                    <i data-lucide="eye-off" class="eye-off-icon hidden"></i>
                   </button>
                 </div>
-              </label>
-              <label class="block">
-                <span class="text-sm font-medium text-ink">Display name</span>
-                <input
-                  id="displayNameField"
-                  type="text"
-                  class="mt-1 h-10 w-full rounded-2xl border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                />
-              </label>
-              <label class="block">
-                <span class="text-sm font-medium text-ink">Username</span>
-                <input
-                  id="usernameField"
-                  type="text"
-                  class="mt-1 h-10 w-full rounded-2xl border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                />
-              </label>
-              <label class="block">
-                <span class="text-sm font-medium text-ink">Account role</span>
-                <select
-                  id="accountRoleField"
-                  class="mt-1 h-10 w-full rounded-2xl border border-line bg-white px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                >
+              </div>
+              <div class="input-group">
+                <label class="input-label" for="displayNameField">Display name</label>
+                <input id="displayNameField" type="text" class="input" />
+              </div>
+              <div class="input-group">
+                <label class="input-label" for="usernameField">Username</label>
+                <input id="usernameField" type="text" class="input" />
+              </div>
+              <div class="input-group">
+                <label class="input-label" for="accountRoleField">Account role</label>
+                <select id="accountRoleField" class="select-input">
                   <option value="reader">Reader</option>
                   <option value="admin">Admin</option>
                 </select>
-              </label>
-              <label class="block">
-                <span class="text-sm font-medium text-ink">Account status</span>
-                <select
-                  id="accountStatusField"
-                  class="mt-1 h-10 w-full rounded-2xl border border-line bg-white px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                >
+              </div>
+              <div class="input-group">
+                <label class="input-label" for="accountStatusField">Account status</label>
+                <select id="accountStatusField" class="select-input">
                   <option value="active">Aktif</option>
                   <option value="pending">Pending</option>
                   <option value="suspended">Suspended</option>
                 </select>
+              </div>
+              <div class="input-group form-span-2">
+                <label class="input-label" for="avatarUrlField">Avatar URL</label>
+                <input id="avatarUrlField" type="url" class="input" />
+              </div>
+              <label class="form-span-2 flex items-start gap-2" style="cursor:pointer">
+                <input id="onboardingField" type="checkbox" class="checkbox" style="margin-top:2px" />
+                <span class="text-sm">Onboarding selesai</span>
               </label>
-              <label class="block sm:col-span-2">
-                <span class="text-sm font-medium text-ink">Avatar URL</span>
-                <input
-                  id="avatarUrlField"
-                  type="url"
-                  class="mt-1 h-10 w-full rounded-2xl border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                />
-              </label>
-              <label class="flex items-start gap-2 sm:col-span-2">
-                <input
-                  id="onboardingField"
-                  type="checkbox"
-                  class="mt-1 h-4 w-4 rounded border-line text-brand focus:ring-brand"
-                />
-                <span class="text-sm text-ink">Onboarding selesai</span>
-              </label>
-              <div
-                id="roleWarning"
-                class="hidden rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 sm:col-span-2"
-              ></div>
+              <div id="roleWarning" class="hidden warning-box form-span-2"></div>
             </div>
           </div>
-          <div
-            class="flex flex-wrap justify-end gap-2 border-t border-line p-4"
-          >
-            <button
-              type="button"
-              data-close-modal="userModal"
-              class="h-10 rounded-2xl border border-line bg-white px-4 text-sm font-medium text-ink hover:bg-slate-50"
-            >
+          <div class="modal-footer">
+            <button type="button" data-close-modal="userModal" class="btn btn-secondary">
               Batal
             </button>
-            <button
-              id="saveUserBtn"
-              type="submit"
-              class="inline-flex h-10 items-center gap-2 rounded-2xl bg-brand px-4 text-sm font-semibold text-white hover:bg-teal-800"
-            >
-              <i data-lucide="save" class="h-4 w-4"></i>
+            <button id="saveUserBtn" type="submit" class="btn btn-primary">
+              <i data-lucide="save"></i>
               <span>Simpan</span>
             </button>
           </div>
@@ -543,55 +352,33 @@
       </div>
     </div>
 
-    <div
-      id="deleteModal"
-      class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm"
-    >
-      <div class="w-full max-w-lg rounded-3xl bg-white shadow-soft">
-        <div class="border-b border-line p-4">
+    <!-- Delete Modal -->
+    <div id="deleteModal" class="modal-backdrop" style="z-index:55">
+      <div class="modal-content modal-sm">
+        <div class="modal-header">
           <div class="flex items-start gap-3">
-            <div
-              class="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-accent"
-            >
-              <i data-lucide="trash-2" class="h-4 w-4"></i>
-            </div>
+            <span class="stat-icon icon-red shrink-0">
+              <i data-lucide="trash-2"></i>
+            </span>
             <div>
-              <h2 class="text-lg font-semibold text-ink">Hapus akun</h2>
-              <p id="deleteMessage" class="mt-1 text-sm text-muted"></p>
+              <h2 class="text-lg font-semibold">Hapus akun</h2>
+              <p id="deleteMessage" class="text-sm text-muted" style="margin-top:4px"></p>
             </div>
           </div>
         </div>
-        <div class="p-4">
-          <div id="deleteRelations" class="grid gap-2"></div>
-          <label
-            class="mt-4 flex items-start gap-2 rounded-2xl border border-line bg-slate-50 p-3"
-          >
-            <input
-              id="confirmCascade"
-              type="checkbox"
-              class="mt-1 h-4 w-4 rounded border-line text-brand focus:ring-brand"
-            />
-            <span class="text-sm text-ink"
-              >Saya paham akun Supabase Auth dan semua data public.* terkait
-              user ID ini akan dihapus.</span
-            >
+        <div style="padding:20px">
+          <div id="deleteRelations" class="space-y-2"></div>
+          <label class="confirm-box" style="margin-top:16px;cursor:pointer">
+            <input id="confirmCascade" type="checkbox" class="checkbox" style="margin-top:2px" />
+            <span class="text-sm">Saya paham akun Supabase Auth dan semua data public.* terkait user ID ini akan dihapus.</span>
           </label>
         </div>
-        <div class="flex flex-wrap justify-end gap-2 border-t border-line p-4">
-          <button
-            type="button"
-            data-close-modal="deleteModal"
-            class="h-10 rounded-2xl border border-line bg-white px-4 text-sm font-medium text-ink hover:bg-slate-50"
-          >
+        <div class="modal-footer">
+          <button type="button" data-close-modal="deleteModal" class="btn btn-secondary">
             Batal
           </button>
-          <button
-            id="confirmDeleteBtn"
-            type="button"
-            disabled
-            class="inline-flex h-10 items-center gap-2 rounded-2xl bg-slate-300 px-4 text-sm font-semibold text-white transition enabled:bg-accent enabled:hover:bg-red-800"
-          >
-            <i data-lucide="trash-2" class="h-4 w-4"></i>
+          <button id="confirmDeleteBtn" type="button" disabled class="btn btn-danger">
+            <i data-lucide="trash-2"></i>
             <span>Hapus bersih</span>
           </button>
         </div>

@@ -14,336 +14,280 @@
     />
     <link rel="stylesheet" href="./admin-dashboard.css" />
     <script src="./admin-dashboard.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </head>
-  <body class="min-h-screen text-ink antialiased">
-    <div id="appView" class="min-h-screen">
-      <header
-        data-admin-header
-        data-eyebrow="Support Inbox"
-        data-title="Kelola Helpdesk"
-      >
-        <template data-admin-actions>
-          <a
-            href="./index.html"
-            class="inline-flex h-10 items-center gap-2 rounded-2xl border border-line bg-white/90 px-3 text-sm font-medium text-ink shadow-sm hover:bg-slate-50"
-          >
-            <i data-lucide="layout-dashboard" class="h-4 w-4"></i>
-            <span>Dashboard</span>
-          </a>
-          <a
-            href="./account-dashboard.html"
-            class="inline-flex h-10 items-center gap-2 rounded-2xl border border-line bg-white/90 px-3 text-sm font-medium text-ink shadow-sm hover:bg-slate-50"
-          >
-            <i data-lucide="users" class="h-4 w-4"></i>
-            <span>Akun</span>
-          </a>
-          <button
-            id="reloadBtn"
-            type="button"
-            class="inline-flex h-10 items-center gap-2 rounded-2xl border border-line bg-white/90 px-3 text-sm font-medium text-ink shadow-sm hover:bg-slate-50"
-          >
-            <i data-lucide="refresh-cw" class="h-4 w-4"></i>
-            <span>Reload</span>
-          </button>
-          <button
-            id="logoutBtn"
-            type="button"
-            class="inline-flex h-10 items-center gap-2 rounded-2xl border border-line bg-white/90 px-3 text-sm font-medium text-ink shadow-sm hover:bg-slate-50"
-          >
-            <i data-lucide="log-out" class="h-4 w-4"></i>
-            <span>Logout</span>
-          </button>
-        </template>
-      </header>
+  <body>
+    <div id="appView" style="min-height:100vh">
+      <nav
+        data-admin-sidebar
+        data-active-module="helpdesk"
+      ></nav>
 
-      <main class="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
-        <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <button
-            type="button"
-            data-summary-status=""
-            class="summary-card glass-panel rounded-3xl border border-brand/30 p-4 text-left shadow-sm ring-2 ring-brand/10"
-          >
-            <span class="flex items-center justify-between gap-3">
-              <span class="text-sm font-medium text-muted">Semua</span>
-              <i data-lucide="inbox" class="h-4 w-4 text-brand"></i>
-            </span>
-            <strong id="totalCount" class="mt-2 block text-3xl font-semibold"
-              >0</strong
+      <div class="admin-layout">
+        <header
+          data-admin-header
+          data-eyebrow="Support Inbox"
+          data-title="Kelola Helpdesk"
+        >
+          <template data-admin-actions>
+            <button
+              id="reloadBtn"
+              type="button"
+              class="btn btn-secondary"
             >
-          </button>
-          <button
-            type="button"
-            data-summary-status="open"
-            class="summary-card glass-panel rounded-3xl border border-white/70 p-4 text-left shadow-sm"
-          >
-            <span class="flex items-center justify-between gap-3">
-              <span class="text-sm font-medium text-muted">Open</span>
-              <i data-lucide="circle-dot" class="h-4 w-4 text-amber-600"></i>
-            </span>
-            <strong id="openCount" class="mt-2 block text-3xl font-semibold"
-              >0</strong
-            >
-          </button>
-          <button
-            type="button"
-            data-summary-status="in_progress"
-            class="summary-card glass-panel rounded-3xl border border-white/70 p-4 text-left shadow-sm"
-          >
-            <span class="flex items-center justify-between gap-3">
-              <span class="text-sm font-medium text-muted">Diproses</span>
-              <i data-lucide="loader-circle" class="h-4 w-4 text-blue-600"></i>
-            </span>
-            <strong id="progressCount" class="mt-2 block text-3xl font-semibold"
-              >0</strong
-            >
-          </button>
-          <button
-            type="button"
-            data-summary-status="resolved"
-            class="summary-card glass-panel rounded-3xl border border-white/70 p-4 text-left shadow-sm"
-          >
-            <span class="flex items-center justify-between gap-3">
-              <span class="text-sm font-medium text-muted">Resolved</span>
-              <i
-                data-lucide="circle-check-big"
-                class="h-4 w-4 text-emerald-600"
-              ></i>
-            </span>
-            <strong id="resolvedCount" class="mt-2 block text-3xl font-semibold"
-              >0</strong
-            >
-          </button>
-          <button
-            type="button"
-            data-summary-status="closed"
-            class="summary-card glass-panel rounded-3xl border border-white/70 p-4 text-left shadow-sm"
-          >
-            <span class="flex items-center justify-between gap-3">
-              <span class="text-sm font-medium text-muted">Closed</span>
-              <i data-lucide="archive" class="h-4 w-4 text-slate-600"></i>
-            </span>
-            <strong id="closedCount" class="mt-2 block text-3xl font-semibold"
-              >0</strong
-            >
-          </button>
-        </section>
+              <i data-lucide="refresh-cw"></i>
+              <span>Reload</span>
+            </button>
+          </template>
+        </header>
 
-        <section class="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
-          <div class="min-w-0">
-            <div
-              class="glass-panel overflow-hidden rounded-3xl border border-white/70 shadow-sm"
+        <main class="main-content">
+          <!-- Summary Cards -->
+          <section class="summary-grid stagger-children">
+            <button
+              type="button"
+              data-summary-status=""
+              class="summary-card summary-active"
             >
-              <div
-                class="grid gap-3 border-b border-line/80 p-4 md:grid-cols-[minmax(220px,1fr)_170px_180px]"
-              >
-                <label class="relative block">
-                  <span class="sr-only">Cari submission</span>
-                  <i
-                    data-lucide="search"
-                    class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
-                  ></i>
-                  <input
-                    id="searchInput"
-                    type="search"
-                    class="h-10 w-full rounded-2xl border border-line bg-white/90 pl-10 pr-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                    placeholder="Cari kode, judul, atau pesan"
-                  />
-                </label>
-                <select
-                  id="categoryFilter"
-                  aria-label="Filter kategori helpdesk"
-                  class="h-10 rounded-2xl border border-line bg-white/90 px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                >
-                  <option value="">Semua kategori</option>
-                  <option value="review">Review</option>
-                  <option value="report">Report</option>
-                </select>
-                <select
-                  id="statusFilter"
-                  aria-label="Filter status helpdesk"
-                  class="h-10 rounded-2xl border border-line bg-white/90 px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                >
-                  <option value="">Semua status</option>
-                  <option value="open">Open</option>
-                  <option value="in_progress">Diproses</option>
-                  <option value="resolved">Resolved</option>
-                  <option value="closed">Closed</option>
-                </select>
-              </div>
+              <span class="stat-row">
+                <span class="stat-label">Semua</span>
+                <span class="stat-icon icon-brand">
+                  <i data-lucide="inbox"></i>
+                </span>
+              </span>
+              <strong id="totalCount" class="stat-value">0</strong>
+            </button>
+            <button
+              type="button"
+              data-summary-status="open"
+              class="summary-card"
+            >
+              <span class="stat-row">
+                <span class="stat-label">Open</span>
+                <span class="stat-icon icon-yellow">
+                  <i data-lucide="circle-dot"></i>
+                </span>
+              </span>
+              <strong id="openCount" class="stat-value">0</strong>
+            </button>
+            <button
+              type="button"
+              data-summary-status="in_progress"
+              class="summary-card"
+            >
+              <span class="stat-row">
+                <span class="stat-label">Diproses</span>
+                <span class="stat-icon icon-brand">
+                  <i data-lucide="loader-circle"></i>
+                </span>
+              </span>
+              <strong id="progressCount" class="stat-value">0</strong>
+            </button>
+            <button
+              type="button"
+              data-summary-status="resolved"
+              class="summary-card"
+            >
+              <span class="stat-row">
+                <span class="stat-label">Resolved</span>
+                <span class="stat-icon icon-teal">
+                  <i data-lucide="circle-check-big"></i>
+                </span>
+              </span>
+              <strong id="resolvedCount" class="stat-value">0</strong>
+            </button>
+            <button
+              type="button"
+              data-summary-status="closed"
+              class="summary-card"
+            >
+              <span class="stat-row">
+                <span class="stat-label">Closed</span>
+                <span class="stat-icon" style="background:rgba(100,116,139,0.1);color:#475569">
+                  <i data-lucide="archive"></i>
+                </span>
+              </span>
+              <strong id="closedCount" class="stat-value">0</strong>
+            </button>
+          </section>
 
-              <div class="max-h-[38rem] overflow-auto scrollbar-thin">
-                <table class="w-full min-w-[780px] divide-y divide-line">
-                  <thead class="sticky top-0 z-10 bg-slate-50/95 backdrop-blur">
-                    <tr>
-                      <th
-                        class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted"
-                      >
-                        Submission
-                      </th>
-                      <th
-                        class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted"
-                      >
-                        Kategori
-                      </th>
-                      <th
-                        class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted"
-                      >
-                        Status
-                      </th>
-                      <th
-                        class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted"
-                      >
-                        Pengirim
-                      </th>
-                      <th
-                        class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted"
-                      >
-                        Dibuat
-                      </th>
-                      <th
-                        class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted"
-                      >
-                        Aksi
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody
-                    id="submissionsTable"
-                    class="divide-y divide-line bg-white"
-                  ></tbody>
-                </table>
+          <!-- Charts Section -->
+          <section class="chart-grid stagger-children" style="margin-top:20px">
+            <div class="chart-card">
+              <div class="section-header">
+                <h3 class="text-lg font-semibold">Tickets by Status</h3>
+                <p class="text-sm text-muted">Distribusi status tiket</p>
               </div>
-              <div id="emptyState" class="hidden px-4 py-14 text-center">
-                <i data-lucide="inbox" class="mx-auto h-9 w-9 text-muted"></i>
-                <p class="mt-3 text-sm font-medium text-ink">
-                  Belum ada submission yang cocok.
-                </p>
-                <p class="mt-1 text-xs text-muted">
-                  Ubah filter atau muat ulang data.
-                </p>
-              </div>
-              <div
-                class="flex flex-col gap-3 border-t border-line/80 p-4 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <p id="paginationSummary" class="text-sm text-muted">
-                  0 submission
-                </p>
-                <div class="flex items-center gap-2">
-                  <select
-                    id="pageSizeSelect"
-                    aria-label="Jumlah submission per halaman"
-                    class="h-10 rounded-2xl border border-line bg-white/90 px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                  >
-                    <option value="25">25 / halaman</option>
-                    <option value="50" selected>50 / halaman</option>
-                    <option value="100">100 / halaman</option>
-                  </select>
-                  <button
-                    id="prevPageBtn"
-                    type="button"
-                    class="inline-flex h-10 items-center gap-2 rounded-2xl border border-line bg-white/90 px-3 text-sm font-medium hover:bg-slate-50"
-                  >
-                    <i data-lucide="chevron-left" class="h-4 w-4"></i>
-                    <span>Prev</span>
-                  </button>
-                  <button
-                    id="nextPageBtn"
-                    type="button"
-                    class="inline-flex h-10 items-center gap-2 rounded-2xl border border-line bg-white/90 px-3 text-sm font-medium hover:bg-slate-50"
-                  >
-                    <span>Next</span>
-                    <i data-lucide="chevron-right" class="h-4 w-4"></i>
-                  </button>
+              <div class="chart-container">
+                <canvas id="statusChart"></canvas>
+                <div class="chart-loader active" id="statusChartLoader">
+                  <div class="spinner animate-spin"></div>
                 </div>
               </div>
             </div>
-          </div>
+            <div class="chart-card">
+              <div class="section-header">
+                <h3 class="text-lg font-semibold">Tickets Over Time</h3>
+                <p class="text-sm text-muted">Aktivitas helpdesk 7 hari terakhir</p>
+              </div>
+              <div class="chart-container">
+                <canvas id="ticketsTimeChart"></canvas>
+                <div class="chart-loader active" id="ticketsTimeChartLoader">
+                  <div class="spinner animate-spin"></div>
+                </div>
+              </div>
+            </div>
+          </section>
 
-          <aside class="min-w-0">
-            <div
-              class="glass-panel sticky top-24 overflow-hidden rounded-3xl border border-white/70 shadow-soft"
-            >
-              <div class="border-b border-line/80 p-4">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0">
-                    <p class="text-sm font-medium text-muted">
-                      Detail submission
-                    </p>
-                    <h2
-                      id="detailReference"
-                      class="mt-1 truncate text-xl font-semibold"
-                    >
-                      Pilih submission
-                    </h2>
+          <!-- Main Grid -->
+          <section class="dashboard-grid dashboard-grid-aside" style="margin-top:20px">
+            <div style="min-width:0">
+              <div class="card card-shadow" style="overflow:hidden">
+                <div class="table-filters" style="grid-template-columns:minmax(220px,1fr) 170px 180px">
+                  <div class="input-search">
+                    <i data-lucide="search"></i>
+                    <input
+                      id="searchInput"
+                      type="search"
+                      class="input"
+                      placeholder="Cari kode, judul, atau pesan"
+                    />
                   </div>
-                  <span
-                    id="detailStatus"
-                    class="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700"
-                    >-</span
+                  <select
+                    id="categoryFilter"
+                    aria-label="Filter kategori helpdesk"
+                    class="select-input"
                   >
+                    <option value="">Semua kategori</option>
+                    <option value="review">Review</option>
+                    <option value="report">Report</option>
+                  </select>
+                  <select
+                    id="statusFilter"
+                    aria-label="Filter status helpdesk"
+                    class="select-input"
+                  >
+                    <option value="">Semua status</option>
+                    <option value="open">Open</option>
+                    <option value="in_progress">Diproses</option>
+                    <option value="resolved">Resolved</option>
+                    <option value="closed">Closed</option>
+                  </select>
                 </div>
-                <p id="detailMeta" class="mt-1 text-xs text-muted">
-                  Data lengkap akan tampil di sini.
-                </p>
-              </div>
-              <div id="detailEmpty" class="p-8 text-center">
-                <i
-                  data-lucide="mouse-pointer-click"
-                  class="mx-auto h-8 w-8 text-muted"
-                ></i>
-                <p class="mt-3 text-sm text-muted">
-                  Pilih salah satu baris untuk mulai memproses.
-                </p>
-              </div>
-              <form id="workflowForm" class="hidden">
-                <div
-                  id="detailContent"
-                  class="max-h-[36rem] space-y-4 overflow-y-auto p-4 scrollbar-thin"
-                ></div>
-                <div class="border-t border-line/80 p-4">
-                  <label class="block">
-                    <span class="text-sm font-medium text-ink"
-                      >Status workflow</span
-                    >
+
+                <div class="table-wrapper" style="max-height:38rem;border:none;border-radius:0">
+                  <table class="data-table" style="min-width:780px">
+                    <thead>
+                      <tr>
+                        <th>Submission</th>
+                        <th>Kategori</th>
+                        <th>Status</th>
+                        <th>Pengirim</th>
+                        <th>Dibuat</th>
+                        <th style="text-align:right">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody id="submissionsTable"></tbody>
+                  </table>
+                </div>
+                <div id="emptyState" class="hidden empty-state">
+                  <i data-lucide="inbox"></i>
+                  <p class="text-sm font-medium" style="margin-top:12px">Belum ada submission yang cocok.</p>
+                  <p class="text-xs text-muted" style="margin-top:4px">Ubah filter atau muat ulang data.</p>
+                </div>
+                <div class="table-footer">
+                  <p id="paginationSummary" class="text-sm text-muted">0 submission</p>
+                  <div class="flex items-center gap-2">
                     <select
-                      id="workflowStatusField"
-                      class="mt-1 h-10 w-full rounded-2xl border border-line bg-white px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                      id="pageSizeSelect"
+                      aria-label="Jumlah submission per halaman"
+                      class="select-input"
+                      style="width:auto;min-width:130px"
                     >
-                      <option value="open">Open</option>
-                      <option value="in_progress">Diproses</option>
-                      <option value="resolved">Resolved</option>
-                      <option value="closed">Closed</option>
+                      <option value="25">25 / halaman</option>
+                      <option value="50" selected>50 / halaman</option>
+                      <option value="100">100 / halaman</option>
                     </select>
-                  </label>
-                  <label class="mt-3 block">
-                    <span class="text-sm font-medium text-ink"
-                      >Catatan admin</span
-                    >
-                    <textarea
-                      id="adminNoteField"
-                      maxlength="2000"
-                      rows="5"
-                      class="mt-1 w-full resize-y rounded-2xl border border-line bg-white px-3 py-2 text-sm leading-6 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-                      placeholder="Tulis hasil investigasi atau tindak lanjut internal."
-                    ></textarea>
-                  </label>
-                  <button
-                    id="saveWorkflowBtn"
-                    type="submit"
-                    class="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl bg-brand px-4 text-sm font-semibold text-white hover:bg-teal-800"
-                  >
-                    <i data-lucide="save" class="h-4 w-4"></i>
-                    <span>Simpan perubahan</span>
-                  </button>
+                    <button id="prevPageBtn" type="button" class="btn btn-secondary">
+                      <i data-lucide="chevron-left"></i>
+                      <span>Prev</span>
+                    </button>
+                    <button id="nextPageBtn" type="button" class="btn btn-secondary">
+                      <span>Next</span>
+                      <i data-lucide="chevron-right"></i>
+                    </button>
+                  </div>
                 </div>
-              </form>
+              </div>
             </div>
-          </aside>
-        </section>
-      </main>
+
+            <!-- Detail Panel -->
+            <aside style="min-width:0">
+              <div class="detail-panel sticky" style="top:88px;overflow:hidden">
+                <div class="detail-header">
+                  <div class="flex items-start justify-between gap-3">
+                    <div style="min-width:0">
+                      <p class="text-sm font-medium text-muted">Detail submission</p>
+                      <h2 id="detailReference" class="text-xl font-semibold truncate" style="margin-top:4px">
+                        Pilih submission
+                      </h2>
+                    </div>
+                    <span id="detailStatus" class="badge badge-slate">-</span>
+                  </div>
+                  <p id="detailMeta" class="text-xs text-muted" style="margin-top:6px">
+                    Data lengkap akan tampil di sini.
+                  </p>
+                </div>
+                <div id="detailEmpty" class="empty-state" style="padding:32px">
+                  <i data-lucide="mouse-pointer-click"></i>
+                  <p class="text-sm text-muted" style="margin-top:12px">
+                    Pilih salah satu baris untuk mulai memproses.
+                  </p>
+                </div>
+                <form id="workflowForm" class="hidden">
+                  <div
+                    id="detailContent"
+                    class="space-y-4 scrollbar-thin"
+                    style="max-height:36rem;overflow-y:auto;padding:20px"
+                  ></div>
+                  <div style="border-top:1px solid var(--line-light);padding:20px">
+                    <div class="input-group">
+                      <label class="input-label" for="workflowStatusField">Status workflow</label>
+                      <select id="workflowStatusField" class="select-input">
+                        <option value="open">Open</option>
+                        <option value="in_progress">Diproses</option>
+                        <option value="resolved">Resolved</option>
+                        <option value="closed">Closed</option>
+                      </select>
+                    </div>
+                    <div class="input-group" style="margin-top:12px">
+                      <label class="input-label" for="adminNoteField">Catatan admin</label>
+                      <textarea
+                        id="adminNoteField"
+                        maxlength="2000"
+                        rows="5"
+                        class="textarea-input"
+                        placeholder="Tulis hasil investigasi atau tindak lanjut internal."
+                      ></textarea>
+                    </div>
+                    <button
+                      id="saveWorkflowBtn"
+                      type="submit"
+                      class="btn btn-primary w-full"
+                      style="margin-top:16px"
+                    >
+                      <i data-lucide="save"></i>
+                      <span>Simpan perubahan</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </aside>
+          </section>
+        </main>
+      </div>
     </div>
     <script src="./helpdesk-dashboard.js"></script>
   </body>

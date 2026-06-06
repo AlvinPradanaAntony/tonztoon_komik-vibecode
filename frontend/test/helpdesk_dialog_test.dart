@@ -27,6 +27,9 @@ void main() {
     expect(find.text('Report'), findsOneWidget);
     expect(find.byKey(const ValueKey('helpdesk-review-form')), findsNothing);
     expect(find.byKey(const ValueKey('helpdesk-report-form')), findsNothing);
+    expect(find.text('Pilih'), findsNothing);
+    expect(find.text('Kirim'), findsNothing);
+    expect(find.byTooltip('Tutup'), findsOneWidget);
   });
 
   testWidgets('review category displays rating and review field', (

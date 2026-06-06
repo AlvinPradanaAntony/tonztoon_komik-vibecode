@@ -18,6 +18,7 @@ import '../../repositories/providers.dart';
 import '../../widgets/app_async_view.dart';
 import '../../widgets/app_loading_placeholder.dart';
 import '../../widgets/guest_migration_dialog.dart';
+import '../../widgets/helpdesk_dialog.dart';
 import '../../widgets/app_update_dialog.dart';
 import '../../widgets/tonztoon_modal_dialog.dart';
 import '../library/library_shared_panes.dart';
@@ -59,6 +60,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final theme = Theme.of(context);
     final prefs = ref.watch(readerPreferencesProvider);
     final themeMode = ref.watch(appThemeModeProvider);
+    final showHomeHelpdeskButton = ref.watch(homeHelpdeskButtonVisibleProvider);
     final auth = ref.watch(authControllerProvider);
     final librarySummary = widget.isSignedIn
         ? ref.watch(librarySummaryProvider)
@@ -155,6 +157,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               _PreferencesSection(
                 prefs: readerPrefs,
                 themeMode: themeMode,
+                showHomeHelpdeskButton: showHomeHelpdeskButton,
                 isSignedIn: widget.isSignedIn,
                 onThemeChanged: (value) =>
                     _setThemeMode(_themeModeFromLabel(value)),
@@ -170,6 +173,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     _savePrefs(readerPrefs.copyWith(defaultBingeMode: value)),
                 onMarkReadChanged: (value) =>
                     _savePrefs(readerPrefs.copyWith(markReadOnComplete: value)),
+                onHomeHelpdeskButtonChanged: _setHomeHelpdeskButtonVisible,
                 onClearCache: _clearCache,
                 onOpenAuth: widget.onOpenAuth,
               ),
@@ -200,6 +204,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               const SizedBox(height: 24),
               const _SectionLabel(text: 'About'),
               const SizedBox(height: 8),
+              _SettingsSection(
+                children: [
+                  _SettingsRow(
+                    icon: TonztoonIcons.lifeBuoy,
+                    title: 'Helpdesk',
+                    subtitle: 'Kirim review atau laporkan masalah aplikasi',
+                    onTap: _openHelpdesk,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
               _AppVersionSection(
                 packageInfoFuture: _packageInfoFuture,
                 checkingForUpdate: _checkingForUpdate,
@@ -225,6 +240,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         fallbackMessage: 'Tema belum dapat diubah. Silakan coba lagi.',
       );
     }
+  }
+
+  Future<void> _setHomeHelpdeskButtonVisible(bool value) async {
+    try {
+      await ref
+          .read(homeHelpdeskButtonVisibleProvider.notifier)
+          .setVisible(value);
+    } catch (error, stackTrace) {
+      if (!mounted) return;
+      showAppErrorSnackBar(
+        context,
+        error: error,
+        stackTrace: stackTrace,
+        logContext: 'Save home helpdesk button preference failed',
+        fallbackMessage: 'Pengaturan tombol helpdesk belum dapat disimpan.',
+      );
+    }
+  }
+
+  Future<void> _openHelpdesk() async {
+    final repository = ref.read(helpdeskRepositoryProvider);
+    final receipt = await showHelpdeskDialog(
+      context,
+      onSubmit: (draft) =>
+          repository.submit(draft, clientSource: 'settings_helpdesk'),
+    );
+    if (!mounted || receipt == null) return;
+    showAppSnackBar(
+      context,
+      title: 'Terkirim',
+      message: 'Terima kasih. Kode laporan kamu: ${receipt.referenceCode}.',
+      type: AppSnackBarType.success,
+    );
   }
 
   bool _ensureProfileAvatarReady(AuthState auth) {
@@ -2252,24 +2300,28 @@ class _PreferencesSection extends StatelessWidget {
   const _PreferencesSection({
     required this.prefs,
     required this.themeMode,
+    required this.showHomeHelpdeskButton,
     required this.isSignedIn,
     required this.onThemeChanged,
     required this.onReaderModeChanged,
     required this.onDirectionChanged,
     required this.onBingeModeChanged,
     required this.onMarkReadChanged,
+    required this.onHomeHelpdeskButtonChanged,
     required this.onClearCache,
     required this.onOpenAuth,
   });
 
   final ReaderPreferences prefs;
   final ThemeMode themeMode;
+  final bool showHomeHelpdeskButton;
   final bool isSignedIn;
   final ValueChanged<String> onThemeChanged;
   final ValueChanged<String> onReaderModeChanged;
   final ValueChanged<String> onDirectionChanged;
   final ValueChanged<bool> onBingeModeChanged;
   final ValueChanged<bool> onMarkReadChanged;
+  final ValueChanged<bool> onHomeHelpdeskButtonChanged;
   final VoidCallback onClearCache;
   final VoidCallback onOpenAuth;
 
@@ -2328,6 +2380,16 @@ class _PreferencesSection extends StatelessWidget {
           trailing: Switch.adaptive(
             value: prefs.markReadOnComplete,
             onChanged: onMarkReadChanged,
+          ),
+        ),
+        const _SettingsDivider(),
+        _SettingsRow(
+          icon: TonztoonIcons.lifeBuoy,
+          title: 'Home Helpdesk Button',
+          subtitle: 'Tampilkan tombol helpdesk di halaman Home',
+          trailing: Switch.adaptive(
+            value: showHomeHelpdeskButton,
+            onChanged: onHomeHelpdeskButtonChanged,
           ),
         ),
         const _SettingsDivider(),

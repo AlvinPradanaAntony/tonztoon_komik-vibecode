@@ -125,7 +125,7 @@ class _HelpdeskDialogState extends State<HelpdeskDialog> {
         onSecondaryPressed: _submitting
             ? null
             : () => Navigator.of(context).pop(),
-        primaryLabel: category == null ? 'Pilih' : 'Kirim',
+        primaryLabel: category == null ? null : 'Kirim',
         primaryLoading: _submitting,
         onPrimaryPressed: category == null || _submitting ? null : _submit,
       ),

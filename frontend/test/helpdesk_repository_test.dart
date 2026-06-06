@@ -54,5 +54,17 @@ void main() {
     expect(payload['title'], 'Chapter tidak terbuka');
     expect(payload['rating'], isNull);
     expect(payload['client_context'], {'source': 'home_helpdesk'});
+
+    await repository.submit(
+      const HelpdeskSubmissionDraft(
+        category: HelpdeskCategory.review,
+        rating: 5,
+        message: 'Aplikasi nyaman digunakan.',
+      ),
+      clientSource: 'settings_helpdesk',
+    );
+
+    final settingsPayload = sentData! as Map<String, dynamic>;
+    expect(settingsPayload['client_context'], {'source': 'settings_helpdesk'});
   });
 }
