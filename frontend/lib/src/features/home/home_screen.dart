@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
@@ -35,7 +36,26 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  static const double _floatingAppBarEnterOffset = 16;
+  static const double _floatingAppBarExitOffset = 4;
+
   bool _migrationPromptShown = false;
+  bool _showFloatingAppBar = false;
+  late final ScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController()..addListener(_handleScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_handleScroll)
+      ..dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,137 +67,150 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _maybePromptMigration(auth);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Image.asset(
-          AppAssets.logoAppLarge,
-          height: 32, // Ukuran proporsional untuk AppBar
-          fit: BoxFit.contain,
-        ),
-        centerTitle: false,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: IconButton(
-              tooltip: auth.isAuthenticated ? 'Notifikasi' : 'Login',
-              onPressed: auth.isAuthenticated
-                  ? () => _openNotifications(context)
-                  : () => context.push('/auth'),
-              icon: auth.isAuthenticated
-                  ? _NotificationBellBadge(count: unreadNotifications)
-                  : const Icon(TonztoonIcons.accountCircle),
-            ),
-          ),
-        ],
+      extendBodyBehindAppBar: true,
+      appBar: _HomeTopAppBar(
+        floating: _showFloatingAppBar,
+        authenticated: auth.isAuthenticated,
+        unreadNotifications: unreadNotifications,
+        onActionPressed: auth.isAuthenticated
+            ? () => _openNotifications(context)
+            : () => context.push('/auth'),
       ),
       // Gunakan ListView dengan padding bawah besar (128) agar
       // tidak terpotong efek fade-mask dan floating navbar.
-      body: RefreshIndicator(
-        onRefresh: () => _retryHomeData(showErrorSnackBar: true),
-        child: AppAsyncView<HomeData>(
-          value: homeAsync,
-          skipLoadingOnRefresh: true,
-          skipError: true,
-          loadingBuilder: (context) => const _HomeLoadingPlaceholder(),
-          onRetry: () => unawaited(_retryHomeData()),
-          builder: (home) {
-            final latestComics = home.latest;
-            final popularComics = home.popular;
-            final recommendationComics = home.recommendations;
-            final topRankingComics = home.topRanking;
-            final continueProgress =
-                (continueReadingAsync.asData?.value ?? home.continueReading)
-                    .take(6)
-                    .toList();
-            final hasHomeContent =
-                latestComics.isNotEmpty ||
-                popularComics.isNotEmpty ||
-                recommendationComics.isNotEmpty ||
-                topRankingComics.isNotEmpty ||
-                continueProgress.isNotEmpty;
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: RefreshIndicator(
+              edgeOffset: MediaQuery.paddingOf(context).top + kToolbarHeight,
+              onRefresh: () => _retryHomeData(showErrorSnackBar: true),
+              child: AppAsyncView<HomeData>(
+                value: homeAsync,
+                skipLoadingOnRefresh: true,
+                skipError: true,
+                loadingBuilder: (context) => _HomeLoadingPlaceholder(
+                  controller: _scrollController,
+                  topPadding: _homeContentTopPadding(context),
+                ),
+                onRetry: () => unawaited(_retryHomeData()),
+                builder: (home) {
+                  final latestComics = home.latest;
+                  final popularComics = home.popular;
+                  final recommendationComics = home.recommendations;
+                  final topRankingComics = home.topRanking;
+                  final continueProgress =
+                      (continueReadingAsync.asData?.value ??
+                              home.continueReading)
+                          .take(6)
+                          .toList();
+                  final hasHomeContent =
+                      latestComics.isNotEmpty ||
+                      popularComics.isNotEmpty ||
+                      recommendationComics.isNotEmpty ||
+                      topRankingComics.isNotEmpty ||
+                      continueProgress.isNotEmpty;
 
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 128),
-              children: [
-                _DiscoverHeader(
-                  data: home,
-                  onSourceChanged: (value) {
-                    ref.read(selectedSourceProvider.notifier).select(value);
-                  },
-                ),
-                const SizedBox(height: 20),
-                if (recommendationComics.isNotEmpty) ...[
-                  const _SectionTitle(title: 'Rekomendasi'),
-                  const SizedBox(height: 10),
-                  _RecommendationCarousel(
-                    comics: recommendationComics,
-                    onComicTap: (comic) => _openComicDetail(context, comic),
-                  ),
-                  const SizedBox(height: 24),
-                ],
-                if (topRankingComics.isNotEmpty) ...[
-                  _TopRankingRail(
-                    comics: topRankingComics.take(10).toList(),
-                    sourceName: home.selectedSource.id,
-                    onComicTap: (comic) => _openComicDetail(context, comic),
-                  ),
-                  const SizedBox(height: 24),
-                ],
-                if (continueProgress.isNotEmpty) ...[
-                  _SectionTitle(
-                    title: 'Lanjutkan Membaca',
-                    actionLabel: 'Lihat semua',
-                    onAction: () =>
-                        _openContinueReadingSection(context, continueProgress),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 154,
-                    child: ListView.separated(
-                      clipBehavior: Clip.none,
-                      padding: const EdgeInsets.only(bottom: 24),
-                      scrollDirection: Axis.horizontal,
-                      itemBuilder: (context, index) =>
-                          _ProgressCard(progress: continueProgress[index]),
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(width: 12),
-                      itemCount: continueProgress.length,
+                  return ListView(
+                    controller: _scrollController,
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      _homeContentTopPadding(context),
+                      16,
+                      128,
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                _ComicRail(
-                  title: 'Rilis Terbaru',
-                  comics: latestComics.take(6).toList(),
-                  showNewBadges: true,
-                  actionLabel: 'Lihat semua',
-                  onAction: () => _openComicSection(
-                    context,
-                    title: 'Rilis Terbaru',
-                    subtitle: 'Chapter baru dari berbagai sumber favorit.',
-                    sourceName: home.selectedSource.id,
-                    comics: latestComics,
-                    initialSort: ComicSortOption.updateNewest,
-                  ),
-                ),
-                if (hasHomeContent) const SizedBox(height: 24),
-                _ComicRail(
-                  title: 'Populer',
-                  comics: popularComics.take(6).toList(),
-                  actionLabel: 'Lihat semua',
-                  onAction: () => _openComicSection(
-                    context,
-                    title: 'Populer',
-                    subtitle: 'Komik yang ramai dibaca minggu ini.',
-                    sourceName: home.selectedSource.id,
-                    comics: popularComics,
-                    initialSort: ComicSortOption.popular,
-                  ),
-                ),
-                if (!hasHomeContent) const _HomeEmptyState(),
-              ],
-            );
-          },
-        ),
+                    children: [
+                      _DiscoverHeader(
+                        data: home,
+                        onSourceChanged: (value) {
+                          ref
+                              .read(selectedSourceProvider.notifier)
+                              .select(value);
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      if (recommendationComics.isNotEmpty) ...[
+                        const _SectionTitle(title: 'Rekomendasi'),
+                        const SizedBox(height: 10),
+                        _RecommendationCarousel(
+                          comics: recommendationComics,
+                          onComicTap: (comic) =>
+                              _openComicDetail(context, comic),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+                      if (topRankingComics.isNotEmpty) ...[
+                        _TopRankingRail(
+                          comics: topRankingComics.take(10).toList(),
+                          sourceName: home.selectedSource.id,
+                          onComicTap: (comic) =>
+                              _openComicDetail(context, comic),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+                      if (continueProgress.isNotEmpty) ...[
+                        _SectionTitle(
+                          title: 'Lanjutkan Membaca',
+                          actionLabel: 'Lihat semua',
+                          onAction: () => _openContinueReadingSection(
+                            context,
+                            continueProgress,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          height: 154,
+                          child: ListView.separated(
+                            clipBehavior: Clip.none,
+                            padding: const EdgeInsets.only(bottom: 24),
+                            scrollDirection: Axis.horizontal,
+                            itemBuilder: (context, index) => _ProgressCard(
+                              progress: continueProgress[index],
+                            ),
+                            separatorBuilder: (context, index) =>
+                                const SizedBox(width: 12),
+                            itemCount: continueProgress.length,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      _ComicRail(
+                        title: 'Rilis Terbaru',
+                        comics: latestComics.take(6).toList(),
+                        showNewBadges: true,
+                        actionLabel: 'Lihat semua',
+                        onAction: () => _openComicSection(
+                          context,
+                          title: 'Rilis Terbaru',
+                          subtitle:
+                              'Chapter baru dari berbagai sumber favorit.',
+                          sourceName: home.selectedSource.id,
+                          comics: latestComics,
+                          initialSort: ComicSortOption.updateNewest,
+                        ),
+                      ),
+                      if (hasHomeContent) const SizedBox(height: 24),
+                      _ComicRail(
+                        title: 'Populer',
+                        comics: popularComics.take(6).toList(),
+                        actionLabel: 'Lihat semua',
+                        onAction: () => _openComicSection(
+                          context,
+                          title: 'Populer',
+                          subtitle: 'Komik yang ramai dibaca minggu ini.',
+                          sourceName: home.selectedSource.id,
+                          comics: popularComics,
+                          initialSort: ComicSortOption.popular,
+                        ),
+                      ),
+                      if (!hasHomeContent) const _HomeEmptyState(),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+          _HomeTopViewportFade(visible: _showFloatingAppBar),
+        ],
       ),
       floatingActionButton: showHelpdeskButton
           ? Padding(
@@ -200,6 +233,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             )
           : null,
     );
+  }
+
+  double _homeContentTopPadding(BuildContext context) {
+    return MediaQuery.paddingOf(context).top + kToolbarHeight + 8;
+  }
+
+  void _handleScroll() {
+    if (!_scrollController.hasClients) return;
+
+    final offset = _scrollController.offset;
+    final shouldFloat = _showFloatingAppBar
+        ? offset > _floatingAppBarExitOffset
+        : offset > _floatingAppBarEnterOffset;
+    if (shouldFloat == _showFloatingAppBar) return;
+
+    setState(() => _showFloatingAppBar = shouldFloat);
   }
 
   Future<void> _openHelpdesk() async {
@@ -316,14 +365,207 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
+class _HomeTopAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const _HomeTopAppBar({
+    required this.floating,
+    required this.authenticated,
+    required this.unreadNotifications,
+    required this.onActionPressed,
+  });
+
+  final bool floating;
+  final bool authenticated;
+  final int unreadNotifications;
+  final VoidCallback onActionPressed;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final appBarColor =
+        theme.appBarTheme.backgroundColor ?? theme.colorScheme.surface;
+    final transparentAppBarColor = appBarColor.withValues(alpha: 0);
+    final capsuleColor = theme.colorScheme.surface;
+    final transparentCapsuleColor = capsuleColor.withValues(alpha: 0);
+    final statusBarStyle = SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+      systemStatusBarContrastEnforced: false,
+    );
+
+    return TweenAnimationBuilder<double>(
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+      tween: Tween<double>(begin: 0, end: floating ? 1 : 0),
+      builder: (context, progress, child) {
+        return AppBar(
+          backgroundColor: Color.lerp(
+            appBarColor,
+            transparentAppBarColor,
+            progress,
+          ),
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          clipBehavior: Clip.none,
+          systemOverlayStyle: statusBarStyle,
+          titleSpacing: 0,
+          title: Padding(
+            padding: EdgeInsets.lerp(
+              EdgeInsets.zero,
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+              progress,
+            )!,
+            child: Container(
+              key: const ValueKey('home-top-app-bar-capsule'),
+              decoration: BoxDecoration(
+                color: Color.lerp(
+                  transparentCapsuleColor,
+                  capsuleColor,
+                  progress,
+                ),
+                borderRadius: BorderRadius.circular(28 * progress),
+                boxShadow: progress == 0
+                    ? null
+                    : [
+                        BoxShadow(
+                          color: Colors.black.withValues(
+                            alpha: 0.10 * progress,
+                          ),
+                          blurRadius: 20 * progress,
+                          offset: Offset(0, 10 * progress),
+                        ),
+                      ],
+              ),
+              child: Padding(
+                padding: EdgeInsets.lerp(
+                  const EdgeInsets.only(left: 16, right: 10),
+                  const EdgeInsets.only(left: 14, right: 6),
+                  progress,
+                )!,
+                child: Row(
+                  children: [
+                    Image.asset(
+                      AppAssets.logoAppLarge,
+                      height: 32 - (4 * progress),
+                      fit: BoxFit.contain,
+                    ),
+                    const Spacer(),
+                    if (!authenticated) ...[
+                      const _GuestModeChip(),
+                      const SizedBox(width: 4),
+                    ],
+                    IconButton(
+                      tooltip: authenticated ? 'Notifikasi' : 'Login',
+                      onPressed: onActionPressed,
+                      icon: authenticated
+                          ? _NotificationBellBadge(count: unreadNotifications)
+                          : const Icon(TonztoonIcons.accountCircle),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _GuestModeChip extends StatelessWidget {
+  const _GuestModeChip();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Semantics(
+      label: 'Mode Guest',
+      child: ExcludeSemantics(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: colorScheme.primaryContainer.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: colorScheme.primary.withValues(alpha: 0.18),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            child: Text(
+              'Mode Guest',
+              maxLines: 1,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: colorScheme.onPrimaryContainer,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeTopViewportFade extends StatelessWidget {
+  const _HomeTopViewportFade({required this.visible});
+
+  final bool visible;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = Theme.of(context).scaffoldBackgroundColor;
+
+    return Positioned(
+      left: 0,
+      right: 0,
+      top: 0,
+      height: MediaQuery.paddingOf(context).top + 30,
+      child: IgnorePointer(
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOutCubic,
+          opacity: visible ? 1 : 0,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                stops: const [0, 0.41, 1],
+                colors: [
+                  background,
+                  background.withValues(alpha: 0.78),
+                  background.withValues(alpha: 0),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _HomeLoadingPlaceholder extends StatelessWidget {
-  const _HomeLoadingPlaceholder();
+  const _HomeLoadingPlaceholder({
+    required this.controller,
+    required this.topPadding,
+  });
+
+  final ScrollController controller;
+  final double topPadding;
 
   @override
   Widget build(BuildContext context) {
     return ListView(
+      controller: controller,
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 128),
+      padding: EdgeInsets.fromLTRB(16, topPadding, 16, 128),
       children: const [
         AppShimmer(
           child: AppShimmerBlock(

@@ -9,7 +9,6 @@ import '../../models/comic.dart';
 import '../../models/source_info.dart';
 import '../../repositories/providers.dart';
 import '../../widgets/comic_card.dart';
-import '../../widgets/comic_cover.dart';
 import '../../widgets/comic_filter_sort_sheet.dart';
 import '../../widgets/app_loading_placeholder.dart';
 
@@ -873,103 +872,13 @@ class _CatalogList extends StatelessWidget {
       delegate: SliverChildBuilderDelegate((context, index) {
         if (index.isOdd) return const SizedBox(height: 12);
         final entry = entries[index ~/ 2];
-        return _CatalogListTile(entry: entry, onTap: () => onTap(entry));
+        return ComicListCard(
+          comic: entry.comic,
+          source: entry.source,
+          rating: entry.rating,
+          onTap: () => onTap(entry),
+        );
       }, childCount: childCount),
-    );
-  }
-}
-
-class _CatalogListTile extends StatelessWidget {
-  const _CatalogListTile({required this.entry, required this.onTap});
-
-  final _CatalogEntry entry;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final comic = entry.comic;
-
-    return Material(
-      color: colorScheme.surface,
-      elevation: 1.5,
-      shadowColor: Colors.black.withValues(alpha: 0.05),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
-            children: [
-              ComicCover(
-                imageUrl: comic.coverImageUrl,
-                width: 74,
-                height: 106,
-                borderRadius: 10,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      comic.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 7),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '${entry.source} • ${comicTypeFlag(comic.type)} ${entry.type}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              color: colorScheme.secondary,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        _RatingText(rating: entry.rating),
-                      ],
-                    ),
-                    const SizedBox(height: 7),
-                    Wrap(
-                      spacing: 7,
-                      runSpacing: 6,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        ComicGenreBadge(genre: entry.genre, compact: true),
-                        ComicStatusBadge(status: entry.status),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 7,
-                      runSpacing: 6,
-                      children: [
-                        ComicMetaBadge(
-                          label:
-                              'Chapter ${formatChapterNumber(comic.latestChapterNumber ?? 0)}',
-                          color: colorScheme.primary,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(TonztoonIcons.chevronRight, color: colorScheme.outline),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
@@ -1021,32 +930,6 @@ class _EmptyCatalogState extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _RatingText extends StatelessWidget {
-  const _RatingText({required this.rating});
-
-  final double rating;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Icon(TonztoonIcons.starFilled, size: 15, color: Colors.amber),
-        const SizedBox(width: 4),
-        Text(
-          rating.toStringAsFixed(1),
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-            color: colorScheme.onSurface,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-      ],
     );
   }
 }

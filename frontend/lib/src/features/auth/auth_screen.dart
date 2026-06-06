@@ -402,12 +402,18 @@ class _AuthCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: palette.surface,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: palette.border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: palette.shadowAlpha),
+            color: Colors.black.withValues(
+              alpha: theme.brightness == Brightness.dark ? 0.24 : 0.08,
+            ),
             blurRadius: 24,
-            offset: const Offset(0, 12),
+            offset: const Offset(0, 10),
+          ),
+          BoxShadow(
+            color: palette.accent.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
           ),
         ],
       ),

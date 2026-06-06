@@ -8,6 +8,7 @@ import '../../core/app_icons.dart';
 import '../../core/app_snackbar.dart';
 import '../../models/app_notification.dart';
 import '../../repositories/providers.dart';
+import '../../widgets/tonztoon_modal_dialog.dart';
 
 class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
@@ -73,35 +74,39 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           children: [
             Positioned.fill(
               child: notificationsAsync.when(
-                data: (_) => ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 128),
-                  children: [
-                    _NotificationSummary(unreadCount: unreadCount),
-                    const SizedBox(height: 18),
-                    _FilterStrip(
-                      selectedFilter: _selectedFilter,
-                      onChanged: (value) =>
-                          setState(() => _selectedFilter = value),
-                    ),
-                    const SizedBox(height: 20),
-                    _SectionHeader(
-                      title: _selectedFilter == 'Semua'
-                          ? 'Terbaru'
-                          : 'Kategori $_selectedFilter',
-                      count: visibleNotifications.length,
-                    ),
-                    const SizedBox(height: 10),
-                    if (visibleNotifications.isEmpty)
-                      _NotificationEmptyState(filter: _selectedFilter)
-                    else
-                      for (final item in visibleNotifications) ...[
-                        _NotificationTile(
-                          item: item,
-                          onTap: () => _openNotification(item),
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                  ],
+                data: (_) => RefreshIndicator(
+                  onRefresh: _refreshNotifications,
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 128),
+                    children: [
+                      _NotificationSummary(unreadCount: unreadCount),
+                      const SizedBox(height: 18),
+                      _FilterStrip(
+                        selectedFilter: _selectedFilter,
+                        onChanged: (value) =>
+                            setState(() => _selectedFilter = value),
+                      ),
+                      const SizedBox(height: 20),
+                      _SectionHeader(
+                        title: _selectedFilter == 'Semua'
+                            ? 'Terbaru'
+                            : 'Kategori $_selectedFilter',
+                        count: visibleNotifications.length,
+                      ),
+                      const SizedBox(height: 10),
+                      if (visibleNotifications.isEmpty)
+                        _NotificationEmptyState(filter: _selectedFilter)
+                      else
+                        for (final item in visibleNotifications) ...[
+                          _NotificationTile(
+                            item: item,
+                            onTap: () => _openNotification(item),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                    ],
+                  ),
                 ),
                 loading: () => const _NotificationsLoading(),
                 error: (error, stackTrace) {
@@ -124,8 +129,22 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             _NotificationsBottomFade(background: theme.scaffoldBackgroundColor),
           ],
         ),
+        floatingActionButton: notifications.isEmpty
+            ? null
+            : FloatingActionButton(
+                tooltip: 'Bersihkan notifikasi',
+                onPressed: _clearNotifications,
+                backgroundColor: theme.colorScheme.secondary,
+                foregroundColor: theme.colorScheme.onSecondary,
+                shape: const CircleBorder(),
+                child: const Icon(TonztoonIcons.trash),
+              ),
       ),
     );
+  }
+
+  Future<void> _refreshNotifications() {
+    return ref.read(notificationsProvider.notifier).refresh();
   }
 
   Future<void> _markAllRead() async {
@@ -146,6 +165,41 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         logContext: 'Mark all notifications read failed',
         fallbackMessage:
             'Gagal menandai semua notifikasi dibaca. Silakan coba lagi.',
+      );
+    }
+  }
+
+  Future<void> _clearNotifications() async {
+    final confirmed = await showTonztoonConfirmDialog(
+      context,
+      title: 'Bersihkan notifikasi?',
+      message:
+          'Semua notifikasi akan dihapus dari perangkat ini dan tidak dapat dikembalikan.',
+      eyebrow: 'BERSIHKAN NOTIFIKASI',
+      confirmLabel: 'Bersihkan',
+      variant: TonztoonModalVariant.danger,
+      art: TonztoonModalArt.trash,
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await ref.read(notificationsProvider.notifier).clear();
+      if (!mounted) return;
+      setState(() => _selectedFilter = 'Semua');
+      showAppSnackBar(
+        context,
+        message: 'Semua notifikasi telah dibersihkan.',
+        type: AppSnackBarType.success,
+      );
+    } catch (error, stackTrace) {
+      if (!mounted) return;
+      showAppErrorSnackBar(
+        context,
+        error: error,
+        stackTrace: stackTrace,
+        logContext: 'Clear notifications failed',
+        fallbackMessage:
+            'Notifikasi belum dapat dibersihkan. Silakan coba lagi.',
       );
     }
   }
@@ -293,16 +347,18 @@ class _FilterStrip extends StatelessWidget {
             'Semua',
             'Update',
             'Pustaka',
-            'Rekomendasi',
+            'Sistem',
           ]) ...[
             ChoiceChip(
               label: Text(filter),
               selected: selectedFilter == filter,
               onSelected: (_) => onChanged(filter),
-              selectedColor: colorScheme.primary.withValues(alpha: 0.18),
+              showCheckmark: false,
+              backgroundColor: Colors.white,
+              selectedColor: colorScheme.primary,
               labelStyle: TextStyle(
                 color: selectedFilter == filter
-                    ? colorScheme.primary
+                    ? colorScheme.onPrimary
                     : colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w800,
               ),
@@ -408,6 +464,14 @@ class _NotificationTile extends StatelessWidget {
                               ),
                             ),
                           ],
+                          const SizedBox(width: 8),
+                          Text(
+                            _relativeTime(item.createdAt),
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: colorScheme.secondary,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 5),
@@ -420,19 +484,7 @@ class _NotificationTile extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 9),
-                      Row(
-                        children: [
-                          Text(
-                            _relativeTime(item.createdAt),
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: colorScheme.secondary,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          _CategoryPill(label: item.category),
-                        ],
-                      ),
+                      _CategoryPill(label: item.category),
                     ],
                   ),
                 ),
@@ -615,6 +667,13 @@ List<AppNotification> _visibleNotifications(
   String filter,
 ) {
   if (filter == 'Semua') return notifications;
+  if (filter == 'Sistem') {
+    return notifications
+        .where(
+          (item) => item.category != 'Update' && item.category != 'Pustaka',
+        )
+        .toList(growable: false);
+  }
   return notifications
       .where((item) => item.category == filter)
       .toList(growable: false);

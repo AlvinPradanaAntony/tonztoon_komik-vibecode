@@ -12,7 +12,6 @@ import '../../core/app_snackbar.dart';
 import '../../models/comic.dart';
 import '../../repositories/providers.dart';
 import '../../widgets/comic_card.dart';
-import '../../widgets/comic_cover.dart';
 import '../../widgets/comic_filter_sort_sheet.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -787,41 +786,7 @@ class _SearchResultTileShimmer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: _SearchShimmer(
-          child: Row(
-            children: [
-              const _ShimmerBlock(width: 78, height: 110, borderRadius: 10),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    _ShimmerBlock(width: double.infinity, height: 18),
-                    SizedBox(height: 8),
-                    _ShimmerBlock(width: 168, height: 14),
-                    SizedBox(height: 14),
-                    _ShimmerBlock(width: double.infinity, height: 12),
-                    SizedBox(height: 7),
-                    _ShimmerBlock(width: 210, height: 12),
-                    SizedBox(height: 14),
-                    _ShimmerBlock(width: 96, height: 14),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return const ComicListCardShimmer();
   }
 }
 
@@ -865,15 +830,10 @@ class _SearchShimmer extends StatelessWidget {
 }
 
 class _ShimmerBlock extends StatelessWidget {
-  const _ShimmerBlock({
-    required this.width,
-    this.height,
-    this.borderRadius = 8,
-  });
+  const _ShimmerBlock({required this.width, this.height});
 
   final double width;
   final double? height;
-  final double borderRadius;
 
   @override
   Widget build(BuildContext context) {
@@ -884,7 +844,7 @@ class _ShimmerBlock extends StatelessWidget {
       height: height,
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(borderRadius),
+        borderRadius: BorderRadius.circular(8),
       ),
     );
   }
@@ -973,112 +933,11 @@ class _SearchResultTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Material(
-      color: colorScheme.surface,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: () => _openComicDetail(context, comic.summary),
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
-            children: [
-              ComicCover(
-                imageUrl: comic.summary.coverImageUrl,
-                width: 78,
-                height: 110,
-                borderRadius: 10,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      comic.summary.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 7),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '${comic.source} • ${comicTypeFlag(comic.summary.type)} ${comic.type}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              color: colorScheme.secondary,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        _InlineRating(label: comic.rating),
-                      ],
-                    ),
-                    const SizedBox(height: 9),
-                    Text(
-                      comic.description,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(height: 1.35),
-                    ),
-                    const SizedBox(height: 9),
-                    Text(
-                      comic.chapter,
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: colorScheme.secondary,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 6),
-              const Icon(TonztoonIcons.chevronRight, size: 18),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _InlineRating extends StatelessWidget {
-  const _InlineRating({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(TonztoonIcons.starFilled, size: 14, color: Colors.amber),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: Theme.of(
-                context,
-              ).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w900),
-            ),
-          ],
-        ),
-      ),
+    return ComicListCard(
+      comic: comic.summary,
+      source: comic.source,
+      rating: comic.ratingValue,
+      onTap: () => _openComicDetail(context, comic.summary),
     );
   }
 }

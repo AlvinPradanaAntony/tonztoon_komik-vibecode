@@ -462,7 +462,6 @@ class TonztoonModalDialog extends StatelessWidget {
                           top: 14,
                           right: 14,
                           child: _CloseButton(
-                            color: onSurface,
                             onPressed: () => Navigator.of(context).pop(),
                           ),
                         ),
@@ -959,23 +958,77 @@ class _GradientActionButton extends StatelessWidget {
 }
 
 class _CloseButton extends StatelessWidget {
-  const _CloseButton({required this.color, required this.onPressed});
+  const _CloseButton({required this.onPressed});
 
-  final Color color;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Theme.of(context).colorScheme.surface,
-      shape: const CircleBorder(),
-      elevation: 8,
-      shadowColor: Colors.black.withValues(alpha: 0.16),
-      child: IconButton(
-        tooltip: 'Tutup',
-        onPressed: onPressed,
-        icon: Icon(TonztoonIcons.close, color: color, size: 19),
+    const closeColor = Color(0xFFEF4444);
+
+    return SizedBox.square(
+      dimension: 38,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: closeColor,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: closeColor.withValues(alpha: 0.25),
+              blurRadius: 12,
+              offset: const Offset(0, 5),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.10),
+              blurRadius: 7,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          shape: const CircleBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: IconButton(
+            tooltip: 'Tutup',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 42, height: 42),
+            onPressed: onPressed,
+            icon: const SizedBox.square(
+              dimension: 18,
+              child: CustomPaint(painter: _CloseIconPainter()),
+            ),
+          ),
+        ),
       ),
     );
   }
+}
+
+class _CloseIconPainter extends CustomPainter {
+  const _CloseIconPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 2.6
+      ..strokeCap = StrokeCap.round;
+    const inset = 3.0;
+
+    canvas
+      ..drawLine(
+        const Offset(inset, inset),
+        Offset(size.width - inset, size.height - inset),
+        paint,
+      )
+      ..drawLine(
+        Offset(size.width - inset, inset),
+        Offset(inset, size.height - inset),
+        paint,
+      );
+  }
+
+  @override
+  bool shouldRepaint(_CloseIconPainter oldDelegate) => false;
 }

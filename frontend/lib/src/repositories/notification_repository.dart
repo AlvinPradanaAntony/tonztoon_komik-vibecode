@@ -55,6 +55,11 @@ class NotificationRepository {
     return notifications;
   }
 
+  Future<List<AppNotification>> clear() async {
+    await _writeNotifications(const []);
+    return const [];
+  }
+
   Future<List<AppNotification>> remove(String id) async {
     final notifications =
         _readNotifications().where((item) => item.id != id).toList()

@@ -75,8 +75,10 @@ final remotePushNotificationServiceProvider =
         readPreferences: () => ref.read(pushNotificationPreferencesProvider),
         readAuth: () => ref.read(authControllerProvider),
         onOpenLocation: openLocationFromNotification,
-        onAppNotification: (notification) =>
-            ref.read(notificationsProvider.notifier).add(notification),
+        onAppNotification: (notification) async {
+          await ref.read(notificationsProvider.notifier).add(notification);
+          ref.invalidate(notificationsProvider);
+        },
       );
       ref.onDispose(() => unawaited(service.dispose()));
       return service;
@@ -1071,6 +1073,12 @@ class NotificationsController extends AsyncNotifier<List<AppNotification>> {
     return ref.watch(notificationRepositoryProvider).getNotifications();
   }
 
+  Future<void> refresh() async {
+    state = AsyncData(
+      await ref.read(notificationRepositoryProvider).getNotifications(),
+    );
+  }
+
   Future<void> add(AppNotification notification) async {
     state = AsyncData(
       await ref.read(notificationRepositoryProvider).add(notification),
@@ -1087,6 +1095,10 @@ class NotificationsController extends AsyncNotifier<List<AppNotification>> {
     state = AsyncData(
       await ref.read(notificationRepositoryProvider).markAllRead(),
     );
+  }
+
+  Future<void> clear() async {
+    state = AsyncData(await ref.read(notificationRepositoryProvider).clear());
   }
 
   Future<void> recordLatestChapterUpdates(List<ComicSummary> comics) async {
