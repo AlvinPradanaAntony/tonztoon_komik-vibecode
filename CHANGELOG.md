@@ -6,31 +6,46 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
-## [1.13.0] - 2026-06-04
+## [1.14.0] - 2026-06-06
 
 ### Added
+- Helpdesk di Home dan Settings untuk mengirim ulasan berbintang atau laporan masalah langsung dari aplikasi.
+- Pengaturan untuk menampilkan atau menyembunyikan tombol cepat Helpdesk di halaman Home.
+
+### Changed
+- Onboarding didesain ulang dengan ilustrasi dan penjelasan yang lebih jelas untuk fitur multi-source, pustaka, dan download offline.
+- Tampilan kartu komik disatukan di Home, katalog, pencarian, dan halaman section agar informasi serta interaksinya lebih konsisten.
+- Home memakai AppBar yang responsif terhadap scroll untuk memberi ruang baca lebih luas tanpa menghilangkan akses navigasi.
+- Halaman notifikasi kini mendukung pull-to-refresh, filter sistem, serta aksi membersihkan seluruh notifikasi dengan konfirmasi.
+- Tampilan kartu autentikasi dan tombol tutup modal dipoles agar lebih konsisten dengan desain aplikasi.
+
+---
+
+<details>
+<summary><strong>Riwayat versi sebelumnya</strong></summary>
+
+### [1.13.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.13.0) - 2026-06-04
+
+#### Added
 - Feed `top-ranking` dan `recommendations` per source, lengkap dengan endpoint backend, provider frontend, rail UI, shimmer, dan cache repository.
 - Sistem remote push notification Android berbasis Firebase Cloud Messaging untuk device registration, inbox background, token lifecycle, channel notifikasi, dan deep link.
 - Tabel `user_push_devices` dan `push_notification_events` untuk manajemen token, audit, dan idempotensi pengiriman notifikasi.
 - Endpoint notification untuk device management, admin announcement, dan event update chapter dari scraper.
 - Index database `ix_comics_source_top_view_order` untuk mengoptimalkan query ranking berdasarkan view.
 
-### Changed
+#### Changed
 - Scraper Komiku kini mengekstrak `total_view`, dan feed source memakai metadata view untuk ranking.
 - Workflow build, scraper, dan popular sync diperbarui untuk mendukung konfigurasi Firebase serta pengiriman event push.
 - Backfill metadata Kiryuu, refresh cover, sync chapter images, sync cover images, dan sync full library mendapat opsi anti-blocking, limit, checkpoint, graceful shutdown, dan refresh missing only.
 - Navigasi notifikasi ditunda sampai bootstrap auth/app siap agar deep link dari push tidak hilang saat startup.
 - UI memakai edge-to-edge/system overlay yang lebih konsisten di splash, onboarding, dan notifications screen.
 
-### Fixed
+#### Fixed
 - Remote push service memperketat pengecekan auth sebelum registrasi token agar token tidak tersimpan untuk sesi yang belum siap.
 - Admin account dashboard dan dokumentasi kontrak push notification diperbarui mengikuti endpoint serta payload baru.
 - Validasi source stats kini memakai daftar source observable sehingga source cadangan tetap tercatat tanpa diperlakukan sebagai source utama.
 
 ---
-
-<details>
-<summary><strong>Riwayat versi sebelumnya</strong></summary>
 
 ### [1.12.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.12.0) - 2026-06-02
 
