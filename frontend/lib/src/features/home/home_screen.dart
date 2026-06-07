@@ -2401,7 +2401,7 @@ class _NotificationBellBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Badge(
       isLabelVisible: count > 0,
-      label: Text(count > 9 ? '9+' : '$count'),
+      label: Text(count > 99 ? '99+' : '$count'),
       alignment: Alignment.topRight,
       offset: const Offset(4, -4),
       child: const Icon(TonztoonIcons.bell),

@@ -86,6 +86,8 @@ Response:
 ### `GET /api/v1/library/state/{source_name}/comics/{comic_slug}`
 
 State terpadu untuk comic detail: bookmark, koleksi terpilih, progress, history, completed chapters, jumlah favorite scene, dan status download.
+Bookmark terhubung tetap menghasilkan `bookmarked: true`, dengan
+`bookmark_relation: "linked"` dan `bookmark_origin` menunjuk bookmark utama.
 
 Response field utama:
 
@@ -93,6 +95,9 @@ Response field utama:
 {
   "comic": {},
   "bookmarked": true,
+  "bookmark_relation": "direct",
+  "bookmark_origin": {},
+  "linked_comics": [],
   "collections": [],
   "progress": null,
   "history": null,
@@ -154,6 +159,80 @@ Request:
 | `DELETE` | `/api/v1/library/bookmarks/{source_name}/comics/{comic_slug}` | `{ "deleted": true }` |
 
 Pagination bookmark memakai `page` dan `page_size` dengan batas `1..100`.
+Setiap `BookmarkResponse` juga memiliki `linked_comics`, yaitu source alternatif
+yang sudah dikonfirmasi user.
+
+## Relasi Bookmark Multi-source
+
+Pemindaian tidak dijalankan ketika bookmark dibuat. Frontend memanggil endpoint
+berikut hanya setelah user menekan tombol pencarian source lain:
+
+| Method | Endpoint | Fungsi |
+|---|---|---|
+| `GET` | `/api/v1/library/bookmark-links/candidates?offset=0&page_size=5` | Cari kandidat berdasarkan kemiripan judul dan alias dalam batch |
+| `POST` | `/api/v1/library/bookmark-links` | Simpan kandidat dan kembalikan grup yang perlu disinkronkan |
+| `POST` | `/api/v1/library/bookmark-links/completed-sync` | Sinkronkan maksimal 10 grup bookmark per transaksi |
+| `DELETE` | `/api/v1/library/bookmark-links/{source_name}/comics/{comic_slug}` | Putuskan satu source alternatif |
+
+Request `POST`:
+
+```json
+{
+  "links": [
+    {
+      "bookmark": {
+        "source_name": "komiku_asia",
+        "comic_slug": "solo-leveling"
+      },
+      "linked_comic": {
+        "source_name": "komikcast",
+        "comic_slug": "solo-leveling"
+      },
+      "confidence": 0.96
+    }
+  ]
+}
+```
+
+Sinkronisasi chapter menjadi bagian dari konfirmasi bookmark multi-source dan
+hanya mencocokkan `chapter_number` yang sama. Relasi disimpan pada tingkat
+pasangan komik, bukan sebagai row mapping untuk setiap chapter. Setelah relasi
+disimpan, client mengirim `completion_sync_bookmark_ids` ke endpoint completed
+sync dalam batch kecil. Setiap batch memakai operasi set-based dan transaksi
+terpisah, sehingga pustaka dengan ribuan completed chapter tidak menahan satu
+request atau satu transaksi panjang.
+Setiap batch memakai `INSERT ... SELECT ... ON CONFLICT DO NOTHING`, sehingga
+jumlah query tidak bertambah mengikuti jumlah chapter completed dalam grup.
+Setelah terhubung, `is_completed=true` pada endpoint
+progress atau import completed chapter langsung menandai seluruh grup yang
+memiliki nomor chapter sama. Contoh `Utama ↔ A` dan `Utama ↔ B`: selesai dari
+A akan menandai Utama dan B dalam satu aksi, tanpa propagasi rekursif.
+Posisi scroll, halaman, history, dan continue reading tidak disalin.
+
+Response penyimpanan relasi:
+
+```json
+{
+  "linked_total": 1,
+  "completed_propagated": 0,
+  "completion_sync_bookmark_ids": [123]
+}
+```
+
+Frontend membagi ID tersebut menjadi maksimal lima grup per request
+`completed-sync`, lalu menjumlahkan `completed_propagated` dari setiap batch.
+Relasi kandidat juga dikirim maksimal lima item per request dan di-retry secara
+idempotent saat timeout. UI menampilkan progress determinate terpisah untuk
+fase penyimpanan relasi dan sinkronisasi completed.
+
+Pemindaian kandidat memakai operator trigram yang dapat menggunakan indeks GIN.
+Frontend me-retry batch kandidat maksimal tiga kali dan menyimpan offset serta
+kandidat yang sudah terkumpul selama instance aplikasi masih hidup. Jika retry
+tetap gagal, pemindaian berikutnya melanjutkan offset terakhir, bukan kembali
+ke bookmark pertama.
+Hasil scan yang sudah selesai juga dipertahankan sampai seluruh kandidat
+terpilih berhasil dihubungkan. Karena itu timeout saat fase penghubungan tidak
+memaksa frontend memindai seluruh bookmark lagi.
 
 ## Collections
 
@@ -321,6 +400,7 @@ Request:
       "comic_slug": "solo-leveling"
     }
   ],
+  "bookmark_links": [],
   "collections": [
     {
       "name": "Favorit",
@@ -347,6 +427,7 @@ Response:
 ```json
 {
   "bookmarks_upserted": 1,
+  "bookmark_links_upserted": 0,
   "collections_upserted": 1,
   "collection_items_upserted": 1,
   "progress_upserted": 0,

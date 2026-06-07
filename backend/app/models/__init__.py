@@ -15,6 +15,7 @@ from app.models.push_notification import PushNotificationEvent, UserPushDevice
 from app.models.library import (
     ReaderPreference,
     UserBookmark,
+    UserBookmarkLink,
     UserCollection,
     UserCollectionComic,
     UserCompletedChapter,
@@ -38,6 +39,7 @@ __all__ = [
     "comic_genre",
     "ReaderPreference",
     "UserBookmark",
+    "UserBookmarkLink",
     "UserCollection",
     "UserCollectionComic",
     "UserCompletedChapter",

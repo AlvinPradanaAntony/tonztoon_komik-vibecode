@@ -71,6 +71,14 @@ begin
     end if;
 
     if not exists (
+      select 1 from pg_constraint where conname = 'fk_user_bookmark_links_user'
+    ) then
+      alter table public.user_bookmark_links
+        add constraint fk_user_bookmark_links_user
+        foreign key (user_id) references auth.users(id) on delete cascade;
+    end if;
+
+    if not exists (
       select 1 from pg_constraint where conname = 'fk_user_completed_chapters_user'
     ) then
       alter table public.user_completed_chapters
@@ -108,6 +116,9 @@ alter table public.user_reading_stats force row level security;
 
 alter table public.user_bookmarks enable row level security;
 alter table public.user_bookmarks force row level security;
+
+alter table public.user_bookmark_links enable row level security;
+alter table public.user_bookmark_links force row level security;
 
 alter table public.user_collections enable row level security;
 alter table public.user_collections force row level security;
@@ -150,6 +161,11 @@ drop policy if exists "user_bookmarks_select_own" on public.user_bookmarks;
 drop policy if exists "user_bookmarks_insert_own" on public.user_bookmarks;
 drop policy if exists "user_bookmarks_update_own" on public.user_bookmarks;
 drop policy if exists "user_bookmarks_delete_own" on public.user_bookmarks;
+
+drop policy if exists "user_bookmark_links_select_own" on public.user_bookmark_links;
+drop policy if exists "user_bookmark_links_insert_own" on public.user_bookmark_links;
+drop policy if exists "user_bookmark_links_update_own" on public.user_bookmark_links;
+drop policy if exists "user_bookmark_links_delete_own" on public.user_bookmark_links;
 
 drop policy if exists "user_collections_select_own" on public.user_collections;
 drop policy if exists "user_collections_insert_own" on public.user_collections;
@@ -286,6 +302,32 @@ with check ((select auth.uid()) is not null and (select auth.uid()) = user_id);
 
 create policy "user_bookmarks_delete_own"
 on public.user_bookmarks
+for delete
+to authenticated
+using ((select auth.uid()) is not null and (select auth.uid()) = user_id);
+
+-- user_bookmark_links
+create policy "user_bookmark_links_select_own"
+on public.user_bookmark_links
+for select
+to authenticated
+using ((select auth.uid()) is not null and (select auth.uid()) = user_id);
+
+create policy "user_bookmark_links_insert_own"
+on public.user_bookmark_links
+for insert
+to authenticated
+with check ((select auth.uid()) is not null and (select auth.uid()) = user_id);
+
+create policy "user_bookmark_links_update_own"
+on public.user_bookmark_links
+for update
+to authenticated
+using ((select auth.uid()) is not null and (select auth.uid()) = user_id)
+with check ((select auth.uid()) is not null and (select auth.uid()) = user_id);
+
+create policy "user_bookmark_links_delete_own"
+on public.user_bookmark_links
 for delete
 to authenticated
 using ((select auth.uid()) is not null and (select auth.uid()) = user_id);

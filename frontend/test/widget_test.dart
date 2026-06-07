@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
@@ -10,6 +11,7 @@ import 'package:tonztoon/src/core/storage.dart';
 import 'package:tonztoon/src/core/token_store.dart';
 import 'package:tonztoon/src/features/auth/auth_screen.dart';
 import 'package:tonztoon/src/features/comic/comic_detail_screen.dart';
+import 'package:tonztoon/src/features/library/library_screen.dart';
 import 'package:tonztoon/src/features/library/library_shared_panes.dart';
 import 'package:tonztoon/src/features/notifications/notifications_screen.dart';
 import 'package:tonztoon/src/features/reader/reader_screen.dart';
@@ -209,6 +211,122 @@ void main() {
     await tester.pump();
 
     expect(find.byType(ReaderScreen), findsOneWidget);
+  });
+
+  testWidgets('comic detail uses edge-to-edge floating bottom actions', (
+    tester,
+  ) async {
+    final container = _testContainer();
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: ComicDetailScreen(
+            initialComic: _FakeCatalogRepository.comic,
+            sourceName: 'komiku',
+            slug: 'solo-leveling',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('comic-detail-bottom-fade')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('comic-detail-bottom-read-bar')),
+      findsOneWidget,
+    );
+
+    final detailScaffold = tester.widget<Scaffold>(
+      find.descendant(
+        of: find.byType(ComicDetailScreen),
+        matching: find.byType(Scaffold),
+      ),
+    );
+    final detailOverlay = tester.widget<AnnotatedRegion<SystemUiOverlayStyle>>(
+      find.byKey(const ValueKey('comic-detail-system-ui-overlay')),
+    );
+
+    expect(detailScaffold.extendBody, isTrue);
+    expect(detailOverlay.value.systemNavigationBarColor, Colors.transparent);
+    expect(
+      detailOverlay.value.systemNavigationBarDividerColor,
+      Colors.transparent,
+    );
+  });
+
+  testWidgets('bookmark card overlays type and groups source badges', (
+    tester,
+  ) async {
+    const bookmark = LibraryComicRef(
+      sourceName: 'komiku_asia',
+      slug: 'bookmark-card',
+      title: 'Bookmark Card',
+      author: 'Author yang disembunyikan',
+      status: 'Ongoing',
+      type: 'Manhua',
+      linkedComics: [
+        LibraryComicRef(
+          sourceName: 'komikcast',
+          slug: 'bookmark-card-linked',
+          title: 'Bookmark Card',
+        ),
+      ],
+    );
+    final container = ProviderContainer(
+      overrides: [
+        paginatedBookmarksProvider.overrideWith(
+          () => _FakeBookmarksPaginationController([bookmark]),
+        ),
+        librarySummaryProvider.overrideWith(
+          (ref) async => const LibrarySummary(
+            counts: LibrarySummaryCounts(
+              bookmarks: 1,
+              collections: 0,
+              favoriteScenes: 0,
+              history: 0,
+              downloads: 0,
+              continueReading: 0,
+            ),
+            readingTimeSeconds: 0,
+          ),
+        ),
+        downloadsProvider.overrideWith((ref) async => const []),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: LibraryScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final typeOverlay = tester.widget<Transform>(
+      find.byKey(const ValueKey('bookmark-type-komiku_asia|bookmark-card')),
+    );
+
+    expect(typeOverlay.transform.storage[0], closeTo(0.72, 0.001));
+    expect(
+      find.byKey(const ValueKey('bookmark-source-komiku_asia|bookmark-card')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(
+        const ValueKey(
+          'bookmark-linked-source-komiku_asia|bookmark-card-komikcast',
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Author yang disembunyikan'), findsNothing);
   });
 
   testWidgets('wishlist download shows active chapter progress', (
@@ -486,6 +604,20 @@ class _FakeOfflineQueueController extends OfflineQueueController {
 
   @override
   Future<List<OfflineDownloadBatch>> build() async => batches;
+}
+
+class _FakeBookmarksPaginationController extends BookmarksPaginationController {
+  _FakeBookmarksPaginationController(this.bookmarks);
+
+  final List<LibraryComicRef> bookmarks;
+
+  @override
+  Future<PaginatedState<LibraryComicRef>> build() async => PaginatedState(
+    items: bookmarks,
+    page: 1,
+    pageSize: 20,
+    hasNextPage: false,
+  );
 }
 
 class _FakeCatalogRepository implements CatalogRepository {

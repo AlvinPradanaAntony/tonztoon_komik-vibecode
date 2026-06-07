@@ -610,7 +610,14 @@ class _CountBadge extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
         child: loading
             ? const AppShimmer(
-                child: AppShimmerBlock(width: 72, height: 30, borderRadius: 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AppShimmerBlock(width: 28, height: 13, borderRadius: 5),
+                    SizedBox(height: 3),
+                    AppShimmerBlock(width: 66, height: 9, borderRadius: 4),
+                  ],
+                ),
               )
             : Column(
                 mainAxisSize: MainAxisSize.min,

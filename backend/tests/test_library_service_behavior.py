@@ -1,14 +1,24 @@
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
-from app.schemas.library import DownloadBatchRequest, LibrarySyncImportRequest
+from app.schemas.library import (
+    BookmarkLinkBatchRequest,
+    DownloadBatchRequest,
+    LibrarySyncImportRequest,
+)
 from app.services.library_service import (
+    _bookmark_group_comic_ids,
+    _propagate_completed_chapter,
+    _synchronize_existing_completed_for_links,
     enqueue_download_batch,
     get_collection_detail,
     import_library_snapshot,
     list_bookmarks,
+    list_bookmark_link_candidates,
+    set_bookmark_links,
+    synchronize_completed_link_batch,
 )
 
 
@@ -27,6 +37,11 @@ class FakeResult:
 
     def first(self):
         return self.scalar_rows[0] if self.scalar_rows else None
+
+    def scalar_one(self):
+        rows = self.scalar_rows if self.scalar_rows else self.rows
+        value = rows[0]
+        return value[0] if isinstance(value, tuple) else value
 
 
 class FakeTransaction:
@@ -150,6 +165,174 @@ class LibraryServiceBehaviorTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response, [bookmark])
         self.assertEqual(len(db.statements), 1)
+
+    async def test_bookmark_group_contains_hub_and_all_spokes(self):
+        db = FakeSession(
+            [
+                FakeResult(
+                    scalar_rows=[SimpleNamespace(id=10, comic_id=1)],
+                ),
+                FakeResult(scalar_rows=[2, 3]),
+            ]
+        )
+
+        comic_ids = await _bookmark_group_comic_ids(db, uuid4(), 2)
+
+        self.assertEqual(comic_ids, {1, 2, 3})
+
+    async def test_completed_chapter_propagates_to_every_group_spoke(self):
+        db = FakeSession()
+        chapter = SimpleNamespace(id=21, comic_id=2, chapter_number=15.0)
+        group_lookup = AsyncMock(return_value={1, 2, 3})
+        chapter_lookup = AsyncMock(return_value=[(11, 1), (31, 3)])
+        upsert = AsyncMock(return_value=2)
+
+        with (
+            patch(
+                "app.services.library_service._bookmark_group_comic_ids",
+                group_lookup,
+            ),
+            patch(
+                "app.services.library_service._group_chapters_for_number",
+                chapter_lookup,
+            ),
+            patch(
+                "app.services.library_service._upsert_completed_chapter_rows",
+                upsert,
+            ),
+        ):
+            propagated = await _propagate_completed_chapter(
+                db,
+                uuid4(),
+                chapter,
+                completed_at=SimpleNamespace(),
+            )
+
+        self.assertEqual(propagated, 2)
+        self.assertEqual(chapter_lookup.await_args.args[1], {1, 3})
+        self.assertEqual(chapter_lookup.await_args.args[2], 15.0)
+        self.assertEqual(upsert.await_args.args[2], [(11, 1), (31, 3)])
+
+    async def test_completed_link_backfill_uses_one_database_statement(self):
+        db = FakeSession([FakeResult(rows=[(3,)])])
+
+        propagated = await _synchronize_existing_completed_for_links(
+            db,
+            uuid4(),
+        )
+
+        self.assertEqual(propagated, 3)
+        self.assertEqual(len(db.statements), 1)
+        self.assertEqual(db.commit_count, 1)
+
+    async def test_candidate_scan_only_queries_one_bookmark_page(self):
+        bookmark_rows = [
+            SimpleNamespace(
+                id=index,
+                comic_id=index,
+                comic=SimpleNamespace(
+                    **{
+                        **comic().__dict__,
+                        "id": index,
+                        "slug": f"comic-{index}",
+                        "alternative_titles": None,
+                    }
+                ),
+                links=[],
+            )
+            for index in range(1, 12)
+        ]
+        db = FakeSession(
+            [
+                FakeResult(scalar_rows=bookmark_rows),
+                *(FakeResult() for _ in range(10)),
+            ]
+        )
+
+        page = await list_bookmark_link_candidates(
+            db,
+            uuid4(),
+            page_size=10,
+        )
+
+        self.assertEqual(page.scanned_total, 10)
+        self.assertEqual(page.next_offset, 10)
+        self.assertTrue(page.has_more)
+        self.assertEqual(len(db.statements), 11)
+
+    async def test_completed_sync_batch_scopes_backfill_to_owned_groups(self):
+        db = FakeSession(
+            [
+                FakeResult(scalar_rows=[4, 7]),
+                FakeResult(rows=[(3,)]),
+            ]
+        )
+
+        response = await synchronize_completed_link_batch(
+            db,
+            uuid4(),
+            [4, 7, 99],
+        )
+
+        self.assertEqual(response.processed_groups, 2)
+        self.assertEqual(response.completed_propagated, 3)
+        self.assertEqual(db.commit_count, 1)
+        params = db.statements[1].compile().params
+        self.assertIn([4, 7], params.values())
+
+    async def test_bookmark_links_use_bulk_lookup_delete_and_upsert(self):
+        user_id = uuid4()
+        payload = BookmarkLinkBatchRequest.model_validate(
+            {
+                "links": [
+                    {
+                        "bookmark": {
+                            "source_name": "source-a",
+                            "comic_slug": f"origin-{index}",
+                        },
+                        "linked_comic": {
+                            "source_name": "source-b",
+                            "comic_slug": f"linked-{index}",
+                        },
+                        "confidence": 0.9,
+                    }
+                    for index in range(100)
+                ]
+            }
+        )
+        comic_ids = {
+            ("source-a", f"origin-{index}"): index + 1
+            for index in range(100)
+        }
+        comic_ids.update(
+            {
+                ("source-b", f"linked-{index}"): index + 1001
+                for index in range(100)
+            }
+        )
+        bookmark_rows = [
+            SimpleNamespace(id=index + 5001, comic_id=index + 1)
+            for index in range(100)
+        ]
+        db = FakeSession(
+            [
+                FakeResult(rows=bookmark_rows),
+                FakeResult(),
+                FakeResult(),
+                FakeResult(),
+            ]
+        )
+
+        with patch(
+            "app.services.library_service._resolve_comic_selector_ids",
+            return_value=comic_ids,
+        ):
+            response = await set_bookmark_links(db, user_id, payload)
+
+        self.assertEqual(response.linked_total, 100)
+        self.assertEqual(len(response.completion_sync_bookmark_ids), 100)
+        self.assertEqual(len(db.statements), 4)
+        self.assertEqual(db.commit_count, 1)
 
 
 if __name__ == "__main__":

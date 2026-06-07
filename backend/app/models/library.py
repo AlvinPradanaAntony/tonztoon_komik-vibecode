@@ -132,8 +132,72 @@ class UserBookmark(Base):
     )
 
     comic = relationship("Comic", lazy="joined")
+    links: Mapped[list["UserBookmarkLink"]] = relationship(
+        "UserBookmarkLink",
+        back_populates="bookmark",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
 
 
+class UserBookmarkLink(Base):
+    """Source alternatif yang telah dikonfirmasi untuk satu bookmark."""
+
+    __tablename__ = "user_bookmark_links"
+    __table_args__ = (
+        UniqueConstraint(
+            "bookmark_id",
+            "comic_id",
+            name="uq_user_bookmark_link_comic",
+        ),
+        UniqueConstraint(
+            "user_id",
+            "comic_id",
+            name="uq_user_bookmark_link_user_comic",
+        ),
+        Index("ix_user_bookmark_links_user_id", "user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=False,
+    )
+    bookmark_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("user_bookmarks.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    comic_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("comics.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    confidence: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        default=1.0,
+        server_default="1",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    bookmark: Mapped["UserBookmark"] = relationship(
+        "UserBookmark",
+        back_populates="links",
+    )
+    comic = relationship("Comic", lazy="joined")
 class UserCollection(Base):
     """Folder/koleksi komik milik user."""
 

@@ -209,4 +209,47 @@ void main() {
 
     expect(state.completedChapterNumbers, [1.0, 2.5, 3.0]);
   });
+
+  test('library comic state parses linked bookmark metadata', () {
+    final state = LibraryComicState.fromJson(const {
+      'comic': {
+        'comic_id': 2,
+        'title': 'Solo Leveling',
+        'slug': 'solo-leveling',
+        'source_name': 'komikcast',
+      },
+      'bookmarked': true,
+      'bookmark_relation': 'linked',
+      'bookmark_origin': {
+        'comic_id': 1,
+        'title': 'Solo Leveling',
+        'slug': 'solo-leveling',
+        'source_name': 'komiku_asia',
+      },
+      'linked_comics': [
+        {
+          'comic_id': 1,
+          'title': 'Solo Leveling',
+          'slug': 'solo-leveling',
+          'source_name': 'komiku_asia',
+        },
+      ],
+      'collections': [],
+    });
+
+    expect(state.bookmarked, isTrue);
+    expect(state.bookmarkRelation, BookmarkRelation.linked);
+    expect(state.bookmarkOrigin?.sourceName, 'komiku_asia');
+    expect(state.linkedComics.single.sourceName, 'komiku_asia');
+  });
+
+  test('chapter completion sync result parses counters', () {
+    final result = BookmarkLinkSaveResult.fromJson(const {
+      'linked_total': 2,
+      'completed_propagated': 7,
+    });
+
+    expect(result.linkedTotal, 2);
+    expect(result.completedPropagated, 7);
+  });
 }

@@ -2,7 +2,11 @@ import unittest
 
 from pydantic import ValidationError
 
-from app.schemas.library import DownloadBatchRequest, LibrarySyncImportRequest
+from app.schemas.library import (
+    BookmarkLinkCompletionSyncRequest,
+    DownloadBatchRequest,
+    LibrarySyncImportRequest,
+)
 
 
 def comic(index: int) -> dict:
@@ -14,6 +18,31 @@ def progress(index: int) -> dict:
 
 
 class LibrarySchemaLimitTests(unittest.TestCase):
+    def test_bookmark_links_count_toward_import_total(self):
+        payload = {
+            "bookmarks": [
+                {"source_name": "source-a", "comic_slug": "comic"}
+            ],
+            "bookmark_links": [
+                {
+                    "bookmark": {
+                        "source_name": "source-a",
+                        "comic_slug": "comic",
+                    },
+                    "linked_comic": {
+                        "source_name": "source-b",
+                        "comic_slug": f"comic-{index}",
+                    },
+                    "confidence": 0.9,
+                }
+                for index in range(2_000)
+            ],
+        }
+
+        parsed = LibrarySyncImportRequest.model_validate(payload)
+
+        self.assertEqual(len(parsed.bookmark_links), 2_000)
+
     def test_import_at_total_limit_is_accepted(self):
         payload = LibrarySyncImportRequest.model_validate(
             {
@@ -67,6 +96,12 @@ class LibrarySchemaLimitTests(unittest.TestCase):
                     **comic(1),
                     "chapter_numbers": [float(index) for index in range(5_001)],
                 }
+            )
+
+    def test_completed_sync_batch_over_limit_is_rejected(self):
+        with self.assertRaises(ValidationError):
+            BookmarkLinkCompletionSyncRequest(
+                bookmark_ids=list(range(26)),
             )
 
 

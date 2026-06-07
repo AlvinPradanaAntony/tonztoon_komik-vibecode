@@ -129,8 +129,70 @@ class BookmarkResponse(BaseModel):
 
     id: int
     comic: LibraryComicRef
+    linked_comics: list[LibraryComicRef] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
+
+
+class BookmarkLinkCandidate(BaseModel):
+    """Kandidat source alternatif untuk satu bookmark."""
+
+    comic: LibraryComicRef
+    confidence: float = Field(..., ge=0, le=1)
+
+
+class BookmarkLinkCandidateGroup(BaseModel):
+    """Kandidat yang dikelompokkan berdasarkan bookmark utama."""
+
+    bookmark: LibraryComicRef
+    candidates: list[BookmarkLinkCandidate] = Field(default_factory=list)
+
+
+class BookmarkLinkCandidatePage(BaseModel):
+    """Satu batch bookmark yang sudah dipindai."""
+
+    items: list[BookmarkLinkCandidateGroup] = Field(default_factory=list)
+    scanned_total: int = Field(default=0, ge=0)
+    next_offset: int = Field(default=0, ge=0)
+    has_more: bool = False
+
+
+class BookmarkLinkCreateRequest(BaseModel):
+    """Satu relasi source yang telah dikonfirmasi user."""
+
+    bookmark: ComicSelector
+    linked_comic: ComicSelector
+    confidence: float = Field(default=1, ge=0, le=1)
+
+
+class BookmarkLinkBatchRequest(BaseModel):
+    """Batch relasi source hasil dialog konfirmasi."""
+
+    links: list[BookmarkLinkCreateRequest] = Field(
+        default_factory=list,
+        max_length=2_000,
+    )
+
+
+class BookmarkLinkBatchResponse(BaseModel):
+    linked_total: int = Field(default=0, ge=0)
+    completed_propagated: int = Field(default=0, ge=0)
+    completion_sync_bookmark_ids: list[int] = Field(default_factory=list)
+
+
+class BookmarkLinkCompletionSyncRequest(BaseModel):
+    """Batch grup bookmark yang akan disinkronkan status completed-nya."""
+
+    bookmark_ids: list[int] = Field(
+        default_factory=list,
+        min_length=1,
+        max_length=25,
+    )
+
+
+class BookmarkLinkCompletionSyncResponse(BaseModel):
+    processed_groups: int = Field(default=0, ge=0)
+    completed_propagated: int = Field(default=0, ge=0)
 
 
 class CollectionCreateRequest(BaseModel):
@@ -299,6 +361,9 @@ class LibraryComicStateResponse(BaseModel):
 
     comic: LibraryComicRef
     bookmarked: bool = False
+    bookmark_relation: Literal["none", "direct", "linked"] = "none"
+    bookmark_origin: LibraryComicRef | None = None
+    linked_comics: list[LibraryComicRef] = Field(default_factory=list)
     collections: list[CollectionSummaryResponse] = Field(default_factory=list)
     progress: ProgressResponse | None = None
     history: HistoryItemResponse | None = None
@@ -333,6 +398,10 @@ class LibrarySyncImportRequest(BaseModel):
         default_factory=list,
         max_length=SYNC_IMPORT_CATEGORY_MAX_ITEMS,
     )
+    bookmark_links: list[BookmarkLinkCreateRequest] = Field(
+        default_factory=list,
+        max_length=SYNC_IMPORT_CATEGORY_MAX_ITEMS,
+    )
     collections: list[SyncCollectionImport] = Field(
         default_factory=list,
         max_length=SYNC_IMPORT_MAX_COLLECTIONS,
@@ -364,6 +433,7 @@ class LibrarySyncImportRequest(BaseModel):
     def validate_total_items(self) -> LibrarySyncImportRequest:
         total_items = (
             len(self.bookmarks)
+            + len(self.bookmark_links)
             + len(self.collections)
             + sum(len(collection.comics) for collection in self.collections)
             + len(self.progress)
@@ -383,6 +453,7 @@ class LibrarySyncImportResponse(BaseModel):
     """Ringkasan hasil import migrasi ke cloud."""
 
     bookmarks_upserted: int = Field(default=0, ge=0)
+    bookmark_links_upserted: int = Field(default=0, ge=0)
     collections_upserted: int = Field(default=0, ge=0)
     collection_items_upserted: int = Field(default=0, ge=0)
     progress_upserted: int = Field(default=0, ge=0)
@@ -392,3 +463,4 @@ class LibrarySyncImportResponse(BaseModel):
     downloads_upserted: int = Field(default=0, ge=0)
     reader_preferences_updated: bool = False
     reading_time_seconds_imported: int = Field(default=0, ge=0)
+    completion_sync_bookmark_ids: list[int] = Field(default_factory=list)

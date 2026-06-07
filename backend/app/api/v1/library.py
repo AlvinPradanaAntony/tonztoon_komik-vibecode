@@ -18,6 +18,11 @@ from app.api.deps import get_current_user_id
 from app.database import get_db
 from app.schemas import (
     BookmarkResponse,
+    BookmarkLinkBatchRequest,
+    BookmarkLinkBatchResponse,
+    BookmarkLinkCandidatePage,
+    BookmarkLinkCompletionSyncRequest,
+    BookmarkLinkCompletionSyncResponse,
     CollectionCreateRequest,
     CollectionResponse,
     CollectionSummaryResponse,
@@ -52,6 +57,7 @@ from app.services.library_service import (
     build_reader_preferences_response,
     create_collection,
     delete_bookmark,
+    delete_bookmark_link,
     delete_collection,
     delete_download_entry,
     delete_favorite_scene,
@@ -65,6 +71,7 @@ from app.services.library_service import (
     get_progress_for_comic,
     import_library_snapshot,
     list_bookmarks,
+    list_bookmark_link_candidates,
     list_collection_summaries,
     list_continue_reading_responses,
     list_download_entry_responses,
@@ -73,6 +80,8 @@ from app.services.library_service import (
     remove_comic_from_collection,
     rename_collection,
     set_bookmark,
+    set_bookmark_links,
+    synchronize_completed_link_batch,
     update_reader_preferences,
     upsert_download_entry,
     upsert_favorite_scene,
@@ -239,6 +248,81 @@ async def remove_bookmark(
     deleted = await delete_bookmark(db, user_id, source_name, comic_slug)
     if not deleted:
         raise HTTPException(status_code=404, detail="Bookmark tidak ditemukan.")
+    return {"deleted": True}
+
+
+@router.get(
+    "/bookmark-links/candidates",
+    response_model=BookmarkLinkCandidatePage,
+)
+async def get_bookmark_link_candidates(
+    request: Request,
+    offset: int = Query(default=0, ge=0),
+    page_size: int = Query(default=5, ge=1, le=10),
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Pindai kandidat source alternatif secara eksplisit."""
+    return await list_bookmark_link_candidates(
+        db,
+        user_id,
+        base_url=_get_request_base_url(request),
+        offset=offset,
+        page_size=page_size,
+    )
+
+
+@router.post(
+    "/bookmark-links",
+    response_model=BookmarkLinkBatchResponse,
+)
+async def post_bookmark_links(
+    payload: BookmarkLinkBatchRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Simpan kandidat source yang dikonfirmasi user."""
+    try:
+        return await set_bookmark_links(db, user_id, payload)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post(
+    "/bookmark-links/completed-sync",
+    response_model=BookmarkLinkCompletionSyncResponse,
+)
+async def post_bookmark_link_completed_sync(
+    payload: BookmarkLinkCompletionSyncRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Sinkronkan completed dalam batch kecil dan transaksi terpisah."""
+    return await synchronize_completed_link_batch(
+        db,
+        user_id,
+        payload.bookmark_ids,
+    )
+
+
+@router.delete("/bookmark-links/{source_name}/comics/{comic_slug}")
+async def remove_bookmark_link(
+    source_name: str,
+    comic_slug: str,
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Putuskan source alternatif tanpa menghapus bookmark utama."""
+    deleted = await delete_bookmark_link(
+        db,
+        user_id,
+        source_name,
+        comic_slug,
+    )
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Relasi source tidak ditemukan.")
     return {"deleted": True}
 
 

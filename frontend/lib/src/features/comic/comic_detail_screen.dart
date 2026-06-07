@@ -150,205 +150,238 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.light,
       statusBarBrightness: Brightness.dark,
-      systemNavigationBarColor: colorScheme.surface,
+      systemNavigationBarColor: Colors.transparent,
       systemNavigationBarIconBrightness: isDark
           ? Brightness.light
           : Brightness.dark,
-      systemNavigationBarDividerColor: colorScheme.outlineVariant,
+      systemNavigationBarDividerColor: Colors.transparent,
       systemNavigationBarContrastEnforced: false,
     );
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
+      key: const ValueKey('comic-detail-system-ui-overlay'),
       value: navigationOverlayStyle,
       child: Scaffold(
-        body: RefreshIndicator(
-          onRefresh: () async {
-            try {
-              ref.invalidate(comicDetailProvider(request));
-              ref.invalidate(chaptersProvider(request));
-              ref.invalidate(progressProvider(request));
-              ref.invalidate(libraryComicStateProvider(comic));
-              await Future.wait([
-                ref.read(comicDetailProvider(request).future),
-                ref.read(chaptersProvider(request).future),
-                ref.read(progressProvider(request).future),
-                ref.read(libraryComicStateProvider(comic).future),
-              ]);
-            } catch (error, stackTrace) {
-              if (!context.mounted) return;
-              showAppErrorSnackBar(
-                context,
-                error: error,
-                stackTrace: stackTrace,
-                logContext: 'Refresh comic detail failed',
-                fallbackMessage:
-                    'Detail komik belum dapat dimuat ulang. Silakan coba lagi.',
-              );
-            }
-          },
-          child: CustomScrollView(
-            controller: _scrollController,
-            physics: const AlwaysScrollableScrollPhysics(
-              parent: BouncingScrollPhysics(),
-            ),
-            slivers: [
-              SliverAppBar(
-                automaticallyImplyLeading: false,
-                expandedHeight: expandedHeaderHeight,
-                pinned: true,
-                stretch: true,
-                elevation: 0,
-                centerTitle: true,
-                titleSpacing: 16,
-                surfaceTintColor: Colors.transparent,
-                foregroundColor: Colors.white,
-                backgroundColor: Colors.transparent,
-                leading: Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: Center(
-                    child: _GlassIconButton(
-                      tooltip: 'Kembali',
-                      icon: TonztoonIcons.arrowBack,
-                      progress: _toolbarProgress,
-                      onPressed: () =>
-                          context.canPop() ? context.pop() : context.go('/'),
-                    ),
+        extendBody: true,
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  try {
+                    ref.invalidate(comicDetailProvider(request));
+                    ref.invalidate(chaptersProvider(request));
+                    ref.invalidate(progressProvider(request));
+                    ref.invalidate(libraryComicStateProvider(comic));
+                    await Future.wait([
+                      ref.read(comicDetailProvider(request).future),
+                      ref.read(chaptersProvider(request).future),
+                      ref.read(progressProvider(request).future),
+                      ref.read(libraryComicStateProvider(comic).future),
+                    ]);
+                  } catch (error, stackTrace) {
+                    if (!context.mounted) return;
+                    showAppErrorSnackBar(
+                      context,
+                      error: error,
+                      stackTrace: stackTrace,
+                      logContext: 'Refresh comic detail failed',
+                      fallbackMessage:
+                          'Detail komik belum dapat dimuat ulang. Silakan coba lagi.',
+                    );
+                  }
+                },
+                child: CustomScrollView(
+                  controller: _scrollController,
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
                   ),
-                ),
-                title: ValueListenableBuilder<double>(
-                  valueListenable: _toolbarProgress,
-                  builder: (context, progress, child) {
-                    return IgnorePointer(
-                      ignoring: progress == 0,
-                      child: Opacity(
-                        opacity: progress,
-                        child: Text(
-                          detail.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            color: Color.lerp(
-                              Colors.white,
-                              colorScheme.onSurface,
-                              progress,
-                            ),
-                            fontWeight: FontWeight.w900,
+                  slivers: [
+                    SliverAppBar(
+                      automaticallyImplyLeading: false,
+                      expandedHeight: expandedHeaderHeight,
+                      pinned: true,
+                      stretch: true,
+                      elevation: 0,
+                      centerTitle: true,
+                      titleSpacing: 16,
+                      surfaceTintColor: Colors.transparent,
+                      foregroundColor: Colors.white,
+                      backgroundColor: Colors.transparent,
+                      leading: Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: Center(
+                          child: _GlassIconButton(
+                            tooltip: 'Kembali',
+                            icon: TonztoonIcons.arrowBack,
+                            progress: _toolbarProgress,
+                            onPressed: () => context.canPop()
+                                ? context.pop()
+                                : context.go('/'),
                           ),
                         ),
                       ),
-                    );
-                  },
-                ),
-                actions: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 12),
-                    child: _GlassIconButton(
-                      tooltip: _bookmarkBusy
-                          ? 'Menyimpan bookmark'
-                          : effectiveBookmarked
-                          ? 'Hapus bookmark'
-                          : 'Simpan bookmark',
-                      icon: effectiveBookmarked
-                          ? TonztoonIcons.bookmarkFilled
-                          : TonztoonIcons.bookmark,
-                      isLoading: _bookmarkBusy,
-                      progress: _toolbarProgress,
-                      onPressed: () => _toggleBookmark(comic, libraryState),
-                    ),
-                  ),
-                ],
-                flexibleSpace: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    FlexibleSpaceBar(
-                      stretchModes: const [StretchMode.zoomBackground],
-                      background: RepaintBoundary(
-                        child: _DetailHero(detail: detail),
+                      title: ValueListenableBuilder<double>(
+                        valueListenable: _toolbarProgress,
+                        builder: (context, progress, child) {
+                          return IgnorePointer(
+                            ignoring: progress == 0,
+                            child: Opacity(
+                              opacity: progress,
+                              child: Text(
+                                detail.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: Color.lerp(
+                                    Colors.white,
+                                    colorScheme.onSurface,
+                                    progress,
+                                  ),
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      actions: [
+                        Padding(
+                          padding: const EdgeInsets.only(right: 12),
+                          child: _GlassIconButton(
+                            tooltip: _bookmarkBusy
+                                ? 'Menyimpan bookmark'
+                                : libraryState?.bookmarkRelation ==
+                                      BookmarkRelation.linked
+                                ? 'Bookmark terhubung dari source lain'
+                                : effectiveBookmarked
+                                ? 'Hapus bookmark'
+                                : 'Simpan bookmark',
+                            icon: effectiveBookmarked
+                                ? TonztoonIcons.bookmarkFilled
+                                : TonztoonIcons.bookmark,
+                            isLoading: _bookmarkBusy,
+                            progress: _toolbarProgress,
+                            onPressed: () =>
+                                _toggleBookmark(comic, libraryState),
+                          ),
+                        ),
+                      ],
+                      flexibleSpace: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          FlexibleSpaceBar(
+                            stretchModes: const [StretchMode.zoomBackground],
+                            background: RepaintBoundary(
+                              child: _DetailHero(detail: detail),
+                            ),
+                          ),
+                          _CollapsingToolbarTint(
+                            progress: _toolbarProgress,
+                            color: colorScheme.surfaceContainerLowest,
+                            collapsedStatusBarStyle: navigationOverlayStyle
+                                .copyWith(
+                                  statusBarIconBrightness: isDark
+                                      ? Brightness.light
+                                      : Brightness.dark,
+                                  statusBarBrightness: isDark
+                                      ? Brightness.dark
+                                      : Brightness.light,
+                                ),
+                          ),
+                        ],
                       ),
                     ),
-                    _CollapsingToolbarTint(
-                      progress: _toolbarProgress,
-                      color: colorScheme.surfaceContainerLowest,
-                      collapsedStatusBarStyle: navigationOverlayStyle.copyWith(
-                        statusBarIconBrightness: isDark
-                            ? Brightness.light
-                            : Brightness.dark,
-                        statusBarBrightness: isDark
-                            ? Brightness.dark
-                            : Brightness.light,
+                    SliverToBoxAdapter(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerLowest,
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(28),
+                          ),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 22, 16, 136),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _TitleBlock(detail: detail),
+                              if (libraryState != null &&
+                                  (libraryState.bookmarkRelation ==
+                                          BookmarkRelation.linked ||
+                                      libraryState
+                                          .linkedComics
+                                          .isNotEmpty)) ...[
+                                const SizedBox(height: 12),
+                                _LinkedSourcesCard(
+                                  state: libraryState,
+                                  currentComic: comic,
+                                ),
+                              ],
+                              const SizedBox(height: 18),
+                              _QuickStats(detail: detail),
+                              const SizedBox(height: 20),
+                              _SectionHeader(
+                                icon: TonztoonIcons.bookOpen,
+                                title: 'Sinopsis',
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                detail.synopsis,
+                                style: theme.textTheme.bodyLarge?.copyWith(
+                                  height: 1.55,
+                                  color: colorScheme.onSurface.withValues(
+                                    alpha: 0.82,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 22),
+                              _SectionHeader(
+                                icon: TonztoonIcons.tags,
+                                title: 'Genre',
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: detail.genres
+                                    .map(
+                                      (genre) => ComicGenreBadge(genre: genre),
+                                    )
+                                    .toList(),
+                              ),
+                              const SizedBox(height: 24),
+                              _ChapterPanel(
+                                chapters: detail.chapters,
+                                downloadState: downloadState,
+                                progress: progress,
+                                completedChapterNumbers:
+                                    completedChapterNumbers,
+                                loading: chaptersAsync.isLoading,
+                                error: chaptersError,
+                                onRetry: () =>
+                                    ref.invalidate(chaptersProvider(request)),
+                                onOpenChapter: (chapter) =>
+                                    _openReaderAndRefresh(
+                                      comic,
+                                      request,
+                                      detail,
+                                      chapter,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-              SliverToBoxAdapter(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerLowest,
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(28),
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 22, 16, 24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _TitleBlock(detail: detail),
-                        const SizedBox(height: 18),
-                        _QuickStats(detail: detail),
-                        const SizedBox(height: 20),
-                        _SectionHeader(
-                          icon: TonztoonIcons.bookOpen,
-                          title: 'Sinopsis',
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          detail.synopsis,
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                            height: 1.55,
-                            color: colorScheme.onSurface.withValues(
-                              alpha: 0.82,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 22),
-                        _SectionHeader(
-                          icon: TonztoonIcons.tags,
-                          title: 'Genre',
-                        ),
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: detail.genres
-                              .map((genre) => ComicGenreBadge(genre: genre))
-                              .toList(),
-                        ),
-                        const SizedBox(height: 24),
-                        _ChapterPanel(
-                          chapters: detail.chapters,
-                          downloadState: downloadState,
-                          progress: progress,
-                          completedChapterNumbers: completedChapterNumbers,
-                          loading: chaptersAsync.isLoading,
-                          error: chaptersError,
-                          onRetry: () =>
-                              ref.invalidate(chaptersProvider(request)),
-                          onOpenChapter: (chapter) => _openReaderAndRefresh(
-                            comic,
-                            request,
-                            detail,
-                            chapter,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+            _ComicDetailBottomFade(
+              background: colorScheme.surfaceContainerLowest,
+            ),
+          ],
         ),
         bottomNavigationBar: _BottomReadBar(
           detail: detail,
@@ -400,6 +433,10 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
     LibraryComicState? currentState,
   ) async {
     if (_bookmarkBusy) return;
+    if (currentState?.bookmarkRelation == BookmarkRelation.linked) {
+      await _manageLinkedBookmark(comic, currentState!);
+      return;
+    }
     setState(() => _bookmarkBusy = true);
     try {
       final currentBookmarked =
@@ -421,6 +458,63 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
       );
     } catch (error, stackTrace) {
       _showErrorSnack(error, stackTrace, 'Toggle bookmark failed');
+    } finally {
+      if (mounted) setState(() => _bookmarkBusy = false);
+    }
+  }
+
+  Future<void> _manageLinkedBookmark(
+    ComicSummary comic,
+    LibraryComicState state,
+  ) async {
+    final origin = state.bookmarkOrigin;
+    if (origin == null) return;
+    final action = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Bookmark terhubung'),
+        content: Text(
+          '${comic.title} dikenali sebagai komik yang sama dengan bookmark '
+          '${origin.title} dari ${comicSourceNameLabel(origin.sourceName)}.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop('unlink'),
+            child: const Text('Putuskan source ini'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop('remove'),
+            child: const Text('Hapus bookmark utama'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || action == null) return;
+
+    setState(() => _bookmarkBusy = true);
+    try {
+      final repository = ref.read(libraryRepositoryProvider);
+      if (action == 'unlink') {
+        await repository.unlinkComicSource(comic);
+        _showSnack(
+          'Source diputuskan dari bookmark.',
+          type: AppSnackBarType.success,
+        );
+      } else {
+        await repository.toggleBookmark(origin.toSummary(), true);
+        _showSnack('Bookmark utama dihapus.', type: AppSnackBarType.success);
+      }
+      ref.invalidate(libraryComicStateProvider(comic));
+      ref.invalidate(libraryComicStateProvider(origin.toSummary()));
+      ref.invalidate(bookmarksProvider);
+      ref.invalidate(paginatedBookmarksProvider);
+      ref.invalidate(librarySummaryProvider);
+    } catch (error, stackTrace) {
+      _showErrorSnack(error, stackTrace, 'Manage linked bookmark failed');
     } finally {
       if (mounted) setState(() => _bookmarkBusy = false);
     }
@@ -1157,6 +1251,73 @@ class _DetailHero extends StatelessWidget {
   }
 }
 
+class _LinkedSourcesCard extends StatelessWidget {
+  const _LinkedSourcesCard({required this.state, required this.currentComic});
+
+  final LibraryComicState state;
+  final ComicSummary currentComic;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final origin = state.bookmarkOrigin;
+    final alternatives = state.linkedComics;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.secondaryContainer.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(TonztoonIcons.link, size: 17, color: colors.secondary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    state.bookmarkRelation == BookmarkRelation.linked &&
+                            origin != null
+                        ? 'Terhubung lewat ${comicSourceNameLabel(origin.sourceName)}'
+                        : 'Source terhubung',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: colors.onSecondaryContainer,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (alternatives.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: alternatives.map((comic) {
+                  return ActionChip(
+                    avatar: const Icon(TonztoonIcons.bookOpen, size: 14),
+                    label: Text(comicSourceNameLabel(comic.sourceName)),
+                    onPressed:
+                        comic.sourceName == currentComic.sourceName &&
+                            comic.slug == currentComic.slug
+                        ? null
+                        : () => context.push(
+                            '/comic/${Uri.encodeComponent(comic.sourceName)}/${Uri.encodeComponent(comic.slug)}',
+                            extra: comic.toSummary(),
+                          ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ComicDetailLoadingPlaceholder extends StatelessWidget {
   const _ComicDetailLoadingPlaceholder();
 
@@ -1349,7 +1510,7 @@ class _DetailCreatorTileShimmer extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-      color: colorScheme.surface,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: colorScheme.outlineVariant),
       ),
@@ -2149,6 +2310,39 @@ class _ChapterReadBadge extends StatelessWidget {
   }
 }
 
+class _ComicDetailBottomFade extends StatelessWidget {
+  const _ComicDetailBottomFade({required this.background});
+
+  final Color background;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      key: const ValueKey('comic-detail-bottom-fade'),
+      left: 0,
+      right: 0,
+      bottom: 0,
+      height: 140,
+      child: IgnorePointer(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              stops: const [0, 0.55, 1],
+              colors: [
+                background.withValues(alpha: 0),
+                background.withValues(alpha: 0.88),
+                background,
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _BottomReadBar extends StatelessWidget {
   const _BottomReadBar({
     required this.detail,
@@ -2191,64 +2385,86 @@ class _BottomReadBar extends StatelessWidget {
 
     return SafeArea(
       top: false,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainerLowest,
-          border: Border(top: BorderSide(color: colorScheme.outlineVariant)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.10),
-              blurRadius: 18,
-              offset: const Offset(0, -8),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            IconButton.filledTonal(
-              tooltip: downloadTooltip,
-              onPressed: downloadBusy ? null : onDownload,
-              icon: downloadBusy
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Icon(downloadState.icon),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: hasReadingProgress
-                  ? _ProgressReadButton(
-                      onPressed: canRead ? onContinueReading : null,
-                      icon: chaptersLoading
-                          ? TonztoonIcons.clock
-                          : TonztoonIcons.play,
-                      label: readLabel,
-                      progress: readProgress,
-                    )
-                  : FilledButton.icon(
-                      onPressed: canRead ? onContinueReading : null,
-                      icon: Icon(
-                        chaptersLoading
-                            ? TonztoonIcons.clock
-                            : TonztoonIcons.play,
+      minimum: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: DecoratedBox(
+          key: const ValueKey('comic-detail-bottom-read-bar'),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(30),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.18),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(30),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: colorScheme.surface.withValues(alpha: 0.94),
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Row(
+                    children: [
+                      IconButton.filledTonal(
+                        tooltip: downloadTooltip,
+                        onPressed: downloadBusy ? null : onDownload,
+                        icon: downloadBusy
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Icon(downloadState.icon),
                       ),
-                      label: Text(readLabel),
-                    ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: hasReadingProgress
+                            ? _ProgressReadButton(
+                                onPressed: canRead ? onContinueReading : null,
+                                icon: chaptersLoading
+                                    ? TonztoonIcons.clock
+                                    : TonztoonIcons.play,
+                                label: readLabel,
+                                progress: readProgress,
+                              )
+                            : FilledButton.icon(
+                                onPressed: canRead ? onContinueReading : null,
+                                icon: Icon(
+                                  chaptersLoading
+                                      ? TonztoonIcons.clock
+                                      : TonztoonIcons.play,
+                                ),
+                                label: Text(readLabel),
+                              ),
+                      ),
+                      const SizedBox(width: 10),
+                      IconButton.filledTonal(
+                        tooltip: 'Tambah ke koleksi',
+                        onPressed: collectionBusy ? null : onManageCollections,
+                        icon: collectionBusy
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(TonztoonIcons.library),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
-            const SizedBox(width: 10),
-            IconButton.filledTonal(
-              tooltip: 'Tambah ke koleksi',
-              onPressed: collectionBusy ? null : onManageCollections,
-              icon: collectionBusy
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(TonztoonIcons.library),
-            ),
-          ],
+          ),
         ),
       ),
     );

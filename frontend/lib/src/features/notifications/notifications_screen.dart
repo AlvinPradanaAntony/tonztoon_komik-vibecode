@@ -135,7 +135,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 tooltip: 'Bersihkan notifikasi',
                 onPressed: _clearNotifications,
                 backgroundColor: theme.colorScheme.secondary,
-                foregroundColor: theme.colorScheme.onSecondary,
+                foregroundColor: Colors.white,
                 shape: const CircleBorder(),
                 child: const Icon(TonztoonIcons.trash),
               ),
@@ -272,12 +272,13 @@ class _NotificationSummary extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     return DecoratedBox(
+      key: const ValueKey('notification-summary'),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: isDark
-              ? const [Color(0xFF17232E), Color(0xFF261A16)]
+              ? const [Color(0xFF143248), Color(0xFF402515)]
               : const [Color(0xFFFFF2DD), Color(0xFFE8F6FF)],
         ),
         borderRadius: BorderRadius.circular(18),
@@ -337,7 +338,9 @@ class _FilterStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -350,21 +353,34 @@ class _FilterStrip extends StatelessWidget {
             'Sistem',
           ]) ...[
             ChoiceChip(
+              key: ValueKey('notification-filter-$filter'),
               label: Text(filter),
               selected: selectedFilter == filter,
               onSelected: (_) => onChanged(filter),
               showCheckmark: false,
-              backgroundColor: Colors.white,
+              backgroundColor: isDark
+                  ? colorScheme.surfaceContainer
+                  : colorScheme.surface,
               selectedColor: colorScheme.primary,
+              disabledColor: colorScheme.surfaceContainerLow,
+              surfaceTintColor: Colors.transparent,
               labelStyle: TextStyle(
                 color: selectedFilter == filter
                     ? colorScheme.onPrimary
+                    : isDark
+                    ? colorScheme.onSurface
                     : colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w800,
               ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(18),
-                side: BorderSide(color: colorScheme.outlineVariant),
+                side: BorderSide(
+                  color: selectedFilter == filter
+                      ? colorScheme.primary
+                      : colorScheme.outlineVariant.withValues(
+                          alpha: isDark ? 0.8 : 1,
+                        ),
+                ),
               ),
             ),
             const SizedBox(width: 8),
@@ -416,80 +432,133 @@ class _NotificationTile extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final style = _notificationStyle(item);
 
+    // Background color: Blend with primary if unread for a soft modern tint
+    final cardColor = item.unread
+        ? Color.lerp(colorScheme.surface, colorScheme.primary, 0.07)!
+        : colorScheme.surface;
+
+    // Subtle colored shadow for unread, flat shadow for read
+    final shadowColor = item.unread
+        ? colorScheme.primary.withValues(alpha: 0.12)
+        : Colors.black.withValues(alpha: 0.04);
+
+    final elevation = item.unread ? 2.5 : 0.8;
+
     return Material(
-      color: colorScheme.surface,
-      elevation: 1.5,
-      shadowColor: Colors.black.withValues(alpha: 0.05),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: cardColor,
+      elevation: elevation,
+      shadowColor: shadowColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: item.unread
+            ? BorderSide(color: colorScheme.primary.withValues(alpha: 0.16), width: 1)
+            : BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.2), width: 1),
+      ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            border: item.unread
-                ? Border.all(color: colorScheme.primary.withValues(alpha: 0.38))
-                : null,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _NotificationIcon(icon: style.icon, accent: style.accent),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Visual Accent Indicator on the left edge
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 4.5,
+                decoration: BoxDecoration(
+                  color: item.unread ? colorScheme.primary : Colors.transparent,
+                  borderRadius: const BorderRadius.horizontal(
+                    right: Radius.circular(4),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 16, 12),
+                  child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              item.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.titleMedium,
+                      _NotificationIcon(
+                        icon: style.icon,
+                        accent: style.accent,
+                        isUnread: item.unread,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    item.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.titleMedium?.copyWith(
+                                      fontWeight: item.unread ? FontWeight.w800 : FontWeight.w600,
+                                      color: item.unread
+                                          ? null
+                                          : (theme.textTheme.titleMedium?.color ?? colorScheme.onSurface).withValues(alpha: 0.72),
+                                    ),
+                                  ),
+                                ),
+                                if (item.unread) ...[
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.primary,
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: colorScheme.primary.withValues(alpha: 0.5),
+                                          blurRadius: 4,
+                                          spreadRadius: 1.5,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(width: 8),
+                                Text(
+                                  _relativeTime(item.createdAt),
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: item.unread
+                                        ? colorScheme.secondary
+                                        : colorScheme.secondary.withValues(alpha: 0.6),
+                                    fontWeight: item.unread ? FontWeight.w900 : FontWeight.w700,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                          if (item.unread) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color: colorScheme.primary,
-                                shape: BoxShape.circle,
+                            const SizedBox(height: 5),
+                            Text(
+                              item.message,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                height: 1.35,
+                                color: item.unread
+                                    ? null
+                                    : (theme.textTheme.bodySmall?.color ?? colorScheme.onSurfaceVariant).withValues(alpha: 0.65),
                               ),
                             ),
-                          ],
-                          const SizedBox(width: 8),
-                          Text(
-                            _relativeTime(item.createdAt),
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: colorScheme.secondary,
-                              fontWeight: FontWeight.w900,
+                            const SizedBox(height: 9),
+                            _CategoryPill(
+                              label: item.category,
+                              isUnread: item.unread,
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        item.message,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          height: 1.35,
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 9),
-                      _CategoryPill(label: item.category),
                     ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -498,30 +567,52 @@ class _NotificationTile extends StatelessWidget {
 }
 
 class _NotificationIcon extends StatelessWidget {
-  const _NotificationIcon({required this.icon, required this.accent});
+  const _NotificationIcon({
+    required this.icon,
+    required this.accent,
+    required this.isUnread,
+  });
 
   final IconData icon;
   final Color accent;
+  final bool isUnread;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.16),
+        color: isUnread
+            ? accent.withValues(alpha: 0.20)
+            : accent.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
+        boxShadow: isUnread
+            ? [
+                BoxShadow(
+                  color: accent.withValues(alpha: 0.24),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : null,
       ),
       child: Padding(
         padding: const EdgeInsets.all(10),
-        child: Icon(icon, size: 20, color: accent),
+        child: Icon(
+          icon,
+          size: 20,
+          color: isUnread ? accent : accent.withValues(alpha: 0.6),
+        ),
       ),
     );
   }
 }
 
 class _CategoryPill extends StatelessWidget {
-  const _CategoryPill({required this.label});
+  const _CategoryPill({required this.label, required this.isUnread});
 
   final String label;
+  final bool isUnread;
 
   @override
   Widget build(BuildContext context) {
@@ -529,16 +620,21 @@ class _CategoryPill extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
+        color: isUnread
+            ? colorScheme.surfaceContainerHighest
+            : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: Text(
           label,
-          style: Theme.of(
-            context,
-          ).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w900),
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.w900,
+                color: isUnread
+                    ? null
+                    : (Theme.of(context).textTheme.labelSmall?.color ?? colorScheme.onSurface).withValues(alpha: 0.6),
+              ),
         ),
       ),
     );

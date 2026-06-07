@@ -30,6 +30,7 @@ class TonztoonIcons {
   static const IconData download = LucideIcons.download;
   static const IconData cloudUpload = LucideIcons.cloudUpload;
   static const IconData share = LucideIcons.share2;
+  static const IconData link = LucideIcons.link;
   static const IconData bookOpen = LucideIcons.bookOpen;
 
   // Ikon tambahan untuk Home

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../core/api_client.dart';
 import '../core/storage.dart';
 import '../core/token_store.dart';
@@ -10,10 +12,19 @@ class LibraryRepository {
   LibraryRepository(this._api, this._tokenStore, this._store);
 
   static const _guestReadingTimeKey = 'reading_time_total_seconds_guest';
+  static const _bookmarkCandidatePageSize = 5;
+  static const _bookmarkCandidateMaxAttempts = 3;
+  static const _bookmarkLinkBatchSize = 100;
+  static const _bookmarkCompletionSyncBatchSize = 20;
+  static const _bookmarkLinkMaxAttempts = 3;
 
   final TonztoonApi _api;
   final TokenStore _tokenStore;
   final LocalStore _store;
+  int _bookmarkCandidateScanOffset = 0;
+  bool? _bookmarkCandidateScanAuthenticated;
+  bool _bookmarkCandidateScanComplete = false;
+  final Map<String, BookmarkLinkCandidate> _bookmarkCandidateScanResults = {};
 
   Future<bool> get _isLoggedIn async {
     final token = await _tokenStore.readAccessToken();
@@ -59,6 +70,9 @@ class LibraryRepository {
     return LibraryComicState(
       comic: remote.comic,
       bookmarked: remote.bookmarked,
+      bookmarkRelation: remote.bookmarkRelation,
+      bookmarkOrigin: remote.bookmarkOrigin,
+      linkedComics: remote.linkedComics,
       collections: remote.collections,
       progress: progress,
       completedChapterNumbers: completedChapterNumbers,
@@ -69,7 +83,34 @@ class LibraryRepository {
   }
 
   LibraryComicState _localComicState(ComicSummary comic) {
-    final bookmark = _localBookmarks()[comic.key] != null;
+    final bookmarks = _localBookmarks();
+    final directBookmark = bookmarks[comic.key];
+    final links = _localBookmarkLinks();
+    _LocalBookmarkLink? linkedEntry;
+    for (final link in links) {
+      if (link.linked.key == comic.key) {
+        linkedEntry = link;
+        break;
+      }
+    }
+    final origin = directBookmark ?? linkedEntry?.bookmark;
+    final relation = directBookmark != null
+        ? BookmarkRelation.direct
+        : linkedEntry != null
+        ? BookmarkRelation.linked
+        : BookmarkRelation.none;
+    final linkedComics = origin == null
+        ? const <LibraryComicRef>[]
+        : [
+            if (origin.key != comic.key) origin,
+            ...links
+                .where(
+                  (link) =>
+                      link.bookmark.key == origin.key &&
+                      link.linked.key != comic.key,
+                )
+                .map((link) => link.linked),
+          ];
     final collections = _localCollections()
         .where(
           (collection) => collection.items.any((item) => item.key == comic.key),
@@ -87,7 +128,10 @@ class LibraryRepository {
     );
     return LibraryComicState(
       comic: LibraryComicRef.fromSummary(comic),
-      bookmarked: bookmark,
+      bookmarked: origin != null,
+      bookmarkRelation: relation,
+      bookmarkOrigin: origin,
+      linkedComics: linkedComics,
       collections: collections,
       progress: progressRaw is Map
           ? ReadingProgress.fromLocalJson(progressRaw)
@@ -124,11 +168,23 @@ class LibraryRepository {
         final comic = comicRaw is Map
             ? Map<String, dynamic>.from(comicRaw)
             : const <String, dynamic>{};
-        return LibraryComicRef.fromJson(comic);
+        return LibraryComicRef.fromJson({
+          ...comic,
+          'linked_comics': json['linked_comics'] ?? const [],
+        });
       }).toList();
     }
     final start = (page - 1) * pageSize;
-    return _localBookmarks().values.skip(start).take(pageSize).toList();
+    final links = _localBookmarkLinks();
+    return _localBookmarks().values.skip(start).take(pageSize).map((bookmark) {
+      return LibraryComicRef.fromJson({
+        ...bookmark.toJson(),
+        'linked_comics': links
+            .where((link) => link.bookmark.key == bookmark.key)
+            .map((link) => link.linked.toJson())
+            .toList(),
+      });
+    }).toList();
   }
 
   Future<LibrarySummary> getLibrarySummary() async {
@@ -156,11 +212,13 @@ class LibraryRepository {
         await _api.delete<Map<String, dynamic>>(
           '/library/bookmarks/${comic.sourceName}/comics/${comic.slug}',
         );
+        _resetBookmarkCandidateScan();
         return false;
       }
       await _api.put<Map<String, dynamic>>(
         '/library/bookmarks/${comic.sourceName}/comics/${comic.slug}',
       );
+      _resetBookmarkCandidateScan();
       return true;
     }
 
@@ -168,11 +226,430 @@ class LibraryRepository {
     if (bookmarked) {
       bookmarks.remove(comic.key);
       await _store.library.put('bookmarks', _encodeComicRefMap(bookmarks));
+      await _saveLocalBookmarkLinks(
+        _localBookmarkLinks()
+            .where((link) => link.bookmark.key != comic.key)
+            .toList(),
+      );
+      _resetBookmarkCandidateScan();
       return false;
     }
     bookmarks[comic.key] = LibraryComicRef.fromSummary(comic);
     await _store.library.put('bookmarks', _encodeComicRefMap(bookmarks));
+    _resetBookmarkCandidateScan();
     return true;
+  }
+
+  Future<List<BookmarkLinkCandidate>> scanBookmarkLinkCandidates({
+    void Function(int scanned)? onProgress,
+  }) async {
+    final authenticated = await _isLoggedIn;
+    if (_bookmarkCandidateScanAuthenticated != authenticated) {
+      _resetBookmarkCandidateScan();
+      _bookmarkCandidateScanAuthenticated = authenticated;
+    }
+    onProgress?.call(_bookmarkCandidateScanOffset);
+    if (_bookmarkCandidateScanComplete) {
+      return _bookmarkCandidateScanResults.values.toList();
+    }
+
+    if (authenticated) {
+      var offset = _bookmarkCandidateScanOffset;
+      var hasMore = true;
+      while (hasMore) {
+        final page = await _loadBookmarkCandidatePage(offset);
+        for (final rawGroup
+            in (page['items'] as List? ?? const []).whereType<Map>()) {
+          final group = Map<String, dynamic>.from(rawGroup);
+          final bookmark = LibraryComicRef.fromJson(
+            Map<String, dynamic>.from(group['bookmark'] as Map? ?? const {}),
+          );
+          for (final item
+              in ((group['candidates'] as List?) ?? const [])
+                  .whereType<Map>()) {
+            final candidate = BookmarkLinkCandidate.fromJson(
+              bookmark,
+              Map<String, dynamic>.from(item),
+            );
+            _bookmarkCandidateScanResults[candidate.key] = candidate;
+          }
+        }
+        final nextOffset = (page['next_offset'] as num?)?.toInt() ?? offset;
+        hasMore = page['has_more'] == true && nextOffset > offset;
+        offset = nextOffset;
+        _bookmarkCandidateScanOffset = offset;
+        onProgress?.call(offset);
+      }
+      final candidates = _bookmarkCandidateScanResults.values.toList();
+      _bookmarkCandidateScanComplete = true;
+      return candidates;
+    }
+
+    final bookmarks = _localBookmarks().values.toList();
+    final usedKeys = <String>{
+      ...bookmarks.map((item) => item.key),
+      ..._localBookmarkLinks().map((item) => item.linked.key),
+    };
+    for (
+      var index = _bookmarkCandidateScanOffset;
+      index < bookmarks.length;
+      index++
+    ) {
+      final bookmark = bookmarks[index];
+      final response = await _api.get<List<dynamic>>(
+        '/search',
+        queryParameters: {'q': bookmark.title, 'page_size': 50},
+      );
+      final bestBySource = <String, BookmarkLinkCandidate>{};
+      for (final raw in (response.data ?? const []).whereType<Map>()) {
+        final comic = LibraryComicRef.fromJson(Map<String, dynamic>.from(raw));
+        if (comic.sourceName == bookmark.sourceName ||
+            usedKeys.contains(comic.key)) {
+          continue;
+        }
+        final confidence = _titleSimilarity(bookmark.title, comic.title);
+        if (confidence < 0.55) continue;
+        final candidate = BookmarkLinkCandidate(
+          bookmark: bookmark,
+          comic: comic,
+          confidence: confidence,
+        );
+        final current = bestBySource[comic.sourceName];
+        if (current == null || current.confidence < confidence) {
+          bestBySource[comic.sourceName] = candidate;
+        }
+      }
+      for (final candidate in bestBySource.values) {
+        _bookmarkCandidateScanResults[candidate.key] = candidate;
+      }
+      _bookmarkCandidateScanOffset = index + 1;
+      onProgress?.call(index + 1);
+    }
+    final candidates = _bookmarkCandidateScanResults.values.toList();
+    _bookmarkCandidateScanComplete = true;
+    return candidates;
+  }
+
+  Future<Map<String, dynamic>> _loadBookmarkCandidatePage(int offset) async {
+    for (var attempt = 1; attempt <= _bookmarkCandidateMaxAttempts; attempt++) {
+      try {
+        final response = await _api.get<Map<String, dynamic>>(
+          '/library/bookmark-links/candidates',
+          queryParameters: {
+            'offset': offset,
+            'page_size': _bookmarkCandidatePageSize,
+          },
+        );
+        return response.data ?? const {};
+      } on ApiException catch (error) {
+        final retryable =
+            error.statusCode == null ||
+            error.statusCode == 408 ||
+            error.statusCode == 429 ||
+            (error.statusCode ?? 0) >= 500;
+        if (!retryable || attempt == _bookmarkCandidateMaxAttempts) rethrow;
+        await Future<void>.delayed(Duration(milliseconds: 400 * attempt));
+      }
+    }
+    throw StateError('Bookmark candidate retry loop ended unexpectedly.');
+  }
+
+  void _resetBookmarkCandidateScan() {
+    _bookmarkCandidateScanOffset = 0;
+    _bookmarkCandidateScanAuthenticated = null;
+    _bookmarkCandidateScanComplete = false;
+    _bookmarkCandidateScanResults.clear();
+  }
+
+  Future<BookmarkLinkSaveResult> saveBookmarkLinks(
+    List<BookmarkLinkCandidate> candidates, {
+    void Function(BookmarkLinkSaveProgress progress)? onProgress,
+  }) async {
+    if (candidates.isEmpty) {
+      return const BookmarkLinkSaveResult(completedPropagated: 0);
+    }
+    if (await _isLoggedIn) {
+      var linkedTotal = 0;
+      var propagated = 0;
+      final syncBookmarkIds = <int>{};
+      onProgress?.call(
+        BookmarkLinkSaveProgress(
+          stage: BookmarkLinkSaveStage.linking,
+          completed: 0,
+          total: candidates.length,
+        ),
+      );
+      for (
+        var start = 0;
+        start < candidates.length;
+        start += _bookmarkLinkBatchSize
+      ) {
+        final end = math.min(start + _bookmarkLinkBatchSize, candidates.length);
+        final batch = candidates.sublist(start, end);
+        final saved = await _saveBookmarkLinkBatch(batch);
+        linkedTotal += saved.linkedTotal;
+        propagated += saved.completedPropagated;
+        syncBookmarkIds.addAll(saved.completionSyncBookmarkIds);
+        onProgress?.call(
+          BookmarkLinkSaveProgress(
+            stage: BookmarkLinkSaveStage.linking,
+            completed: end,
+            total: candidates.length,
+          ),
+        );
+      }
+      propagated += await _synchronizeBookmarkLinkCompletions(
+        syncBookmarkIds.toList(),
+        onProgress: onProgress,
+      );
+      _resetBookmarkCandidateScan();
+      return BookmarkLinkSaveResult(
+        linkedTotal: linkedTotal,
+        completedPropagated: propagated,
+      );
+    }
+
+    final links = _localBookmarkLinks();
+    onProgress?.call(
+      BookmarkLinkSaveProgress(
+        stage: BookmarkLinkSaveStage.linking,
+        completed: 0,
+        total: candidates.length,
+      ),
+    );
+    for (var index = 0; index < candidates.length; index++) {
+      final candidate = candidates[index];
+      links.removeWhere(
+        (link) =>
+            link.linked.key == candidate.comic.key ||
+            (link.bookmark.key == candidate.bookmark.key &&
+                link.linked.sourceName == candidate.comic.sourceName),
+      );
+      links.add(
+        _LocalBookmarkLink(
+          bookmark: candidate.bookmark,
+          linked: candidate.comic,
+          confidence: candidate.confidence,
+        ),
+      );
+      onProgress?.call(
+        BookmarkLinkSaveProgress(
+          stage: BookmarkLinkSaveStage.linking,
+          completed: index + 1,
+          total: candidates.length,
+        ),
+      );
+    }
+    await _saveLocalBookmarkLinks(links);
+    final syncResult = await _propagateExistingLocalCompletionsForLinks();
+    _resetBookmarkCandidateScan();
+    return BookmarkLinkSaveResult(
+      linkedTotal: candidates.length,
+      completedPropagated: syncResult.completedPropagated,
+    );
+  }
+
+  Future<BookmarkLinkSaveResult> _saveBookmarkLinkBatch(
+    List<BookmarkLinkCandidate> batch,
+  ) async {
+    for (var attempt = 1; attempt <= _bookmarkLinkMaxAttempts; attempt++) {
+      try {
+        final response = await _api.post<Map<String, dynamic>>(
+          '/library/bookmark-links',
+          data: {
+            'links': batch
+                .map(
+                  (item) => {
+                    'bookmark': {
+                      'source_name': item.bookmark.sourceName,
+                      'comic_slug': item.bookmark.slug,
+                    },
+                    'linked_comic': {
+                      'source_name': item.comic.sourceName,
+                      'comic_slug': item.comic.slug,
+                    },
+                    'confidence': item.confidence,
+                  },
+                )
+                .toList(),
+          },
+        );
+        return BookmarkLinkSaveResult.fromJson(response.data ?? const {});
+      } on ApiException catch (error) {
+        if (!_isRetryableBatchError(error) ||
+            attempt == _bookmarkLinkMaxAttempts) {
+          rethrow;
+        }
+        await Future<void>.delayed(Duration(milliseconds: 500 * attempt));
+      }
+    }
+    throw StateError('Bookmark link retry loop ended unexpectedly.');
+  }
+
+  Future<int> _synchronizeBookmarkLinkCompletions(
+    List<int> bookmarkIds, {
+    void Function(BookmarkLinkSaveProgress progress)? onProgress,
+  }) async {
+    var propagated = 0;
+    onProgress?.call(
+      BookmarkLinkSaveProgress(
+        stage: BookmarkLinkSaveStage.syncingCompleted,
+        completed: 0,
+        total: bookmarkIds.length,
+      ),
+    );
+    for (
+      var start = 0;
+      start < bookmarkIds.length;
+      start += _bookmarkCompletionSyncBatchSize
+    ) {
+      final end = math.min(
+        start + _bookmarkCompletionSyncBatchSize,
+        bookmarkIds.length,
+      );
+      final data = await _postCompletedSyncBatch(
+        bookmarkIds.sublist(start, end),
+      );
+      propagated += (data['completed_propagated'] as num?)?.toInt() ?? 0;
+      onProgress?.call(
+        BookmarkLinkSaveProgress(
+          stage: BookmarkLinkSaveStage.syncingCompleted,
+          completed: end,
+          total: bookmarkIds.length,
+        ),
+      );
+    }
+    return propagated;
+  }
+
+  Future<Map<String, dynamic>> _postCompletedSyncBatch(
+    List<int> bookmarkIds,
+  ) async {
+    for (var attempt = 1; attempt <= _bookmarkLinkMaxAttempts; attempt++) {
+      try {
+        final response = await _api.post<Map<String, dynamic>>(
+          '/library/bookmark-links/completed-sync',
+          data: {'bookmark_ids': bookmarkIds},
+        );
+        return response.data ?? const {};
+      } on ApiException catch (error) {
+        if (!_isRetryableBatchError(error) ||
+            attempt == _bookmarkLinkMaxAttempts) {
+          rethrow;
+        }
+        await Future<void>.delayed(Duration(milliseconds: 500 * attempt));
+      }
+    }
+    throw StateError('Completed sync retry loop ended unexpectedly.');
+  }
+
+  bool _isRetryableBatchError(ApiException error) {
+    return error.statusCode == null ||
+        error.statusCode == 408 ||
+        error.statusCode == 429 ||
+        (error.statusCode ?? 0) >= 500;
+  }
+
+  Future<void> unlinkComicSource(ComicSummary comic) async {
+    if (await _isLoggedIn) {
+      await _api.delete<Map<String, dynamic>>(
+        '/library/bookmark-links/${comic.sourceName}/comics/${comic.slug}',
+      );
+      _resetBookmarkCandidateScan();
+      return;
+    }
+    await _saveLocalBookmarkLinks(
+      _localBookmarkLinks()
+          .where((link) => link.linked.key != comic.key)
+          .toList(),
+    );
+    _resetBookmarkCandidateScan();
+  }
+
+  Future<BookmarkLinkSaveResult>
+  _propagateExistingLocalCompletionsForLinks() async {
+    final links = _localBookmarkLinks();
+    var propagated = 0;
+    final linksByBookmark = <String, List<_LocalBookmarkLink>>{};
+    for (final link in links) {
+      linksByBookmark.putIfAbsent(link.bookmark.key, () => []).add(link);
+    }
+
+    for (final groupLinks in linksByBookmark.values) {
+      final comics = <String, LibraryComicRef>{
+        groupLinks.first.bookmark.key: groupLinks.first.bookmark,
+        for (final link in groupLinks) link.linked.key: link.linked,
+      };
+      final chaptersByComic = <String, List<ChapterListItem>>{};
+      for (final comic in comics.values) {
+        try {
+          chaptersByComic[comic.key] = await _getChapterList(comic);
+        } catch (_) {
+          chaptersByComic[comic.key] = const [];
+        }
+      }
+
+      final completedByComic = <String, Set<double>>{
+        for (final comic in comics.values)
+          comic.key: _localCompletedChapterNumbers(
+            comic.sourceName,
+            comic.slug,
+          ).toSet(),
+      };
+      final completedNumbers = completedByComic.values
+          .expand((numbers) => numbers)
+          .toSet();
+
+      for (final completedNumber in completedNumbers) {
+        for (final comic in comics.values) {
+          final completed = completedByComic[comic.key]!;
+          if (completed.any(
+            (number) => (number - completedNumber).abs() <= 0.0001,
+          )) {
+            continue;
+          }
+          ChapterListItem? matchingChapter;
+          for (final chapter in chaptersByComic[comic.key] ?? const []) {
+            if ((chapter.chapterNumber - completedNumber).abs() <= 0.0001) {
+              matchingChapter = chapter;
+              break;
+            }
+          }
+          if (matchingChapter == null) continue;
+          await _addLocalCompletedChapter(
+            comic.sourceName,
+            comic.slug,
+            matchingChapter.chapterNumber,
+          );
+          completed.add(matchingChapter.chapterNumber);
+          propagated++;
+        }
+      }
+    }
+    return BookmarkLinkSaveResult(completedPropagated: propagated);
+  }
+
+  Future<List<ChapterListItem>> _getChapterList(LibraryComicRef comic) async {
+    final response = await _api.get<List<dynamic>>(
+      '/sources/${comic.sourceName}/comics/${comic.slug}/chapters',
+    );
+    return (response.data ?? const [])
+        .whereType<Map>()
+        .map(
+          (item) => ChapterListItem.fromJson(Map<String, dynamic>.from(item)),
+        )
+        .toList();
+  }
+
+  Future<void> _addLocalCompletedChapter(
+    String sourceName,
+    String slug,
+    double chapterNumber,
+  ) async {
+    final key = ReadingProgress.completedChaptersKey(sourceName, slug);
+    final numbers = _localCompletedChapterNumbers(sourceName, slug).toSet()
+      ..add(chapterNumber);
+    await _store.progress.put(key, numbers.toList()..sort());
   }
 
   Future<List<CollectionSummary>> getCollections() async {
@@ -730,6 +1207,21 @@ class LibraryRepository {
           },
         )
         .toList();
+    final bookmarkLinks = _localBookmarkLinks()
+        .map(
+          (link) => {
+            'bookmark': {
+              'source_name': link.bookmark.sourceName,
+              'comic_slug': link.bookmark.slug,
+            },
+            'linked_comic': {
+              'source_name': link.linked.sourceName,
+              'comic_slug': link.linked.slug,
+            },
+            'confidence': link.confidence,
+          },
+        )
+        .toList();
     final collections = _localCollections()
         .map(
           (collection) => {
@@ -783,10 +1275,11 @@ class LibraryRepository {
         !LocalStateMetadata.isReaderPreferencesAuthenticated(_store);
     final readingSeconds = _guestReadingSeconds();
 
-    await _api.post<Map<String, dynamic>>(
+    final response = await _api.post<Map<String, dynamic>>(
       '/library/sync/import',
       data: {
         'bookmarks': bookmarks,
+        'bookmark_links': bookmarkLinks,
         'collections': collections,
         'progress': progress,
         'history': history,
@@ -798,10 +1291,17 @@ class LibraryRepository {
         if (readingSeconds > 0) 'reading_time_seconds': readingSeconds,
       },
     );
-
+    final syncBookmarkIds =
+        (response.data?['completion_sync_bookmark_ids'] as List?)
+            ?.whereType<num>()
+            .map((item) => item.toInt())
+            .toList() ??
+        const <int>[];
+    await _synchronizeBookmarkLinkCompletions(syncBookmarkIds);
     await _deleteGuestProgressEntries(guestProgressEntries);
     await _deleteImportedCompletedChapters(completedChapters);
     await _store.library.delete('bookmarks');
+    await _store.library.delete('bookmark_links');
     await _store.library.delete('collections');
     await _store.library.delete('history_entries');
     await _store.library.delete('favorite_scenes');
@@ -835,6 +1335,22 @@ class LibraryRepository {
         key.toString(),
         LibraryComicRef.fromJson(Map<String, dynamic>.from(value as Map)),
       ),
+    );
+  }
+
+  List<_LocalBookmarkLink> _localBookmarkLinks() {
+    final raw = _store.library.get('bookmark_links');
+    if (raw is! List) return [];
+    return raw
+        .whereType<Map<dynamic, dynamic>>()
+        .map(_LocalBookmarkLink.fromJson)
+        .toList();
+  }
+
+  Future<void> _saveLocalBookmarkLinks(List<_LocalBookmarkLink> links) {
+    return _store.library.put(
+      'bookmark_links',
+      links.map((link) => link.toJson()).toList(),
     );
   }
 
@@ -1016,6 +1532,75 @@ class LibraryRepository {
   Map<String, dynamic> _encodeComicRefMap(Map<String, LibraryComicRef> value) {
     return value.map((key, ref) => MapEntry(key, ref.toJson()));
   }
+}
+
+class _LocalBookmarkLink {
+  const _LocalBookmarkLink({
+    required this.bookmark,
+    required this.linked,
+    required this.confidence,
+  });
+
+  factory _LocalBookmarkLink.fromJson(Map<dynamic, dynamic> json) {
+    return _LocalBookmarkLink(
+      bookmark: LibraryComicRef.fromJson(
+        Map<String, dynamic>.from(json['bookmark'] as Map? ?? const {}),
+      ),
+      linked: LibraryComicRef.fromJson(
+        Map<String, dynamic>.from(json['linked'] as Map? ?? const {}),
+      ),
+      confidence: (json['confidence'] as num?)?.toDouble() ?? 1,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'bookmark': bookmark.toJson(),
+    'linked': linked.toJson(),
+    'confidence': confidence,
+  };
+
+  final LibraryComicRef bookmark;
+  final LibraryComicRef linked;
+  final double confidence;
+}
+
+double _titleSimilarity(String left, String right) {
+  final a = _normalizeTitle(left);
+  final b = _normalizeTitle(right);
+  if (a.isEmpty || b.isEmpty) return 0;
+  if (a == b) return 1;
+  if (a.contains(b) || b.contains(a)) return 0.88;
+
+  final aTokens = a.split(' ').toSet();
+  final bTokens = b.split(' ').toSet();
+  final union = aTokens.union(bTokens).length;
+  final tokenScore = union == 0
+      ? 0.0
+      : aTokens.intersection(bTokens).length / union;
+  final aPairs = _characterPairs(a);
+  final bPairs = _characterPairs(b);
+  final pairUnion = aPairs.length + bPairs.length;
+  final pairScore = pairUnion == 0
+      ? 0.0
+      : (2 * aPairs.intersection(bPairs).length) / pairUnion;
+  return (tokenScore * 0.55 + pairScore * 0.45).clamp(0, 1);
+}
+
+String _normalizeTitle(String value) {
+  return value
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+      .trim()
+      .replaceAll(RegExp(r'\s+'), ' ');
+}
+
+Set<String> _characterPairs(String value) {
+  final compact = value.replaceAll(' ', '');
+  if (compact.length < 2) return {compact};
+  return {
+    for (var index = 0; index < compact.length - 1; index++)
+      compact.substring(index, index + 2),
+  };
 }
 
 extension on ComicSummary {

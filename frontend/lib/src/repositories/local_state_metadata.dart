@@ -70,6 +70,19 @@ class LocalStateMetadata {
     ).contains(completedChapterKey(sourceName, comicSlug, chapterNumber));
   }
 
+  static Future<void> markAuthenticatedCompletedChapterCache(
+    LocalStore store,
+    String sourceName,
+    String comicSlug,
+    double chapterNumber,
+  ) {
+    return _addStringSetValue(
+      store,
+      _authCompletedChapterCacheKeysKey,
+      completedChapterKey(sourceName, comicSlug, chapterNumber),
+    );
+  }
+
   static String completedChapterKey(
     String sourceName,
     String comicSlug,

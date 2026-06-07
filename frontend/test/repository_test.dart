@@ -960,6 +960,613 @@ void main() {
     expect(summary.isEmpty, isFalse);
   });
 
+  test('guest bookmark links mark alternate source as linked', () async {
+    final repository = LibraryRepository(
+      _failingApi(),
+      MemoryTokenStore(),
+      store,
+    );
+    const origin = ComicSummary(
+      title: 'Solo Leveling',
+      slug: 'solo-leveling',
+      sourceName: 'komiku_asia',
+    );
+    const alternate = ComicSummary(
+      title: 'Solo Leveling',
+      slug: 'solo-leveling',
+      sourceName: 'komikcast',
+    );
+
+    await repository.toggleBookmark(origin, false);
+    await repository.saveBookmarkLinks([
+      BookmarkLinkCandidate(
+        bookmark: LibraryComicRef.fromSummary(origin),
+        comic: LibraryComicRef.fromSummary(alternate),
+        confidence: 1,
+      ),
+    ]);
+
+    final alternateState = await repository.getComicState(alternate);
+    final bookmarks = await repository.getBookmarks();
+
+    expect(alternateState.bookmarked, isTrue);
+    expect(alternateState.bookmarkRelation, BookmarkRelation.linked);
+    expect(alternateState.bookmarkOrigin?.sourceName, 'komiku_asia');
+    expect(bookmarks.single.linkedComics.single.sourceName, 'komikcast');
+
+    await repository.unlinkComicSource(alternate);
+    final unlinkedState = await repository.getComicState(alternate);
+    expect(unlinkedState.bookmarkRelation, BookmarkRelation.none);
+  });
+
+  test(
+    'authenticated bookmark candidate scan requests bounded pages',
+    () async {
+      final tokenStore = MemoryTokenStore();
+      await tokenStore.save(const TokenPair(accessToken: 'access-token'));
+      final requestedOffsets = <int>[];
+      final progressUpdates = <int>[];
+      final dio = Dio(BaseOptions(baseUrl: 'https://api.test'));
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            requestedOffsets.add(options.queryParameters['offset'] as int);
+            final offset = options.queryParameters['offset'] as int;
+            handler.resolve(
+              Response<Map<String, dynamic>>(
+                requestOptions: options,
+                statusCode: 200,
+                data: {
+                  'items': offset == 0
+                      ? [
+                          {
+                            'bookmark': {
+                              'source_name': 'source-a',
+                              'slug': 'comic-a',
+                              'title': 'Comic',
+                            },
+                            'candidates': [
+                              {
+                                'comic': {
+                                  'source_name': 'source-b',
+                                  'slug': 'comic-b',
+                                  'title': 'Comic',
+                                },
+                                'confidence': 0.9,
+                              },
+                            ],
+                          },
+                        ]
+                      : const [],
+                  'scanned_total': offset == 0 ? 5 : 3,
+                  'next_offset': offset == 0 ? 5 : 8,
+                  'has_more': offset == 0,
+                },
+              ),
+            );
+          },
+        ),
+      );
+      final repository = LibraryRepository(
+        TonztoonApi(
+          config: const AppConfig(apiBaseUrl: 'https://api.test'),
+          tokenStore: tokenStore,
+          dio: dio,
+        ),
+        tokenStore,
+        store,
+      );
+
+      final candidates = await repository.scanBookmarkLinkCandidates(
+        onProgress: progressUpdates.add,
+      );
+
+      expect(requestedOffsets, [0, 5]);
+      expect(progressUpdates, [0, 5, 8]);
+      expect(candidates, hasLength(1));
+      expect(candidates.single.comic.sourceName, 'source-b');
+    },
+  );
+
+  test(
+    'authenticated bookmark scan retries and resumes its checkpoint',
+    () async {
+      final tokenStore = MemoryTokenStore();
+      await tokenStore.save(const TokenPair(accessToken: 'access-token'));
+      final requestedOffsets = <int>[];
+      var offsetFiveAttempts = 0;
+      final dio = Dio(BaseOptions(baseUrl: 'https://api.test'));
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            final offset = options.queryParameters['offset'] as int;
+            requestedOffsets.add(offset);
+            if (offset == 5) {
+              offsetFiveAttempts++;
+              handler.reject(
+                DioException(
+                  requestOptions: options,
+                  type: DioExceptionType.receiveTimeout,
+                ),
+              );
+              return;
+            }
+            handler.resolve(
+              Response<Map<String, dynamic>>(
+                requestOptions: options,
+                statusCode: 200,
+                data: {
+                  'items': const [],
+                  'scanned_total': 5,
+                  'next_offset': 5,
+                  'has_more': true,
+                },
+              ),
+            );
+          },
+        ),
+      );
+      final repository = LibraryRepository(
+        TonztoonApi(
+          config: const AppConfig(apiBaseUrl: 'https://api.test'),
+          tokenStore: tokenStore,
+          dio: dio,
+        ),
+        tokenStore,
+        store,
+      );
+
+      await expectLater(
+        repository.scanBookmarkLinkCandidates(),
+        throwsA(isA<ApiException>()),
+      );
+      expect(offsetFiveAttempts, 3);
+
+      final resumedProgress = <int>[];
+      await expectLater(
+        repository.scanBookmarkLinkCandidates(onProgress: resumedProgress.add),
+        throwsA(isA<ApiException>()),
+      );
+
+      expect(resumedProgress.first, 5);
+      expect(requestedOffsets.take(4), [0, 5, 5, 5]);
+    },
+  );
+
+  test(
+    'authenticated completed backfill is split into small requests',
+    () async {
+      final tokenStore = MemoryTokenStore();
+      await tokenStore.save(const TokenPair(accessToken: 'access-token'));
+      final linkBatchSizes = <int>[];
+      final syncBatchSizes = <int>[];
+      final progressUpdates = <BookmarkLinkSaveProgress>[];
+      var nextBookmarkId = 1;
+      final dio = Dio(BaseOptions(baseUrl: 'https://api.test'));
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            if (options.path == '/library/bookmark-links') {
+              final data = Map<String, dynamic>.from(options.data as Map);
+              final links = (data['links'] as List).whereType<Map>().toList();
+              linkBatchSizes.add(links.length);
+              handler.resolve(
+                Response<Map<String, dynamic>>(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: {
+                    'linked_total': links.length,
+                    'completed_propagated': 0,
+                    'completion_sync_bookmark_ids': List.generate(
+                      links.length,
+                      (index) => nextBookmarkId++,
+                    ),
+                  },
+                ),
+              );
+              return;
+            }
+            final data = Map<String, dynamic>.from(options.data as Map);
+            final ids = (data['bookmark_ids'] as List)
+                .whereType<int>()
+                .toList();
+            syncBatchSizes.add(ids.length);
+            handler.resolve(
+              Response<Map<String, dynamic>>(
+                requestOptions: options,
+                statusCode: 200,
+                data: {
+                  'processed_groups': ids.length,
+                  'completed_propagated': ids.length * 2,
+                },
+              ),
+            );
+          },
+        ),
+      );
+      final repository = LibraryRepository(
+        TonztoonApi(
+          config: const AppConfig(apiBaseUrl: 'https://api.test'),
+          tokenStore: tokenStore,
+          dio: dio,
+        ),
+        tokenStore,
+        store,
+      );
+
+      final result = await repository.saveBookmarkLinks(
+        List.generate(
+          21,
+          (index) => BookmarkLinkCandidate(
+            bookmark: LibraryComicRef(
+              sourceName: 'source-a',
+              slug: 'comic-$index',
+              title: 'Comic $index',
+            ),
+            comic: LibraryComicRef(
+              sourceName: 'source-b',
+              slug: 'comic-$index',
+              title: 'Comic $index',
+            ),
+            confidence: 0.9,
+          ),
+        ),
+        onProgress: progressUpdates.add,
+      );
+
+      expect(linkBatchSizes, [21]);
+      expect(syncBatchSizes, [20, 1]);
+      expect(
+        progressUpdates
+            .where((item) => item.stage == BookmarkLinkSaveStage.linking)
+            .map((item) => item.completed),
+        [0, 21],
+      );
+      expect(
+        progressUpdates
+            .where(
+              (item) => item.stage == BookmarkLinkSaveStage.syncingCompleted,
+            )
+            .map((item) => item.completed),
+        [0, 20, 21],
+      );
+      expect(result.linkedTotal, 21);
+      expect(result.completedPropagated, 42);
+    },
+  );
+
+  test('failed link save keeps completed scan candidates cached', () async {
+    final tokenStore = MemoryTokenStore();
+    await tokenStore.save(const TokenPair(accessToken: 'access-token'));
+    var scanRequests = 0;
+    var linkRequests = 0;
+    final dio = Dio(BaseOptions(baseUrl: 'https://api.test'));
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          if (options.path == '/library/bookmark-links/candidates') {
+            scanRequests++;
+            handler.resolve(
+              Response<Map<String, dynamic>>(
+                requestOptions: options,
+                statusCode: 200,
+                data: {
+                  'items': [
+                    {
+                      'bookmark': {
+                        'source_name': 'source-a',
+                        'slug': 'comic-a',
+                        'title': 'Comic',
+                      },
+                      'candidates': [
+                        {
+                          'comic': {
+                            'source_name': 'source-b',
+                            'slug': 'comic-b',
+                            'title': 'Comic',
+                          },
+                          'confidence': 0.9,
+                        },
+                      ],
+                    },
+                  ],
+                  'scanned_total': 1,
+                  'next_offset': 1,
+                  'has_more': false,
+                },
+              ),
+            );
+            return;
+          }
+          linkRequests++;
+          handler.reject(
+            DioException(
+              requestOptions: options,
+              type: DioExceptionType.receiveTimeout,
+            ),
+          );
+        },
+      ),
+    );
+    final repository = LibraryRepository(
+      TonztoonApi(
+        config: const AppConfig(apiBaseUrl: 'https://api.test'),
+        tokenStore: tokenStore,
+        dio: dio,
+      ),
+      tokenStore,
+      store,
+    );
+
+    final candidates = await repository.scanBookmarkLinkCandidates();
+    await expectLater(
+      repository.saveBookmarkLinks(candidates),
+      throwsA(isA<ApiException>()),
+    );
+    final cachedCandidates = await repository.scanBookmarkLinkCandidates();
+
+    expect(scanRequests, 1);
+    expect(linkRequests, 3);
+    expect(cachedCandidates.single.key, candidates.single.key);
+  });
+
+  test(
+    'guest chapter completion sync propagates existing and future status',
+    () async {
+      final tokenStore = MemoryTokenStore();
+      final api = _apiWithResponses({
+        'GET /sources/komiku_asia/comics/solo-leveling/chapters': [
+          {
+            'chapter_number': 12,
+            'detail_url': '/chapter-12',
+            'created_at': '2026-01-01T00:00:00Z',
+            'total_images': 20,
+          },
+          {
+            'chapter_number': 13,
+            'detail_url': '/chapter-13',
+            'created_at': '2026-01-02T00:00:00Z',
+            'total_images': 20,
+          },
+        ],
+        'GET /sources/komikcast/comics/solo-leveling/chapters': [
+          {
+            'chapter_number': 12,
+            'detail_url': '/chapter-12',
+            'created_at': '2026-01-01T00:00:00Z',
+            'total_images': 20,
+          },
+          {
+            'chapter_number': 13,
+            'detail_url': '/chapter-13',
+            'created_at': '2026-01-02T00:00:00Z',
+            'total_images': 20,
+          },
+        ],
+      });
+      final libraryRepository = LibraryRepository(api, tokenStore, store);
+      final progressRepository = ProgressRepository(api, tokenStore, store);
+      const origin = ComicSummary(
+        title: 'Solo Leveling',
+        slug: 'solo-leveling',
+        sourceName: 'komiku_asia',
+      );
+      const alternate = ComicSummary(
+        title: 'Solo Leveling',
+        slug: 'solo-leveling',
+        sourceName: 'komikcast',
+      );
+
+      await libraryRepository.toggleBookmark(origin, false);
+      await progressRepository.saveProgress(
+        ReadingProgress.fromReader(
+          comic: origin,
+          chapterNumber: 12,
+          readingMode: 'vertical',
+          pageItemIndex: 19,
+          totalPageItems: 20,
+          isCompleted: true,
+        ),
+      );
+      final syncResult = await libraryRepository.saveBookmarkLinks([
+        BookmarkLinkCandidate(
+          bookmark: LibraryComicRef.fromSummary(origin),
+          comic: LibraryComicRef.fromSummary(alternate),
+          confidence: 1,
+        ),
+      ]);
+      expect(syncResult.linkedTotal, 1);
+      expect(syncResult.completedPropagated, 1);
+      expect(
+        (await libraryRepository.getComicState(
+          alternate,
+        )).completedChapterNumbers,
+        [12.0],
+      );
+
+      await progressRepository.saveProgress(
+        ReadingProgress.fromReader(
+          comic: alternate,
+          chapterNumber: 13,
+          readingMode: 'vertical',
+          pageItemIndex: 19,
+          totalPageItems: 20,
+          isCompleted: true,
+        ),
+      );
+
+      expect(
+        (await libraryRepository.getComicState(origin)).completedChapterNumbers,
+        [12.0, 13.0],
+      );
+      expect(
+        (await libraryRepository.getComicState(
+          alternate,
+        )).completedChapterNumbers,
+        [12.0, 13.0],
+      );
+      expect(
+        ReadingProgress.fromLocalJson(
+          store.progress.get('komiku_asia|solo-leveling') as Map,
+        ).chapterNumber,
+        12,
+      );
+      expect(
+        ReadingProgress.fromLocalJson(
+          store.progress.get('komikcast|solo-leveling') as Map,
+        ).chapterNumber,
+        13,
+      );
+    },
+  );
+
+  test('guest chapter sync matches a new chapter after linking', () async {
+    final originChapters = <Map<String, dynamic>>[
+      {
+        'chapter_number': 12,
+        'detail_url': '/chapter-12',
+        'created_at': '2026-01-01T00:00:00Z',
+        'total_images': 20,
+      },
+    ];
+    final alternateChapters = <Map<String, dynamic>>[
+      {
+        'chapter_number': 12,
+        'detail_url': '/chapter-12',
+        'created_at': '2026-01-01T00:00:00Z',
+        'total_images': 20,
+      },
+    ];
+    final tokenStore = MemoryTokenStore();
+    final api = _apiWithResponses({
+      'GET /sources/komiku_asia/comics/solo-leveling/chapters': originChapters,
+      'GET /sources/komikcast/comics/solo-leveling/chapters': alternateChapters,
+    });
+    final libraryRepository = LibraryRepository(api, tokenStore, store);
+    final progressRepository = ProgressRepository(api, tokenStore, store);
+    const origin = ComicSummary(
+      title: 'Solo Leveling',
+      slug: 'solo-leveling',
+      sourceName: 'komiku_asia',
+    );
+    const alternate = ComicSummary(
+      title: 'Solo Leveling',
+      slug: 'solo-leveling',
+      sourceName: 'komikcast',
+    );
+
+    await libraryRepository.toggleBookmark(origin, false);
+    await libraryRepository.saveBookmarkLinks([
+      BookmarkLinkCandidate(
+        bookmark: LibraryComicRef.fromSummary(origin),
+        comic: LibraryComicRef.fromSummary(alternate),
+        confidence: 1,
+      ),
+    ]);
+    originChapters.add({
+      'chapter_number': 13,
+      'detail_url': '/chapter-13',
+      'created_at': '2026-01-02T00:00:00Z',
+      'total_images': 20,
+    });
+    alternateChapters.add({
+      'chapter_number': 13,
+      'detail_url': '/chapter-13',
+      'created_at': '2026-01-02T00:00:00Z',
+      'total_images': 20,
+    });
+
+    await progressRepository.saveProgress(
+      ReadingProgress.fromReader(
+        comic: origin,
+        chapterNumber: 13,
+        readingMode: 'vertical',
+        pageItemIndex: 19,
+        totalPageItems: 20,
+        isCompleted: true,
+      ),
+    );
+
+    expect(
+      (await libraryRepository.getComicState(
+        alternate,
+      )).completedChapterNumbers,
+      [13.0],
+    );
+  });
+
+  test('guest completed chapter propagates from one spoke to all', () async {
+    final tokenStore = MemoryTokenStore();
+    final chapterResponse = [
+      {
+        'chapter_number': 20,
+        'detail_url': '/chapter-20',
+        'created_at': '2026-01-01T00:00:00Z',
+        'total_images': 20,
+      },
+    ];
+    final api = _apiWithResponses({
+      'GET /sources/hub/comics/solo-leveling/chapters': chapterResponse,
+      'GET /sources/spoke-a/comics/solo-leveling/chapters': chapterResponse,
+      'GET /sources/spoke-b/comics/solo-leveling/chapters': chapterResponse,
+    });
+    final libraryRepository = LibraryRepository(api, tokenStore, store);
+    final progressRepository = ProgressRepository(api, tokenStore, store);
+    const hub = ComicSummary(
+      title: 'Solo Leveling',
+      slug: 'solo-leveling',
+      sourceName: 'hub',
+    );
+    const spokeA = ComicSummary(
+      title: 'Solo Leveling',
+      slug: 'solo-leveling',
+      sourceName: 'spoke-a',
+    );
+    const spokeB = ComicSummary(
+      title: 'Solo Leveling',
+      slug: 'solo-leveling',
+      sourceName: 'spoke-b',
+    );
+
+    await libraryRepository.toggleBookmark(hub, false);
+    await libraryRepository.saveBookmarkLinks([
+      BookmarkLinkCandidate(
+        bookmark: LibraryComicRef.fromSummary(hub),
+        comic: LibraryComicRef.fromSummary(spokeA),
+        confidence: 1,
+      ),
+      BookmarkLinkCandidate(
+        bookmark: LibraryComicRef.fromSummary(hub),
+        comic: LibraryComicRef.fromSummary(spokeB),
+        confidence: 1,
+      ),
+    ]);
+
+    await progressRepository.saveProgress(
+      ReadingProgress.fromReader(
+        comic: spokeA,
+        chapterNumber: 20,
+        readingMode: 'vertical',
+        pageItemIndex: 19,
+        totalPageItems: 20,
+        isCompleted: true,
+      ),
+    );
+
+    expect(
+      (await libraryRepository.getComicState(hub)).completedChapterNumbers,
+      [20.0],
+    );
+    expect(
+      (await libraryRepository.getComicState(spokeA)).completedChapterNumbers,
+      [20.0],
+    );
+    expect(
+      (await libraryRepository.getComicState(spokeB)).completedChapterNumbers,
+      [20.0],
+    );
+  });
+
   test('guest progress tracks multiple completed chapters locally', () async {
     final progressRepository = ProgressRepository(
       _failingApi(),

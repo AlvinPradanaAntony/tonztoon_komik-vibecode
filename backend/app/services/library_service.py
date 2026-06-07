@@ -18,19 +18,21 @@ from sqlalchemy import (
     exists,
     func,
     literal,
+    or_,
     select,
     union_all,
     values,
 )
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import defaultload, noload, selectinload
 
 from app.models import (
     Chapter,
     Comic,
     ReaderPreference,
     UserBookmark,
+    UserBookmarkLink,
     UserCollection,
     UserCollectionComic,
     UserCompletedChapter,
@@ -42,6 +44,12 @@ from app.models import (
 )
 from app.schemas.library import (
     BookmarkResponse,
+    BookmarkLinkBatchRequest,
+    BookmarkLinkBatchResponse,
+    BookmarkLinkCandidate,
+    BookmarkLinkCandidateGroup,
+    BookmarkLinkCandidatePage,
+    BookmarkLinkCompletionSyncResponse,
     CompletedChapterImportRequest,
     CollectionResponse,
     CollectionSummaryResponse,
@@ -218,6 +226,10 @@ def build_bookmark_response(
     return BookmarkResponse(
         id=bookmark.id,
         comic=build_comic_ref(bookmark.comic, base_url=base_url),
+        linked_comics=[
+            build_comic_ref(link.comic, base_url=base_url)
+            for link in bookmark.__dict__.get("links", ())
+        ],
         created_at=bookmark.created_at,
         updated_at=bookmark.updated_at,
     )
@@ -447,12 +459,563 @@ async def list_bookmarks(
     """List bookmark user terbaru."""
     result = await db.execute(
         select(UserBookmark)
+        .options(
+            defaultload(UserBookmark.comic).noload(Comic.genres),
+            selectinload(UserBookmark.links).selectinload(
+                UserBookmarkLink.comic
+            ).noload(Comic.genres),
+        )
         .where(UserBookmark.user_id == user_id)
         .order_by(UserBookmark.created_at.desc(), UserBookmark.id.desc())
         .limit(page_size)
         .offset(offset)
     )
     return result.scalars().all()
+
+
+def _bookmark_match_score(primary: Comic, candidate: Comic):
+    primary_title = primary.title.casefold()
+    primary_aliases = (primary.alternative_titles or "").casefold()
+    candidate_aliases = func.coalesce(candidate.alternative_titles, "")
+    return func.greatest(
+        func.similarity(candidate.title, primary_title),
+        func.similarity(candidate_aliases, primary_title),
+        func.similarity(candidate.title, primary_aliases),
+    )
+
+
+def _bookmark_link_candidate_statement(
+    bookmark: UserBookmark,
+    user_id: uuid.UUID,
+    *,
+    minimum_confidence: float,
+):
+    score = _bookmark_match_score(bookmark.comic, Comic)
+    indexed_matches = [
+        Comic.title.op("%")(bookmark.comic.title),
+        Comic.alternative_titles.op("%")(bookmark.comic.title),
+    ]
+    if bookmark.comic.alternative_titles:
+        indexed_matches.append(
+            Comic.title.op("%")(bookmark.comic.alternative_titles)
+        )
+
+    bookmarked_ids = select(UserBookmark.comic_id).where(
+        UserBookmark.user_id == user_id
+    )
+    linked_ids = select(UserBookmarkLink.comic_id).where(
+        UserBookmarkLink.user_id == user_id
+    )
+    return (
+        select(Comic, score.label("confidence"))
+        .options(noload(Comic.genres))
+        .where(
+            Comic.source_name != bookmark.comic.source_name,
+            Comic.id.not_in(bookmarked_ids),
+            Comic.id.not_in(linked_ids),
+            or_(*indexed_matches),
+            score >= minimum_confidence,
+        )
+        .order_by(score.desc(), Comic.title)
+        .limit(24)
+    )
+
+
+async def list_bookmark_link_candidates(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    *,
+    base_url: str | None = None,
+    minimum_confidence: float = 0.38,
+    candidates_per_source: int = 2,
+    page_size: int = 5,
+    offset: int = 0,
+) -> BookmarkLinkCandidatePage:
+    """Cari kandidat source alternatif hanya saat diminta user."""
+    bookmarks = await list_bookmarks(
+        db,
+        user_id,
+        page_size=page_size + 1,
+        offset=offset,
+    )
+    if not bookmarks:
+        return BookmarkLinkCandidatePage(
+            next_offset=offset,
+        )
+
+    has_more = len(bookmarks) > page_size
+    scanned_bookmarks = bookmarks[:page_size]
+    groups: list[BookmarkLinkCandidateGroup] = []
+
+    for bookmark in scanned_bookmarks:
+        result = await db.execute(
+            _bookmark_link_candidate_statement(
+                bookmark,
+                user_id,
+                minimum_confidence=minimum_confidence,
+            )
+        )
+        per_source: dict[str, list[BookmarkLinkCandidate]] = {}
+        for candidate, confidence in result.all():
+            source_candidates = per_source.setdefault(
+                candidate.source_name,
+                [],
+            )
+            if len(source_candidates) >= candidates_per_source:
+                continue
+            source_candidates.append(
+                BookmarkLinkCandidate(
+                    comic=build_comic_ref(candidate, base_url=base_url),
+                    confidence=max(0, min(1, float(confidence or 0))),
+                )
+            )
+        candidates = [
+            candidate
+            for source_candidates in per_source.values()
+            for candidate in source_candidates
+        ]
+        if candidates:
+            groups.append(
+                BookmarkLinkCandidateGroup(
+                    bookmark=build_comic_ref(
+                        bookmark.comic,
+                        base_url=base_url,
+                    ),
+                    candidates=candidates,
+                )
+            )
+    return BookmarkLinkCandidatePage(
+        items=groups,
+        scanned_total=len(scanned_bookmarks),
+        next_offset=offset + len(scanned_bookmarks),
+        has_more=has_more,
+    )
+
+
+async def set_bookmark_links(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    payload: BookmarkLinkBatchRequest,
+) -> BookmarkLinkBatchResponse:
+    """Simpan relasi source secara set-based lalu jadwalkan completed sync."""
+    if not payload.links:
+        return BookmarkLinkBatchResponse()
+
+    selector_keys = {
+        _comic_selector_key(item.bookmark)
+        for item in payload.links
+    }
+    selector_keys.update(
+        _comic_selector_key(item.linked_comic)
+        for item in payload.links
+    )
+    comic_ids = await _resolve_comic_selector_ids(db, selector_keys)
+
+    bookmark_comic_ids = {
+        comic_ids[_comic_selector_key(item.bookmark)]
+        for item in payload.links
+    }
+    bookmark_result = await db.execute(
+        select(UserBookmark.id, UserBookmark.comic_id).where(
+            UserBookmark.user_id == user_id,
+            UserBookmark.comic_id.in_(bookmark_comic_ids),
+        )
+    )
+    bookmark_ids = {
+        row.comic_id: row.id
+        for row in bookmark_result.all()
+    }
+    missing_bookmark_ids = bookmark_comic_ids - bookmark_ids.keys()
+    if missing_bookmark_ids:
+        raise LookupError("Bookmark utama tidak ditemukan atau sudah dihapus.")
+
+    linked_comic_ids = {
+        comic_ids[_comic_selector_key(item.linked_comic)]
+        for item in payload.links
+    }
+    direct_bookmark_result = await db.execute(
+        select(UserBookmark.comic_id).where(
+            UserBookmark.user_id == user_id,
+            UserBookmark.comic_id.in_(linked_comic_ids),
+        )
+    )
+    if direct_bookmark_result.scalars().first() is not None:
+        raise ValueError(
+            "Komik source tujuan sudah tersimpan sebagai bookmark langsung."
+        )
+
+    now = _utcnow()
+    rows_by_linked_comic: dict[int, dict] = {}
+    affected_pairs: dict[str, set[int]] = {}
+    for item in payload.links:
+        bookmark_comic_id = comic_ids[_comic_selector_key(item.bookmark)]
+        linked_comic_id = comic_ids[_comic_selector_key(item.linked_comic)]
+        if bookmark_comic_id == linked_comic_id:
+            continue
+        if item.bookmark.source_name == item.linked_comic.source_name:
+            raise ValueError("Source utama dan source terhubung harus berbeda.")
+
+        bookmark_id = bookmark_ids[bookmark_comic_id]
+        affected_bookmark_ids = affected_pairs.setdefault(
+            item.linked_comic.source_name,
+            set(),
+        )
+        if bookmark_id in affected_bookmark_ids:
+            raise ValueError(
+                "Hanya satu komik dapat dipilih per source tujuan."
+            )
+        affected_bookmark_ids.add(bookmark_id)
+        rows_by_linked_comic[linked_comic_id] = {
+            "user_id": user_id,
+            "bookmark_id": bookmark_id,
+            "comic_id": linked_comic_id,
+            "confidence": item.confidence,
+            "updated_at": now,
+        }
+
+    for source_name, affected_bookmark_ids in affected_pairs.items():
+        await db.execute(
+            delete(UserBookmarkLink).where(
+                UserBookmarkLink.user_id == user_id,
+                UserBookmarkLink.bookmark_id.in_(affected_bookmark_ids),
+                UserBookmarkLink.comic_id.in_(
+                    select(Comic.id).where(
+                        Comic.source_name == source_name
+                    )
+                ),
+            )
+        )
+
+    for chunk in _chunked(list(rows_by_linked_comic.values())):
+        statement = insert(UserBookmarkLink).values(chunk)
+        await db.execute(
+            statement.on_conflict_do_update(
+                index_elements=[
+                    UserBookmarkLink.user_id,
+                    UserBookmarkLink.comic_id,
+                ],
+                set_={
+                    "bookmark_id": statement.excluded.bookmark_id,
+                    "confidence": statement.excluded.confidence,
+                    "updated_at": statement.excluded.updated_at,
+                },
+            )
+        )
+
+    await db.commit()
+    return BookmarkLinkBatchResponse(
+        linked_total=len(rows_by_linked_comic),
+        completion_sync_bookmark_ids=sorted(
+            {
+                row["bookmark_id"]
+                for row in rows_by_linked_comic.values()
+            }
+        ),
+    )
+
+
+async def synchronize_completed_link_batch(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    bookmark_ids: list[int],
+) -> BookmarkLinkCompletionSyncResponse:
+    """Sinkronkan completed untuk maksimal beberapa grup per transaksi."""
+    owned_result = await db.execute(
+        select(UserBookmark.id)
+        .join(
+            UserBookmarkLink,
+            and_(
+                UserBookmarkLink.bookmark_id == UserBookmark.id,
+                UserBookmarkLink.user_id == user_id,
+            ),
+        )
+        .where(
+            UserBookmark.user_id == user_id,
+            UserBookmark.id.in_(bookmark_ids),
+        )
+        .distinct()
+    )
+    owned_ids = sorted(set(owned_result.scalars().all()))
+    if not owned_ids:
+        return BookmarkLinkCompletionSyncResponse()
+
+    completed_propagated = await _synchronize_existing_completed_for_links(
+        db,
+        user_id,
+        bookmark_ids=owned_ids,
+    )
+    return BookmarkLinkCompletionSyncResponse(
+        processed_groups=len(owned_ids),
+        completed_propagated=completed_propagated,
+    )
+
+
+async def delete_bookmark_link(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    source_name: str,
+    comic_slug: str,
+) -> bool:
+    """Putuskan satu source alternatif tanpa menghapus bookmark utama."""
+    comic = await get_comic_by_public_key(db, source_name, comic_slug)
+    if comic is None:
+        return False
+    result = await db.execute(
+        delete(UserBookmarkLink)
+        .where(
+            UserBookmarkLink.user_id == user_id,
+            UserBookmarkLink.comic_id == comic.id,
+        )
+        .returning(UserBookmarkLink.id)
+    )
+    deleted_id = result.scalar_one_or_none()
+    await db.commit()
+    return deleted_id is not None
+
+
+async def _upsert_completed_chapter_rows(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    chapter_rows: list[tuple[int, int]],
+    *,
+    completed_at: datetime,
+) -> int:
+    unique_rows = {
+        chapter_id: {
+            "user_id": user_id,
+            "comic_id": comic_id,
+            "chapter_id": chapter_id,
+            "completed_at": completed_at,
+        }
+        for chapter_id, comic_id in chapter_rows
+    }
+    await _bulk_upsert(
+        db,
+        UserCompletedChapter,
+        list(unique_rows.values()),
+        index_elements=[
+            UserCompletedChapter.user_id,
+            UserCompletedChapter.comic_id,
+            UserCompletedChapter.chapter_id,
+        ],
+        update_columns=("completed_at",),
+    )
+    return len(unique_rows)
+
+
+async def _bookmark_group_comic_ids(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    comic_id: int,
+) -> set[int]:
+    bookmark_result = await db.execute(
+        select(UserBookmark.id, UserBookmark.comic_id)
+        .outerjoin(
+            UserBookmarkLink,
+            and_(
+                UserBookmarkLink.bookmark_id == UserBookmark.id,
+                UserBookmarkLink.user_id == user_id,
+            ),
+        )
+        .where(
+            UserBookmark.user_id == user_id,
+            or_(
+                UserBookmark.comic_id == comic_id,
+                UserBookmarkLink.comic_id == comic_id,
+            ),
+        )
+        .limit(1)
+    )
+    bookmark_row = bookmark_result.first()
+    if bookmark_row is None:
+        return set()
+
+    linked_result = await db.execute(
+        select(UserBookmarkLink.comic_id).where(
+            UserBookmarkLink.user_id == user_id,
+            UserBookmarkLink.bookmark_id == bookmark_row.id,
+        )
+    )
+    return {
+        bookmark_row.comic_id,
+        *linked_result.scalars().all(),
+    }
+
+
+async def _group_chapters_for_number(
+    db: AsyncSession,
+    comic_ids: set[int],
+    chapter_number: float,
+) -> list[tuple[int, int]]:
+    if not comic_ids:
+        return []
+    result = await db.execute(
+        select(Chapter.id, Chapter.comic_id).where(
+            Chapter.comic_id.in_(comic_ids),
+            Chapter.chapter_number
+            >= chapter_number - CHAPTER_NUMBER_TOLERANCE,
+            Chapter.chapter_number
+            <= chapter_number + CHAPTER_NUMBER_TOLERANCE,
+        )
+    )
+    return [(row.chapter_id, row.comic_id) for row in result.all()]
+
+
+async def _synchronize_existing_completed_for_links(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    *,
+    bookmark_ids: list[int] | None = None,
+    commit: bool = True,
+) -> int:
+    """Samakan completed lama untuk semua grup dalam satu statement."""
+    now = _utcnow()
+    result = await db.execute(
+        _completed_link_backfill_statement(
+            user_id,
+            completed_at=now,
+            bookmark_ids=bookmark_ids,
+        )
+    )
+    if commit:
+        await db.commit()
+    return int(result.scalar_one())
+
+
+def _completed_link_backfill_statement(
+    user_id: uuid.UUID,
+    *,
+    completed_at: datetime,
+    bookmark_ids: list[int] | None = None,
+):
+    hub_members = (
+        select(
+            UserBookmark.id.label("group_id"),
+            UserBookmark.comic_id.label("comic_id"),
+        )
+        .join(
+            UserBookmarkLink,
+            UserBookmarkLink.bookmark_id == UserBookmark.id,
+        )
+        .where(
+            UserBookmark.user_id == user_id,
+            UserBookmarkLink.user_id == user_id,
+        )
+    )
+    spoke_members = select(
+        UserBookmarkLink.bookmark_id.label("group_id"),
+        UserBookmarkLink.comic_id.label("comic_id"),
+    ).where(UserBookmarkLink.user_id == user_id)
+    if bookmark_ids is not None:
+        hub_members = hub_members.where(UserBookmark.id.in_(bookmark_ids))
+        spoke_members = spoke_members.where(
+            UserBookmarkLink.bookmark_id.in_(bookmark_ids)
+        )
+    group_members = hub_members.union(spoke_members).cte(
+        "bookmark_group_members"
+    )
+
+    completed_numbers = (
+        select(
+            group_members.c.group_id,
+            Chapter.chapter_number,
+        )
+        .join(Chapter, Chapter.comic_id == group_members.c.comic_id)
+        .join(
+            UserCompletedChapter,
+            and_(
+                UserCompletedChapter.chapter_id == Chapter.id,
+                UserCompletedChapter.comic_id
+                == group_members.c.comic_id,
+                UserCompletedChapter.user_id == user_id,
+            ),
+        )
+        .distinct()
+        .cte("completed_numbers_by_group")
+    )
+
+    target_chapters = (
+        select(
+            literal(user_id).label("user_id"),
+            Chapter.comic_id.label("comic_id"),
+            Chapter.id.label("chapter_id"),
+            literal(completed_at).label("completed_at"),
+        )
+        .select_from(group_members)
+        .join(
+            completed_numbers,
+            completed_numbers.c.group_id == group_members.c.group_id,
+        )
+        .join(
+            Chapter,
+            and_(
+                Chapter.comic_id == group_members.c.comic_id,
+                Chapter.chapter_number
+                >= completed_numbers.c.chapter_number
+                - CHAPTER_NUMBER_TOLERANCE,
+                Chapter.chapter_number
+                <= completed_numbers.c.chapter_number
+                + CHAPTER_NUMBER_TOLERANCE,
+            ),
+        )
+        .distinct()
+    )
+    statement = insert(UserCompletedChapter).from_select(
+        [
+            UserCompletedChapter.user_id,
+            UserCompletedChapter.comic_id,
+            UserCompletedChapter.chapter_id,
+            UserCompletedChapter.completed_at,
+        ],
+        target_chapters,
+    )
+    inserted = statement.on_conflict_do_nothing(
+        index_elements=[
+            UserCompletedChapter.user_id,
+            UserCompletedChapter.comic_id,
+            UserCompletedChapter.chapter_id,
+        ]
+    ).returning(literal(1).label("inserted")).cte("inserted_completed")
+    return select(func.count()).select_from(inserted)
+
+
+async def _exact_counterpart_chapters(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    chapter: Chapter,
+) -> list[tuple[int, int]]:
+    """Cari chapter bernomor sama pada seluruh grup bookmark multi-source."""
+    group_comic_ids = await _bookmark_group_comic_ids(
+        db,
+        user_id,
+        chapter.comic_id,
+    )
+    group_comic_ids.discard(chapter.comic_id)
+    return await _group_chapters_for_number(
+        db,
+        group_comic_ids,
+        chapter.chapter_number,
+    )
+
+
+async def _propagate_completed_chapter(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    chapter: Chapter,
+    *,
+    completed_at: datetime,
+) -> int:
+    counterparts = await _exact_counterpart_chapters(
+        db,
+        user_id,
+        chapter,
+    )
+    return await _upsert_completed_chapter_rows(
+        db,
+        user_id,
+        counterparts,
+        completed_at=completed_at,
+    )
 
 
 def _chapter_total_images_expression():
@@ -906,6 +1469,12 @@ async def upsert_progress(
             )
         )
         await db.execute(completed_statement)
+        await _propagate_completed_chapter(
+            db,
+            user_id,
+            chapter,
+            completed_at=progress.last_read_at,
+        )
 
     await upsert_history_from_progress(db, user_id, chapter, payload)
 
@@ -953,6 +1522,12 @@ async def mark_chapter_completed(
         )
     )
     await db.execute(completed_statement)
+    await _propagate_completed_chapter(
+        db,
+        user_id,
+        chapter,
+        completed_at=now,
+    )
     await db.commit()
 
 
@@ -1485,6 +2060,61 @@ async def get_library_state_for_comic(
     """State terpadu satu komik untuk CTA detail page."""
     comic = await resolve_comic_or_raise(db, source_name, comic_slug)
 
+    direct_bookmark = (
+        await db.execute(
+            select(UserBookmark)
+            .options(
+                selectinload(UserBookmark.links).selectinload(
+                    UserBookmarkLink.comic
+                )
+            )
+            .where(
+                UserBookmark.user_id == user_id,
+                UserBookmark.comic_id == comic.id,
+            )
+        )
+    ).scalars().first()
+    linked_entry = None
+    if direct_bookmark is None:
+        linked_entry = (
+            await db.execute(
+                select(UserBookmarkLink)
+                .options(
+                    selectinload(UserBookmarkLink.bookmark)
+                    .selectinload(UserBookmark.links)
+                    .selectinload(UserBookmarkLink.comic),
+                    selectinload(UserBookmarkLink.bookmark).selectinload(
+                        UserBookmark.comic
+                    ),
+                )
+                .where(
+                    UserBookmarkLink.user_id == user_id,
+                    UserBookmarkLink.comic_id == comic.id,
+                )
+            )
+        ).scalars().first()
+    bookmark = direct_bookmark or (
+        linked_entry.bookmark if linked_entry is not None else None
+    )
+    bookmark_relation = (
+        "direct"
+        if direct_bookmark is not None
+        else "linked"
+        if linked_entry is not None
+        else "none"
+    )
+    linked_comics: list[LibraryComicRef] = []
+    if bookmark is not None:
+        if bookmark.comic_id != comic.id:
+            linked_comics.append(
+                build_comic_ref(bookmark.comic, base_url=base_url)
+            )
+        linked_comics.extend(
+            build_comic_ref(link.comic, base_url=base_url)
+            for link in bookmark.links
+            if link.comic_id != comic.id
+        )
+
     overview = (
         await db.execute(
             select(
@@ -1545,7 +2175,14 @@ async def get_library_state_for_comic(
 
     return LibraryComicStateResponse(
         comic=build_comic_ref(comic, base_url=base_url),
-        bookmarked=overview.bookmarked,
+        bookmarked=bookmark is not None,
+        bookmark_relation=bookmark_relation,
+        bookmark_origin=(
+            build_comic_ref(bookmark.comic, base_url=base_url)
+            if bookmark is not None
+            else None
+        ),
+        linked_comics=linked_comics,
         collections=[build_collection_summary_response(item) for item in collections],
         progress=(
             build_progress_projection_response(progress_row, base_url=base_url)
@@ -1704,6 +2341,14 @@ async def import_library_snapshot(
         for item in payload.bookmarks
     }
     comic_selector_keys.update(
+        _comic_selector_key(item.bookmark)
+        for item in payload.bookmark_links
+    )
+    comic_selector_keys.update(
+        _comic_selector_key(item.linked_comic)
+        for item in payload.bookmark_links
+    )
+    comic_selector_keys.update(
         _comic_selector_key(item)
         for collection in payload.collections
         for item in collection.comics
@@ -1730,7 +2375,10 @@ async def import_library_snapshot(
                 "comic_id": comic_ids[_comic_selector_key(item)],
                 "updated_at": now,
             }
-            for item in payload.bookmarks
+            for item in [
+                *payload.bookmarks,
+                *(link.bookmark for link in payload.bookmark_links),
+            ]
         }
         await _bulk_upsert(
             db,
@@ -1738,6 +2386,46 @@ async def import_library_snapshot(
             list(bookmark_rows.values()),
             index_elements=[UserBookmark.user_id, UserBookmark.comic_id],
             update_columns=("updated_at",),
+        )
+        bookmark_ids: dict[int, int] = {}
+        if bookmark_rows:
+            bookmark_id_rows = await db.execute(
+                select(UserBookmark.id, UserBookmark.comic_id).where(
+                    UserBookmark.user_id == user_id,
+                    UserBookmark.comic_id.in_(bookmark_rows.keys()),
+                )
+            )
+            bookmark_ids = {
+                row.comic_id: row.id
+                for row in bookmark_id_rows.all()
+            }
+        bookmark_link_rows = [
+            {
+                "user_id": user_id,
+                "bookmark_id": bookmark_ids[
+                    comic_ids[_comic_selector_key(item.bookmark)]
+                ],
+                "comic_id": comic_ids[
+                    _comic_selector_key(item.linked_comic)
+                ],
+                "confidence": item.confidence,
+                "updated_at": now,
+            }
+            for item in payload.bookmark_links
+        ]
+        await _bulk_upsert(
+            db,
+            UserBookmarkLink,
+            bookmark_link_rows,
+            index_elements=[
+                UserBookmarkLink.user_id,
+                UserBookmarkLink.comic_id,
+            ],
+            update_columns=(
+                "bookmark_id",
+                "confidence",
+                "updated_at",
+            ),
         )
 
         collection_payloads = {
@@ -1896,7 +2584,6 @@ async def import_library_snapshot(
             ],
             update_columns=("completed_at",),
         )
-
         favorite_rows: dict[tuple[int, int], dict] = {}
         for item in payload.favorite_scenes:
             chapter_id, comic_id = chapter_ids[_chapter_selector_key(item)]
@@ -1993,6 +2680,7 @@ async def import_library_snapshot(
 
     return LibrarySyncImportResponse(
         bookmarks_upserted=len(bookmark_rows),
+        bookmark_links_upserted=len(bookmark_link_rows),
         collections_upserted=len(collection_rows),
         collection_items_upserted=collection_items_upserted,
         progress_upserted=len(progress_rows),
@@ -2002,4 +2690,10 @@ async def import_library_snapshot(
         downloads_upserted=len(download_rows),
         reader_preferences_updated=payload.reader_preferences is not None,
         reading_time_seconds_imported=payload.reading_time_seconds,
+        completion_sync_bookmark_ids=sorted(
+            {
+                row["bookmark_id"]
+                for row in bookmark_link_rows
+            }
+        ),
     )

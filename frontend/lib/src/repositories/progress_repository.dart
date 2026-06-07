@@ -93,6 +93,7 @@ class ProgressRepository {
     await _saveLocalHistory(progress);
     if (progress.isCompleted) {
       await _saveLocalCompletedChapter(progress);
+      await _propagateLocalCompletedChapter(progress);
     }
     _onContinueReadingChanged?.call(progress);
 
@@ -339,6 +340,100 @@ class ProgressRepository {
     await _store.progress.put(key, sorted);
   }
 
+  Future<void> _propagateLocalCompletedChapter(ReadingProgress progress) async {
+    final rawLinks = _store.library.get('bookmark_links');
+    final bookmarkLinks = rawLinks is List
+        ? rawLinks.whereType<Map<dynamic, dynamic>>().toList()
+        : <Map<dynamic, dynamic>>[];
+    if (bookmarkLinks.isEmpty) return;
+
+    _LocalComicIdentity? hub;
+    for (final link in bookmarkLinks) {
+      final bookmark = _comicIdentity(link['bookmark']);
+      final linked = _comicIdentity(link['linked']);
+      if (bookmark == null || linked == null) continue;
+
+      if ((bookmark.sourceName == progress.sourceName &&
+              bookmark.slug == progress.comicSlug) ||
+          (linked.sourceName == progress.sourceName &&
+              linked.slug == progress.comicSlug)) {
+        hub = bookmark;
+        break;
+      }
+    }
+    if (hub == null) return;
+
+    final group = <String, _LocalComicIdentity>{hub.key: hub};
+    for (final link in bookmarkLinks) {
+      final bookmark = _comicIdentity(link['bookmark']);
+      final linked = _comicIdentity(link['linked']);
+      if (bookmark == null || linked == null || bookmark.key != hub.key) {
+        continue;
+      }
+      group[linked.key] = linked;
+    }
+
+    for (final counterpart in group.values) {
+      if (counterpart.sourceName == progress.sourceName &&
+          counterpart.slug == progress.comicSlug) {
+        continue;
+      }
+      final counterpartNumber = await _findExactChapterNumber(
+        counterpart,
+        progress.chapterNumber,
+      );
+      if (counterpartNumber == null) continue;
+      await _addLocalCompletedChapterNumber(
+        counterpart.sourceName,
+        counterpart.slug,
+        counterpartNumber,
+      );
+    }
+  }
+
+  Future<double?> _findExactChapterNumber(
+    _LocalComicIdentity comic,
+    double chapterNumber,
+  ) async {
+    try {
+      final response = await _api.get<List<dynamic>>(
+        '/sources/${comic.sourceName}/comics/${comic.slug}/chapters',
+      );
+      for (final raw in (response.data ?? const []).whereType<Map>()) {
+        final candidate = (raw['chapter_number'] as num?)?.toDouble();
+        if (_sameChapterNumber(candidate, chapterNumber)) return candidate;
+      }
+    } catch (_) {
+      // Completion remains stored for the active source and can be matched
+      // again after the counterpart chapter becomes available.
+    }
+    return null;
+  }
+
+  Future<void> _addLocalCompletedChapterNumber(
+    String sourceName,
+    String comicSlug,
+    double chapterNumber,
+  ) async {
+    final key = ReadingProgress.completedChaptersKey(sourceName, comicSlug);
+    final raw = _store.progress.get(key);
+    final numbers = raw is List
+        ? raw.whereType<num>().map((value) => value.toDouble()).toSet()
+        : <double>{};
+    if (!numbers.add(chapterNumber)) return;
+    await _store.progress.put(key, numbers.toList()..sort());
+
+    final token = await _tokenStore.readAccessToken();
+    if (token != null && token.isNotEmpty) {
+      await LocalStateMetadata.markAuthenticatedCompletedChapterCache(
+        _store,
+        sourceName,
+        comicSlug,
+        chapterNumber,
+      );
+    }
+  }
+
   Future<void> _saveLocalHistory(ReadingProgress progress) async {
     final raw = _store.library.get(_localHistoryKey);
     final items = raw is List
@@ -396,4 +491,31 @@ class ProgressRepository {
     }
     return items.take(pageSize).toList();
   }
+}
+
+class _LocalComicIdentity {
+  const _LocalComicIdentity({
+    required this.sourceName,
+    required this.slug,
+    required this.raw,
+  });
+
+  final String sourceName;
+  final String slug;
+  final Map<String, dynamic> raw;
+
+  String get key => '$sourceName|$slug';
+}
+
+_LocalComicIdentity? _comicIdentity(Object? value) {
+  if (value is! Map) return null;
+  final raw = Map<String, dynamic>.from(value);
+  final sourceName = raw['source_name'] as String? ?? '';
+  final slug = raw['slug'] as String? ?? raw['comic_slug'] as String? ?? '';
+  if (sourceName.isEmpty || slug.isEmpty) return null;
+  return _LocalComicIdentity(sourceName: sourceName, slug: slug, raw: raw);
+}
+
+bool _sameChapterNumber(double? left, double right) {
+  return left != null && (left - right).abs() <= 0.0001;
 }

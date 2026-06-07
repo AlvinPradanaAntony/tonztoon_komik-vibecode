@@ -13,6 +13,7 @@ class LibraryComicRef {
     this.type,
     this.rating,
     this.totalView,
+    this.linkedComics = const [],
   });
 
   factory LibraryComicRef.fromJson(Map<String, dynamic> json) {
@@ -27,6 +28,12 @@ class LibraryComicRef {
       type: json['type'] as String?,
       rating: (json['rating'] as num?)?.toDouble(),
       totalView: json['total_view'] as int?,
+      linkedComics: ((json['linked_comics'] as List?) ?? const [])
+          .whereType<Map>()
+          .map(
+            (item) => LibraryComicRef.fromJson(Map<String, dynamic>.from(item)),
+          )
+          .toList(),
     );
   }
 
@@ -67,6 +74,7 @@ class LibraryComicRef {
     'type': type,
     'rating': rating,
     'total_view': totalView,
+    'linked_comics': linkedComics.map((item) => item.toJson()).toList(),
   };
 
   String get key => '$sourceName|$slug';
@@ -81,6 +89,75 @@ class LibraryComicRef {
   final String? type;
   final double? rating;
   final int? totalView;
+  final List<LibraryComicRef> linkedComics;
+}
+
+class BookmarkLinkCandidate {
+  const BookmarkLinkCandidate({
+    required this.bookmark,
+    required this.comic,
+    required this.confidence,
+  });
+
+  factory BookmarkLinkCandidate.fromJson(
+    LibraryComicRef bookmark,
+    Map<String, dynamic> json,
+  ) {
+    return BookmarkLinkCandidate(
+      bookmark: bookmark,
+      comic: LibraryComicRef.fromJson(
+        Map<String, dynamic>.from(json['comic'] as Map? ?? const {}),
+      ),
+      confidence: (json['confidence'] as num?)?.toDouble() ?? 0,
+    );
+  }
+
+  String get key => '${bookmark.key}->${comic.key}';
+
+  final LibraryComicRef bookmark;
+  final LibraryComicRef comic;
+  final double confidence;
+}
+
+enum BookmarkRelation { none, direct, linked }
+
+class BookmarkLinkSaveResult {
+  const BookmarkLinkSaveResult({
+    this.linkedTotal = 0,
+    required this.completedPropagated,
+    this.completionSyncBookmarkIds = const [],
+  });
+
+  factory BookmarkLinkSaveResult.fromJson(Map<String, dynamic> json) {
+    return BookmarkLinkSaveResult(
+      linkedTotal: json['linked_total'] as int? ?? 0,
+      completedPropagated: json['completed_propagated'] as int? ?? 0,
+      completionSyncBookmarkIds:
+          (json['completion_sync_bookmark_ids'] as List?)
+              ?.whereType<num>()
+              .map((item) => item.toInt())
+              .toList() ??
+          const [],
+    );
+  }
+
+  final int linkedTotal;
+  final int completedPropagated;
+  final List<int> completionSyncBookmarkIds;
+}
+
+enum BookmarkLinkSaveStage { linking, syncingCompleted }
+
+class BookmarkLinkSaveProgress {
+  const BookmarkLinkSaveProgress({
+    required this.stage,
+    required this.completed,
+    required this.total,
+  });
+
+  final BookmarkLinkSaveStage stage;
+  final int completed;
+  final int total;
 }
 
 class CollectionSummary {
@@ -470,6 +547,9 @@ class LibraryComicState {
     required this.comic,
     required this.bookmarked,
     required this.collections,
+    this.bookmarkRelation = BookmarkRelation.none,
+    this.bookmarkOrigin,
+    this.linkedComics = const [],
     this.progress,
     this.completedChapterNumbers = const [],
     this.favoriteSceneCount = 0,
@@ -489,6 +569,22 @@ class LibraryComicState {
     return LibraryComicState(
       comic: LibraryComicRef.fromJson(comic),
       bookmarked: json['bookmarked'] as bool? ?? false,
+      bookmarkRelation: switch (json['bookmark_relation']) {
+        'direct' => BookmarkRelation.direct,
+        'linked' => BookmarkRelation.linked,
+        _ => BookmarkRelation.none,
+      },
+      bookmarkOrigin: json['bookmark_origin'] is Map
+          ? LibraryComicRef.fromJson(
+              Map<String, dynamic>.from(json['bookmark_origin'] as Map),
+            )
+          : null,
+      linkedComics: ((json['linked_comics'] as List?) ?? const [])
+          .whereType<Map>()
+          .map(
+            (item) => LibraryComicRef.fromJson(Map<String, dynamic>.from(item)),
+          )
+          .toList(),
       collections: ((json['collections'] as List?) ?? const [])
           .whereType<Map>()
           .map(
@@ -519,6 +615,9 @@ class LibraryComicState {
 
   final LibraryComicRef comic;
   final bool bookmarked;
+  final BookmarkRelation bookmarkRelation;
+  final LibraryComicRef? bookmarkOrigin;
+  final List<LibraryComicRef> linkedComics;
   final List<CollectionSummary> collections;
   final ReadingProgress? progress;
   final List<double> completedChapterNumbers;
