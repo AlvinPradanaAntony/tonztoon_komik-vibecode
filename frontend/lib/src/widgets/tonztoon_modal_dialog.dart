@@ -703,6 +703,14 @@ class _HelperBand extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final iconBackground = isDark
+        ? Color.alphaBlend(
+            color.withValues(alpha: danger ? 0.18 : 0.14),
+            colorScheme.surfaceContainerHighest,
+          )
+        : Colors.white.withValues(alpha: 0.68);
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -719,10 +727,11 @@ class _HelperBand extends StatelessWidget {
         child: Row(
           children: [
             Container(
+              key: const ValueKey('tonztoon-modal-helper-icon-background'),
               width: 40,
               height: 38,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.68),
+                color: iconBackground,
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, color: color, size: 22),
@@ -883,6 +892,7 @@ class _GradientActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final gradient = switch (variant) {
       TonztoonModalVariant.danger => const LinearGradient(
         begin: Alignment.topLeft,
@@ -906,14 +916,21 @@ class _GradientActionButton extends StatelessWidget {
     return Opacity(
       opacity: enabled || loading ? 1 : 0.68,
       child: DecoratedBox(
+        key: const ValueKey('tonztoon-modal-primary-action-decoration'),
         decoration: BoxDecoration(
           gradient: gradient,
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
-              color: color.withValues(alpha: 0.36),
-              blurRadius: 18,
-              offset: const Offset(0, 10),
+              color: color.withValues(alpha: isDark ? 0.24 : 0.16),
+              blurRadius: isDark ? 14 : 11,
+              spreadRadius: isDark ? 0.5 : 0,
+              offset: Offset(0, isDark ? 6 : 4),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.08),
+              blurRadius: isDark ? 8 : 6,
+              offset: Offset(0, isDark ? 3 : 2),
             ),
           ],
         ),

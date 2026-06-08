@@ -6,13 +6,34 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
-## [1.14.0] - 2026-06-06
+## [1.15.0] - 2026-06-08
 
 ### Added
+- Bookmark multi-source untuk memindai komik serupa dan menghubungkan bookmark utama dengan sumber alternatif yang dipilih.
+- Sinkronisasi otomatis status chapter selesai ke komik yang sudah terhubung berdasarkan nomor chapter yang sama.
+- Badge sumber terhubung pada daftar bookmark serta status bookmark terhubung pada halaman detail komik.
+
+### Changed
+- Proses pencarian dan penyimpanan hubungan bookmark kini menampilkan kandidat, persentase kecocokan, serta progres sinkronisasi.
+- Kartu komik grid kini menampilkan chapter terbaru sebagai badge pada cover serta total views dalam format ringkas.
+- Kartu komik list menampilkan total views dan indikator scroll dua arah untuk daftar genre yang panjang.
+- Daftar bookmark menampilkan rating, total views, status, serta seluruh sumber terhubung dalam metadata yang dapat digulir.
+- Tampilan halaman detail komik disesuaikan untuk navigasi edge-to-edge yang lebih konsisten.
+- Kartu, filter, dan indikator notifikasi diperbarui agar status sudah dibaca lebih jelas serta tampil lebih baik pada dark theme.
+- Kontras tombol Helpdesk, aksi notifikasi, helper modal, dan efek tombol utama disesuaikan untuk light dan dark theme.
+
+---
+
+<details>
+<summary><strong>Riwayat versi sebelumnya</strong></summary>
+
+### [1.14.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.14.0) - 2026-06-06
+
+#### Added
 - Helpdesk di Home dan Settings untuk mengirim ulasan berbintang atau laporan masalah langsung dari aplikasi.
 - Pengaturan untuk menampilkan atau menyembunyikan tombol cepat Helpdesk di halaman Home.
 
-### Changed
+#### Changed
 - Onboarding didesain ulang dengan ilustrasi dan penjelasan yang lebih jelas untuk fitur multi-source, pustaka, dan download offline.
 - Tampilan kartu komik disatukan di Home, katalog, pencarian, dan halaman section agar informasi serta interaksinya lebih konsisten.
 - Home memakai AppBar yang responsif terhadap scroll untuk memberi ruang baca lebih luas tanpa menghilangkan akses navigasi.
@@ -20,9 +41,6 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 - Tampilan kartu autentikasi dan tombol tutup modal dipoles agar lebih konsisten dengan desain aplikasi.
 
 ---
-
-<details>
-<summary><strong>Riwayat versi sebelumnya</strong></summary>
 
 ### [1.13.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.13.0) - 2026-06-04
 

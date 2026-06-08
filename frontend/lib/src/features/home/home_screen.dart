@@ -221,12 +221,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 heroTag: 'home-helpdesk',
                 onPressed: _openHelpdesk,
                 backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Theme.of(context).colorScheme.surface,
                 shape: const CircleBorder(),
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: SvgPicture.asset(
+                    key: const ValueKey('home-helpdesk-button-icon'),
                     AppAssets.logoAppSmallSvg,
                     fit: BoxFit.contain,
+                    colorFilter: ColorFilter.mode(
+                      Theme.of(context).colorScheme.surface,
+                      BlendMode.srcIn,
+                    ),
                   ),
                 ),
               ),

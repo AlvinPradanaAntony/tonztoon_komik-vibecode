@@ -135,7 +135,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 tooltip: 'Bersihkan notifikasi',
                 onPressed: _clearNotifications,
                 backgroundColor: theme.colorScheme.secondary,
-                foregroundColor: Colors.white,
+                foregroundColor: theme.colorScheme.surface,
                 shape: const CircleBorder(),
                 child: const Icon(TonztoonIcons.trash),
               ),
@@ -451,8 +451,14 @@ class _NotificationTile extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: item.unread
-            ? BorderSide(color: colorScheme.primary.withValues(alpha: 0.16), width: 1)
-            : BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.2), width: 1),
+            ? BorderSide(
+                color: colorScheme.primary.withValues(alpha: 0.16),
+                width: 1,
+              )
+            : BorderSide(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.2),
+                width: 1,
+              ),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -496,12 +502,20 @@ class _NotificationTile extends StatelessWidget {
                                     item.title,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.titleMedium?.copyWith(
-                                      fontWeight: item.unread ? FontWeight.w800 : FontWeight.w600,
-                                      color: item.unread
-                                          ? null
-                                          : (theme.textTheme.titleMedium?.color ?? colorScheme.onSurface).withValues(alpha: 0.72),
-                                    ),
+                                    style: theme.textTheme.titleMedium
+                                        ?.copyWith(
+                                          fontWeight: item.unread
+                                              ? FontWeight.w800
+                                              : FontWeight.w600,
+                                          color: item.unread
+                                              ? null
+                                              : (theme
+                                                            .textTheme
+                                                            .titleMedium
+                                                            ?.color ??
+                                                        colorScheme.onSurface)
+                                                    .withValues(alpha: 0.72),
+                                        ),
                                   ),
                                 ),
                                 if (item.unread) ...[
@@ -514,7 +528,9 @@ class _NotificationTile extends StatelessWidget {
                                       shape: BoxShape.circle,
                                       boxShadow: [
                                         BoxShadow(
-                                          color: colorScheme.primary.withValues(alpha: 0.5),
+                                          color: colorScheme.primary.withValues(
+                                            alpha: 0.5,
+                                          ),
                                           blurRadius: 4,
                                           spreadRadius: 1.5,
                                         ),
@@ -528,8 +544,12 @@ class _NotificationTile extends StatelessWidget {
                                   style: theme.textTheme.labelSmall?.copyWith(
                                     color: item.unread
                                         ? colorScheme.secondary
-                                        : colorScheme.secondary.withValues(alpha: 0.6),
-                                    fontWeight: item.unread ? FontWeight.w900 : FontWeight.w700,
+                                        : colorScheme.secondary.withValues(
+                                            alpha: 0.6,
+                                          ),
+                                    fontWeight: item.unread
+                                        ? FontWeight.w900
+                                        : FontWeight.w700,
                                   ),
                                 ),
                               ],
@@ -543,7 +563,9 @@ class _NotificationTile extends StatelessWidget {
                                 height: 1.35,
                                 color: item.unread
                                     ? null
-                                    : (theme.textTheme.bodySmall?.color ?? colorScheme.onSurfaceVariant).withValues(alpha: 0.65),
+                                    : (theme.textTheme.bodySmall?.color ??
+                                              colorScheme.onSurfaceVariant)
+                                          .withValues(alpha: 0.65),
                               ),
                             ),
                             const SizedBox(height: 9),
@@ -630,11 +652,13 @@ class _CategoryPill extends StatelessWidget {
         child: Text(
           label,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                fontWeight: FontWeight.w900,
-                color: isUnread
-                    ? null
-                    : (Theme.of(context).textTheme.labelSmall?.color ?? colorScheme.onSurface).withValues(alpha: 0.6),
-              ),
+            fontWeight: FontWeight.w900,
+            color: isUnread
+                ? null
+                : (Theme.of(context).textTheme.labelSmall?.color ??
+                          colorScheme.onSurface)
+                      .withValues(alpha: 0.6),
+          ),
         ),
       ),
     );

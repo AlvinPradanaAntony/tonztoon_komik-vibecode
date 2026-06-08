@@ -106,7 +106,7 @@ void main() {
 
     expect(updateChip.backgroundColor, theme.colorScheme.surfaceContainer);
     expect(updateChip.backgroundColor, isNot(Colors.white));
-    expect(fab.foregroundColor, Colors.white);
+    expect(fab.foregroundColor, theme.colorScheme.surface);
     expect(summaryGradient.colors.first, const Color(0xFF143248));
     expect(summaryGradient.colors.last, const Color(0xFF402515));
     expect(summaryDecoration.border, isNull);

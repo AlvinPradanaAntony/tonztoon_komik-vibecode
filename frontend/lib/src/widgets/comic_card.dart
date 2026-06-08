@@ -39,6 +39,7 @@ class _ComicCardState extends State<ComicCard> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final chapterNumber = widget.comic.latestChapterNumber;
+    final totalView = widget.comic.totalView;
     final source = widget.source ?? comicSourceLabel(widget.comic);
     final ratingLabel =
         widget.rating ?? widget.comic.rating?.toStringAsFixed(1);
@@ -112,6 +113,17 @@ class _ComicCardState extends State<ComicCard> {
                                 bottom: 8,
                                 child: ComicNewBadge(),
                               ),
+                            if (chapterNumber != null)
+                              Positioned(
+                                key: const ValueKey(
+                                  'comic-grid-latest-chapter-position',
+                                ),
+                                left: 0,
+                                bottom: 0,
+                                child: _ComicGridLatestChapterBadge(
+                                  chapterNumber: chapterNumber,
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -128,14 +140,18 @@ class _ComicCardState extends State<ComicCard> {
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        if (chapterNumber != null)
+                        if (totalView != null)
                           Expanded(
                             child: Align(
                               alignment: Alignment.centerLeft,
-                              child: ComicMetaBadge(
-                                label:
-                                    'Chapter ${formatChapterNumber(chapterNumber)}',
-                                color: colorScheme.primary,
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: ComicMetaBadge(
+                                  label: _formatCompactMetric(totalView),
+                                  icon: TonztoonIcons.eye,
+                                  color: colorScheme.secondary,
+                                ),
                               ),
                             ),
                           )
@@ -158,6 +174,105 @@ class _ComicCardState extends State<ComicCard> {
       ),
     );
   }
+}
+
+class _ComicGridLatestChapterBadge extends StatelessWidget {
+  const _ComicGridLatestChapterBadge({required this.chapterNumber});
+
+  final double chapterNumber;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return CustomPaint(
+      key: const ValueKey('comic-grid-latest-chapter-shadow'),
+      painter: const _ComicGridLatestChapterShadowPainter(),
+      child: ClipPath(
+        key: const ValueKey('comic-grid-latest-chapter-badge'),
+        clipper: const _ComicGridLatestChapterClipper(),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [
+                colorScheme.primary,
+                Color.lerp(colorScheme.primary, colorScheme.tertiary, 0.45)!,
+              ],
+            ),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 86, maxWidth: 124),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 6, 20, 6),
+              child: Text(
+                'Chapter ${formatChapterNumber(chapterNumber)}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: colorScheme.onPrimary,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ComicGridLatestChapterShadowPainter extends CustomPainter {
+  const _ComicGridLatestChapterShadowPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = const _ComicGridLatestChapterClipper()
+        .getClip(size)
+        .shift(const Offset(0, -3));
+    final paint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.34)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7);
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(
+    covariant _ComicGridLatestChapterShadowPainter oldDelegate,
+  ) => false;
+}
+
+class _ComicGridLatestChapterClipper extends CustomClipper<Path> {
+  const _ComicGridLatestChapterClipper();
+
+  @override
+  Path getClip(Size size) {
+    const topLeftRadius = 12.0;
+    const bottomRightRadius = 12.0;
+    const tail = 15.0;
+    final diagonalBottomX = size.width - tail;
+
+    return Path()
+      ..moveTo(topLeftRadius, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(diagonalBottomX + bottomRightRadius, size.height - 4)
+      ..quadraticBezierTo(
+        diagonalBottomX + bottomRightRadius - 2,
+        size.height,
+        diagonalBottomX,
+        size.height,
+      )
+      ..lineTo(0, size.height)
+      ..lineTo(0, topLeftRadius)
+      ..quadraticBezierTo(0, 0, topLeftRadius, 0)
+      ..close();
+  }
+
+  @override
+  bool shouldReclip(covariant _ComicGridLatestChapterClipper oldClipper) =>
+      false;
 }
 
 class ComicListCard extends StatelessWidget {
@@ -261,20 +376,29 @@ class ComicListCard extends StatelessWidget {
                           const SizedBox(height: 5),
                           _ComicListGenreStrip(genres: comic.genres),
                         ],
-                        if (comic.latestChapterNumber != null) ...[
+                        if (comic.latestChapterNumber != null ||
+                            comic.totalView != null) ...[
                           const SizedBox(height: 6),
                           Row(
                             children: [
-                              _ComicLatestChapterBadge(
-                                chapterNumber: comic.latestChapterNumber!,
-                              ),
+                              if (comic.latestChapterNumber != null)
+                                _ComicLatestChapterBadge(
+                                  chapterNumber: comic.latestChapterNumber!,
+                                ),
                               if (comic.latestChapterReleaseDate != null) ...[
-                                const SizedBox(width: 8),
-                                Flexible(
+                                const SizedBox(width: 6),
+                                Expanded(
                                   child: _ComicUpdateTime(
                                     releaseDate:
                                         comic.latestChapterReleaseDate!,
                                   ),
+                                ),
+                              ] else
+                                const Spacer(),
+                              if (comic.totalView != null) ...[
+                                const SizedBox(width: 6),
+                                _ComicListViewCount(
+                                  totalView: comic.totalView!,
                                 ),
                               ],
                             ],
@@ -412,37 +536,43 @@ class _ComicListGenreStrip extends StatefulWidget {
 
 class _ComicListGenreStripState extends State<_ComicListGenreStrip> {
   late final ScrollController _scrollController;
+  bool _showLeftFade = false;
   bool _showRightFade = false;
 
   @override
   void initState() {
     super.initState();
-    _scrollController = ScrollController()..addListener(_syncRightFade);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _syncRightFade());
+    _scrollController = ScrollController()..addListener(_syncFades);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncFades());
   }
 
   @override
   void didUpdateWidget(covariant _ComicListGenreStrip oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.genres != widget.genres) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _syncRightFade());
+      WidgetsBinding.instance.addPostFrameCallback((_) => _syncFades());
     }
   }
 
   @override
   void dispose() {
     _scrollController
-      ..removeListener(_syncRightFade)
+      ..removeListener(_syncFades)
       ..dispose();
     super.dispose();
   }
 
-  void _syncRightFade() {
+  void _syncFades() {
     if (!mounted || !_scrollController.hasClients) return;
     final position = _scrollController.position;
-    final shouldShow = position.maxScrollExtent > 0 && position.extentAfter > 1;
-    if (shouldShow != _showRightFade) {
-      setState(() => _showRightFade = shouldShow);
+    final showLeftFade = position.extentBefore > 1;
+    final showRightFade =
+        position.maxScrollExtent > 0 && position.extentAfter > 1;
+    if (showLeftFade != _showLeftFade || showRightFade != _showRightFade) {
+      setState(() {
+        _showLeftFade = showLeftFade;
+        _showRightFade = showRightFade;
+      });
     }
   }
 
@@ -451,14 +581,13 @@ class _ComicListGenreStripState extends State<_ComicListGenreStrip> {
     final surfaceColor = Theme.of(context).colorScheme.surface;
 
     return SizedBox(
+      key: const ValueKey('comic-list-genre-strip'),
       height: 26,
       child: Stack(
         children: [
           NotificationListener<ScrollMetricsNotification>(
             onNotification: (notification) {
-              WidgetsBinding.instance.addPostFrameCallback(
-                (_) => _syncRightFade(),
-              );
+              WidgetsBinding.instance.addPostFrameCallback((_) => _syncFades());
               return false;
             },
             child: ListView.separated(
@@ -476,11 +605,34 @@ class _ComicListGenreStripState extends State<_ComicListGenreStrip> {
           ),
           Positioned(
             top: 0,
+            left: 0,
+            bottom: 0,
+            width: 30,
+            child: IgnorePointer(
+              child: AnimatedOpacity(
+                key: const ValueKey('comic-list-genre-left-fade'),
+                opacity: _showLeftFade ? 1 : 0,
+                duration: const Duration(milliseconds: 140),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [surfaceColor, surfaceColor.withValues(alpha: 0)],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 0,
             right: 0,
             bottom: 0,
             width: 30,
             child: IgnorePointer(
               child: AnimatedOpacity(
+                key: const ValueKey('comic-list-genre-right-fade'),
                 opacity: _showRightFade ? 1 : 0,
                 duration: const Duration(milliseconds: 140),
                 child: DecoratedBox(
@@ -528,6 +680,34 @@ class _ComicUpdateTime extends StatelessWidget {
               color: colorScheme.onSurfaceVariant,
               fontWeight: FontWeight.w700,
             ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ComicListViewCount extends StatelessWidget {
+  const _ComicListViewCount({required this.totalView});
+
+  final int totalView;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Row(
+      key: const ValueKey('comic-list-total-view'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(TonztoonIcons.eye, size: 13, color: colorScheme.secondary),
+        const SizedBox(width: 4),
+        Text(
+          _formatCompactMetric(totalView),
+          maxLines: 1,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: colorScheme.secondary,
+            fontWeight: FontWeight.w800,
           ),
         ),
       ],
@@ -633,6 +813,26 @@ class _ComicListRatingBadge extends StatelessWidget {
 String _comicStatusLabel(String? status) {
   final value = status?.trim() ?? '';
   return value.isEmpty ? 'Ongoing' : comicBadgeLabel(value);
+}
+
+String _formatCompactMetric(int value) {
+  if (value >= 1000000000) {
+    return '${_formatCompactDecimal(value / 1000000000)}B';
+  }
+  if (value >= 1000000) {
+    return '${_formatCompactDecimal(value / 1000000)}M';
+  }
+  if (value >= 1000) {
+    return '${_formatCompactDecimal(value / 1000)}K';
+  }
+  return value.toString();
+}
+
+String _formatCompactDecimal(double value) {
+  final formatted = value.toStringAsFixed(value >= 10 ? 0 : 1);
+  return formatted.endsWith('.0')
+      ? formatted.substring(0, formatted.length - 2)
+      : formatted;
 }
 
 String _relativeComicUpdateTime(DateTime value) {

@@ -270,10 +270,17 @@ void main() {
       author: 'Author yang disembunyikan',
       status: 'Ongoing',
       type: 'Manhua',
+      rating: 4.8,
+      totalView: 12500,
       linkedComics: [
         LibraryComicRef(
           sourceName: 'komikcast',
           slug: 'bookmark-card-linked',
+          title: 'Bookmark Card',
+        ),
+        LibraryComicRef(
+          sourceName: 'mangadex',
+          slug: 'bookmark-card-linked-2',
           title: 'Bookmark Card',
         ),
       ],
@@ -300,6 +307,10 @@ void main() {
       ],
     );
     addTearDown(container.dispose);
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -309,15 +320,64 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    final sourceStrip = tester.widget<ListView>(
+      find.descendant(
+        of: find.byKey(
+          const ValueKey('bookmark-metadata-strip-komiku_asia|bookmark-card'),
+        ),
+        matching: find.byType(ListView),
+      ),
+    );
+    final leftFade = tester.widget<AnimatedOpacity>(
+      find.byKey(
+        const ValueKey('bookmark-metadata-left-fade-komiku_asia|bookmark-card'),
+      ),
+    );
+    final rightFade = tester.widget<AnimatedOpacity>(
+      find.byKey(
+        const ValueKey(
+          'bookmark-metadata-right-fade-komiku_asia|bookmark-card',
+        ),
+      ),
+    );
     final typeOverlay = tester.widget<Transform>(
       find.byKey(const ValueKey('bookmark-type-komiku_asia|bookmark-card')),
     );
 
+    expect(sourceStrip.scrollDirection, Axis.horizontal);
+    expect(leftFade.opacity, 0);
+    expect(rightFade.opacity, 1);
     expect(typeOverlay.transform.storage[0], closeTo(0.72, 0.001));
+    expect(
+      find.byKey(const ValueKey('bookmark-status-komiku_asia|bookmark-card')),
+      findsOneWidget,
+    );
     expect(
       find.byKey(const ValueKey('bookmark-source-komiku_asia|bookmark-card')),
       findsOneWidget,
     );
+    expect(find.text('Author yang disembunyikan'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('bookmark-metrics-komiku_asia|bookmark-card')),
+      findsOneWidget,
+    );
+    expect(find.text('4.8'), findsOneWidget);
+    expect(find.text('13K views'), findsOneWidget);
+
+    await tester.drag(
+      find.byKey(
+        const ValueKey('bookmark-metadata-strip-komiku_asia|bookmark-card'),
+      ),
+      const Offset(-180, 0),
+    );
+    await tester.pumpAndSettle();
+
+    final scrolledLeftFade = tester.widget<AnimatedOpacity>(
+      find.byKey(
+        const ValueKey('bookmark-metadata-left-fade-komiku_asia|bookmark-card'),
+      ),
+    );
+    expect(scrolledLeftFade.opacity, 1);
     expect(
       find.byKey(
         const ValueKey(
@@ -326,7 +386,6 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('Author yang disembunyikan'), findsNothing);
   });
 
   testWidgets('wishlist download shows active chapter progress', (

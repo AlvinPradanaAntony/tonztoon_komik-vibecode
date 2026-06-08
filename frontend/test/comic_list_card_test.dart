@@ -14,6 +14,7 @@ void main() {
       type: 'Manhwa',
       status: 'Ongoing',
       rating: 8,
+      totalView: 12500,
       latestChapterNumber: 61,
       latestChapterReleaseDate: DateTime.now().subtract(
         const Duration(hours: 8),
@@ -46,6 +47,8 @@ void main() {
     expect(find.text('Komiku'), findsOneWidget);
     expect(find.text('Ongoing'), findsOneWidget);
     expect(find.text('Chapter 61'), findsOneWidget);
+    expect(find.byKey(const ValueKey('comic-list-total-view')), findsOneWidget);
+    expect(find.text('13K'), findsOneWidget);
     expect(find.text('8.0'), findsOneWidget);
     expect(find.byType(ComicTypeFlagBadge), findsOneWidget);
 
@@ -57,21 +60,28 @@ void main() {
     );
     expect(genreList.scrollDirection, Axis.horizontal);
 
-    final fadeFinder = find.descendant(
-      of: find.byType(ComicListCard),
-      matching: find.byType(AnimatedOpacity),
+    final leftFadeFinder = find.byKey(
+      const ValueKey('comic-list-genre-left-fade'),
     );
-    expect(tester.widget<AnimatedOpacity>(fadeFinder).opacity, 1);
+    final rightFadeFinder = find.byKey(
+      const ValueKey('comic-list-genre-right-fade'),
+    );
+    expect(tester.widget<AnimatedOpacity>(leftFadeFinder).opacity, 0);
+    expect(tester.widget<AnimatedOpacity>(rightFadeFinder).opacity, 1);
 
     await tester.drag(
-      find.descendant(
-        of: find.byType(ComicListCard),
-        matching: find.byType(ListView),
-      ),
+      find.byKey(const ValueKey('comic-list-genre-strip')),
+      const Offset(-120, 0),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.widget<AnimatedOpacity>(leftFadeFinder).opacity, 1);
+
+    await tester.drag(
+      find.byKey(const ValueKey('comic-list-genre-strip')),
       const Offset(-1000, 0),
     );
     await tester.pumpAndSettle();
-    expect(tester.widget<AnimatedOpacity>(fadeFinder).opacity, 0);
+    expect(tester.widget<AnimatedOpacity>(rightFadeFinder).opacity, 0);
 
     await tester.tap(find.byType(ComicListCard));
     expect(tapped, isTrue);
