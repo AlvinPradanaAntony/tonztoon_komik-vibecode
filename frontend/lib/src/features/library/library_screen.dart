@@ -299,7 +299,10 @@ class _BookmarksTabState extends ConsumerState<_BookmarksTab>
         );
         return;
       }
-      final selected = await _showBookmarkLinkCandidates(context, candidates);
+      final selected = await showBookmarkLinkCandidatesDialog(
+        context,
+        candidates,
+      );
       if (!mounted || selected == null || selected.isEmpty) return;
       final result = await _saveBookmarkLinksWithProgress(selected);
       await ref.read(paginatedBookmarksProvider.notifier).refreshFirstPage();
@@ -1608,7 +1611,8 @@ String _formatBookmarkDecimal(double value) {
       : formatted;
 }
 
-Future<List<BookmarkLinkCandidate>?> _showBookmarkLinkCandidates(
+@visibleForTesting
+Future<List<BookmarkLinkCandidate>?> showBookmarkLinkCandidatesDialog(
   BuildContext context,
   List<BookmarkLinkCandidate> candidates,
 ) {
@@ -1627,10 +1631,45 @@ Future<List<BookmarkLinkCandidate>?> _showBookmarkLinkCandidates(
   final selectedKeys = selectedByDestination.values
       .map((candidate) => candidate.key)
       .toSet();
+
+  // Group candidates by bookmark key
+  final grouped = <String, List<BookmarkLinkCandidate>>{};
+  for (final candidate in candidates) {
+    grouped.putIfAbsent(candidate.bookmark.key, () => []).add(candidate);
+  }
+
+  // Sort candidates within each group by confidence (descending)
+  for (final key in grouped.keys) {
+    grouped[key]!.sort((a, b) => b.confidence.compareTo(a.confidence));
+  }
+
+  final bookmarkKeys = grouped.keys.toList();
+
+  // Sort groups: groups with automatically checked candidates first,
+  // then sort descending by maximum confidence score.
+  bookmarkKeys.sort((a, b) {
+    final candidatesA = grouped[a]!;
+    final candidatesB = grouped[b]!;
+
+    final hasAutoCheckA = candidatesA.any((c) => c.confidence >= 0.82);
+    final hasAutoCheckB = candidatesB.any((c) => c.confidence >= 0.82);
+
+    if (hasAutoCheckA != hasAutoCheckB) {
+      return hasAutoCheckA ? -1 : 1;
+    }
+
+    final maxConfA = candidatesA.first.confidence; // Sorted descending, first is max
+    final maxConfB = candidatesB.first.confidence;
+
+    return maxConfB.compareTo(maxConfA);
+  });
+
   return showDialog<List<BookmarkLinkCandidate>>(
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, setDialogState) {
+        final colorScheme = Theme.of(context).colorScheme;
+
         return AlertDialog(
           title: const Text('Hubungkan source lain'),
           content: SizedBox(
@@ -1639,42 +1678,129 @@ Future<List<BookmarkLinkCandidate>?> _showBookmarkLinkCandidates(
               constraints: const BoxConstraints(maxHeight: 520),
               child: ListView.separated(
                 shrinkWrap: true,
-                itemCount: candidates.length,
-                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemCount: bookmarkKeys.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 12),
                 itemBuilder: (context, index) {
-                  final candidate = candidates[index];
-                  final selected = selectedKeys.contains(candidate.key);
-                  return CheckboxListTile(
-                    value: selected,
-                    contentPadding: EdgeInsets.zero,
-                    onChanged: (value) {
-                      setDialogState(() {
-                        if (value == true) {
-                          selectedKeys.removeWhere((key) {
-                            final selectedCandidate = candidates
-                                .where((item) => item.key == key)
-                                .firstOrNull;
-                            return selectedCandidate != null &&
-                                selectedCandidate.bookmark.key ==
-                                    candidate.bookmark.key &&
-                                selectedCandidate.comic.sourceName ==
-                                    candidate.comic.sourceName;
-                          });
-                          selectedKeys.add(candidate.key);
-                        } else {
-                          selectedKeys.remove(candidate.key);
-                        }
-                      });
-                    },
-                    title: Text(
-                      candidate.comic.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                  final key = bookmarkKeys[index];
+                  final bookmarkCandidates = grouped[key]!;
+                  final bookmark = bookmarkCandidates.first.bookmark;
+
+                  return Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerLowest.withValues(alpha: 0.55),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: colorScheme.outlineVariant,
+                      ),
                     ),
-                    subtitle: Text(
-                      '${comicSourceNameLabel(candidate.bookmark.sourceName)}'
-                      ' -> ${comicSourceNameLabel(candidate.comic.sourceName)}'
-                      ' • kecocokan ${(candidate.confidence * 100).round()}%',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Group Header: Primary Bookmark Title and Source Badge
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Tooltip(
+                                message: 'Buka detail bookmark utama',
+                                child: InkWell(
+                                  key: ValueKey('bookmark-detail-${bookmark.key}'),
+                                  onTap: () => _openComicDetail(context, bookmark.toSummary()),
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: Text(
+                                    bookmark.title,
+                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.w800,
+                                      color: colorScheme.primary,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            _SourceBadge(
+                              key: ValueKey('bookmark-source-${bookmark.key}'),
+                              sourceName: bookmark.sourceName,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        const Divider(height: 1),
+                        const SizedBox(height: 4),
+                        // Sub-list of candidates
+                        ...bookmarkCandidates.map((candidate) {
+                          final selected = selectedKeys.contains(candidate.key);
+                          return CheckboxListTile(
+                            value: selected,
+                            contentPadding: const EdgeInsets.only(left: 8.0),
+                            onChanged: (value) {
+                              setDialogState(() {
+                                if (value == true) {
+                                  selectedKeys.removeWhere((key) {
+                                    final selectedCandidate = candidates
+                                        .where((item) => item.key == key)
+                                        .firstOrNull;
+                                    return selectedCandidate != null &&
+                                        selectedCandidate.bookmark.key ==
+                                            candidate.bookmark.key &&
+                                        selectedCandidate.comic.sourceName ==
+                                            candidate.comic.sourceName;
+                                  });
+                                  selectedKeys.add(candidate.key);
+                                } else {
+                                  selectedKeys.remove(candidate.key);
+                                }
+                              });
+                            },
+                            title: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    candidate.comic.title,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  key: ValueKey(
+                                    'bookmark-candidate-detail-${candidate.key}',
+                                  ),
+                                  tooltip: 'Buka detail kandidat bookmark',
+                                  visualDensity: VisualDensity.compact,
+                                  constraints: const BoxConstraints(
+                                    minWidth: 32,
+                                    minHeight: 32,
+                                  ),
+                                  padding: const EdgeInsets.all(4),
+                                  onPressed: () => _openComicDetail(
+                                    context,
+                                    candidate.comic.toSummary(),
+                                  ),
+                                  icon: Icon(
+                                    TonztoonIcons.eye,
+                                    size: 18,
+                                    color: colorScheme.secondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            subtitle: Text(
+                              '-> ${comicSourceNameLabel(candidate.comic.sourceName)}'
+                              ' • kecocokan ${(candidate.confidence * 100).round()}%',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          );
+                        }),
+                      ],
                     ),
                   );
                 },

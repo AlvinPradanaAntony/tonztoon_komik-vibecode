@@ -6,14 +6,29 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
-## [1.15.0] - 2026-06-08
+## [1.15.1] - 2026-06-08
+
+### Changed
+- Proses penyajian kandidat bookmark pada dialog kini dikelompokkan berdasarkan komik utama yang di-bookmark.
+- Kandidat dalam setiap kelompok diurutkan berdasarkan tingkat kecocokan (confidence) tertinggi.
+- Pengurutan kelompok memprioritaskan kelompok dengan kandidat yang otomatis tercentang (kecocokan >= 82%) terlebih dahulu, diikuti dengan skor kecocokan tertinggi.
 
 ### Added
+- Widget test untuk memverifikasi struktur pengelompokan, data visual, serta logika pengurutan pada dialog kandidat bookmark.
+
+---
+
+<details>
+<summary><strong>Riwayat versi sebelumnya</strong></summary>
+
+### [1.15.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.15.0) - 2026-06-08
+
+#### Added
 - Bookmark multi-source untuk memindai komik serupa dan menghubungkan bookmark utama dengan sumber alternatif yang dipilih.
 - Sinkronisasi otomatis status chapter selesai ke komik yang sudah terhubung berdasarkan nomor chapter yang sama.
 - Badge sumber terhubung pada daftar bookmark serta status bookmark terhubung pada halaman detail komik.
 
-### Changed
+#### Changed
 - Proses pencarian dan penyimpanan hubungan bookmark kini menampilkan kandidat, persentase kecocokan, serta progres sinkronisasi.
 - Kartu komik grid kini menampilkan chapter terbaru sebagai badge pada cover serta total views dalam format ringkas.
 - Kartu komik list menampilkan total views dan indikator scroll dua arah untuk daftar genre yang panjang.
@@ -23,9 +38,6 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 - Kontras tombol Helpdesk, aksi notifikasi, helper modal, dan efek tombol utama disesuaikan untuk light dan dark theme.
 
 ---
-
-<details>
-<summary><strong>Riwayat versi sebelumnya</strong></summary>
 
 ### [1.14.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.14.0) - 2026-06-06
 
