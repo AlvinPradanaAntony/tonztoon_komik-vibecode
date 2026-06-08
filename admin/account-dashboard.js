@@ -981,6 +981,7 @@
           { name: "reader_preferences", desc: "Preferensi reader default", key: "reader_preferences" },
           { name: "user_reading_stats", desc: "Statistik baca user", key: "user_reading_stats" },
           { name: "user_bookmarks", desc: "Bookmark komik user", key: "user_bookmarks" },
+          { name: "user_bookmark_links", desc: "Relasi bookmark multi-source", key: "user_bookmark_links" },
           { name: "user_collections", desc: "Folder koleksi komik user", key: "user_collections" },
           { name: "user_progress", desc: "Progress baca user", key: "user_progress" },
           { name: "user_completed_chapters", desc: "Chapter selesai dibaca", key: "user_completed_chapters" },
@@ -1001,6 +1002,14 @@
         left: [
           { name: "profiles", desc: "Profil publik user", key: "profiles" },
           { name: "comics", desc: "Tabel komik utama", key: "comics_sys" }
+        ],
+        right: [{ name: "user_bookmark_links", desc: "Relasi source alternatif bookmark", key: "user_bookmark_links" }]
+      },
+      user_bookmark_links: {
+        left: [
+          { name: "profiles", desc: "Profil publik user", key: "profiles" },
+          { name: "user_bookmarks", desc: "Bookmark induk user", key: "user_bookmarks" },
+          { name: "comics", desc: "Komik source alternatif", key: "comics_sys" }
         ],
         right: []
       },
@@ -1617,6 +1626,7 @@
         reader_preferences: "Reader Preferences",
         user_reading_stats: "Reading Stats",
         user_bookmarks: "Bookmarks",
+        user_bookmark_links: "Bookmark Links",
         user_collections: "Collections",
         user_collection_comics: "Collection Items",
         user_progress: "Progress",
@@ -1635,6 +1645,7 @@
         reader_preferences: "Preferensi reader default milik user.",
         user_reading_stats: "Akumulasi statistik baca per user.",
         user_bookmarks: "Komik yang disimpan sebagai bookmark.",
+        user_bookmark_links: "Relasi source alternatif untuk bookmark multi-source.",
         user_collections: "Koleksi pribadi yang dibuat user.",
         user_collection_comics: "Item komik di dalam koleksi user.",
         user_progress: "Progress baca per komik dan chapter.",

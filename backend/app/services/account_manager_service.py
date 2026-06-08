@@ -21,6 +21,7 @@ from app.models import (
     Profile,
     ReaderPreference,
     UserBookmark,
+    UserBookmarkLink,
     UserCollection,
     UserCollectionComic,
     UserCompletedChapter,
@@ -249,6 +250,13 @@ async def get_relation_counts_by_user_ids(
     await _apply_group_counts(
         db,
         counts_by_user_id,
+        model=UserBookmarkLink,
+        user_column=UserBookmarkLink.user_id,
+        field_name="user_bookmark_links",
+    )
+    await _apply_group_counts(
+        db,
+        counts_by_user_id,
         model=UserCollection,
         user_column=UserCollection.user_id,
         field_name="user_collections",
@@ -315,6 +323,9 @@ async def get_relation_counts(db: AsyncSession, user_id: uuid.UUID) -> AccountRe
         select(literal("user_bookmarks"), func.count())
         .select_from(UserBookmark)
         .where(UserBookmark.user_id == user_id),
+        select(literal("user_bookmark_links"), func.count())
+        .select_from(UserBookmarkLink)
+        .where(UserBookmarkLink.user_id == user_id),
         select(literal("user_collections"), func.count())
         .select_from(UserCollection)
         .where(UserCollection.user_id == user_id),
@@ -663,6 +674,7 @@ async def get_relation_preview(
             return "Statistik membaca"
         if table in {
             "user_bookmarks",
+            "user_bookmark_links",
             "user_progress",
             "user_completed_chapters",
             "user_history_entries",
@@ -700,6 +712,9 @@ async def get_relation_preview(
             return f"{chapter or 'Chapter'} • Selesai dibaca"
         if table == "user_bookmarks":
             return "Bookmark komik"
+        if table == "user_bookmark_links":
+            bookmark_id = getattr(row, "bookmark_id", None)
+            return f"Relasi bookmark multi-source #{bookmark_id}" if bookmark_id else "Relasi bookmark multi-source"
         if table == "user_favorite_scenes":
             chapter = chapter_label(row)
             page = getattr(row, "page_item_index", None)
@@ -750,6 +765,12 @@ async def get_relation_preview(
         reader_preferences=await rows(ReaderPreference, ReaderPreference.user_id == user_id, "reader_preferences", "user_id"),
         user_reading_stats=await rows(UserReadingStat, UserReadingStat.user_id == user_id, "user_reading_stats", "user_id"),
         user_bookmarks=await rows(UserBookmark, UserBookmark.user_id == user_id, "user_bookmarks", "comic_id"),
+        user_bookmark_links=await rows(
+            UserBookmarkLink,
+            UserBookmarkLink.user_id == user_id,
+            "user_bookmark_links",
+            "comic_id",
+        ),
         user_collections=await rows(UserCollection, UserCollection.user_id == user_id, "user_collections", "name"),
         user_collection_comics=[
             AccountRelationPreviewItem(
@@ -825,6 +846,7 @@ async def delete_account_clean(
         await db.execute(delete(UserHistoryEntry).where(UserHistoryEntry.user_id == user_id))
         await db.execute(delete(UserCompletedChapter).where(UserCompletedChapter.user_id == user_id))
         await db.execute(delete(UserProgress).where(UserProgress.user_id == user_id))
+        await db.execute(delete(UserBookmarkLink).where(UserBookmarkLink.user_id == user_id))
         await db.execute(delete(UserBookmark).where(UserBookmark.user_id == user_id))
         await db.execute(delete(UserCollection).where(UserCollection.user_id == user_id))
         await db.execute(delete(UserReadingStat).where(UserReadingStat.user_id == user_id))

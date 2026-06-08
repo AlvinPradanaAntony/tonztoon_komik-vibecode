@@ -506,11 +506,20 @@ def _bookmark_link_candidate_statement(
     linked_ids = select(UserBookmarkLink.comic_id).where(
         UserBookmarkLink.user_id == user_id
     )
+    linked_sources = (
+        select(Comic.source_name)
+        .join(UserBookmarkLink, UserBookmarkLink.comic_id == Comic.id)
+        .where(
+            UserBookmarkLink.user_id == user_id,
+            UserBookmarkLink.bookmark_id == bookmark.id,
+        )
+    )
     return (
         select(Comic, score.label("confidence"))
         .options(noload(Comic.genres))
         .where(
             Comic.source_name != bookmark.comic.source_name,
+            Comic.source_name.not_in(linked_sources),
             Comic.id.not_in(bookmarked_ids),
             Comic.id.not_in(linked_ids),
             or_(*indexed_matches),

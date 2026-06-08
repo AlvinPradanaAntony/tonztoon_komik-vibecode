@@ -746,8 +746,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
         : colorScheme.surfaceContainerLowest;
     final overlayStyle = SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
-      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
-      statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+      statusBarIconBrightness: Brightness.light,
+      statusBarBrightness: Brightness.dark,
       systemNavigationBarColor: Colors.transparent,
       systemNavigationBarIconBrightness: isDark
           ? Brightness.light
@@ -1609,6 +1609,7 @@ class _ReadyReaderScaffold extends StatelessWidget {
                         pageKeyFor: verticalPageKeyFor,
                       ),
               ),
+              const _ReaderTopViewportFade(),
               const _ReaderBottomViewportFade(),
               _ReaderTopBar(
                 visible: overlayVisible,
@@ -1663,6 +1664,36 @@ class _PreparingReaderScaffold extends StatelessWidget {
         body: _PreparingChapterView(
           comicSummary: comicSummary,
           chapterTitle: chapterTitle,
+        ),
+      ),
+    );
+  }
+}
+
+class _ReaderTopViewportFade extends StatelessWidget {
+  const _ReaderTopViewportFade();
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: 0,
+      right: 0,
+      top: 0,
+      height: 180 + MediaQuery.paddingOf(context).top,
+      child: IgnorePointer(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: List.generate(9, (index) {
+                final p = index / 8;
+                return Colors.black.withValues(
+                  alpha: math.pow(1 - p, 1.5).toDouble(),
+                );
+              }),
+            ),
+          ),
         ),
       ),
     );
@@ -1994,6 +2025,7 @@ class _PagedReader extends StatelessWidget {
 
 const _standardWebtoonAspectRatio = 0.68;
 const _maxReaderDecodedImageHeight = 4096;
+const _readerVerticalPageBleed = 1.0;
 const _minFallbackSampleAspectRatio = 0.25;
 const _maxFallbackSampleAspectRatio = 2.5;
 const _minFallbackWebtoonAspectRatio = 0.45;
@@ -2171,13 +2203,14 @@ class _ReaderPageState extends State<_ReaderPage> {
             ],
           )
         : BoxDecoration(color: widget.page.background);
-    final fit = widget.paged ? BoxFit.contain : BoxFit.fitWidth;
+    final fit = widget.paged ? BoxFit.contain : BoxFit.cover;
     final image = filePath == null
         ? CachedNetworkImage(
             key: ValueKey('$imageUrl|$_retrySerial'),
             imageUrl: imageUrl,
             cacheManager: ReaderImageCacheManager.instance,
             width: double.infinity,
+            height: double.infinity,
             fit: fit,
             memCacheHeight: _maxReaderDecodedImageHeight,
             imageBuilder: (context, imageProvider) {
@@ -2188,6 +2221,7 @@ class _ReaderPageState extends State<_ReaderPage> {
               return Image(
                 image: decodedProvider,
                 width: double.infinity,
+                height: double.infinity,
                 fit: fit,
               );
             },
@@ -2217,6 +2251,7 @@ class _ReaderPageState extends State<_ReaderPage> {
             borderRadius: BorderRadius.circular(8),
             child: _ReaderPageStack(
               image: image,
+              imageBleed: 0,
               actionsVisible: widget.actionsVisible,
               onDownload: widget.onDownload,
             ),
@@ -2231,6 +2266,7 @@ class _ReaderPageState extends State<_ReaderPage> {
         aspectRatio: aspectRatio,
         child: _ReaderPageStack(
           image: image,
+          imageBleed: _readerVerticalPageBleed,
           actionsVisible: widget.actionsVisible,
           onDownload: widget.onDownload,
         ),
@@ -2250,6 +2286,7 @@ class _ReaderPageState extends State<_ReaderPage> {
       image: provider,
       key: ValueKey('$filePath|$_retrySerial'),
       width: double.infinity,
+      height: double.infinity,
       fit: fit,
       errorBuilder: (context, error, stackTrace) => _ReaderPageError(
         pageNumber: widget.page.number,
@@ -2311,20 +2348,29 @@ class _ReaderPageError extends StatelessWidget {
 class _ReaderPageStack extends StatelessWidget {
   const _ReaderPageStack({
     required this.image,
+    required this.imageBleed,
     required this.actionsVisible,
     required this.onDownload,
   });
 
   final Widget image;
+  final double imageBleed;
   final bool actionsVisible;
   final VoidCallback onDownload;
 
   @override
   Widget build(BuildContext context) {
     return Stack(
+      clipBehavior: Clip.none,
       fit: StackFit.passthrough,
       children: [
-        image,
+        Positioned(
+          top: -imageBleed,
+          right: 0,
+          bottom: -imageBleed,
+          left: 0,
+          child: image,
+        ),
         Positioned(
           top: 12,
           right: 12,

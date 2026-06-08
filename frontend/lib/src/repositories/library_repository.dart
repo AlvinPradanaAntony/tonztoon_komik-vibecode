@@ -296,6 +296,11 @@ class LibraryRepository {
       index++
     ) {
       final bookmark = bookmarks[index];
+      final linkedSourcesForThisBookmark = _localBookmarkLinks()
+          .where((link) => link.bookmark.key == bookmark.key)
+          .map((link) => link.linked.sourceName)
+          .toSet();
+
       final response = await _api.get<List<dynamic>>(
         '/search',
         queryParameters: {'q': bookmark.title, 'page_size': 50},
@@ -304,6 +309,7 @@ class LibraryRepository {
       for (final raw in (response.data ?? const []).whereType<Map>()) {
         final comic = LibraryComicRef.fromJson(Map<String, dynamic>.from(raw));
         if (comic.sourceName == bookmark.sourceName ||
+            linkedSourcesForThisBookmark.contains(comic.sourceName) ||
             usedKeys.contains(comic.key)) {
           continue;
         }

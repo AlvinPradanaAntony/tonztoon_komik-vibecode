@@ -22,6 +22,7 @@ def compile_sql(statement) -> str:
 class LibrarySqlStatementTests(unittest.TestCase):
     def test_bookmark_candidate_query_uses_trigram_index_operators(self):
         bookmark = SimpleNamespace(
+            id=1,
             comic=SimpleNamespace(
                 title="Solo Leveling",
                 alternative_titles="Na Honjaman Level Up",
@@ -39,6 +40,9 @@ class LibrarySqlStatementTests(unittest.TestCase):
         self.assertIn("comics.title %%", sql)
         self.assertIn("comics.alternative_titles %%", sql)
         self.assertNotIn("lower(comics.title)", sql)
+        self.assertIn("comics.source_name NOT IN", sql)
+        self.assertIn("user_bookmark_links.user_id =", sql)
+        self.assertIn("user_bookmark_links.bookmark_id =", sql)
 
     def test_download_batch_uses_on_conflict_upsert(self):
         now = datetime.now(UTC)

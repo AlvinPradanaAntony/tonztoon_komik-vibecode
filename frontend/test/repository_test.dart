@@ -999,6 +999,57 @@ void main() {
     expect(unlinkedState.bookmarkRelation, BookmarkRelation.none);
   });
 
+  test('guest bookmark candidate scan skips already linked sources', () async {
+    final api = _apiWithResponses({
+      'GET /search': [
+        // Candidate 1: same source name as the linked comic (komikcast), should be skipped
+        {
+          'title': 'Solo Leveling alternate',
+          'slug': 'solo-leveling-alt',
+          'source_name': 'komikcast',
+        },
+        // Candidate 2: different source name (komiku), should be returned
+        {
+          'title': 'Solo Leveling other',
+          'slug': 'solo-leveling-other',
+          'source_name': 'komiku',
+        },
+      ],
+    });
+    final repository = LibraryRepository(
+      api,
+      MemoryTokenStore(),
+      store,
+    );
+    const origin = ComicSummary(
+      title: 'Solo Leveling',
+      slug: 'solo-leveling',
+      sourceName: 'komiku_asia',
+    );
+    const alternate = ComicSummary(
+      title: 'Solo Leveling',
+      slug: 'solo-leveling',
+      sourceName: 'komikcast',
+    );
+
+    await repository.toggleBookmark(origin, false);
+    await repository.saveBookmarkLinks([
+      BookmarkLinkCandidate(
+        bookmark: LibraryComicRef.fromSummary(origin),
+        comic: LibraryComicRef.fromSummary(alternate),
+        confidence: 1,
+      ),
+    ]);
+
+    final candidates = await repository.scanBookmarkLinkCandidates();
+
+    // Since 'komikcast' is already linked to the bookmark, the candidate from 'komikcast' must be skipped.
+    // The candidate from 'komiku' should be returned.
+    expect(candidates, hasLength(1));
+    expect(candidates.single.comic.sourceName, 'komiku');
+    expect(candidates.single.comic.slug, 'solo-leveling-other');
+  });
+
   test(
     'authenticated bookmark candidate scan requests bounded pages',
     () async {

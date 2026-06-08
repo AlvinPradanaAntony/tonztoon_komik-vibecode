@@ -6,20 +6,27 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
-## [1.15.1] - 2026-06-08
+## [1.15.2] - 2026-06-08
 
 ### Changed
-- Proses penyajian kandidat bookmark pada dialog kini dikelompokkan berdasarkan komik utama yang di-bookmark.
-- Kandidat dalam setiap kelompok diurutkan berdasarkan tingkat kecocokan (confidence) tertinggi.
-- Pengurutan kelompok memprioritaskan kelompok dengan kandidat yang otomatis tercentang (kecocokan >= 82%) terlebih dahulu, diikuti dengan skor kecocokan tertinggi.
-
-### Added
-- Widget test untuk memverifikasi struktur pengelompokan, data visual, serta logika pengurutan pada dialog kandidat bookmark.
+- Proses pemindaian kandidat bookmark (multi-source candidate scan) kini mengabaikan sumber komik alternatif yang sudah terhubung, baik pada pemrosesan backend (SQL) maupun repositori frontend.
 
 ---
 
 <details>
 <summary><strong>Riwayat versi sebelumnya</strong></summary>
+
+### [1.15.1](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.15.1) - 2026-06-08
+
+#### Changed
+- Proses penyajian kandidat bookmark pada dialog kini dikelompokkan berdasarkan komik utama yang di-bookmark.
+- Kandidat dalam setiap kelompok diurutkan berdasarkan tingkat kecocokan (confidence) tertinggi.
+- Pengurutan kelompok memprioritaskan kelompok dengan kandidat yang otomatis tercentang (kecocokan >= 82%) terlebih dahulu, diikuti dengan skor kecocokan tertinggi.
+
+#### Added
+- Widget test untuk memverifikasi struktur pengelompokan, data visual, serta logika pengurutan pada dialog kandidat bookmark.
+
+---
 
 ### [1.15.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.15.0) - 2026-06-08
 

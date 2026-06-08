@@ -30,6 +30,7 @@ class AccountRelationCounts(BaseModel):
     reader_preferences: int = 0
     user_reading_stats: int = 0
     user_bookmarks: int = 0
+    user_bookmark_links: int = 0
     user_collections: int = 0
     user_collection_comics: int = 0
     user_progress: int = 0
@@ -59,6 +60,7 @@ class AccountRelationPreview(BaseModel):
     reader_preferences: list[AccountRelationPreviewItem] = Field(default_factory=list)
     user_reading_stats: list[AccountRelationPreviewItem] = Field(default_factory=list)
     user_bookmarks: list[AccountRelationPreviewItem] = Field(default_factory=list)
+    user_bookmark_links: list[AccountRelationPreviewItem] = Field(default_factory=list)
     user_collections: list[AccountRelationPreviewItem] = Field(default_factory=list)
     user_collection_comics: list[AccountRelationPreviewItem] = Field(default_factory=list)
     user_progress: list[AccountRelationPreviewItem] = Field(default_factory=list)
