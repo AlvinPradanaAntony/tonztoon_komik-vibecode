@@ -54,12 +54,18 @@ Kriteria backlog:
 Usage:
     cd backend
     python -m scraper.sync_chapter_images
+    python -m scraper.sync_chapter_images --mode dimensions --source komiku --limit 100
     python -m scraper.sync_chapter_images --source komiku_asia
     python -m scraper.sync_chapter_images --source komikcast --limit 50
     python -m scraper.sync_chapter_images --source shinigami --selection random --limit 20
     python -m scraper.sync_chapter_images --source komikcast --limit 50 --no-anti-blocking
 
 Argumen CLI utama:
+- `--mode <images|dimensions>`
+  - `images`: mode lama, scrape/fetch chapter yang images-nya kosong atau invalid.
+  - `dimensions`: backfill `width`/`height` untuk chapter yang sudah punya
+    item `{page, url}` tetapi belum lengkap dimensi intrinsiknya.
+  - Default: `images`.
 - `--source <source_name>`
   - Filter source tertentu saja.
   - Nilai valid mengikuti registry backend: `komiku`, `komiku_asia`,
@@ -85,7 +91,6 @@ Argumen CLI utama:
 - `--no-anti-blocking`
   - Matikan throttling request: random delay, cooldown berkala, dan backoff
     error. Checkpoint/resume dan graceful shutdown tetap aktif.
-
 Contoh use case:
 - Batch lokal fokus source tertentu:
   `python -m scraper.sync_chapter_images --source komikcast --limit 30`
@@ -113,7 +118,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, select, text, update
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -124,6 +129,10 @@ from app.services.chapter_service import (
     chapter_images_are_invalid_expression,
     chapter_images_are_ready,
     fetch_and_save_chapter_images,
+)
+from app.services.image_service import (
+    chapter_image_has_dimensions,
+    enrich_chapter_image_dimensions,
 )
 from scraper.sources.registry import get_supported_source_names
 from scraper.time_utils import now_wib
@@ -141,6 +150,7 @@ DEFAULT_LOG_FILE = Path("sync_chapter_images.log")
 CHECKPOINT_DIR = Path(__file__).resolve().parent.parent / "checkpoints"
 
 SUPPORTED_SOURCES = tuple(get_supported_source_names())
+SUPPORTED_MODES = {"images", "dimensions"}
 SUPPORTED_SELECTIONS = {"ordered", "random"}
 
 DELAY_CHAPTER_MIN = 2.0
@@ -183,9 +193,10 @@ def configure_logging(
 logger = logging.getLogger("sync-chapter-images")
 
 
-def get_checkpoint_file(source_name: str | None) -> Path:
+def get_checkpoint_file(source_name: str | None, *, mode: str = "images") -> Path:
     scope = source_name or "all"
-    return CHECKPOINT_DIR / f"sync_chapter_images_{scope}.json"
+    mode_prefix = "" if mode == "images" else f"{mode}_"
+    return CHECKPOINT_DIR / f"sync_chapter_images_{mode_prefix}{scope}.json"
 
 
 def _default_stats() -> dict:
@@ -307,8 +318,8 @@ def update_progress(
     return progress
 
 
-def load_checkpoint(source_name: str | None) -> dict:
-    checkpoint_file = get_checkpoint_file(source_name)
+def load_checkpoint(source_name: str | None, *, mode: str = "images") -> dict:
+    checkpoint_file = get_checkpoint_file(source_name, mode=mode)
     if not checkpoint_file.exists():
         return _default_checkpoint()
     try:
@@ -322,16 +333,21 @@ def load_checkpoint(source_name: str | None) -> dict:
         return _default_checkpoint()
 
 
-def save_checkpoint(source_name: str | None, checkpoint: dict) -> None:
-    checkpoint_file = get_checkpoint_file(source_name)
+def save_checkpoint(
+    source_name: str | None,
+    checkpoint: dict,
+    *,
+    mode: str = "images",
+) -> None:
+    checkpoint_file = get_checkpoint_file(source_name, mode=mode)
     checkpoint["updated_at"] = now_wib().isoformat()
     checkpoint_file.parent.mkdir(parents=True, exist_ok=True)
     with open(checkpoint_file, "w", encoding="utf-8") as f:
         json.dump(checkpoint, f, indent=2, ensure_ascii=False)
 
 
-def reset_checkpoint(source_name: str | None) -> None:
-    checkpoint_file = get_checkpoint_file(source_name)
+def reset_checkpoint(source_name: str | None, *, mode: str = "images") -> None:
+    checkpoint_file = get_checkpoint_file(source_name, mode=mode)
     if checkpoint_file.exists():
         checkpoint_file.unlink()
         logger.info("🗑️ Checkpoint dihapus: %s", checkpoint_file)
@@ -361,6 +377,43 @@ def _build_pending_query(
         select(Chapter, Comic.source_name, Comic.title)
         .join(Comic, Comic.id == Chapter.comic_id)
         .where(chapter_images_are_invalid_expression())
+    )
+    if source_name:
+        stmt = stmt.where(Comic.source_name == source_name)
+
+    if selection == "ordered":
+        stmt = stmt.where(Chapter.id > last_processed_chapter_id).order_by(Chapter.id.asc())
+    else:
+        stmt = stmt.order_by(func.random())
+
+    return stmt.limit(limit)
+
+
+def _chapter_images_missing_dimensions_expression():
+    return text(
+        """
+        jsonb_path_exists(
+            chapters.images,
+            '$[*] ? (!exists(@.width) || !exists(@.height))'::jsonpath
+        )
+        """
+    )
+
+
+def _build_pending_dimension_query(
+    *,
+    source_name: str | None,
+    selection: str,
+    last_processed_chapter_id: int,
+    limit: int,
+) -> Select:
+    stmt = (
+        select(Chapter, Comic.source_name, Comic.title)
+        .join(Comic, Comic.id == Chapter.comic_id)
+        .where(
+            chapter_images_are_invalid_expression().is_(False),
+            _chapter_images_missing_dimensions_expression(),
+        )
     )
     if source_name:
         stmt = stmt.where(Comic.source_name == source_name)
@@ -405,6 +458,38 @@ async def _load_pending_batch(
         return rows
 
 
+async def _load_pending_dimension_batch(
+    *,
+    source_name: str | None,
+    selection: str,
+    last_processed_chapter_id: int,
+    limit: int,
+):
+    async with async_session() as session:
+        result = await session.execute(
+            _build_pending_dimension_query(
+                source_name=source_name,
+                selection=selection,
+                last_processed_chapter_id=last_processed_chapter_id,
+                limit=limit,
+            )
+        )
+        rows = result.all()
+
+        if selection == "ordered" and not rows and last_processed_chapter_id > 0:
+            result = await session.execute(
+                _build_pending_dimension_query(
+                    source_name=source_name,
+                    selection=selection,
+                    last_processed_chapter_id=0,
+                    limit=limit,
+                )
+            )
+            rows = result.all()
+
+        return rows
+
+
 async def _count_pending(*, source_name: str | None) -> int:
     async with async_session() as session:
         stmt = (
@@ -412,6 +497,23 @@ async def _count_pending(*, source_name: str | None) -> int:
             .select_from(Chapter)
             .join(Comic, Comic.id == Chapter.comic_id)
             .where(chapter_images_are_invalid_expression())
+        )
+        if source_name:
+            stmt = stmt.where(Comic.source_name == source_name)
+        result = await session.execute(stmt)
+        return int(result.scalar_one() or 0)
+
+
+async def _count_pending_dimensions(*, source_name: str | None) -> int:
+    async with async_session() as session:
+        stmt = (
+            select(func.count())
+            .select_from(Chapter)
+            .join(Comic, Comic.id == Chapter.comic_id)
+            .where(
+                chapter_images_are_invalid_expression().is_(False),
+                _chapter_images_missing_dimensions_expression(),
+            )
         )
         if source_name:
             stmt = stmt.where(Comic.source_name == source_name)
@@ -682,6 +784,232 @@ async def process_pending_images_batch(
     return processed
 
 
+async def process_pending_dimensions_batch(
+    *,
+    batch_number: int,
+    pending_total: int,
+    source_name: str | None,
+    selection: str,
+    batch_size: int,
+    checkpoint: dict,
+    stats: ImageSyncStats,
+    anti_blocking_enabled: bool,
+) -> int:
+    rows = await _load_pending_dimension_batch(
+        source_name=source_name,
+        selection=selection,
+        last_processed_chapter_id=int(checkpoint.get("last_processed_chapter_id", 0) or 0),
+        limit=batch_size,
+    )
+    if not rows:
+        logger.info("ℹ️ Tidak ada chapter dengan image dimensions pending untuk batch ini.")
+        return 0
+
+    logger.info(f"{'─' * 60}")
+    logger.info(
+        "📐 Batch %s — %s chapter dipilih dari %s pending dimensions",
+        batch_number,
+        len(rows),
+        pending_total,
+    )
+    logger.info(f"{'─' * 60}")
+    update_progress(
+        checkpoint,
+        current_pending_total=pending_total,
+        current_batch_number=batch_number,
+        current_batch_size=len(rows),
+        current_chapter_position=0,
+        current_chapter_total=len(rows),
+        state="dimension-batch-started",
+        note=f"Memulai dimension batch {batch_number} ({len(rows)} chapter)",
+    )
+    save_checkpoint(source_name, checkpoint, mode="dimensions")
+
+    consecutive_errors = 0
+    processed = 0
+    updated_in_batch = 0
+    skipped_in_batch = 0
+    errors_in_batch = 0
+    for idx, (chapter, row_source_name, comic_title) in enumerate(rows, start=1):
+        if _shutdown.requested:
+            break
+
+        stats.total_scanned += 1
+        processed += 1
+        checkpoint["last_processed_chapter_id"] = chapter.id
+        update_progress(
+            checkpoint,
+            current_chapter_id=chapter.id,
+            current_chapter_position=idx,
+            current_chapter_total=len(rows),
+            current_source_name=row_source_name,
+            current_comic_title=comic_title or f"comic_id={chapter.comic_id}",
+            current_chapter_number=chapter.chapter_number,
+            current_chapter_url=chapter.source_url,
+            state="backfilling-dimensions",
+            note=f"Memproses dimensi [{idx}/{len(rows)}] pada batch {batch_number}",
+        )
+
+        logger.info(
+            "  📐 [%s/%s] [%s] %s — Ch %s (chapter_id=%s)",
+            idx,
+            len(rows),
+            row_source_name,
+            comic_title or f"comic_id={chapter.comic_id}",
+            chapter.chapter_number,
+            chapter.id,
+        )
+
+        async with async_session() as session:
+            try:
+                claimed = await _try_claim_chapter(session, chapter.id)
+                if not claimed:
+                    stats.total_skipped += 1
+                    skipped_in_batch += 1
+                    logger.info("    ⏭️ Sedang diproses job/proses lain, skip.")
+                    update_progress(
+                        checkpoint,
+                        state="dimension-skipped-claimed",
+                        note=f"Chapter {chapter.id} sedang diproses proses lain",
+                    )
+                    continue
+
+                chapter_in_session = await session.get(Chapter, chapter.id)
+                if chapter_in_session is None:
+                    stats.total_skipped += 1
+                    skipped_in_batch += 1
+                    update_progress(
+                        checkpoint,
+                        state="dimension-skipped-missing",
+                        note=f"Chapter {chapter.id} tidak ditemukan saat reload session",
+                    )
+                    continue
+
+                images = chapter_in_session.images or []
+                if not chapter_images_are_ready(images):
+                    stats.total_skipped += 1
+                    skipped_in_batch += 1
+                    logger.info("    ⏭️ Images belum valid page/url, skip.")
+                    update_progress(
+                        checkpoint,
+                        state="dimension-skipped-invalid-images",
+                        note=f"Chapter {chapter.id} belum punya images valid",
+                    )
+                    continue
+
+                if all(chapter_image_has_dimensions(image) for image in images):
+                    stats.total_skipped += 1
+                    skipped_in_batch += 1
+                    logger.info("    ⏭️ Semua image sudah punya dimensi.")
+                    update_progress(
+                        checkpoint,
+                        state="dimension-skipped-ready",
+                        note=f"Chapter {chapter.id} sudah punya semua dimensi",
+                    )
+                    continue
+
+                enriched_images = await enrich_chapter_image_dimensions(images)
+                if enriched_images == images:
+                    stats.total_skipped += 1
+                    skipped_in_batch += 1
+                    logger.info("    ⚠️ Dimensi belum berhasil dibaca, skip.")
+                    update_progress(
+                        checkpoint,
+                        state="dimension-unresolved",
+                        note=f"Dimensi chapter {chapter.id} belum berhasil dibaca",
+                    )
+                    continue
+
+                await session.execute(
+                    update(Chapter)
+                    .where(Chapter.id == chapter.id)
+                    .values(images=enriched_images)
+                )
+                await session.commit()
+                updated_in_batch += 1
+                stats.total_fetched += 1
+                stats.processed_since_cooldown += 1
+                consecutive_errors = 0
+                logger.info("    ✅ Dimensi image berhasil diperbarui.")
+                update_progress(
+                    checkpoint,
+                    state="dimension-complete",
+                    note=f"Dimensi images chapter {chapter.id} berhasil disimpan",
+                )
+            except Exception as exc:
+                await session.rollback()
+                consecutive_errors += 1
+                errors_in_batch += 1
+                stats.total_errors += 1
+                logger.warning("    ✗ Gagal backfill dimensi: %s", exc)
+                update_progress(
+                    checkpoint,
+                    state="dimension-error",
+                    note=f"Error dimension backfill chapter {chapter.id}: {exc}",
+                )
+                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+                    await maybe_backoff_delay(
+                        anti_blocking_enabled,
+                        consecutive_errors - 1,
+                        f"{row_source_name} dimensions",
+                    )
+                    consecutive_errors = 0
+            finally:
+                try:
+                    await _release_claim(session, chapter.id)
+                except Exception:
+                    logger.debug("Gagal melepas advisory lock chapter %s", chapter.id, exc_info=True)
+
+        checkpoint["stats"] = {
+            "total_batches": stats.total_batches,
+            "total_scanned": stats.total_scanned,
+            "total_fetched": stats.total_fetched,
+            "total_skipped": stats.total_skipped,
+            "total_errors": stats.total_errors,
+        }
+        save_checkpoint(source_name, checkpoint, mode="dimensions")
+
+        if (
+            anti_blocking_enabled
+            and stats.processed_since_cooldown >= COOLDOWN_EVERY_N_CHAPTERS
+        ):
+            stats.processed_since_cooldown = 0
+            logger.info("  🧊 Cooldown berkala dimensions...")
+            await maybe_random_delay(
+                anti_blocking_enabled,
+                COOLDOWN_MIN,
+                COOLDOWN_MAX,
+                "cooldown dimensions",
+            )
+
+        await maybe_random_delay(
+            anti_blocking_enabled,
+            DELAY_CHAPTER_MIN,
+            DELAY_CHAPTER_MAX,
+            "antar-chapter dimensions",
+        )
+
+    logger.info(
+        "  ✅ Dimension batch %s selesai: scanned=%s, updated=%s, skipped=%s, errors=%s",
+        batch_number,
+        processed,
+        updated_in_batch,
+        skipped_in_batch,
+        errors_in_batch,
+    )
+    update_progress(
+        checkpoint,
+        state="dimension-batch-complete",
+        note=(
+            f"Dimension batch {batch_number} selesai: "
+            f"scanned={processed}, updated={updated_in_batch}, "
+            f"skipped={skipped_in_batch}, errors={errors_in_batch}"
+        ),
+    )
+    save_checkpoint(source_name, checkpoint, mode="dimensions")
+    return processed
+
+
 async def run_image_backfill(
     *,
     source_name: str | None,
@@ -827,8 +1155,151 @@ async def run_image_backfill(
     logger.info("═" * 60)
 
 
+async def run_dimension_backfill(
+    *,
+    source_name: str | None,
+    selection: str,
+    batch_size: int,
+    limit: int,
+    reset: bool,
+    anti_blocking_enabled: bool,
+) -> None:
+    start_time = time.time()
+    started_at = now_wib()
+    checkpoint_file = get_checkpoint_file(source_name, mode="dimensions")
+    if reset:
+        reset_checkpoint(source_name, mode="dimensions")
+    checkpoint = load_checkpoint(source_name, mode="dimensions")
+    stats = ImageSyncStats(**checkpoint.get("stats", {}))
+    update_progress(
+        checkpoint,
+        source=source_name or "all",
+        selection=selection,
+        batch_size=batch_size,
+        limit=limit,
+        state="starting-dimensions",
+        note="Backfill chapter image dimensions dimulai",
+    )
+    save_checkpoint(source_name, checkpoint, mode="dimensions")
+
+    logger.info("═" * 60)
+    logger.info("🚀 Backfill Chapter Image Dimensions dimulai — %s", started_at.isoformat())
+    logger.info("   Source       : %s", source_name or "all active sources")
+    logger.info("   Selection    : %s", selection)
+    logger.info("   Batch size   : %s", batch_size)
+    logger.info("   Limit        : %s", limit)
+    logger.info(
+        "   Anti-blocking: %s",
+        "aktif" if anti_blocking_enabled else "nonaktif (--no-anti-blocking)",
+    )
+    if anti_blocking_enabled:
+        logger.info("   Delay chapter: %s-%ss (random)", DELAY_CHAPTER_MIN, DELAY_CHAPTER_MAX)
+        logger.info("   Cooldown     : setiap %s chapter", COOLDOWN_EVERY_N_CHAPTERS)
+        logger.info("   Backoff max  : %ss", int(BACKOFF_MAX))
+    else:
+        logger.info("   Delay/cooldown/backoff: dilewati")
+    logger.info("   Checkpoint   : %s", checkpoint_file)
+    logger.info("═" * 60)
+
+    remaining_budget = limit if limit > 0 else None
+    batch_number = 0
+    end_state = "complete"
+    end_note = "Backfill chapter image dimensions selesai"
+    pending_total = await _count_pending_dimensions(source_name=source_name)
+    logger.info("📊 Pending image dimensions awal: %s", pending_total)
+    if pending_total == 0:
+        logger.info("ℹ️ Tidak ada chapter image dimensions pending. Proses selesai.")
+        update_progress(
+            checkpoint,
+            current_pending_total=0,
+            state="idle",
+            note="Tidak ada chapter image dimensions pending",
+        )
+        end_state = "complete"
+        end_note = "Tidak ada chapter image dimensions pending"
+
+    while not _shutdown.requested and pending_total > 0:
+        current_batch_size = batch_size
+        if remaining_budget is not None:
+            if remaining_budget <= 0:
+                end_state = "budget-exhausted"
+                end_note = "Batas --limit tercapai"
+                break
+            current_batch_size = min(current_batch_size, remaining_budget)
+
+        batch_number += 1
+        stats.total_batches = batch_number
+        updated_before_batch = stats.total_fetched
+        processed = await process_pending_dimensions_batch(
+            batch_number=batch_number,
+            pending_total=pending_total,
+            source_name=source_name,
+            selection=selection,
+            batch_size=current_batch_size,
+            checkpoint=checkpoint,
+            stats=stats,
+            anti_blocking_enabled=anti_blocking_enabled,
+        )
+        pending_total = max(0, pending_total - (stats.total_fetched - updated_before_batch))
+        logger.info("📊 Estimasi pending image dimensions: %s", pending_total)
+        checkpoint["stats"] = {
+            "total_batches": stats.total_batches,
+            "total_scanned": stats.total_scanned,
+            "total_fetched": stats.total_fetched,
+            "total_skipped": stats.total_skipped,
+            "total_errors": stats.total_errors,
+        }
+        save_checkpoint(source_name, checkpoint, mode="dimensions")
+
+        if remaining_budget is not None:
+            remaining_budget -= processed
+            if remaining_budget <= 0:
+                end_state = "budget-exhausted"
+                end_note = "Batas --limit tercapai"
+                break
+
+        if processed == 0:
+            end_state = "no-progress"
+            end_note = "Tidak ada progress baru pada batch terakhir"
+            break
+
+    checkpoint["stats"] = {
+        "total_batches": stats.total_batches,
+        "total_scanned": stats.total_scanned,
+        "total_fetched": stats.total_fetched,
+        "total_skipped": stats.total_skipped,
+        "total_errors": stats.total_errors,
+    }
+    update_progress(
+        checkpoint,
+        state="stopped-by-user" if _shutdown.requested else end_state,
+        note="Backfill dihentikan oleh user" if _shutdown.requested else end_note,
+    )
+    save_checkpoint(source_name, checkpoint, mode="dimensions")
+    finished_at = now_wib()
+    elapsed = time.time() - start_time
+    logger.info("═" * 60)
+    if _shutdown.requested:
+        logger.info("🛑 Backfill Chapter Image Dimensions dihentikan oleh user.")
+    else:
+        logger.info("🏁 Backfill Chapter Image Dimensions selesai!")
+    logger.info("   Mulai       : %s", started_at.strftime("%Y-%m-%d %H:%M:%S"))
+    logger.info("   Selesai     : %s", finished_at.strftime("%Y-%m-%d %H:%M:%S"))
+    logger.info("   Waktu       : %s", format_elapsed_duration(elapsed))
+    logger.info("   Batches     : %s", stats.total_batches)
+    logger.info("   Scanned     : %s", stats.total_scanned)
+    logger.info("   Updated     : %s", stats.total_fetched)
+    logger.info("   Skipped     : %s", stats.total_skipped)
+    logger.info("   Errors      : %s", stats.total_errors)
+    logger.info("   State       : %s", checkpoint.get("progress", {}).get("state", "-"))
+    logger.info("   Catatan     : %s", checkpoint.get("progress", {}).get("note") or "-")
+    logger.info("   Checkpoint  : %s", checkpoint_file)
+    logger.info("═" * 60)
+
+
 def parse_args(argv: list[str]) -> dict:
     args = {
+        "mode": "images",
         "source": None,
         "selection": "ordered",
         "batch_size": 10,
@@ -842,7 +1313,10 @@ def parse_args(argv: list[str]) -> dict:
         if argv[i] == "--help":
             print(__doc__)
             sys.exit(0)
-        if argv[i] == "--source" and i + 1 < len(argv):
+        if argv[i] == "--mode" and i + 1 < len(argv):
+            args["mode"] = argv[i + 1].strip().lower()
+            i += 2
+        elif argv[i] == "--source" and i + 1 < len(argv):
             args["source"] = argv[i + 1].strip().lower()
             i += 2
         elif argv[i] == "--selection" and i + 1 < len(argv):
@@ -866,6 +1340,10 @@ def parse_args(argv: list[str]) -> dict:
         else:
             i += 1
 
+    if args["mode"] not in SUPPORTED_MODES:
+        raise ValueError(
+            f"--mode tidak valid. Gunakan salah satu dari: {', '.join(sorted(SUPPORTED_MODES))}"
+        )
     if args["source"] and args["source"] not in SUPPORTED_SOURCES:
         raise ValueError(
             f"--source tidak valid. Gunakan salah satu dari: {', '.join(SUPPORTED_SOURCES)}"
@@ -886,14 +1364,24 @@ async def main(argv: list[str] | None = None) -> None:
     argv = list(sys.argv[1:] if argv is None else argv)
     args = parse_args(argv)
     configure_logging(args["log_file"], source_name=args["source"])
-    await run_image_backfill(
-        source_name=args["source"],
-        selection=args["selection"],
-        batch_size=args["batch_size"],
-        limit=args["limit"],
-        reset=args["reset"],
-        anti_blocking_enabled=args["anti_blocking_enabled"],
-    )
+    if args["mode"] == "dimensions":
+        await run_dimension_backfill(
+            source_name=args["source"],
+            selection=args["selection"],
+            batch_size=args["batch_size"],
+            limit=args["limit"],
+            reset=args["reset"],
+            anti_blocking_enabled=args["anti_blocking_enabled"],
+        )
+    else:
+        await run_image_backfill(
+            source_name=args["source"],
+            selection=args["selection"],
+            batch_size=args["batch_size"],
+            limit=args["limit"],
+            reset=args["reset"],
+            anti_blocking_enabled=args["anti_blocking_enabled"],
+        )
 
 
 if __name__ == "__main__":

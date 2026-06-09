@@ -498,6 +498,47 @@ def normalize_chapter_image(image: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def _read_little_endian_uint24(data: bytes) -> int:
+    return data[0] | (data[1] << 8) | (data[2] << 16)
+
+
+def _parse_webp_dimensions(data: bytes) -> tuple[int, int] | None:
+    """Baca dimensi WebP dari header RIFF tanpa menunggu PIL decode penuh."""
+    if len(data) < 30 or data[:4] != b"RIFF" or data[8:12] != b"WEBP":
+        return None
+
+    offset = 12
+    while offset + 8 <= len(data):
+        chunk_type = data[offset : offset + 4]
+        chunk_size = int.from_bytes(data[offset + 4 : offset + 8], "little")
+        chunk_start = offset + 8
+        chunk_end = chunk_start + chunk_size
+        chunk_data = data[chunk_start : min(chunk_end, len(data))]
+        if chunk_type == b"VP8X" and len(chunk_data) >= 10:
+            width = _read_little_endian_uint24(chunk_data[4:7]) + 1
+            height = _read_little_endian_uint24(chunk_data[7:10]) + 1
+            return (width, height) if width > 0 and height > 0 else None
+
+        if chunk_type == b"VP8L" and len(chunk_data) >= 5 and chunk_data[0] == 0x2F:
+            bits = int.from_bytes(chunk_data[1:5], "little")
+            width = (bits & 0x3FFF) + 1
+            height = ((bits >> 14) & 0x3FFF) + 1
+            return (width, height) if width > 0 and height > 0 else None
+
+        if chunk_type == b"VP8 " and len(chunk_data) >= 10:
+            frame_header = chunk_data[3:6]
+            if frame_header == b"\x9d\x01\x2a":
+                width = int.from_bytes(chunk_data[6:8], "little") & 0x3FFF
+                height = int.from_bytes(chunk_data[8:10], "little") & 0x3FFF
+                return (width, height) if width > 0 and height > 0 else None
+
+        if chunk_end > len(data):
+            return None
+        offset = chunk_end + (chunk_size % 2)
+
+    return None
+
+
 async def probe_image_dimensions(
     client: httpx.AsyncClient,
     image_url: str,
@@ -509,6 +550,7 @@ async def probe_image_dimensions(
     }
     parser = ImageFile.Parser()
     received = 0
+    header_sample = bytearray()
 
     try:
         async with client.stream(
@@ -525,7 +567,13 @@ async def probe_image_dimensions(
                 remaining = IMAGE_DIMENSION_PROBE_MAX_BYTES - received
                 if remaining <= 0:
                     break
-                parser.feed(chunk[:remaining])
+                sample = chunk[:remaining]
+                parser.feed(sample)
+                if len(header_sample) < 4096:
+                    header_sample.extend(sample[: 4096 - len(header_sample)])
+                    webp_dimensions = _parse_webp_dimensions(bytes(header_sample))
+                    if webp_dimensions is not None:
+                        return webp_dimensions
                 received += min(len(chunk), remaining)
                 if parser.image is not None:
                     width, height = parser.image.size
