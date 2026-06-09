@@ -27,6 +27,8 @@ class ProgressRepository {
   final void Function()? _onNotificationsChanged;
   final void Function(ReadingProgress progress)? _onContinueReadingChanged;
   final Queue<ReadingProgress> _progressSyncQueue = Queue<ReadingProgress>();
+  final Set<String> _queuedProgressPayloadKeys = <String>{};
+  final Set<String> _syncedProgressPayloadKeys = <String>{};
   final Set<String> _progressRefreshKeys = <String>{};
   bool _syncingProgress = false;
   bool _refreshingContinueReading = false;
@@ -89,6 +91,18 @@ class ProgressRepository {
   }
 
   Future<void> saveProgress(ReadingProgress progress) async {
+    final cloudPayloadKey = _cloudProgressPayloadKey(progress);
+    final duplicateCompletedSync =
+        progress.isCompleted &&
+        _isLocalCompletedChapter(
+          progress.sourceName,
+          progress.comicSlug,
+          progress.chapterNumber,
+        ) &&
+        (_queuedProgressPayloadKeys.contains(cloudPayloadKey) ||
+            _syncedProgressPayloadKeys.contains(cloudPayloadKey));
+    if (duplicateCompletedSync) return;
+
     await _store.progress.put(progress.storageKey, progress.toLocalJson());
     await _saveLocalHistory(progress);
     if (progress.isCompleted) {
@@ -107,10 +121,15 @@ class ProgressRepository {
     }
 
     await LocalStateMetadata.markAuthenticatedProgressCache(_store, progress);
-    _enqueueProgressSync(progress);
+    _enqueueProgressSync(progress, cloudPayloadKey);
   }
 
-  void _enqueueProgressSync(ReadingProgress progress) {
+  void _enqueueProgressSync(ReadingProgress progress, String payloadKey) {
+    if (_queuedProgressPayloadKeys.contains(payloadKey) ||
+        _syncedProgressPayloadKeys.contains(payloadKey)) {
+      return;
+    }
+    _queuedProgressPayloadKeys.add(payloadKey);
     _progressSyncQueue.add(progress);
     if (_syncingProgress) return;
     unawaited(_drainProgressSyncQueue());
@@ -121,31 +140,69 @@ class ProgressRepository {
     _syncingProgress = true;
     try {
       while (_progressSyncQueue.isNotEmpty) {
-        await _syncProgressToCloud(_progressSyncQueue.removeFirst());
+        final progress = _progressSyncQueue.removeFirst();
+        await _syncProgressToCloud(
+          progress,
+          _cloudProgressPayloadKey(progress),
+        );
       }
     } finally {
       _syncingProgress = false;
     }
   }
 
-  Future<void> _syncProgressToCloud(ReadingProgress progress) async {
+  Future<void> _syncProgressToCloud(
+    ReadingProgress progress,
+    String payloadKey,
+  ) async {
     try {
       await _api.put<Map<String, dynamic>>(
         '/library/progress/${progress.sourceName}/comics/${progress.comicSlug}/chapters/${progress.chapterNumber}',
         data: progress.toProgressPayload(),
       );
+      _queuedProgressPayloadKeys.remove(payloadKey);
+      _syncedProgressPayloadKeys.add(payloadKey);
       final notifications = _notificationRepository;
       if (notifications != null) {
         await notifications.remove(NotificationRepository.progressSyncFailedId);
         _onNotificationsChanged?.call();
       }
     } catch (_) {
+      _queuedProgressPayloadKeys.remove(payloadKey);
       final notifications = _notificationRepository;
       if (notifications != null) {
         await notifications.add(notifications.progressSyncFailed());
         _onNotificationsChanged?.call();
       }
     }
+  }
+
+  bool _isLocalCompletedChapter(
+    String sourceName,
+    String comicSlug,
+    double chapterNumber,
+  ) {
+    final raw = _store.progress.get(
+      ReadingProgress.completedChaptersKey(sourceName, comicSlug),
+    );
+    if (raw is! List) return false;
+    return raw.whereType<num>().any(
+      (number) => (number.toDouble() - chapterNumber).abs() <= 0.0001,
+    );
+  }
+
+  String _cloudProgressPayloadKey(ReadingProgress progress) {
+    return [
+      progress.sourceName,
+      progress.comicSlug,
+      progress.chapterNumber,
+      progress.readingMode,
+      progress.scrollOffset,
+      progress.pageIndex,
+      progress.lastReadPageItemIndex,
+      progress.totalPageItems,
+      progress.isCompleted,
+    ].join('|');
   }
 
   Future<List<ReadingProgress>> _remoteContinueReading({

@@ -859,7 +859,10 @@ async def _group_chapters_for_number(
     if not comic_ids:
         return []
     result = await db.execute(
-        select(Chapter.id, Chapter.comic_id).where(
+        select(
+            Chapter.id.label("chapter_id"),
+            Chapter.comic_id.label("comic_id"),
+        ).where(
             Chapter.comic_id.in_(comic_ids),
             Chapter.chapter_number
             >= chapter_number - CHAPTER_NUMBER_TOLERANCE,

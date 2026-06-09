@@ -51,6 +51,7 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
   bool? _bookmarkOverride;
   bool _collectionBusy = false;
   bool _downloadBusy = false;
+  bool _readSyncBusy = false;
 
   ValueNotifier<double> get _toolbarProgress =>
       _collapseProgressNotifier ??= ValueNotifier<double>(_collapseProgress);
@@ -357,6 +358,12 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
                                 progress: progress,
                                 completedChapterNumbers:
                                     completedChapterNumbers,
+                                showReadSync:
+                                    libraryState != null &&
+                                    (libraryState.bookmarkRelation ==
+                                            BookmarkRelation.linked ||
+                                        libraryState.linkedComics.isNotEmpty),
+                                readSyncBusy: _readSyncBusy,
                                 loading: chaptersAsync.isLoading,
                                 error: chaptersError,
                                 onRetry: () =>
@@ -368,6 +375,13 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
                                       detail,
                                       chapter,
                                     ),
+                                onSyncReadStatus: () => _syncReadStatus(
+                                  comic,
+                                  libraryState,
+                                  chapterItems ?? const [],
+                                  progress,
+                                  request,
+                                ),
                               ),
                             ],
                           ),
@@ -426,6 +440,58 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
     ref.invalidate(progressProvider(request));
     ref.invalidate(libraryComicStateProvider(comic));
     ref.invalidate(continueReadingProvider);
+  }
+
+  Future<void> _syncReadStatus(
+    ComicSummary comic,
+    LibraryComicState? currentState,
+    List<ChapterListItem> chapters,
+    ReadingProgress? progress,
+    ComicRequest request,
+  ) async {
+    if (_readSyncBusy) return;
+    setState(() => _readSyncBusy = true);
+    try {
+      final state =
+          currentState ??
+          await ref.read(libraryComicStateProvider(comic).future);
+      final result = await ref
+          .read(libraryRepositoryProvider)
+          .synchronizeReadStatusForComic(
+            comic: comic,
+            chapters: chapters,
+            state: state,
+            progress: progress,
+          );
+      if (!mounted) return;
+
+      ref.invalidate(progressProvider(request));
+      ref.invalidate(libraryComicStateProvider(comic));
+      final origin = state?.bookmarkOrigin;
+      if (origin != null) {
+        ref.invalidate(libraryComicStateProvider(origin.toSummary()));
+      }
+      for (final linked in state?.linkedComics ?? const <LibraryComicRef>[]) {
+        ref.invalidate(libraryComicStateProvider(linked.toSummary()));
+      }
+      ref.invalidate(continueReadingProvider);
+
+      final synced = result.completedSynced;
+      final propagated = result.completedPropagated;
+      final message = synced == 0 && propagated == 0
+          ? 'Belum ada status read lokal yang perlu disinkronkan.'
+          : 'Status read disinkronkan: $synced chapter dikirim, $propagated chapter lokal ikut ditandai.';
+      _showSnack(
+        message,
+        type: synced == 0 && propagated == 0
+            ? AppSnackBarType.help
+            : AppSnackBarType.success,
+      );
+    } catch (error, stackTrace) {
+      _showErrorSnack(error, stackTrace, 'Manual read status sync failed');
+    } finally {
+      if (mounted) setState(() => _readSyncBusy = false);
+    }
   }
 
   Future<void> _toggleBookmark(
@@ -1891,9 +1957,12 @@ class _ChapterPanel extends StatelessWidget {
     required this.downloadState,
     required this.progress,
     required this.completedChapterNumbers,
+    required this.showReadSync,
+    required this.readSyncBusy,
     required this.loading,
     required this.onRetry,
     required this.onOpenChapter,
+    required this.onSyncReadStatus,
     this.error,
   });
 
@@ -1901,10 +1970,13 @@ class _ChapterPanel extends StatelessWidget {
   final _ComicDownloadState downloadState;
   final ReadingProgress? progress;
   final Set<double> completedChapterNumbers;
+  final bool showReadSync;
+  final bool readSyncBusy;
   final bool loading;
   final Object? error;
   final VoidCallback onRetry;
   final ValueChanged<_ChapterUi> onOpenChapter;
+  final VoidCallback onSyncReadStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -1941,6 +2013,13 @@ class _ChapterPanel extends StatelessWidget {
                   title: 'Daftar Chapter',
                 ),
                 const Spacer(),
+                if (showReadSync) ...[
+                  _ReadSyncIconButton(
+                    busy: readSyncBusy,
+                    onPressed: readSyncBusy ? null : onSyncReadStatus,
+                  ),
+                  const SizedBox(width: 6),
+                ],
                 Text(
                   '${chapters.length} terbaru',
                   style: theme.textTheme.labelMedium?.copyWith(
@@ -2017,6 +2096,85 @@ class _ChapterPanel extends StatelessWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReadSyncIconButton extends StatefulWidget {
+  const _ReadSyncIconButton({required this.busy, required this.onPressed});
+
+  final bool busy;
+  final VoidCallback? onPressed;
+
+  @override
+  State<_ReadSyncIconButton> createState() => _ReadSyncIconButtonState();
+}
+
+class _ReadSyncIconButtonState extends State<_ReadSyncIconButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
+    );
+    _syncAnimation();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ReadSyncIconButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.busy != widget.busy) {
+      _syncAnimation();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _syncAnimation() {
+    if (widget.busy) {
+      _controller.repeat();
+    } else {
+      _controller
+        ..stop()
+        ..reset();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final tooltip = widget.busy
+        ? 'Menyinkronkan status read'
+        : 'Sinkronkan status read';
+    return Tooltip(
+      message: tooltip,
+      child: SizedBox.square(
+        dimension: 32,
+        child: IconButton(
+          padding: EdgeInsets.zero,
+          visualDensity: VisualDensity.compact,
+          tooltip: tooltip,
+          onPressed: widget.onPressed,
+          icon: RotationTransition(
+            turns: _controller,
+            child: Icon(
+              Icons.sync_rounded,
+              size: 18,
+              color: widget.busy
+                  ? colorScheme.secondary
+                  : colorScheme.secondary.withValues(alpha: 0.9),
+            ),
+          ),
         ),
       ),
     );

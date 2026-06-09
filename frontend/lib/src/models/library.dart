@@ -146,6 +146,16 @@ class BookmarkLinkSaveResult {
   final List<int> completionSyncBookmarkIds;
 }
 
+class ReadStatusSyncResult {
+  const ReadStatusSyncResult({
+    required this.completedSynced,
+    required this.completedPropagated,
+  });
+
+  final int completedSynced;
+  final int completedPropagated;
+}
+
 enum BookmarkLinkSaveStage { linking, syncingCompleted }
 
 class BookmarkLinkSaveProgress {

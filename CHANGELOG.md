@@ -6,15 +6,28 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
-## [1.15.2] - 2026-06-08
+## [1.15.3] - 2026-06-09
 
 ### Changed
-- Proses pemindaian kandidat bookmark (multi-source candidate scan) kini mengabaikan sumber komik alternatif yang sudah terhubung, baik pada pemrosesan backend (SQL) maupun repositori frontend.
+- Reader kini langsung menandai chapter sebelumnya sebagai selesai saat pengguna berpindah melewati batas chapter, selama preferensi `mark read on complete` aktif.
+- Halaman detail komik kini menyediakan aksi manual `Sinkronkan status read` untuk mengirim status chapter selesai lokal ke cloud dan source yang terhubung.
+- Sinkronisasi status read dapat menandai chapter sebelumnya sebagai selesai tanpa mengubah posisi continue reading saat ini.
+- State bookmark multi-source dari detail komik dan hasil penyimpanan kandidat kini dicache secara lokal agar badge serta relasi sumber tetap konsisten saat offline atau fallback lokal.
+- Backend library kini mendukung import status completed chapter secara terpisah dari progress baca utama.
+- Probing dimensi gambar WebP di backend dibuat lebih ringan dengan membaca header tanpa decoding penuh.
+- Sinkronisasi gambar chapter kini memiliki mode khusus dimensi untuk melengkapi metadata width/height pada data yang sudah ada.
 
 ---
 
 <details>
 <summary><strong>Riwayat versi sebelumnya</strong></summary>
+
+### [1.15.2](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.15.2) - 2026-06-08
+
+#### Changed
+- Proses pemindaian kandidat bookmark (multi-source candidate scan) kini mengabaikan sumber komik alternatif yang sudah terhubung, baik pada pemrosesan backend (SQL) maupun repositori frontend.
+
+---
 
 ### [1.15.1](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.15.1) - 2026-06-08
 

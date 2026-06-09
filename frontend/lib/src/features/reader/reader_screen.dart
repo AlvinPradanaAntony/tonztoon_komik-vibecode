@@ -231,6 +231,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
         : _isCompletedFromVerticalPosition(visiblePage);
 
     if (_currentPage.value != nextPage) {
+      _completeChapterWhenCrossingBoundary(
+        fromPageIndex: _currentPage.value,
+        toPageIndex: nextPage,
+        readerPrefs: _latestReaderPrefs,
+      );
       _currentPage.value = nextPage;
       _recordProgressAt(
         nextPage,
@@ -355,6 +360,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   }) {
     final current = _currentPage.value;
     final next = (current + delta).clamp(0, _activePages.length - 1);
+    _completeChapterWhenCrossingBoundary(
+      fromPageIndex: current,
+      toPageIndex: next,
+      readerPrefs: readerPrefs,
+    );
     _currentPage.value = next;
     _recordProgressAt(next, readerPrefs: readerPrefs);
     _ensureContinuousChapterAhead(next, readerPrefs);
@@ -537,6 +547,54 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     _progressSaveTimer?.cancel();
     _progressSaveTimer = null;
 
+    unawaited(
+      ref
+          .read(progressRepositoryProvider)
+          .saveProgress(progress)
+          .whenComplete(() => _invalidateProgressState(request))
+          .catchError((Object error, StackTrace _) {
+            debugPrint('Failed to save reading progress locally: $error');
+          }),
+    );
+  }
+
+  void _completeChapterWhenCrossingBoundary({
+    required int fromPageIndex,
+    required int toPageIndex,
+    required ReaderPreferences? readerPrefs,
+  }) {
+    if (readerPrefs?.markReadOnComplete != true ||
+        fromPageIndex < 0 ||
+        toPageIndex < 0 ||
+        fromPageIndex >= _activePages.length ||
+        toPageIndex >= _activePages.length ||
+        toPageIndex <= fromPageIndex) {
+      return;
+    }
+
+    final fromPage = _activePages[fromPageIndex];
+    final toPage = _activePages[toPageIndex];
+    if (fromPage.chapterNumber == toPage.chapterNumber) return;
+
+    _ReaderPageUi? completionPage;
+    for (final page in _activePages) {
+      if (page.chapterNumber == fromPage.chapterNumber) {
+        completionPage = page;
+      }
+    }
+    if (completionPage == null) return;
+
+    final progress = _buildProgress(
+      completionPage,
+      readerPrefs: readerPrefs,
+      isCompletedOverride: true,
+    );
+    if (progress == null) return;
+
+    _saveProgressNow(progress, ComicRequest(widget.sourceName, widget.slug));
+  }
+
+  void _saveProgressNow(ReadingProgress progress, ComicRequest request) {
     unawaited(
       ref
           .read(progressRepositoryProvider)

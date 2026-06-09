@@ -37,10 +37,9 @@ class LibraryRepository {
         final response = await _api.get<Map<String, dynamic>>(
           '/library/state/${comic.sourceName}/comics/${comic.slug}',
         );
-        return _mergeLocalComicState(
-          LibraryComicState.fromJson(response.data ?? const {}),
-          comic,
-        );
+        final remote = LibraryComicState.fromJson(response.data ?? const {});
+        await _cacheBookmarkLinksFromState(remote);
+        return _mergeLocalComicState(remote, comic);
       } catch (_) {
         return _localComicState(comic);
       }
@@ -393,6 +392,7 @@ class LibraryRepository {
         final end = math.min(start + _bookmarkLinkBatchSize, candidates.length);
         final batch = candidates.sublist(start, end);
         final saved = await _saveBookmarkLinkBatch(batch);
+        await _cacheBookmarkLinkCandidates(batch);
         linkedTotal += saved.linkedTotal;
         propagated += saved.completedPropagated;
         syncBookmarkIds.addAll(saved.completionSyncBookmarkIds);
@@ -452,6 +452,192 @@ class LibraryRepository {
     return BookmarkLinkSaveResult(
       linkedTotal: candidates.length,
       completedPropagated: syncResult.completedPropagated,
+    );
+  }
+
+  Future<void> _cacheBookmarkLinksFromState(LibraryComicState state) async {
+    final origin = state.bookmarkOrigin;
+    if (origin == null || state.bookmarkRelation == BookmarkRelation.none) {
+      return;
+    }
+
+    final linkedByKey = <String, LibraryComicRef>{};
+    void addLinked(LibraryComicRef comic) {
+      if (comic.key == origin.key) return;
+      linkedByKey[comic.key] = comic;
+    }
+
+    addLinked(state.comic);
+    for (final comic in state.linkedComics) {
+      addLinked(comic);
+    }
+    if (linkedByKey.isEmpty) return;
+
+    await _cacheLocalBookmarkLinks(
+      linkedByKey.values
+          .map(
+            (linked) => _LocalBookmarkLink(
+              bookmark: origin,
+              linked: linked,
+              confidence: 1,
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  Future<void> _cacheBookmarkLinkCandidates(
+    List<BookmarkLinkCandidate> candidates,
+  ) {
+    return _cacheLocalBookmarkLinks(
+      candidates
+          .map(
+            (candidate) => _LocalBookmarkLink(
+              bookmark: candidate.bookmark,
+              linked: candidate.comic,
+              confidence: candidate.confidence,
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  Future<void> _cacheLocalBookmarkLinks(List<_LocalBookmarkLink> newLinks) {
+    if (newLinks.isEmpty) return Future<void>.value();
+    final links = _localBookmarkLinks();
+    for (final link in newLinks) {
+      links.removeWhere(
+        (existing) =>
+            existing.linked.key == link.linked.key ||
+            (existing.bookmark.key == link.bookmark.key &&
+                existing.linked.sourceName == link.linked.sourceName),
+      );
+      links.add(link);
+    }
+    return _saveLocalBookmarkLinks(links);
+  }
+
+  Future<ReadStatusSyncResult> synchronizeReadStatusForComic({
+    required ComicSummary comic,
+    required List<ChapterListItem> chapters,
+    LibraryComicState? state,
+    ReadingProgress? progress,
+  }) async {
+    if (state != null) {
+      await _cacheBookmarkLinksFromState(state);
+    }
+
+    final currentRef = LibraryComicRef.fromSummary(comic);
+    final origin = state?.bookmarkOrigin;
+    final groupComics = <String, LibraryComicRef>{currentRef.key: currentRef};
+    if (state != null) {
+      groupComics[state.comic.key] = state.comic;
+    }
+    if (origin != null) {
+      groupComics[origin.key] = origin;
+    }
+    for (final linked in state?.linkedComics ?? const <LibraryComicRef>[]) {
+      groupComics[linked.key] = linked;
+    }
+
+    final numbersByComic = <String, Set<double>>{};
+    for (final item in groupComics.values) {
+      numbersByComic[item.key] = _localCompletedChapterNumbers(
+        item.sourceName,
+        item.slug,
+      ).toSet();
+    }
+    if (state != null) {
+      numbersByComic[state.comic.key]?.addAll(state.completedChapterNumbers);
+      numbersByComic[currentRef.key]?.addAll(state.completedChapterNumbers);
+    }
+
+    if (progress != null &&
+        progress.sourceName == comic.sourceName &&
+        progress.comicSlug == comic.slug) {
+      if (progress.isCompleted) {
+        numbersByComic[currentRef.key]?.add(progress.chapterNumber);
+      }
+      final prefs = await getReaderPreferences();
+      if (prefs.markReadOnComplete) {
+        var availableChapters = chapters;
+        if (availableChapters.isEmpty) {
+          try {
+            availableChapters = await _getChapterList(currentRef);
+          } catch (_) {
+            availableChapters = const [];
+          }
+        }
+        final previous = _previousChapterNumberBeforeProgress(
+          availableChapters,
+          progress.chapterNumber,
+        );
+        if (previous != null) {
+          numbersByComic[currentRef.key]?.add(previous);
+        }
+      }
+    }
+
+    var completedSynced = 0;
+    final loggedIn = await _isLoggedIn;
+    for (final item in groupComics.values) {
+      final numbers = numbersByComic[item.key] ?? const <double>{};
+      for (final chapterNumber in numbers) {
+        await _addLocalCompletedChapter(
+          item.sourceName,
+          item.slug,
+          chapterNumber,
+        );
+        if (loggedIn) {
+          await _markCompletedChapterRemote(item, chapterNumber);
+          await LocalStateMetadata.markAuthenticatedCompletedChapterCache(
+            _store,
+            item.sourceName,
+            item.slug,
+            chapterNumber,
+          );
+        }
+        completedSynced++;
+      }
+    }
+
+    final localPropagation = await _propagateExistingLocalCompletionsForLinks();
+    return ReadStatusSyncResult(
+      completedSynced: completedSynced,
+      completedPropagated: localPropagation.completedPropagated,
+    );
+  }
+
+  double? _previousChapterNumberBeforeProgress(
+    List<ChapterListItem> chapters,
+    double progressChapterNumber,
+  ) {
+    if (chapters.isEmpty) return null;
+    final sorted = [...chapters]
+      ..sort((a, b) => a.chapterNumber.compareTo(b.chapterNumber));
+    final index = sorted.indexWhere(
+      (chapter) =>
+          _sameChapterNumber(chapter.chapterNumber, progressChapterNumber),
+    );
+    if (index <= 0) return null;
+    return sorted[index - 1].chapterNumber;
+  }
+
+  bool _sameChapterNumber(double left, double right) {
+    return (left - right).abs() <= 0.0001;
+  }
+
+  Future<void> _markCompletedChapterRemote(
+    LibraryComicRef comic,
+    double chapterNumber,
+  ) async {
+    await _api.post<Map<String, dynamic>>(
+      '/library/completed-chapters',
+      data: {
+        'source_name': comic.sourceName,
+        'comic_slug': comic.slug,
+        'chapter_number': chapterNumber,
+      },
     );
   }
 

@@ -27,6 +27,7 @@ from app.schemas import (
     CollectionResponse,
     CollectionSummaryResponse,
     CollectionUpdateRequest,
+    CompletedChapterImportRequest,
     DownloadBatchRequest,
     DownloadBatchResponse,
     DownloadEntryResponse,
@@ -77,6 +78,7 @@ from app.services.library_service import (
     list_download_entry_responses,
     list_favorite_scenes,
     list_history_responses,
+    mark_chapter_completed,
     remove_comic_from_collection,
     rename_collection,
     set_bookmark,
@@ -197,6 +199,20 @@ async def put_progress(
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return build_progress_response(progress, base_url=_get_request_base_url(request))
+
+
+@router.post("/completed-chapters")
+async def post_completed_chapter(
+    payload: CompletedChapterImportRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Tandai chapter selesai tanpa mengubah posisi continue reading."""
+    try:
+        await mark_chapter_completed(db, user_id, payload)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"completed": True}
 
 
 @router.get("/bookmarks", response_model=list[BookmarkResponse])
