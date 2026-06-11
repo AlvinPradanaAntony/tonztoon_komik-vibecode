@@ -20,3 +20,4 @@ backend/checkpoints
 backend/exports/
 backend/.cache/komiku_asia_cloak_state.json
 frontend/android/app/google-services.json
+backend/.env-hf

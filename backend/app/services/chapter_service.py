@@ -49,6 +49,8 @@ Timeout Policy:
 Prefetch Window:
     PREFETCH_WINDOW = 5
     Contoh: user buka Ch 10 → prefetch Ch 5–9 dan Ch 11–15 (yang images invalid)
+    KOMIKU_ASIA_PREFETCH_WINDOW = 2
+    Komiku Asia lebih konservatif karena lazy/backfill memakai provider eksternal.
 
 Prefetch Cooldown:
     PREFETCH_COOLDOWN_SECONDS = 60
@@ -65,6 +67,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload
 
+from app.config import settings
 from app.database import async_session
 from app.models import Chapter, Comic
 from app.services.image_service import (
@@ -78,6 +81,7 @@ logger = logging.getLogger("service.chapter")
 ON_DEMAND_TIMEOUT        = 10   # detik — batas waktu lazy load realtime
 PREFETCH_TIMEOUT         = 20   # detik — batas waktu per chapter saat background prefetch
 PREFETCH_WINDOW          = 5    # radius chapter kiri & kanan yang di-prefetch
+KOMIKU_ASIA_PREFETCH_WINDOW = 2 # radius khusus Komiku Asia agar biaya/traffic lazy tetap terkendali
 PREFETCH_COOLDOWN_SECONDS = 60  # detik — jeda minimum antar-trigger prefetch per komik
 PREFETCH_COOLDOWN_MAX_ENTRIES = 2_048  # batas entry cooldown per worker process
 CHAPTER_NUMBER_TOLERANCE = 0.0001
@@ -187,12 +191,55 @@ def _get_scraper_for_source(source_name: str):
     Factory: return scraper instance berdasarkan source_name.
     Registry-based agar source baru tidak perlu di-hardcode di banyak tempat.
     """
+    if source_name == "komiku_asia":
+        return _get_komiku_asia_live_scraper()
+
     from scraper.sources.registry import create_scraper
 
     try:
         return create_scraper(source_name)
     except ValueError:
         return None
+
+
+def _get_komiku_asia_live_scraper():
+    """
+    Pilih provider khusus lazy/backfill images Komiku Asia.
+
+    Mode `auto` memakai ZenRows jika API key tersedia, lalu fallback ke scraper
+    legacy. Ini menjaga local/dev tetap bisa berjalan tanpa memaksa secret baru,
+    sementara HF dapat disetel ke `zenrows` untuk menghindari Xvfb/headless
+    browser di container.
+    """
+    provider = settings.KOMIKU_ASIA_LIVE_SCRAPE_PROVIDER.strip().lower()
+    if provider in {"auto", ""}:
+        if settings.ZENROWS_API_KEY.strip():
+            from app.services.komiku_asia_zenrows_live_scraper import (
+                KomikuAsiaZenRowsChapterImageScraper,
+            )
+
+            return KomikuAsiaZenRowsChapterImageScraper()
+
+        from scraper.sources.registry import create_scraper
+
+        return create_scraper("komiku_asia")
+
+    if provider == "zenrows":
+        from app.services.komiku_asia_zenrows_live_scraper import (
+            KomikuAsiaZenRowsChapterImageScraper,
+        )
+
+        return KomikuAsiaZenRowsChapterImageScraper()
+
+    if provider in {"scrapling", "legacy", "stealth"}:
+        from scraper.sources.registry import create_scraper
+
+        return create_scraper("komiku_asia")
+
+    raise ValueError(
+        "KOMIKU_ASIA_LIVE_SCRAPE_PROVIDER harus salah satu dari: "
+        "auto, zenrows, scrapling"
+    )
 
 
 # ── Core Helper: Fetch & Save Images untuk 1 Chapter ────────────────────────
@@ -565,7 +612,7 @@ async def prefetch_nearby_chapters(
                     db,
                     comic_id=comic_id,
                     current_chapter_number=current_chapter_number,
-                    window=PREFETCH_WINDOW,
+                    window=KOMIKU_ASIA_PREFETCH_WINDOW,
                 )
                 await db.commit()
                 # Job akan diproses oleh in-process background worker

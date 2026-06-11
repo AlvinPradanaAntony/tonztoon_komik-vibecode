@@ -106,6 +106,8 @@ Environment penting:
 | `ALLOW_DEV_USER_HEADER` | Fallback `X-User-Id` untuk dev lokal, wajib `false` di shared/prod |
 | `GITHUB_PAT` dan teman-temannya | Trigger workflow scraper via GitHub API |
 | `KOMIKU_ASIA_ACCESS_TOKEN` | Token export akun Komiku Asia untuk helper scraper tertentu |
+| `KOMIKU_ASIA_LIVE_SCRAPE_PROVIDER` | Provider lazy/backfill image Komiku Asia: `auto`, `zenrows`, atau `scrapling` |
+| `ZENROWS_API_KEY` | API key ZenRows untuk lazy/backfill image Komiku Asia tanpa browser/Xvfb di backend |
 
 ## Menjalankan Frontend
 
@@ -136,6 +138,22 @@ python -m scraper.check_pending_chapter_images --json-only
 ```
 
 Chapter reader memakai lazy loading: jika `chapters.images` kosong, backend mencoba mengambil gambar dari source saat endpoint chapter dibuka, menyimpan hasil ke DB, lalu menjadwalkan nearby prefetch di background.
+
+Untuk deploy Hugging Face, lazy/backfill image Komiku Asia dapat dialihkan ke ZenRows dengan `KOMIKU_ASIA_LIVE_SCRAPE_PROVIDER=zenrows` dan `ZENROWS_API_KEY=...`. Mode `auto` juga memakai ZenRows jika API key tersedia, lalu fallback ke Scrapling untuk development lokal.
+
+### Import Environment ke Hugging Face Space
+
+Jika Space perlu dibuat ulang, env/secrets dari `backend/.env-hf` dapat diimport ulang dengan skrip:
+
+```bash
+pip install huggingface_hub
+python backend/scripts/import_hf_space_env.py --dry-run
+python backend/scripts/import_hf_space_env.py
+```
+
+Skrip membaca `HF_SPACE` dan `HF_TOKEN` dari `backend/.env-hf`, atau dari environment shell, atau dari argumen `--space`/`--token`. Key internal `HF_SPACE`, `HF_SPACE_ID`, dan `HF_TOKEN` hanya dipakai oleh skrip dan tidak diupload ke Space.
+
+Skrip membaca section `Environment Variables` dan `Secrets Variables` di `backend/.env-hf`. Secara default key yang jelas sensitif, seperti token, secret, dan database URL, tetap dipaksa masuk Secrets walaupun tertulis di section variables. Gunakan `--trust-sections` jika ingin mengikuti section file persis, atau `--all-secrets` jika ingin semua key masuk Secrets.
 
 ## Dokumentasi Lanjutan
 

@@ -48,8 +48,8 @@ async def _claim_and_process_one_job() -> bool:
         REQUESTED_CHAPTER_PRIORITY,
     )
     from app.services.chapter_service import (
-        PREFETCH_WINDOW,
         ImageFetchError,
+        KOMIKU_ASIA_PREFETCH_WINDOW,
         chapter_images_are_ready,
         fetch_and_save_chapter_images,
     )
@@ -140,7 +140,7 @@ async def _claim_and_process_one_job() -> bool:
                     db,
                     comic_id=chapter.comic_id,
                     current_chapter_number=chapter.chapter_number,
-                    window=PREFETCH_WINDOW,
+                    window=KOMIKU_ASIA_PREFETCH_WINDOW,
                 )
             await db.commit()
 

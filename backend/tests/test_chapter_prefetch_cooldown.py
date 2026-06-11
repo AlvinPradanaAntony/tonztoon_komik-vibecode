@@ -64,6 +64,10 @@ class ChapterPrefetchCooldownTests(unittest.TestCase):
         self.assertNotIn(1, chapter_service._prefetch_cooldowns)
         self.assertIn(2, chapter_service._prefetch_cooldowns)
 
+    def test_komiku_asia_prefetch_window_is_conservative(self):
+        self.assertEqual(chapter_service.KOMIKU_ASIA_PREFETCH_WINDOW, 2)
+        self.assertLess(chapter_service.KOMIKU_ASIA_PREFETCH_WINDOW, chapter_service.PREFETCH_WINDOW)
+
 
 if __name__ == "__main__":
     unittest.main()
