@@ -513,15 +513,23 @@ class ReaderPreferences {
     this.readingDirection = 'ltr',
     this.markReadOnComplete = false,
     this.defaultBingeMode = false,
+    this.autoScrollEnabled = false,
+    this.autoScrollSpeed = 1.0,
   });
 
   factory ReaderPreferences.fromJson(Map<dynamic, dynamic> json) {
     final defaultBingeMode = json['default_binge_mode'];
+    final autoScrollEnabled = json['auto_scroll_enabled'];
+    final autoScrollSpeed = json['auto_scroll_speed'];
     return ReaderPreferences(
       defaultReadingMode: json['default_reading_mode'] as String? ?? 'vertical',
       readingDirection: json['reading_direction'] as String? ?? 'ltr',
       markReadOnComplete: json['mark_read_on_complete'] as bool? ?? false,
       defaultBingeMode: defaultBingeMode is bool ? defaultBingeMode : false,
+      autoScrollEnabled: autoScrollEnabled is bool ? autoScrollEnabled : false,
+      autoScrollSpeed: autoScrollSpeed is num
+          ? autoScrollSpeed.toDouble().clamp(0.5, 1.5).toDouble()
+          : 1.0,
     );
   }
 
@@ -530,6 +538,8 @@ class ReaderPreferences {
     'reading_direction': readingDirection,
     'mark_read_on_complete': markReadOnComplete,
     'default_binge_mode': defaultBingeMode,
+    'auto_scroll_enabled': autoScrollEnabled,
+    'auto_scroll_speed': autoScrollSpeed,
   };
 
   ReaderPreferences copyWith({
@@ -537,12 +547,16 @@ class ReaderPreferences {
     String? readingDirection,
     bool? markReadOnComplete,
     bool? defaultBingeMode,
+    bool? autoScrollEnabled,
+    double? autoScrollSpeed,
   }) {
     return ReaderPreferences(
       defaultReadingMode: defaultReadingMode ?? this.defaultReadingMode,
       readingDirection: readingDirection ?? this.readingDirection,
       markReadOnComplete: markReadOnComplete ?? this.markReadOnComplete,
       defaultBingeMode: defaultBingeMode ?? this.defaultBingeMode,
+      autoScrollEnabled: autoScrollEnabled ?? this.autoScrollEnabled,
+      autoScrollSpeed: autoScrollSpeed ?? this.autoScrollSpeed,
     );
   }
 
@@ -550,6 +564,8 @@ class ReaderPreferences {
   final String readingDirection;
   final bool markReadOnComplete;
   final bool defaultBingeMode;
+  final bool autoScrollEnabled;
+  final double autoScrollSpeed;
 }
 
 class LibraryComicState {

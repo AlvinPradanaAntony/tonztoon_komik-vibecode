@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_navigation.dart';
-import '../../core/app_assets.dart';
+import '../../utils/app_assets.dart';
 import '../../repositories/providers.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {

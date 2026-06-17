@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../core/app_snackbar.dart';
+import '../../helpers/app_snackbar.dart';
 
 void showLibraryActionError(
   BuildContext context,

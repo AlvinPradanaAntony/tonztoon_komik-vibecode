@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../core/app_icons.dart';
+import '../helpers/app_icons.dart';
 import 'app_loading_placeholder.dart';
 import 'comic_card.dart';
 import 'choice_chip_group.dart';

@@ -7,13 +7,25 @@ import '../models/app_notification.dart';
 import '../models/auth.dart';
 import '../models/push_notification_preferences.dart';
 import '../repositories/push_device_repository.dart';
-import 'app_error.dart';
+import '../utils/app_error.dart';
 import 'push_notification_service.dart';
 import 'remote_push_bootstrap.dart';
 import 'remote_push_inbox.dart';
 import 'storage.dart';
 
-class RemotePushNotificationService with WidgetsBindingObserver {
+abstract interface class PushRegistrationService {
+  Future<bool> requestPermissions();
+  Future<void> syncRegistration();
+  Future<void> unregisterDevice();
+}
+
+abstract interface class PushNotificationLifecycleService {
+  Future<void> initialize();
+}
+
+class RemotePushNotificationService
+    with WidgetsBindingObserver
+    implements PushRegistrationService, PushNotificationLifecycleService {
   RemotePushNotificationService({
     required PushDeviceRepository repository,
     required LocalStore store,
@@ -30,7 +42,7 @@ class RemotePushNotificationService with WidgetsBindingObserver {
        _readAuth = readAuth,
        _onOpenLocation = onOpenLocation,
        _onAppNotification = onAppNotification,
-       _messaging = messaging ?? FirebaseMessaging.instance;
+       _messaging = messaging;
 
   static const _registeredTokenKey = 'registered_fcm_device_token';
   static const _registeredUserKey = 'registered_fcm_user_id';
@@ -42,7 +54,7 @@ class RemotePushNotificationService with WidgetsBindingObserver {
   final AuthState Function() _readAuth;
   final void Function(String location) _onOpenLocation;
   final Future<void> Function(AppNotification notification)? _onAppNotification;
-  final FirebaseMessaging _messaging;
+  final FirebaseMessaging? _messaging;
 
   StreamSubscription<RemoteMessage>? _foregroundSubscription;
   StreamSubscription<RemoteMessage>? _openedSubscription;
@@ -51,12 +63,15 @@ class RemotePushNotificationService with WidgetsBindingObserver {
   bool _observingLifecycle = false;
   bool _drainingPendingNotifications = false;
 
+  @override
   Future<void> initialize() async {
-    await _startMessageListeners();
+    final started = await _startMessageListeners();
+    if (!started) return;
     unawaited(_drainPendingNotifications());
     unawaited(syncRegistration());
   }
 
+  @override
   Future<bool> requestPermissions() async {
     if (!RemotePushBootstrap.isSupported) return true;
 
@@ -64,7 +79,7 @@ class RemotePushNotificationService with WidgetsBindingObserver {
     if (!available) return false;
 
     try {
-      final settings = await _messaging.requestPermission(
+      final settings = await _firebaseMessaging.requestPermission(
         alert: true,
         announcement: false,
         badge: true,
@@ -85,6 +100,7 @@ class RemotePushNotificationService with WidgetsBindingObserver {
     }
   }
 
+  @override
   Future<void> syncRegistration() async {
     await _startMessageListeners();
     if (!RemotePushBootstrap.isAvailable) return;
@@ -101,7 +117,7 @@ class RemotePushNotificationService with WidgetsBindingObserver {
     if (userId == null || userId.isEmpty) return;
 
     try {
-      final token = await _messaging.getToken();
+      final token = await _firebaseMessaging.getToken();
       if (token == null || token.isEmpty) return;
 
       final previousToken = _registeredToken;
@@ -126,6 +142,7 @@ class RemotePushNotificationService with WidgetsBindingObserver {
     }
   }
 
+  @override
   Future<void> unregisterDevice() async {
     final token = _registeredToken;
     if (token == null || token.isEmpty) return;
@@ -163,10 +180,10 @@ class RemotePushNotificationService with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _startMessageListeners() async {
-    if (_started) return;
+  Future<bool> _startMessageListeners() async {
+    if (_started) return true;
     final available = await RemotePushBootstrap.initialize();
-    if (!available) return;
+    if (!available) return false;
 
     _started = true;
     if (!_observingLifecycle) {
@@ -181,13 +198,13 @@ class RemotePushNotificationService with WidgetsBindingObserver {
       _handleOpenedMessage,
       onError: _logStreamError,
     );
-    _tokenRefreshSubscription = _messaging.onTokenRefresh.listen(
+    _tokenRefreshSubscription = _firebaseMessaging.onTokenRefresh.listen(
       (token) => unawaited(_handleTokenRefresh(token)),
       onError: _logStreamError,
     );
 
     try {
-      final initialMessage = await _messaging.getInitialMessage();
+      final initialMessage = await _firebaseMessaging.getInitialMessage();
       if (initialMessage != null) {
         await _handleOpenedMessage(initialMessage);
       }
@@ -198,6 +215,8 @@ class RemotePushNotificationService with WidgetsBindingObserver {
         context: 'Read initial Firebase Cloud Messaging message failed',
       );
     }
+
+    return true;
   }
 
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
@@ -280,4 +299,7 @@ class RemotePushNotificationService with WidgetsBindingObserver {
     final value = _store.settings.get(_registeredUserKey);
     return value is String && value.isNotEmpty ? value : null;
   }
+
+  FirebaseMessaging get _firebaseMessaging =>
+      _messaging ?? FirebaseMessaging.instance;
 }

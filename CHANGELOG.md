@@ -6,9 +6,27 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
-## [1.15.3] - 2026-06-09
+## [1.16.0] - 2026-06-17
+
+### Added
+- AutoScroll reader untuk mode vertical, lengkap dengan tombol play/pause mengambang dan pengaturan kecepatan baca.
+- Preferensi AutoScroll kini tersimpan di akun dan ikut tersinkron melalui reader preferences.
+- Fallback ZenRows untuk pengambilan gambar chapter Komiku Asia agar lazy/backfill image lebih andal pada deployment Hugging Face.
 
 ### Changed
+- Reader menunggu chapter berikutnya siap saat AutoScroll berjalan pada mode continuous reading.
+- Struktur frontend dipecah menjadi state, widget, helper, dan repository domain agar Auth, Catalog, Comic Detail, Home, Library, Notifications, Onboarding, Reader, Search, dan Settings lebih mudah dirawat.
+- Empty state, error state, edge fade, load-more footer, source tag, dan komponen kartu komik disatukan menjadi widget reusable.
+- Konfigurasi push remote, routing auth, Google auth, dan migrasi guest disesuaikan mengikuti struktur provider/repository baru.
+
+---
+
+<details>
+<summary><strong>Riwayat versi sebelumnya</strong></summary>
+
+### [1.15.3](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.15.3) - 2026-06-09
+
+#### Changed
 - Reader kini langsung menandai chapter sebelumnya sebagai selesai saat pengguna berpindah melewati batas chapter, selama preferensi `mark read on complete` aktif.
 - Halaman detail komik kini menyediakan aksi manual `Sinkronkan status read` untuk mengirim status chapter selesai lokal ke cloud dan source yang terhubung.
 - Sinkronisasi status read dapat menandai chapter sebelumnya sebagai selesai tanpa mengubah posisi continue reading saat ini.
@@ -18,9 +36,6 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 - Sinkronisasi gambar chapter kini memiliki mode khusus dimensi untuk melengkapi metadata width/height pada data yang sudah ada.
 
 ---
-
-<details>
-<summary><strong>Riwayat versi sebelumnya</strong></summary>
 
 ### [1.15.2](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.15.2) - 2026-06-08
 

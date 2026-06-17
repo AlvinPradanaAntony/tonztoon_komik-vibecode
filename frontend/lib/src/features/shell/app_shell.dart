@@ -3,10 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/app_error.dart';
+import '../../utils/app_error.dart';
 import '../../core/app_navigation.dart';
-import '../../core/app_icons.dart';
+import '../../helpers/app_icons.dart';
 import '../../repositories/providers.dart';
+import '../../widgets/app_edge_fade.dart';
 import '../../widgets/app_update_dialog.dart';
 import '../../widgets/tonztoon_modal_dialog.dart';
 
@@ -62,28 +63,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           body: Stack(
             children: [
               Positioned.fill(child: widget.navigationShell),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                height: 120,
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        stops: const [0.0, 0.6, 1.0],
-                        colors: [
-                          theme.scaffoldBackgroundColor.withValues(alpha: 0.0),
-                          theme.scaffoldBackgroundColor.withValues(alpha: 0.9),
-                          theme.scaffoldBackgroundColor,
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              AppEdgeFade(background: theme.scaffoldBackgroundColor,height: 120),
             ],
           ),
           bottomNavigationBar: _buildFloatingNavBar(context),

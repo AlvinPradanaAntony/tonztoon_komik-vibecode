@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-import '../../../core/app_error.dart';
-import '../../../core/app_icons.dart';
-import '../../../core/app_snackbar.dart';
+import '../../../helpers/app_icons.dart';
+import '../../../helpers/app_snackbar.dart';
+import '../../../utils/formatters.dart';
+import '../../../helpers/navigation_helpers.dart';
 import '../../../models/comic.dart';
 import '../../../models/progress.dart';
 import '../../../repositories/providers.dart';
+import '../../../widgets/app_edge_fade.dart';
+import '../../../widgets/app_empty_state.dart';
+import '../../../widgets/app_error_state.dart';
 import '../../../widgets/app_loading_placeholder.dart';
 import '../../../widgets/comic_cover.dart';
-import 'section_shared.dart';
+import '../../../widgets/load_more_footer.dart';
 
 class ContinueReadingSectionPayload {
   const ContinueReadingSectionPayload({required this.items});
@@ -161,7 +164,7 @@ class _ContinueReadingSectionScreenState
                         SliverPadding(
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 104),
                           sliver: SliverToBoxAdapter(
-                            child: SectionLoadMoreFooter(
+                            child: LoadMoreFooter(
                               hasNextPage: _hasNextPage,
                               loadedCount: _items.length,
                               completeLabel: 'Semua progress sudah dimuat',
@@ -179,7 +182,7 @@ class _ContinueReadingSectionScreenState
               top: 0,
               child: LinearProgressIndicator(minHeight: 3),
             ),
-          BottomViewportFade(background: theme.scaffoldBackgroundColor),
+          AppEdgeFade(background: theme.scaffoldBackgroundColor),
         ],
       ),
     );
@@ -439,12 +442,12 @@ class _ProgressSectionTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 9),
                     LinearProgressIndicator(
-                      value: _progressValue(item),
+                      value: readingProgressValue(item),
                       borderRadius: BorderRadius.circular(99),
                     ),
                     const SizedBox(height: 5),
                     Text(
-                      _progressPageText(item),
+                      readingProgressPageLabel(item),
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                       ),
@@ -461,19 +464,8 @@ class _ProgressSectionTile extends StatelessWidget {
     );
   }
 
-  void _openReader(BuildContext context, ReadingProgress progress) {
-    final comic = ComicSummary(
-      title: progress.comicTitle,
-      slug: progress.comicSlug,
-      sourceName: progress.sourceName,
-      coverImageUrl: progress.coverImageUrl,
-      latestChapterNumber: progress.chapterNumber,
-    );
-    context.push(
-      '/reader/${Uri.encodeComponent(progress.sourceName)}/${Uri.encodeComponent(progress.comicSlug)}/${formatChapterNumber(progress.chapterNumber)}',
-      extra: comic,
-    );
-  }
+  void _openReader(BuildContext context, ReadingProgress progress) =>
+      openReaderForProgress(context, progress);
 }
 
 class _ProgressSectionLoadingState extends StatelessWidget {
@@ -554,26 +546,13 @@ class _ProgressSectionErrorState extends StatelessWidget {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(TonztoonIcons.warning, size: 40),
-            const SizedBox(height: 12),
-            Text(
-              friendlyErrorMessage(
-                error,
-                fallbackMessage:
-                    'Daftar lanjut membaca belum dapat dimuat. Silakan coba lagi.',
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Retry'),
-            ),
-          ],
+        child: AppErrorState(
+          error: error,
+          fallbackMessage:
+              'Daftar lanjut membaca belum dapat dimuat. Silakan coba lagi.',
+          onRetry: onRetry,
+          retryLabel: 'Retry',
+          icon: TonztoonIcons.warning,
         ),
       ),
     );
@@ -585,62 +564,14 @@ class _EmptyProgressSectionState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 64, horizontal: 20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHighest,
-              shape: BoxShape.circle,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Icon(
-                TonztoonIcons.bookOpen,
-                size: 38,
-                color: colorScheme.secondary,
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            'Belum ada progress',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.titleLarge,
-          ),
-          const SizedBox(height: 7),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 320),
-            child: Text(
-              'Mulai membaca chapter untuk memunculkan daftar lanjut membaca.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-                height: 1.38,
-              ),
-            ),
-          ),
-        ],
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 64, horizontal: 20),
+      child: AppEmptyState(
+        icon: TonztoonIcons.bookOpen,
+        title: 'Belum ada progress',
+        message:
+            'Mulai membaca chapter untuk memunculkan daftar lanjut membaca.',
       ),
     );
   }
-}
-
-double _progressValue(ReadingProgress item) {
-  final total = item.totalPageItems;
-  if (total == null || total <= 0) return item.isCompleted ? 1 : 0;
-  final current = (item.lastReadPageItemIndex ?? item.pageIndex ?? 0) + 1;
-  return (current / total).clamp(0, 1).toDouble();
-}
-
-String _progressPageText(ReadingProgress item) {
-  final current = (item.lastReadPageItemIndex ?? item.pageIndex ?? 0) + 1;
-  final total = item.totalPageItems;
-  if (total == null || total <= 0) return 'Halaman $current';
-  return 'Halaman $current/$total';
 }

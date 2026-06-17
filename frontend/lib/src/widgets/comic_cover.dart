@@ -1,7 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
-import '../core/app_icons.dart';
+import '../helpers/app_icons.dart';
 
 /// [ComicCover] adalah komponen UI khusus untuk merender gambar sampul komik.
 /// Ini menangani:

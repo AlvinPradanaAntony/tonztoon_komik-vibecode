@@ -1,0 +1,52 @@
+import 'package:flutter/widgets.dart';
+import 'package:go_router/go_router.dart';
+
+import '../models/comic.dart';
+import '../models/progress.dart';
+
+/// Shared navigation helpers so every feature opens comic detail / reader
+/// routes the same way, instead of re-deriving the route strings locally.
+
+/// Pushes the comic detail route for [comic].
+void openComicDetail(BuildContext context, ComicSummary comic) {
+  context.push(
+    '/comic/${Uri.encodeComponent(comicRouteSource(comic))}/${Uri.encodeComponent(comicRouteSlug(comic))}',
+    extra: comic,
+  );
+}
+
+/// Pushes the reader route for an already-resolved [comic] at [chapterNumber].
+Future<void> openReaderForComic(
+  BuildContext context,
+  ComicSummary comic,
+  double chapterNumber,
+) {
+  return context.push<void>(
+    '/reader/${Uri.encodeComponent(comicRouteSource(comic))}/${Uri.encodeComponent(comicRouteSlug(comic))}/${formatChapterNumber(chapterNumber)}',
+    extra: comic,
+  );
+}
+
+/// Pushes the reader route for a [ReadingProgress] entry, rebuilding the
+/// [ComicSummary] the reader expects as route `extra`.
+///
+/// [includeLatestChapter] mirrors the existing call sites: continue-reading
+/// surfaces pass the progress chapter as the comic's latest chapter, the
+/// library bookmark/history list does not.
+void openReaderForProgress(
+  BuildContext context,
+  ReadingProgress progress, {
+  bool includeLatestChapter = true,
+}) {
+  final comic = ComicSummary(
+    title: progress.comicTitle,
+    slug: progress.comicSlug,
+    sourceName: progress.sourceName,
+    coverImageUrl: progress.coverImageUrl,
+    latestChapterNumber: includeLatestChapter ? progress.chapterNumber : null,
+  );
+  context.push(
+    '/reader/${Uri.encodeComponent(progress.sourceName)}/${Uri.encodeComponent(progress.comicSlug)}/${formatChapterNumber(progress.chapterNumber)}',
+    extra: comic,
+  );
+}

@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-import '../core/app_error.dart';
+import '../utils/app_error.dart';
 import '../core/api_client.dart';
 import '../core/config.dart';
 

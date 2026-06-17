@@ -128,6 +128,8 @@ def build_reader_preferences_response(preference: ReaderPreference) -> ReaderPre
         reading_direction=preference.reading_direction,
         mark_read_on_complete=preference.mark_read_on_complete,
         default_binge_mode=preference.default_binge_mode,
+        auto_scroll_enabled=preference.auto_scroll_enabled,
+        auto_scroll_speed=preference.auto_scroll_speed,
         updated_at=preference.updated_at,
     )
 
@@ -391,6 +393,8 @@ async def update_reader_preferences(
     preference.reading_direction = payload.reading_direction
     preference.mark_read_on_complete = payload.mark_read_on_complete
     preference.default_binge_mode = payload.default_binge_mode
+    preference.auto_scroll_enabled = payload.auto_scroll_enabled
+    preference.auto_scroll_speed = payload.auto_scroll_speed
     preference.updated_at = _utcnow()
 
     await db.commit()
@@ -2660,6 +2664,8 @@ async def import_library_snapshot(
                         "reading_direction": preference.reading_direction,
                         "mark_read_on_complete": preference.mark_read_on_complete,
                         "default_binge_mode": preference.default_binge_mode,
+                        "auto_scroll_enabled": preference.auto_scroll_enabled,
+                        "auto_scroll_speed": preference.auto_scroll_speed,
                         "updated_at": now,
                     }
                 ],
@@ -2669,6 +2675,8 @@ async def import_library_snapshot(
                     "reading_direction",
                     "mark_read_on_complete",
                     "default_binge_mode",
+                    "auto_scroll_enabled",
+                    "auto_scroll_speed",
                     "updated_at",
                 ),
             )

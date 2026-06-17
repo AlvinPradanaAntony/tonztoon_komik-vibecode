@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../core/app_error.dart';
+import '../utils/app_error.dart';
+import 'app_error_state.dart';
 import 'app_loading_placeholder.dart';
 
 class AppAsyncView<T> extends StatefulWidget {
@@ -62,28 +63,12 @@ class _AppAsyncViewState<T> extends State<AppAsyncView<T>> {
         return Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.cloud_off_rounded, size: 40),
-                const SizedBox(height: 12),
-                Text(
-                  friendlyErrorMessage(
-                    error,
-                    fallbackMessage:
-                        'Data belum dapat dimuat. Periksa koneksi lalu coba lagi.',
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                if (widget.onRetry != null) ...[
-                  const SizedBox(height: 16),
-                  FilledButton.icon(
-                    onPressed: _handleRetry,
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('Retry'),
-                  ),
-                ],
-              ],
+            child: AppErrorState(
+              error: error,
+              fallbackMessage:
+                  'Data belum dapat dimuat. Periksa koneksi lalu coba lagi.',
+              onRetry: widget.onRetry != null ? _handleRetry : null,
+              retryLabel: 'Retry',
             ),
           ),
         );

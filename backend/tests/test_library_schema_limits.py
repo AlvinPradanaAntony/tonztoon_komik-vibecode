@@ -6,6 +6,7 @@ from app.schemas.library import (
     BookmarkLinkCompletionSyncRequest,
     DownloadBatchRequest,
     LibrarySyncImportRequest,
+    ReaderPreferenceUpdateRequest,
 )
 
 
@@ -102,6 +103,23 @@ class LibrarySchemaLimitTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             BookmarkLinkCompletionSyncRequest(
                 bookmark_ids=list(range(26)),
+            )
+
+    def test_reader_preferences_accept_autoscroll_speed_bounds(self):
+        payload = ReaderPreferenceUpdateRequest.model_validate(
+            {
+                "auto_scroll_enabled": True,
+                "auto_scroll_speed": 1.5,
+            }
+        )
+
+        self.assertTrue(payload.auto_scroll_enabled)
+        self.assertEqual(payload.auto_scroll_speed, 1.5)
+
+    def test_reader_preferences_reject_autoscroll_speed_out_of_range(self):
+        with self.assertRaises(ValidationError):
+            ReaderPreferenceUpdateRequest.model_validate(
+                {"auto_scroll_speed": 1.75}
             )
 
 

@@ -27,6 +27,7 @@ class TonztoonIcons {
   static const IconData star = LucideIcons.star;
   static const IconData starFilled = Icons.star_rounded;
   static const IconData play = LucideIcons.play;
+  static const IconData pause = LucideIcons.pause;
   static const IconData download = LucideIcons.download;
   static const IconData cloudUpload = LucideIcons.cloudUpload;
   static const IconData share = LucideIcons.share2;

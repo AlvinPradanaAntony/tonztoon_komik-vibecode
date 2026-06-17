@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../core/app_assets.dart';
-import '../core/app_icons.dart';
+import '../utils/app_assets.dart';
+import '../helpers/app_icons.dart';
 
 enum TonztoonModalVariant { primary, danger, success }
 

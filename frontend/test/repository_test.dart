@@ -8,6 +8,7 @@ import 'package:hive/hive.dart';
 import 'package:tonztoon/src/core/api_client.dart';
 import 'package:tonztoon/src/core/app_navigation.dart';
 import 'package:tonztoon/src/core/config.dart';
+import 'package:tonztoon/src/core/remote_push_notification_service.dart';
 import 'package:tonztoon/src/core/storage.dart';
 import 'package:tonztoon/src/core/token_store.dart';
 import 'package:tonztoon/src/models/auth.dart';
@@ -18,7 +19,6 @@ import 'package:tonztoon/src/models/push_notification_preferences.dart';
 import 'package:tonztoon/src/repositories/auth_repository.dart';
 import 'package:tonztoon/src/repositories/catalog_repository.dart';
 import 'package:tonztoon/src/repositories/google_auth_client.dart';
-import 'package:tonztoon/src/repositories/library_repository.dart';
 import 'package:tonztoon/src/repositories/notification_repository.dart';
 import 'package:tonztoon/src/repositories/progress_repository.dart';
 import 'package:tonztoon/src/repositories/providers.dart';
@@ -519,6 +519,7 @@ void main() {
     final container = ProviderContainer(
       retry: (retryCount, error) => null,
       overrides: [
+        ..._noopPushOverrides,
         authRepositoryProvider.overrideWithValue(_FakeAuthRepository()),
         progressRepositoryProvider.overrideWithValue(progressRepository),
       ],
@@ -551,6 +552,7 @@ void main() {
     final container = ProviderContainer(
       retry: (retryCount, error) => null,
       overrides: [
+        ..._noopPushOverrides,
         authRepositoryProvider.overrideWithValue(_FakeAuthRepository()),
         libraryRepositoryProvider.overrideWithValue(libraryRepository),
       ],
@@ -588,6 +590,7 @@ void main() {
     final container = ProviderContainer(
       retry: (retryCount, error) => null,
       overrides: [
+        ..._noopPushOverrides,
         authRepositoryProvider.overrideWithValue(_FakeAuthRepository()),
         libraryRepositoryProvider.overrideWithValue(libraryRepository),
       ],
@@ -616,6 +619,7 @@ void main() {
       final container = ProviderContainer(
         retry: (retryCount, error) => null,
         overrides: [
+          ..._noopPushOverrides,
           authRepositoryProvider.overrideWithValue(_FakeAuthRepository()),
           libraryRepositoryProvider.overrideWithValue(libraryRepository),
         ],
@@ -669,6 +673,7 @@ void main() {
       final container = ProviderContainer(
         retry: (retryCount, error) => null,
         overrides: [
+          ..._noopPushOverrides,
           authRepositoryProvider.overrideWithValue(_FakeAuthRepository()),
           progressRepositoryProvider.overrideWithValue(progressRepository),
         ],
@@ -699,6 +704,7 @@ void main() {
     final container = ProviderContainer(
       retry: (retryCount, error) => null,
       overrides: [
+        ..._noopPushOverrides,
         localStoreProvider.overrideWithValue(store),
         tokenStoreProvider.overrideWithValue(MemoryTokenStore()),
         authRepositoryProvider.overrideWithValue(
@@ -813,7 +819,10 @@ void main() {
 
   test('push notification preferences persist on the device', () async {
     final container = ProviderContainer(
-      overrides: [localStoreProvider.overrideWithValue(store)],
+      overrides: [
+        ..._noopPushOverrides,
+        localStoreProvider.overrideWithValue(store),
+      ],
     );
     addTearDown(container.dispose);
 
@@ -835,6 +844,7 @@ void main() {
       final repository = _PushPreferenceAuthRepository();
       final container = ProviderContainer(
         overrides: [
+          ..._noopPushOverrides,
           localStoreProvider.overrideWithValue(store),
           authRepositoryProvider.overrideWithValue(repository),
         ],
@@ -870,6 +880,7 @@ void main() {
       });
       final container = ProviderContainer(
         overrides: [
+          ..._noopPushOverrides,
           localStoreProvider.overrideWithValue(store),
           authRepositoryProvider.overrideWithValue(
             _ClearingAuthRepository(store),
@@ -1016,11 +1027,7 @@ void main() {
         },
       ],
     });
-    final repository = LibraryRepository(
-      api,
-      MemoryTokenStore(),
-      store,
-    );
+    final repository = LibraryRepository(api, MemoryTokenStore(), store);
     const origin = ComicSummary(
       title: 'Solo Leveling',
       slug: 'solo-leveling',
@@ -2093,6 +2100,8 @@ void main() {
         readingDirection: 'rtl',
         markReadOnComplete: false,
         defaultBingeMode: true,
+        autoScrollEnabled: true,
+        autoScrollSpeed: 1.25,
       );
 
       await repository.saveReaderPreferences(prefs);
@@ -2104,6 +2113,8 @@ void main() {
         'reading_direction': 'rtl',
         'mark_read_on_complete': false,
         'default_binge_mode': true,
+        'auto_scroll_enabled': true,
+        'auto_scroll_speed': 1.25,
       });
       expect(stored, isNot(contains('auto_next')));
     },
@@ -2248,6 +2259,32 @@ class _FakeLibraryRepository implements LibraryRepository {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+final _noopPushOverrides = [
+  pushRegistrationServiceProvider.overrideWithValue(
+    const _NoopPushNotificationService(),
+  ),
+  pushNotificationLifecycleServiceProvider.overrideWithValue(
+    const _NoopPushNotificationService(),
+  ),
+];
+
+class _NoopPushNotificationService
+    implements PushRegistrationService, PushNotificationLifecycleService {
+  const _NoopPushNotificationService();
+
+  @override
+  Future<bool> requestPermissions() async => true;
+
+  @override
+  Future<void> syncRegistration() async {}
+
+  @override
+  Future<void> unregisterDevice() async {}
+
+  @override
+  Future<void> initialize() async {}
 }
 
 TonztoonApi _apiWithResponses(Map<String, Object?> responses) {
