@@ -6,15 +6,15 @@ TonzToon Komik adalah aplikasi baca komik multi-source yang terdiri dari backend
 
 ### Getting Started
 
-![TonzToon getting started, onboarding, dan home screen](docs/1.png)
+![TonzToon getting started, onboarding, dan home screen](https://github.com/user-attachments/assets/487db358-82a7-47c8-b98e-a867fc0e1c21)
 
 ### Navigasi Utama
 
-![TonzToon home, katalog, pencarian, dan pustaka](docs/2.png)
+![TonzToon home, katalog, pencarian, dan pustaka](https://github.com/user-attachments/assets/279a8ff0-343d-464f-ab61-fff985501fcc)
 
 ### Alur Membaca
 
-![TonzToon login, detail komik, webtoon reader, dan manga reader](docs/3.png)
+![TonzToon login, detail komik, webtoon reader, dan manga reader](https://github.com/user-attachments/assets/4572e3c2-b290-4f84-85c7-c68478a24f4a)
 
 ## Struktur Repo
 
