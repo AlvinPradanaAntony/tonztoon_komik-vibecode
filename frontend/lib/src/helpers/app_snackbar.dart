@@ -1,7 +1,7 @@
 import 'package:awesome_snackbar_content/awesome_snackbar_content.dart';
 import 'package:flutter/material.dart';
 
-import 'app_error.dart';
+import '../utils/app_error.dart';
 
 enum AppSnackBarType { success, failure, warning, help }
 

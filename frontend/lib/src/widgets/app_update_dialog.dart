@@ -7,7 +7,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:ota_update/ota_update.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../core/app_icons.dart';
+import '../helpers/app_icons.dart';
 import '../core/app_update_service.dart';
 import 'tonztoon_modal_dialog.dart';
 

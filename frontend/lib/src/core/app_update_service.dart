@@ -147,10 +147,7 @@ class AppUpdateService {
     } on AppUpdateException {
       rethrow;
     } on DioException catch (error) {
-      throw AppUpdateException(
-        'Tidak dapat memeriksa pembaruan dari GitHub.',
-        cause: error,
-      );
+      throw AppUpdateException(_githubUpdateErrorMessage(error), cause: error);
     } on FormatException catch (error) {
       throw AppUpdateException(error.message, cause: error);
     }
@@ -226,4 +223,49 @@ Version? parseAppVersion(String value) {
   } on FormatException {
     return null;
   }
+}
+
+String _githubUpdateErrorMessage(DioException error) {
+  final statusCode = error.response?.statusCode;
+  final detail = _githubErrorDetail(error.response?.data);
+  final suffix = detail == null ? '' : ' ($detail)';
+
+  return switch (statusCode) {
+    403 =>
+      'Tidak dapat memeriksa pembaruan dari GitHub: batas akses API tercapai atau akses ditolak$suffix.',
+    404 =>
+      'Tidak dapat memeriksa pembaruan dari GitHub: repository atau release tidak ditemukan$suffix.',
+    401 =>
+      'Tidak dapat memeriksa pembaruan dari GitHub: akses tidak diizinkan$suffix.',
+    500 || 502 || 503 || 504 =>
+      'Tidak dapat memeriksa pembaruan dari GitHub: layanan GitHub sedang bermasalah$suffix.',
+    _ => _networkUpdateErrorMessage(error, suffix),
+  };
+}
+
+String _networkUpdateErrorMessage(DioException error, String suffix) {
+  return switch (error.type) {
+    DioExceptionType.connectionTimeout ||
+    DioExceptionType.receiveTimeout ||
+    DioExceptionType.sendTimeout =>
+      'Tidak dapat memeriksa pembaruan dari GitHub: koneksi ke GitHub timeout$suffix.',
+    DioExceptionType.connectionError =>
+      'Tidak dapat memeriksa pembaruan dari GitHub: koneksi internet atau DNS bermasalah$suffix.',
+    DioExceptionType.badCertificate =>
+      'Tidak dapat memeriksa pembaruan dari GitHub: sertifikat koneksi tidak valid$suffix.',
+    _ => 'Tidak dapat memeriksa pembaruan dari GitHub$suffix.',
+  };
+}
+
+String? _githubErrorDetail(Object? data) {
+  if (data is Map) {
+    final message = data['message'];
+    if (message is String && message.trim().isNotEmpty) {
+      return message.trim();
+    }
+  }
+  if (data is String && data.trim().isNotEmpty && data.length <= 140) {
+    return data.trim();
+  }
+  return null;
 }

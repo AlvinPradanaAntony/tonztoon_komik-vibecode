@@ -72,6 +72,8 @@ class ReaderPreferenceUpdateRequest(BaseModel):
     reading_direction: READING_DIRECTION = "ltr"
     mark_read_on_complete: bool = True
     default_binge_mode: bool = False
+    auto_scroll_enabled: bool = False
+    auto_scroll_speed: float = Field(default=1.0, ge=0.5, le=1.5)
 
 
 class ReaderPreferenceResponse(ReaderPreferenceUpdateRequest):

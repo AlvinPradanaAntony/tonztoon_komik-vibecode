@@ -2,17 +2,19 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-import '../../../core/app_error.dart';
-import '../../../core/app_icons.dart';
-import '../../../core/app_snackbar.dart';
+import '../../../helpers/app_icons.dart';
+import '../../../helpers/app_snackbar.dart';
+import '../../../helpers/navigation_helpers.dart';
 import '../../../models/comic.dart';
 import '../../../repositories/providers.dart';
+import '../../../widgets/app_edge_fade.dart';
+import '../../../widgets/app_empty_state.dart';
+import '../../../widgets/app_error_state.dart';
 import '../../../widgets/app_loading_placeholder.dart';
 import '../../../widgets/comic_card.dart';
 import '../../../widgets/comic_filter_sort_sheet.dart';
-import 'section_shared.dart';
+import '../../../widgets/load_more_footer.dart';
 
 class ComicSectionPayload {
   const ComicSectionPayload({
@@ -240,7 +242,7 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
                         SliverPadding(
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 104),
                           sliver: SliverToBoxAdapter(
-                            child: SectionLoadMoreFooter(
+                            child: LoadMoreFooter(
                               hasNextPage: _hasNextPage,
                               loadedCount: _comics.length,
                               completeLabel: 'Semua komik sudah dimuat',
@@ -258,7 +260,7 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
               top: 0,
               child: LinearProgressIndicator(minHeight: 3),
             ),
-          BottomViewportFade(background: theme.scaffoldBackgroundColor),
+          AppEdgeFade(background: theme.scaffoldBackgroundColor),
         ],
       ),
     );
@@ -503,12 +505,7 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
     }
   }
 
-  void _openComicDetail(ComicSummary comic) {
-    context.push(
-      '/comic/${Uri.encodeComponent(comicRouteSource(comic))}/${Uri.encodeComponent(comicRouteSlug(comic))}',
-      extra: comic,
-    );
-  }
+  void _openComicDetail(ComicSummary comic) => openComicDetail(context, comic);
 }
 
 class _SectionHero extends StatelessWidget {
@@ -800,20 +797,7 @@ class _SectionCardShimmer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const AppShimmer(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: AppShimmerBlock(width: double.infinity, borderRadius: 12),
-          ),
-          SizedBox(height: 9),
-          AppShimmerBlock(width: double.infinity, height: 14),
-          SizedBox(height: 7),
-          AppShimmerBlock(width: 112, height: 14),
-        ],
-      ),
-    );
+    return const ComicGridCardShimmer();
   }
 }
 
@@ -832,26 +816,13 @@ class _SectionErrorState extends StatelessWidget {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(TonztoonIcons.warning, size: 40),
-            const SizedBox(height: 12),
-            Text(
-              friendlyErrorMessage(
-                error,
-                fallbackMessage:
-                    'Section komik belum dapat dimuat. Silakan coba lagi.',
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Retry'),
-            ),
-          ],
+        child: AppErrorState(
+          error: error,
+          fallbackMessage:
+              'Section komik belum dapat dimuat. Silakan coba lagi.',
+          onRetry: onRetry,
+          retryLabel: 'Retry',
+          icon: TonztoonIcons.warning,
         ),
       ),
     );
@@ -863,47 +834,12 @@ class _EmptySectionState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 64),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHighest,
-              shape: BoxShape.circle,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Icon(
-                TonztoonIcons.bookOpen,
-                size: 38,
-                color: colorScheme.secondary,
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            'Belum ada komik',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.titleLarge,
-          ),
-          const SizedBox(height: 7),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 320),
-            child: Text(
-              'Coba muat ulang daftar ini beberapa saat lagi.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-                height: 1.38,
-              ),
-            ),
-          ),
-        ],
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 64),
+      child: AppEmptyState(
+        icon: TonztoonIcons.bookOpen,
+        title: 'Belum ada komik',
+        message: 'Coba muat ulang daftar ini beberapa saat lagi.',
       ),
     );
   }

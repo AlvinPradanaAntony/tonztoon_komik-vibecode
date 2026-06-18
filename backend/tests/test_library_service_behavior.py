@@ -1,4 +1,5 @@
 import unittest
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
@@ -12,6 +13,7 @@ from app.services.library_service import (
     _bookmark_group_comic_ids,
     _propagate_completed_chapter,
     _synchronize_existing_completed_for_links,
+    build_reader_preferences_response,
     enqueue_download_batch,
     get_collection_detail,
     import_library_snapshot,
@@ -100,6 +102,22 @@ def chapters(total: int):
 
 
 class LibraryServiceBehaviorTests(unittest.IsolatedAsyncioTestCase):
+    async def test_reader_preferences_response_includes_autoscroll(self):
+        preference = SimpleNamespace(
+            default_reading_mode="vertical",
+            reading_direction="ltr",
+            mark_read_on_complete=False,
+            default_binge_mode=True,
+            auto_scroll_enabled=True,
+            auto_scroll_speed=1.25,
+            updated_at=datetime(2026, 6, 17, tzinfo=timezone.utc),
+        )
+
+        response = build_reader_preferences_response(preference)
+
+        self.assertTrue(response.auto_scroll_enabled)
+        self.assertEqual(response.auto_scroll_speed, 1.25)
+
     async def test_download_batch_500_uses_one_bulk_write_and_one_commit(self):
         db = FakeSession([FakeResult(rows=chapters(500)), FakeResult()])
         payload = DownloadBatchRequest(source_name="source", comic_slug="comic")

@@ -4,7 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 
-import 'app_error.dart';
+import '../utils/app_error.dart';
 import 'remote_push_inbox.dart';
 
 @pragma('vm:entry-point')

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tonztoon/src/core/app_icons.dart';
+import 'package:tonztoon/src/helpers/app_icons.dart';
 import 'package:tonztoon/src/core/app_theme.dart';
 import 'package:tonztoon/src/widgets/tonztoon_modal_dialog.dart';
 

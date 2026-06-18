@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 import 'package:tonztoon/src/app.dart';
+import 'package:tonztoon/src/core/remote_push_notification_service.dart';
 import 'package:tonztoon/src/core/storage.dart';
 import 'package:tonztoon/src/core/token_store.dart';
 import 'package:tonztoon/src/features/auth/auth_screen.dart';
@@ -15,12 +16,14 @@ import 'package:tonztoon/src/features/library/library_screen.dart';
 import 'package:tonztoon/src/features/library/library_shared_panes.dart';
 import 'package:tonztoon/src/features/notifications/notifications_screen.dart';
 import 'package:tonztoon/src/features/reader/reader_screen.dart';
+import 'package:tonztoon/src/models/auth.dart';
 import 'package:tonztoon/src/models/comic.dart';
 import 'package:tonztoon/src/models/library.dart';
 import 'package:tonztoon/src/models/source_info.dart';
 import 'package:tonztoon/src/repositories/catalog_repository.dart';
 import 'package:tonztoon/src/repositories/providers.dart';
 import 'package:tonztoon/src/routing/app_router.dart';
+import 'package:tonztoon/src/widgets/app_edge_fade.dart';
 import 'package:tonztoon/src/widgets/tonztoon_modal_dialog.dart';
 
 void main() {
@@ -233,10 +236,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(
-      find.byKey(const ValueKey('comic-detail-bottom-fade')),
-      findsOneWidget,
+    final bottomFade = tester.widget<AppEdgeFade>(
+      find.descendant(
+        of: find.byType(ComicDetailScreen),
+        matching: find.byType(AppEdgeFade),
+      ),
     );
+    expect(bottomFade.edge, AppFadeEdge.bottom);
+    expect(bottomFade.height, 120);
     expect(
       find.byKey(const ValueKey('comic-detail-bottom-read-bar')),
       findsOneWidget,
@@ -258,6 +265,34 @@ void main() {
       detailOverlay.value.systemNavigationBarDividerColor,
       Colors.transparent,
     );
+  });
+
+  testWidgets('comic detail starts from first chapter without progress', (
+    tester,
+  ) async {
+    final container = _testContainer();
+    addTearDown(container.dispose);
+    final router = container.read(routerProvider);
+    router.go(
+      '/comic/komiku/solo-leveling',
+      extra: _FakeCatalogRepository.comic,
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const TonztoonApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Baca Chapter 1'), findsOneWidget);
+
+    await tester.tap(find.text('Baca Chapter 1'));
+    await tester.pumpAndSettle();
+
+    final reader = tester.widget<ReaderScreen>(find.byType(ReaderScreen));
+    expect(reader.chapterNumber, 1);
   });
 
   testWidgets('bookmark card overlays type and groups source badges', (
@@ -636,6 +671,13 @@ ProviderContainer _testContainer() {
   return ProviderContainer(
     retry: (retryCount, error) => null,
     overrides: [
+      pushNotificationLifecycleServiceProvider.overrideWithValue(
+        const _NoopPushNotificationService(),
+      ),
+      pushRegistrationServiceProvider.overrideWithValue(
+        const _NoopPushNotificationService(),
+      ),
+      authControllerProvider.overrideWith(_ReadyGuestAuthController.new),
       tokenStoreProvider.overrideWithValue(MemoryTokenStore()),
       catalogRepositoryProvider.overrideWithValue(_FakeCatalogRepository()),
       libraryComicStateProvider(_FakeCatalogRepository.comic).overrideWith(
@@ -654,6 +696,33 @@ ProviderContainer _testContainer() {
       offlineQueueProvider.overrideWith(_FakeOfflineQueueController.new),
     ],
   );
+}
+
+class _ReadyGuestAuthController extends AuthController {
+  @override
+  AuthState build() => const AuthState.guest();
+
+  @override
+  Future<void> restore() async {
+    state = const AuthState.guest();
+  }
+}
+
+class _NoopPushNotificationService
+    implements PushNotificationLifecycleService, PushRegistrationService {
+  const _NoopPushNotificationService();
+
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  Future<bool> requestPermissions() async => true;
+
+  @override
+  Future<void> syncRegistration() async {}
+
+  @override
+  Future<void> unregisterDevice() async {}
 }
 
 class _FakeOfflineQueueController extends OfflineQueueController {
@@ -822,6 +891,12 @@ class _FakeCatalogRepository implements CatalogRepository {
         totalImages: 1,
         detailUrl: 'https://example.test/solo-leveling/179',
       ),
+      ChapterListItem(
+        chapterNumber: 1,
+        createdAt: DateTime(2025, 1, 1),
+        totalImages: 1,
+        detailUrl: 'https://example.test/solo-leveling/1',
+      ),
     ];
   }
 
@@ -831,10 +906,10 @@ class _FakeCatalogRepository implements CatalogRepository {
     String slug,
     double chapterNumber,
   ) async {
-    return const ChapterPayload(
+    return ChapterPayload(
       sourceName: 'komiku',
-      chapterNumber: 179,
-      images: [],
+      chapterNumber: chapterNumber,
+      images: const [],
       total: 0,
     );
   }

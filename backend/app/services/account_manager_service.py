@@ -698,7 +698,15 @@ async def get_relation_preview(
                 if getattr(row, "default_binge_mode", False)
                 else "binge mode nonaktif"
             )
-            return f"{mode} • {direction.upper()} • {mark_read} • {binge_mode}"
+            auto_scroll = (
+                "autoscroll aktif"
+                if getattr(row, "auto_scroll_enabled", False)
+                else "autoscroll nonaktif"
+            )
+            return (
+                f"{mode} • {direction.upper()} • {mark_read} • "
+                f"{binge_mode} • {auto_scroll}"
+            )
         if table == "user_reading_stats":
             seconds = int(getattr(row, "total_reading_seconds", 0) or 0)
             minutes = max(0, round(seconds / 60))

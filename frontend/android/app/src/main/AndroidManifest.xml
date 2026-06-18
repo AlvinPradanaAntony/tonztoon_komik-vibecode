@@ -7,7 +7,8 @@
     <application
         android:label="TonzToon"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false">
         <meta-data
             android:name="io.flutter.embedding.android.EnableImpeller"
             android:value="false" />

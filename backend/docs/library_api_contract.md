@@ -78,6 +78,8 @@ Response:
     "reading_direction": "ltr",
     "mark_read_on_complete": false,
     "default_binge_mode": false,
+    "auto_scroll_enabled": false,
+    "auto_scroll_speed": 1.0,
     "updated_at": "2026-05-27T00:00:00Z"
   }
 }
@@ -349,7 +351,9 @@ Request:
   "default_reading_mode": "vertical",
   "reading_direction": "ltr",
   "mark_read_on_complete": false,
-  "default_binge_mode": false
+  "default_binge_mode": false,
+  "auto_scroll_enabled": false,
+  "auto_scroll_speed": 1.0
 }
 ```
 
@@ -359,6 +363,7 @@ Nilai valid:
 |---|---|
 | `default_reading_mode` | `vertical`, `paged` |
 | `reading_direction` | `ltr`, `rtl` |
+| `auto_scroll_speed` | `0.5` sampai `1.5` |
 
 ## Reading Time
 

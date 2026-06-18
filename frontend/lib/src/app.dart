@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'core/app_responsive.dart';
 import 'core/app_theme.dart';
+import 'helpers/app_responsive.dart';
 import 'repositories/providers.dart';
 import 'routing/app_router.dart';
 
@@ -20,7 +20,7 @@ class _TonztoonAppState extends ConsumerState<TonztoonApp> {
   void initState() {
     super.initState();
     unawaited(ref.read(downloadNotificationServiceProvider).initialize());
-    unawaited(ref.read(remotePushNotificationServiceProvider).initialize());
+    unawaited(ref.read(pushNotificationLifecycleServiceProvider).initialize());
   }
 
   @override

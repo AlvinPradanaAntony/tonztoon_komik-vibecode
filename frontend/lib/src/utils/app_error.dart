@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import 'api_client.dart';
+import '../core/api_client.dart';
 
 void logAppError(
   Object error,

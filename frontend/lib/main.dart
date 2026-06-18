@@ -5,9 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'src/app.dart';
-import 'src/core/app_error.dart';
 import 'src/core/remote_push_bootstrap.dart';
 import 'src/core/storage.dart';
+import 'src/utils/app_error.dart';
 
 export 'src/app.dart';
 
