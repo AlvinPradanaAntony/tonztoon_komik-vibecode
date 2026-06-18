@@ -68,7 +68,7 @@ class _SearchFilterProcessingStrip extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: colorScheme.primaryContainer.withValues(alpha: 0.58),
+        color: colorScheme.primaryContainer,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: colorScheme.primary.withValues(alpha: 0.16)),
       ),

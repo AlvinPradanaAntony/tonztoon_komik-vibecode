@@ -46,6 +46,7 @@ from app.services.chapter_service import (
 from app.services.image_service import build_proxy_image_url, wrap_chapter_image_urls
 from app.services.source_service import get_source_stats_map
 from app.services.chapter_image_job_service import RETRY_AFTER_SECONDS
+from app.services.comic_search import comic_search_filter, comic_search_order
 from scraper.sources.registry import get_all_source_metadata, get_source_metadata
 
 router = APIRouter()
@@ -270,6 +271,19 @@ def _apply_source_comic_sort(base_query, sort: str | None):
                 *_popular_feed_order(),
                 Comic.title.asc(),
             )
+        case (
+            "total_view"
+            | "total_view_high"
+            | "total_view_tertinggi"
+            | "view_high"
+            | "views_high"
+        ):
+            return base_query.order_by(
+                Comic.total_view.desc().nullslast(),
+                Comic.rating.desc().nullslast(),
+                Comic.title.asc(),
+                Comic.id.asc(),
+            )
         case "rating_high" | "rating_tinggi" | "rating":
             return base_query.order_by(
                 Comic.rating.desc().nullslast(),
@@ -342,7 +356,10 @@ async def list_source_comics(
     type: str | None = Query(None, description="Filter by type: manga/manhwa/manhua"),
     status: str | None = Query(None, description="Filter by status: ongoing/completed/hiatus"),
     genre: str | None = Query(None, description="Filter by genre name or slug"),
-    sort: str | None = Query(None, description="Sort: latest/popular/rating_high/az/relevance"),
+    sort: str | None = Query(
+        None,
+        description="Sort: latest/popular/total_view/rating_high/az/relevance",
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """List katalog komik untuk satu source."""
@@ -605,7 +622,7 @@ async def get_source_top_ranking_comics(
     ]
 
 
-@router.get("/{source_name}/search", response_model=list[SourceComicListItem])
+@router.get("/{source_name}/search", response_model=SourceComicListResponse)
 async def search_source_comics(
     request: Request,
     source_name: str,
@@ -616,34 +633,41 @@ async def search_source_comics(
 ):
     """Pencarian komik dalam satu source saja."""
     source = _get_source_or_404(source_name)
-    search_pattern = f"%{q}%"
+    base_query = select(Comic).where(
+        Comic.source_name == source["id"],
+        comic_search_filter(q),
+    )
+    count_stmt = select(func.count()).select_from(base_query.subquery())
+    total = (await db.execute(count_stmt)).scalar() or 0
     offset = (page - 1) * page_size
 
     stmt = (
-        select(Comic, _latest_chapter_number_subq.label("latest_chapter_number"))
-        .options(selectinload(Comic.genres), noload(Comic.chapters))
-        .where(
-            Comic.source_name == source["id"],
-            or_(
-                Comic.title.ilike(search_pattern),
-                Comic.alternative_titles.ilike(search_pattern),
-            ),
+        base_query.add_columns(
+            _latest_chapter_number_subq.label("latest_chapter_number")
         )
-        .order_by(Comic.title.asc())
+        .options(selectinload(Comic.genres), noload(Comic.chapters))
+        .order_by(*comic_search_order(q))
         .offset(offset)
         .limit(page_size)
     )
     result = await db.execute(stmt)
     rows = result.unique().all()
-    return [
-        _build_source_comic_list_item(
-            request,
-            source["id"],
-            comic,
-            latest_chapter_number,
-        )
-        for comic, latest_chapter_number in rows
-    ]
+    total_pages = (total + page_size - 1) // page_size
+    return SourceComicListResponse(
+        items=[
+            _build_source_comic_list_item(
+                request,
+                source["id"],
+                comic,
+                latest_chapter_number,
+            )
+            for comic, latest_chapter_number in rows
+        ],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
+    )
 
 
 @router.get("/{source_name}/comics/{slug}", response_model=ComicResponse)

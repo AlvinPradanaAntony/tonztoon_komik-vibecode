@@ -414,10 +414,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       builder: (context) {
         final theme = Theme.of(context);
         final colorScheme = theme.colorScheme;
+        final bottomSafePadding = math.max(
+          24.0,
+          MediaQuery.viewPaddingOf(context).bottom + 16,
+        );
         return StatefulBuilder(
           builder: (context, setSheetState) {
             return Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+              padding: EdgeInsets.fromLTRB(20, 4, 20, bottomSafePadding),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,

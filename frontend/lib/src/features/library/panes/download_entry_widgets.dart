@@ -23,42 +23,60 @@ class _DownloadEntryTile extends ConsumerWidget {
       showBorder: false,
       elevation: 1.5,
       shadowColor: Colors.black.withValues(alpha: 0.05),
-      child: Row(
-        children: [
-          ComicCover(
-            imageUrl: entry.comic.coverImageUrl,
-            width: 58,
-            height: 82,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  entry.comic.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium,
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  _statusLabel(queuedBatch),
-                  style: theme.textTheme.bodySmall,
-                ),
-              ],
+      padding: EdgeInsets.zero,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.horizontal(
+                right: Radius.circular(14),
+              ),
+              child: ComicCover(
+                imageUrl: entry.comic.coverImageUrl,
+                width: 58,
+                height: 82,
+                borderRadius: 0,
+              ),
             ),
-          ),
-          if (allowDelete && !hasLocalFile && queuedBatch == null) ...[
-            IconButton(
-              tooltip: 'Hapus wishlist offline',
-              onPressed: () => _deleteEntry(context, ref),
-              icon: const Icon(TonztoonIcons.trash),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      entry.comic.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      _statusLabel(queuedBatch),
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
             ),
-            trailing,
-          ] else
-            trailing,
-        ],
+            const SizedBox(width: 12),
+            if (allowDelete && !hasLocalFile && queuedBatch == null) ...[
+              Center(
+                child: IconButton(
+                  tooltip: 'Hapus wishlist offline',
+                  onPressed: () => _deleteEntry(context, ref),
+                  icon: const Icon(TonztoonIcons.trash),
+                ),
+              ),
+              Center(child: trailing),
+            ] else
+              Center(child: trailing),
+            const SizedBox(width: 12),
+          ],
+        ),
       ),
     );
   }
@@ -186,11 +204,13 @@ class _DownloadEntryGroupTile extends StatelessWidget {
     required this.group,
     required this.localKeys,
     required this.allowDelete,
+    this.backgroundColor,
   });
 
   final _DownloadEntryGroup group;
   final Set<String> localKeys;
   final bool allowDelete;
+  final Color? backgroundColor;
 
   int get _localCount => group.entries
       .where((entry) => localKeys.contains(_downloadEntryKey(entry)))
@@ -207,36 +227,55 @@ class _DownloadEntryGroupTile extends StatelessWidget {
       showBorder: false,
       elevation: 1.5,
       shadowColor: Colors.black.withValues(alpha: 0.05),
-      child: Row(
-        children: [
-          ComicCover(
-            imageUrl: group.comic.coverImageUrl,
-            width: 58,
-            height: 82,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  group.comic.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium,
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  localCount == total
-                      ? '$total chapter tersedia di perangkat ini'
-                      : '$total chapter wishlist, $localCount tersedia lokal',
-                  style: theme.textTheme.bodySmall,
-                ),
-              ],
+      color: backgroundColor,
+      padding: EdgeInsets.zero,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.horizontal(
+                right: Radius.circular(14),
+              ),
+              child: ComicCover(
+                imageUrl: group.comic.coverImageUrl,
+                width: 58,
+                height: 82,
+                borderRadius: 0,
+              ),
             ),
-          ),
-          const Icon(TonztoonIcons.chevronRight),
-        ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      group.comic.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      localCount == total
+                          ? '$total chapter tersedia di perangkat ini'
+                          : '$total chapter wishlist, $localCount tersedia lokal',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Center(
+              child: Icon(TonztoonIcons.chevronRight),
+            ),
+            const SizedBox(width: 12),
+          ],
+        ),
       ),
     );
   }
@@ -249,6 +288,154 @@ class _DownloadEntryGroupTile extends StatelessWidget {
           localKeys: localKeys,
           allowDelete: allowDelete,
         ),
+      ),
+    );
+  }
+}
+
+extension on _DownloadEntryGroup {
+  int localEntryCount(Set<String> localKeys) {
+    return entries
+        .where((entry) => localKeys.contains(_downloadEntryKey(entry)))
+        .length;
+  }
+}
+
+extension on _WishlistOfflineSection {
+  bool get hasLocalFiles {
+    return groups.any((group) => group.localEntryCount(localKeys) > 0);
+  }
+}
+
+class _WishlistOfflineSection extends StatefulWidget {
+  const _WishlistOfflineSection({
+    required this.groups,
+    required this.localKeys,
+    required this.allowDelete,
+  });
+
+  final List<_DownloadEntryGroup> groups;
+  final Set<String> localKeys;
+  final bool allowDelete;
+
+  @override
+  State<_WishlistOfflineSection> createState() =>
+      _WishlistOfflineSectionState();
+}
+
+class _WishlistOfflineSectionState extends State<_WishlistOfflineSection> {
+  late bool _expanded = !widget.hasLocalFiles;
+
+  @override
+  void didUpdateWidget(covariant _WishlistOfflineSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.hasLocalFiles != widget.hasLocalFiles) {
+      _expanded = !widget.hasLocalFiles;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final totalChapters = widget.groups.fold<int>(
+      0,
+      (total, group) => total + group.entries.length,
+    );
+    final localChapters = widget.groups.fold<int>(
+      0,
+      (total, group) => total + group.localEntryCount(widget.localKeys),
+    );
+    final summary = widget.hasLocalFiles
+        ? '$localChapters dari $totalChapters chapter sudah lokal'
+        : '$totalChapters chapter menunggu download lokal';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _expanded ? colorScheme.surface : Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Material(
+            color: colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(16),
+            child: InkWell(
+              onTap: () => setState(() => _expanded = !_expanded),
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                child: Row(
+                  children: [
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Icon(
+                          TonztoonIcons.download,
+                          size: 18,
+                          color: colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Wishlist offline',
+                            style: theme.textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            summary,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    AnimatedRotation(
+                      turns: _expanded ? 0.25 : 0,
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOutCubic,
+                      child: const Icon(TonztoonIcons.chevronRight),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: _expanded
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                    child: Column(
+                      children: [
+                        for (final group in widget.groups) ...[
+                          _DownloadEntryGroupTile(
+                            group: group,
+                            localKeys: widget.localKeys,
+                            allowDelete: widget.allowDelete,
+                            backgroundColor: colorScheme.surfaceContainerHighest,
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
       ),
     );
   }

@@ -108,7 +108,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 },
               ),
             ),
-            AppEdgeFade(background: theme.scaffoldBackgroundColor,height: 120),
+            AppEdgeFade(background: theme.scaffoldBackgroundColor, height: 120),
           ],
         ),
         floatingActionButton: notifications.isEmpty
@@ -206,6 +206,6 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     if (!mounted) return;
     final route = item.actionRoute;
     if (route == null || route.isEmpty) return;
-    context.go(route);
+    await context.push<void>(route);
   }
 }

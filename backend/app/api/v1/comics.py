@@ -32,7 +32,10 @@ async def list_comics(
     type: str | None = Query(None, description="Filter by type: manga/manhwa/manhua"),
     status: str | None = Query(None, description="Filter by status: ongoing/completed/hiatus"),
     genre: str | None = Query(None, description="Filter by genre name or slug"),
-    sort: str | None = Query(None, description="Sort: latest/popular/rating_high/az/za/relevance"),
+    sort: str | None = Query(
+        None,
+        description="Sort: latest/popular/total_view/rating_high/az/za/relevance",
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """List katalog komik gabungan dari semua source."""

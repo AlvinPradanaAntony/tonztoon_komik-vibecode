@@ -370,7 +370,7 @@ class _ComicRail extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         SizedBox(
-          height: 304,
+          height: 288,
           child: ListView.separated(
             clipBehavior: Clip.none,
             scrollDirection: Axis.horizontal,
@@ -403,9 +403,10 @@ class _ProgressCard extends StatelessWidget {
         'Chapter ${formatChapterNumber(progress.chapterNumber)}';
     final pageText = _progressPageText(progress);
     final progressValue = _progressValue(progress);
+    final cardWidth = _progressCardWidth(context, chapterText, progress);
 
     return SizedBox(
-      width: 260,
+      width: cardWidth,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: colorScheme.surface,
@@ -449,9 +450,25 @@ class _ProgressCard extends StatelessWidget {
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 6),
-                        Text(
-                          chapterText,
-                          style: Theme.of(context).textTheme.bodyMedium,
+                        Row(
+                          children: [
+                            Text(
+                              chapterText,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                            const SizedBox(width: 6),
+                            MetadataSeparator(
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                            const SizedBox(width: 6),
+                            SourceTag(sourceName: progress.sourceName),
+                          ],
                         ),
                         const SizedBox(height: 2),
                         Text(
@@ -473,5 +490,37 @@ class _ProgressCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  double _progressCardWidth(
+    BuildContext context,
+    String chapterText,
+    ReadingProgress progress,
+  ) {
+    final theme = Theme.of(context);
+    final chapterWidth = _textWidth(chapterText, theme.textTheme.bodyMedium);
+    final sourceWidth =
+        _textWidth(
+          comicSourceNameLabel(progress.sourceName),
+          theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w800),
+        ) +
+        31;
+    final metadataWidth = chapterWidth + 18 + sourceWidth;
+
+    const coverWidth = 76.0;
+    const horizontalPadding = 20.0;
+    const coverGap = 12.0;
+    const safety = 14.0;
+    return (horizontalPadding + coverWidth + coverGap + metadataWidth + safety)
+        .clamp(260.0, 360.0);
+  }
+
+  double _textWidth(String text, TextStyle? style) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      maxLines: 1,
+      textDirection: TextDirection.ltr,
+    )..layout();
+    return painter.width;
   }
 }

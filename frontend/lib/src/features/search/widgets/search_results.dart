@@ -52,18 +52,11 @@ class _ResultGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: comics.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 14,
-        crossAxisSpacing: 12,
-        childAspectRatio: 0.47,
-      ),
-      itemBuilder: (context, index) {
-        final comic = comics[index];
+    return AppColumnGrid<_SearchComicUi>(
+      items: comics,
+      minColumnWidth: 104,
+      maxColumnCount: 6,
+      itemBuilder: (context, comic) {
         return ComicCard(
           comic: comic.summary,
           source: comic.source,

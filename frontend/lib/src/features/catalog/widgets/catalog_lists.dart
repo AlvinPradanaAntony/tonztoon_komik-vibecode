@@ -8,16 +8,12 @@ class _CatalogGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SliverGrid(
+    return AppSliverColumnGrid<_CatalogEntry>(
       key: const ValueKey('catalog-grid'),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 14,
-        crossAxisSpacing: 12,
-        childAspectRatio: 0.47,
-      ),
-      delegate: SliverChildBuilderDelegate((context, index) {
-        final entry = entries[index];
+      items: entries,
+      minColumnWidth: 104,
+      maxColumnCount: 6,
+      itemBuilder: (context, entry) {
         return ComicCard(
           comic: entry.comic,
           source: entry.source,
@@ -25,7 +21,7 @@ class _CatalogGrid extends StatelessWidget {
           width: double.infinity,
           onTap: () => onTap(entry),
         );
-      }, childCount: entries.length),
+      },
     );
   }
 }

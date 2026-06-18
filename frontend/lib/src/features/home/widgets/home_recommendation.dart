@@ -189,6 +189,12 @@ class _RecommendationBanner extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
+            color: accent.withValues(alpha: isDark ? 0.24 : 0.15),
+            blurRadius: 38,
+            spreadRadius: -2,
+            offset: const Offset(0, 14),
+          ),
+          BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.34 : 0.13),
             blurRadius: 20,
             offset: const Offset(0, 10),

@@ -66,14 +66,18 @@ class _FilterChoiceChip extends StatelessWidget {
       label: Text(value),
       selected: selected,
       onSelected: (_) => onSelected(),
-      selectedColor: colorScheme.primary.withValues(alpha: 0.18),
+      showCheckmark: false,
+      selectedColor: colorScheme.primaryContainer,
+      backgroundColor: colorScheme.surfaceContainerHighest,
       labelStyle: TextStyle(
-        color: selected ? colorScheme.primary : colorScheme.onSurfaceVariant,
+        color: selected ? colorScheme.onPrimaryContainer : colorScheme.onSurfaceVariant,
         fontWeight: FontWeight.w800,
       ),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: colorScheme.outlineVariant),
+        side: BorderSide(
+          color: selected ? colorScheme.primaryContainer : colorScheme.surfaceContainerHighest,
+        ),
       ),
     );
   }

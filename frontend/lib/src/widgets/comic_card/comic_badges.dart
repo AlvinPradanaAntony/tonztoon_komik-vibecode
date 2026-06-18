@@ -81,7 +81,14 @@ class ComicSourceBadge extends StatelessWidget {
               color: Colors.white,
             ),
             SizedBox(width: prominent ? 6 : 4),
-            Text(label, style: textStyle),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: textStyle,
+              ),
+            ),
           ],
         ),
       ),
@@ -180,13 +187,13 @@ class ComicGenreBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = comicGenreColor(genre);
+    final palette = DynamicBadgePalette.fromSeed(context, genre);
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.13),
+        color: palette.background,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: color.withValues(alpha: 0.24)),
+        border: Border.all(color: palette.border),
       ),
       child: Padding(
         padding: EdgeInsets.symmetric(
@@ -198,7 +205,7 @@ class ComicGenreBadge extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
-            color: color,
+            color: palette.foreground,
             fontWeight: FontWeight.w900,
           ),
         ),
@@ -220,7 +227,7 @@ class ComicStatusBadge extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: style.color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),

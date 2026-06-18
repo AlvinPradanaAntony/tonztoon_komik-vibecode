@@ -33,127 +33,160 @@ class ComicListCard extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
-        child: Stack(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 9, 34, 9),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 72,
-                    height: 104,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        ComicCover(
-                          imageUrl: comic.coverImageUrl,
-                          borderRadius: 10,
-                        ),
-                        if (comic.type != null)
-                          Positioned(
-                            top: 5,
-                            right: 5,
-                            child: Transform.scale(
-                              scale: 0.78,
-                              alignment: Alignment.topRight,
-                              child: ComicTypeFlagBadge(type: comic.type!),
-                            ),
-                          ),
-                        if (showNewBadge && comic.hasNewChapter())
-                          const Positioned(
-                            right: 5,
-                            bottom: 5,
-                            child: ComicNewBadge(compact: true),
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 11),
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: EdgeInsets.only(
-                            right: ratingValue == null ? 0 : 42,
-                          ),
-                          child: Text(
-                            comic.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              height: 1.08,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _ComicListSource(source: sourceLabel),
-                            ),
-                            const SizedBox(width: 6),
-                            ComicStatusBadge(status: statusLabel),
-                          ],
-                        ),
-                        if (comic.genres.isNotEmpty) ...[
-                          const SizedBox(height: 5),
-                          _ComicListGenreStrip(genres: comic.genres),
-                        ],
-                        if (comic.latestChapterNumber != null ||
-                            comic.totalView != null) ...[
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              if (comic.latestChapterNumber != null)
-                                _ComicLatestChapterBadge(
-                                  chapterNumber: comic.latestChapterNumber!,
-                                ),
-                              if (comic.latestChapterReleaseDate != null) ...[
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: _ComicUpdateTime(
-                                    releaseDate:
-                                        comic.latestChapterReleaseDate!,
-                                  ),
-                                ),
-                              ] else
-                                const Spacer(),
-                              if (comic.totalView != null) ...[
-                                const SizedBox(width: 6),
-                                _ComicListViewCount(
-                                  totalView: comic.totalView!,
-                                ),
-                              ],
-                            ],
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (ratingValue != null)
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 104),
+          child: Stack(
+            children: [
               Positioned(
+                left: 0,
                 top: 0,
-                right: 0,
-                child: _ComicListRatingBadge(rating: ratingValue),
-              ),
-            Positioned(
-              right: 8,
-              top: 0,
-              bottom: 0,
-              child: IgnorePointer(
-                child: Icon(
-                  TonztoonIcons.chevronRight,
-                  size: 19,
-                  color: colorScheme.outline,
+                bottom: 0,
+                width: 82,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: const BorderRadius.horizontal(
+                      right: Radius.circular(14),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(
+                          alpha: theme.brightness == Brightness.dark
+                              ? 0.34
+                              : 0.16,
+                        ),
+                        blurRadius: 14,
+                        spreadRadius: -4,
+                        offset: const Offset(8, 0),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: 82,
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.horizontal(
+                    right: Radius.circular(14),
+                  ),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ComicCover(
+                        imageUrl: comic.coverImageUrl,
+                        borderRadius: 0,
+                      ),
+                      if (comic.type != null)
+                        Positioned(
+                          top: 5,
+                          right: 5,
+                          child: Transform.scale(
+                            scale: 0.78,
+                            alignment: Alignment.topRight,
+                            child: ComicTypeFlagBadge(type: comic.type!),
+                          ),
+                        ),
+                      if (showNewBadge && comic.hasNewChapter())
+                        const Positioned(
+                          right: 5,
+                          bottom: 5,
+                          child: ComicNewBadge(compact: true),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(93, 9, 34, 9),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.only(
+                        right: ratingValue == null ? 0 : 42,
+                      ),
+                      child: Text(
+                        comic.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          height: 1.08,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Flexible(
+                          fit: FlexFit.loose,
+                          child: _ComicListSource(source: sourceLabel),
+                        ),
+                        const SizedBox(width: 6),
+                        MetadataSeparator(
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        ComicStatusBadge(status: statusLabel),
+                      ],
+                    ),
+                    if (comic.genres.isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      _ComicListGenreStrip(genres: comic.genres),
+                    ],
+                    if (comic.latestChapterNumber != null ||
+                        comic.totalView != null) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          if (comic.latestChapterNumber != null)
+                            _ComicLatestChapterMeta(
+                              chapterNumber: comic.latestChapterNumber!,
+                            ),
+                          if (comic.latestChapterReleaseDate != null) ...[
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: _ComicUpdateTime(
+                                releaseDate: comic.latestChapterReleaseDate!,
+                              ),
+                            ),
+                          ] else
+                            const Spacer(),
+                          if (comic.totalView != null) ...[
+                            const SizedBox(width: 6),
+                            _ComicListViewCount(totalView: comic.totalView!),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (ratingValue != null)
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: _ComicListRatingBadge(rating: ratingValue),
+                ),
+              Positioned(
+                right: 8,
+                top: 0,
+                bottom: 0,
+                child: IgnorePointer(
+                  child: Icon(
+                    TonztoonIcons.chevronRight,
+                    size: 19,
+                    color: colorScheme.outline,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -171,6 +204,7 @@ class _ComicListSource extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(
           TonztoonIcons.travelExplore,
@@ -384,8 +418,8 @@ class _ComicListViewCount extends StatelessWidget {
   }
 }
 
-class _ComicLatestChapterBadge extends StatelessWidget {
-  const _ComicLatestChapterBadge({required this.chapterNumber});
+class _ComicLatestChapterMeta extends StatelessWidget {
+  const _ComicLatestChapterMeta({required this.chapterNumber});
 
   final double chapterNumber;
 
@@ -394,37 +428,23 @@ class _ComicLatestChapterBadge extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: [
-            Color.lerp(colorScheme.secondary, Colors.black, 0.16)!,
-            colorScheme.secondary,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.secondary.withValues(alpha: 0.26),
-            blurRadius: 7,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-        child: Text(
-          'Chapter ${formatChapterNumber(chapterNumber)}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: colorScheme.onSecondary,
-            fontWeight: FontWeight.w900,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(TonztoonIcons.bookOpen, size: 13, color: colorScheme.secondary),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            'Chapter ${formatChapterNumber(chapterNumber)}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurface,
+              fontWeight: FontWeight.w900,
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 }

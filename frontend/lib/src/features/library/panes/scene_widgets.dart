@@ -103,7 +103,7 @@ Future<void> _showScenePreview(BuildContext context, FavoriteScene scene) {
             Positioned.fill(
               child: InteractiveViewer(
                 minScale: 1,
-                maxScale: 4,
+                maxScale: 10,
                 child: Center(
                   child: scene.imageUrl == null || scene.imageUrl!.isEmpty
                       ? const Icon(

@@ -164,6 +164,13 @@ class _SegmentedSetting extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final activeBackground = colorScheme.primary;
+    final activeForeground = colorScheme.onPrimary;
+    final inactiveForeground = colorScheme.onSurfaceVariant;
+    final trackBackground = colorScheme.surfaceContainerHighest;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 9),
       child: Row(
@@ -175,16 +182,16 @@ class _SegmentedSetting extends StatelessWidget {
               title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           const SizedBox(width: 10),
           Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              color: trackBackground,
               borderRadius: BorderRadius.circular(24),
             ),
             child: Row(
@@ -203,17 +210,16 @@ class _SegmentedSetting extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         color: selected == entry.key
-                            ? Theme.of(context).colorScheme.primaryContainer
-                            : Theme.of(context).colorScheme.primaryContainer
-                                  .withValues(alpha: 0.0),
+                            ? activeBackground
+                            : Colors.transparent,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Icon(
                         entry.value,
                         size: 18,
                         color: selected == entry.key
-                            ? Theme.of(context).colorScheme.onPrimaryContainer
-                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                            ? activeForeground
+                            : inactiveForeground,
                       ),
                     ),
                   ),

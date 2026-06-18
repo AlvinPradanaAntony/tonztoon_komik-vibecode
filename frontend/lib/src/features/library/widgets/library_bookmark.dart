@@ -174,7 +174,14 @@ class _BookmarkMetadataStripState extends State<_BookmarkMetadataStrip> {
               scrollDirection: Axis.horizontal,
               physics: const BouncingScrollPhysics(),
               itemCount: itemCount,
-              separatorBuilder: (context, index) => const SizedBox(width: 6),
+              separatorBuilder: (context, index) {
+                if (hasStatus && index == 0) {
+                  return const MetadataSeparator(
+                    padding: EdgeInsets.symmetric(horizontal: 4),
+                  );
+                }
+                return const SizedBox(width: 6);
+              },
               itemBuilder: (context, index) {
                 if (hasStatus && index == 0) {
                   return KeyedSubtree(

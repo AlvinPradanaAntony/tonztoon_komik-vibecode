@@ -11,6 +11,7 @@ import '../../widgets/comic_card.dart';
 import '../../widgets/comic_filter_sort_sheet.dart';
 import '../../widgets/app_loading_placeholder.dart';
 import '../../widgets/load_more_footer.dart';
+import '../../widgets/column_grid.dart';
 import 'controller/catalog_controller.dart';
 
 part 'models/catalog_view_models.dart';
@@ -254,7 +255,6 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
     final result = await showComicFilterSortSheet(
       context: context,
       initialState: ref.read(catalogFilterProvider),
-      title: 'Filter Katalog',
       resetSort: ComicSortOption.relevance,
       genreOptions: cachedGenreOptions.isEmpty ? null : cachedGenreOptions,
       genreOptionsRefreshFuture: refreshGenreOptionNames(

@@ -21,11 +21,12 @@ class _ReaderTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final overlayColor = colorScheme.surface.withValues(
-      alpha: isDark ? 0.88 : 0.94,
-    );
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final overlayColor =
+        (isDark ? colorScheme.surfaceContainerLowest : colorScheme.surface)
+            .withValues(alpha: isDark ? 0.92 : 0.94);
     final foreground = colorScheme.onSurface;
     final muted = colorScheme.onSurfaceVariant;
 
@@ -132,13 +133,20 @@ class _ReaderBottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final overlayColor = colorScheme.surface.withValues(
-      alpha: isDark ? 0.9 : 0.96,
-    );
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final overlayColor =
+        (isDark ? colorScheme.surfaceContainerLowest : colorScheme.surface)
+            .withValues(alpha: isDark ? 0.94 : 0.96);
     final foreground = colorScheme.onSurface;
     final outline = colorScheme.outlineVariant;
+    final pageControlBackground = isDark
+        ? colorScheme.secondaryContainer
+        : colorScheme.primaryContainer;
+    final pageControlForeground = isDark
+        ? colorScheme.onSecondaryContainer
+        : colorScheme.onPrimaryContainer;
 
     return AnimatedPositioned(
       duration: const Duration(milliseconds: 180),
@@ -180,6 +188,8 @@ class _ReaderBottomBar extends StatelessWidget {
                           tooltip: 'Halaman sebelumnya',
                           onPressed: onPrevious,
                           icon: TonztoonIcons.chevronLeft,
+                          foreground: pageControlForeground,
+                          filledBackground: pageControlBackground,
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -205,6 +215,8 @@ class _ReaderBottomBar extends StatelessWidget {
                           tooltip: 'Halaman berikutnya',
                           onPressed: onNext,
                           icon: TonztoonIcons.chevronRight,
+                          foreground: pageControlForeground,
+                          filledBackground: pageControlBackground,
                         ),
                         const SizedBox(width: 8),
                         _ReaderIconControl(
@@ -235,6 +247,7 @@ class _ReaderIconControl extends StatelessWidget {
     required this.icon,
     this.outlined = false,
     this.foreground,
+    this.filledBackground,
     this.outline,
   });
 
@@ -243,6 +256,7 @@ class _ReaderIconControl extends StatelessWidget {
   final IconData icon;
   final bool outlined;
   final Color? foreground;
+  final Color? filledBackground;
   final Color? outline;
 
   @override
@@ -253,7 +267,11 @@ class _ReaderIconControl extends StatelessWidget {
             side: BorderSide(color: outline ?? Theme.of(context).dividerColor),
             fixedSize: const Size.square(48),
           )
-        : IconButton.styleFrom(fixedSize: const Size.square(48));
+        : IconButton.styleFrom(
+            backgroundColor: filledBackground,
+            foregroundColor: foreground,
+            fixedSize: const Size.square(48),
+          );
     final button = outlined
         ? IconButton.outlined(
             tooltip: tooltip,
@@ -290,13 +308,23 @@ class _AutoScrollFloatingControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final playBackground = isDark ? colorScheme.secondary : colorScheme.primary;
+    final playForeground = isDark ? Colors.white : colorScheme.onPrimary;
+    final settingsBackground = isDark
+        ? colorScheme.surfaceContainerLowest
+        : colorScheme.surfaceContainerHighest;
+    final settingsForeground = colorScheme.onSurface;
     final safeBottom = MediaQuery.paddingOf(context).bottom;
     final targetOpacity = visible ? (running ? 0.15 : 1.0) : 0.0;
+    final bottomOffset = controlsVisible ? 115 : 18;
     return AnimatedPositioned(
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOutCubic,
       right: 16,
-      bottom: safeBottom + (controlsVisible ? 98 : 18),
+      bottom: safeBottom + bottomOffset,
       child: IgnorePointer(
         ignoring: !visible,
         child: AnimatedOpacity(
@@ -313,6 +341,8 @@ class _AutoScrollFloatingControls extends StatelessWidget {
                   heroTag: 'reader-autoscroll-toggle',
                   tooltip: running ? 'Pause AutoScroll' : 'Play AutoScroll',
                   onPressed: running ? onPause : onPlay,
+                  backgroundColor: playBackground,
+                  foregroundColor: playForeground,
                   child: Icon(
                     running ? TonztoonIcons.pause : TonztoonIcons.play,
                   ),
@@ -322,6 +352,8 @@ class _AutoScrollFloatingControls extends StatelessWidget {
                   heroTag: 'reader-autoscroll-settings',
                   tooltip: 'Pengaturan AutoScroll',
                   onPressed: onOpenSettings,
+                  backgroundColor: settingsBackground,
+                  foregroundColor: settingsForeground,
                   child: const Icon(TonztoonIcons.settings2),
                 ),
               ],
@@ -345,7 +377,7 @@ class _BingeModeIndicator extends StatelessWidget {
       alignment: Alignment.center,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: colorScheme.tertiaryContainer.withValues(alpha: 0.82),
+          color: colorScheme.tertiaryContainer,
           borderRadius: BorderRadius.circular(99),
           border: Border.all(
             color: colorScheme.tertiary.withValues(alpha: 0.28),
