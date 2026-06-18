@@ -6,23 +6,37 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
-## [1.16.0] - 2026-06-17
+## [1.17.0] - 2026-06-18
 
 ### Added
+- Fitur pencarian komik (comic search) di backend beserta unit test untuk logika SQL pencariannya.
+- Tampilan pencarian komik di frontend beserta *search providers* dan state view model-nya.
+- Komponen UI baru yang *reusable* seperti `ColumnGrid`, `MetadataSeparator`, `AnimatedNotificationBell`, dan `DynamicBadgePalette` untuk meningkatkan estetika dan fleksibilitas layout.
+
+### Changed
+- Pembaruan tampilan dan layout di berbagai halaman utama aplikasi termasuk Home, Catalog, Library, Reader, Comic Detail, dan Settings.
+- Penyesuaian tema aplikasi (`app_theme.dart`) dan peningkatan komponen kartu komik (`ComicCard`, `ComicListCard`, `ComicBadges`) agar terlihat lebih modern.
+- Penyempurnaan pada dialog, filter, serta tag sumber untuk menyeragamkan bahasa desain.
+
+---
+
+<details>
+<summary><strong>Riwayat versi sebelumnya</strong></summary>
+
+### [1.16.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.16.0) - 2026-06-17
+
+#### Added
 - AutoScroll reader untuk mode vertical, lengkap dengan tombol play/pause mengambang dan pengaturan kecepatan baca.
 - Preferensi AutoScroll kini tersimpan di akun dan ikut tersinkron melalui reader preferences.
 - Fallback ZenRows untuk pengambilan gambar chapter Komiku Asia agar lazy/backfill image lebih andal pada deployment Hugging Face.
 
-### Changed
+#### Changed
 - Reader menunggu chapter berikutnya siap saat AutoScroll berjalan pada mode continuous reading.
 - Struktur frontend dipecah menjadi state, widget, helper, dan repository domain agar Auth, Catalog, Comic Detail, Home, Library, Notifications, Onboarding, Reader, Search, dan Settings lebih mudah dirawat.
 - Empty state, error state, edge fade, load-more footer, source tag, dan komponen kartu komik disatukan menjadi widget reusable.
 - Konfigurasi push remote, routing auth, Google auth, dan migrasi guest disesuaikan mengikuti struktur provider/repository baru.
 
 ---
-
-<details>
-<summary><strong>Riwayat versi sebelumnya</strong></summary>
 
 ### [1.15.3](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.15.3) - 2026-06-09
 

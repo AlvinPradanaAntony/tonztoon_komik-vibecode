@@ -22,6 +22,7 @@ import '../../widgets/app_error_state.dart';
 import '../../widgets/app_loading_placeholder.dart';
 import '../../widgets/comic_card.dart';
 import '../../widgets/comic_cover.dart';
+import '../../widgets/source_tag.dart';
 import '../../widgets/tonztoon_modal_dialog.dart';
 
 part 'models/comic_detail_view_models.dart';

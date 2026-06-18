@@ -247,16 +247,12 @@ class OfflineDownloadsPane extends ConsumerWidget {
           ],
         ],
         if (downloads.isNotEmpty) ...[
-          const _SubHeader(title: 'Wishlist offline'),
-          const SizedBox(height: 8),
-          for (final group in downloadGroups) ...[
-            _DownloadEntryGroupTile(
-              group: group,
-              localKeys: localKeys,
-              allowDelete: allowDelete,
-            ),
-            const SizedBox(height: 12),
-          ],
+          _WishlistOfflineSection(
+            groups: downloadGroups,
+            localKeys: localKeys,
+            allowDelete: allowDelete,
+          ),
+          const SizedBox(height: 12),
         ],
       ],
       const _OfflineHint(),

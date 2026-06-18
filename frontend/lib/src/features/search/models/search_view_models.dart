@@ -13,6 +13,7 @@ class _SearchComicUi {
     required this.description,
     required this.updateRank,
     required this.popularityRank,
+    required this.totalViewRank,
   });
 
   factory _SearchComicUi.fromSummary(ComicSummary summary) {
@@ -40,6 +41,7 @@ class _SearchComicUi {
           'Komik dari $source dengan pembaruan chapter dan informasi katalog terbaru.',
       updateRank: chapterNumber?.round() ?? totalView,
       popularityRank: totalView > 0 ? totalView : (ratingValue * 1000).round(),
+      totalViewRank: totalView,
     );
   }
 
@@ -54,6 +56,7 @@ class _SearchComicUi {
   final String description;
   final int updateRank;
   final int popularityRank;
+  final int totalViewRank;
 
   double get ratingValue => double.tryParse(rating) ?? 0;
 }

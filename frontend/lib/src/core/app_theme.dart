@@ -58,6 +58,10 @@ class TonztoonTheme {
     required Color mutedText,
     required Color outline,
   }) {
+    final primaryContainer = _softContainer(_primary, surface);
+    final secondaryContainer = _softContainer(_secondary, surface);
+    final tertiaryContainer = _softContainer(_tertiary, surface);
+
     // Membuat ColorScheme berdasarkan warna utama (_primary)
     final scheme =
         ColorScheme.fromSeed(
@@ -67,7 +71,15 @@ class TonztoonTheme {
           primary: _primary,
           secondary: _secondary,
           tertiary: _tertiary,
+          primaryContainer: primaryContainer,
+          onPrimaryContainer: _onSoftContainer(_primary, text),
+          secondaryContainer: secondaryContainer,
+          onSecondaryContainer: _onSoftContainer(_secondary, text),
+          tertiaryContainer: tertiaryContainer,
+          onTertiaryContainer: _onSoftContainer(_tertiary, text),
           surface: surface,
+          onSurface: text,
+          onSurfaceVariant: mutedText,
           surfaceContainerLowest: background,
           surfaceContainerLow: surface,
           surfaceContainer: surfaceHigh,
@@ -217,7 +229,36 @@ class TonztoonTheme {
         ),
       ),
 
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return scheme.onPrimary;
+          }
+          return scheme.onSurfaceVariant;
+        }),
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return scheme.primary;
+          }
+          return scheme.surfaceContainerHighest;
+        }),
+        trackOutlineColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return Colors.transparent;
+          }
+          return scheme.outlineVariant;
+        }),
+      ),
+
       progressIndicatorTheme: const ProgressIndicatorThemeData(color: _primary),
     );
+  }
+
+  static Color _softContainer(Color accent, Color surface) {
+    return Color.lerp(accent, surface, 0.82)!;
+  }
+
+  static Color _onSoftContainer(Color accent, Color text) {
+    return Color.lerp(accent, text, 0.42)!;
   }
 }

@@ -54,6 +54,95 @@ void main() {
     expect(release.releaseNotes, 'New reader controls');
   });
 
+  test('limits release notes to the matching current version section', () {
+    final release = AppRelease.fromJson(const {
+      'tag_name': 'v1.12.0',
+      'body': '''
+# Changelog
+
+## v1.12.0
+
+- Auto scroll reader
+- Source tag polish
+
+## v1.11.0
+
+- Older reader update
+
+## v1.10.0
+
+- Older catalog update
+''',
+      'html_url': 'https://github.test/releases/tag/v1.12.0',
+      'assets': <dynamic>[],
+    });
+
+    expect(release.releaseNotes, contains('## v1.12.0'));
+    expect(release.releaseNotes, contains('Auto scroll reader'));
+    expect(release.releaseNotes, isNot(contains('## v1.11.0')));
+    expect(release.releaseNotes, isNot(contains('Older reader update')));
+  });
+
+  test('limits release notes to the first version section as fallback', () {
+    final release = AppRelease.fromJson(const {
+      'tag_name': 'v1.12.0',
+      'body': '''
+# Changelog
+
+## 2026.06.18
+
+- Latest app update
+
+## 2026.06.01
+
+- Older app update
+''',
+      'html_url': 'https://github.test/releases/tag/v1.12.0',
+      'assets': <dynamic>[],
+    });
+
+    expect(release.releaseNotes, contains('## 2026.06.18'));
+    expect(release.releaseNotes, contains('Latest app update'));
+    expect(release.releaseNotes, isNot(contains('Older app update')));
+  });
+
+  test('excludes previous version details from current changelog section', () {
+    final release = AppRelease.fromJson(const {
+      'tag_name': 'v1.16.0',
+      'body': '''
+# Changelog
+
+Semua perubahan penting pada proyek TonzToon.
+
+## [1.16.0] - 2026-06-17
+
+### Added
+- AutoScroll reader.
+
+### Changed
+- Reader polish.
+
+---
+
+<details>
+<summary><strong>Riwayat versi sebelumnya</strong></summary>
+
+### [1.15.3] - 2026-06-09
+
+- Older update.
+</details>
+''',
+      'html_url': 'https://github.test/releases/tag/v1.16.0',
+      'assets': <dynamic>[],
+    });
+
+    expect(release.releaseNotes, contains('## [1.16.0]'));
+    expect(release.releaseNotes, contains('AutoScroll reader'));
+    expect(release.releaseNotes, isNot(contains('Riwayat versi sebelumnya')));
+    expect(release.releaseNotes, isNot(contains('Older update')));
+    expect(release.releaseNotes, isNot(contains('Semua perubahan penting')));
+  });
+
   test(
     'shows pending changelog once after installed version changes',
     () async {

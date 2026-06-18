@@ -263,9 +263,43 @@ class CatalogRepository {
     }
   }
 
-  Future<List<ComicSummary>> search(String query) async {
-    if (query.trim().isEmpty) return const [];
-    return _getComicList('/search', queryParameters: {'q': query.trim()});
+  Future<SourceComicPage> search(
+    String query, {
+    int page = 1,
+    int pageSize = 20,
+  }) async {
+    final trimmedQuery = query.trim();
+    if (trimmedQuery.isEmpty) {
+      return const SourceComicPage(
+        items: [],
+        total: 0,
+        page: 0,
+        pageSize: 0,
+        totalPages: 0,
+      );
+    }
+
+    final queryParameters = {
+      'q': trimmedQuery,
+      'page': page,
+      'page_size': pageSize,
+    };
+    final cacheKey = 'comic-search|/search|$queryParameters';
+    try {
+      final response = await _api.get<Map<String, dynamic>>(
+        '/search',
+        queryParameters: queryParameters,
+      );
+      final data = response.data ?? const {};
+      await _store.cache.put(cacheKey, data);
+      return SourceComicPage.fromJson(data);
+    } catch (_) {
+      final cached = _store.cache.get(cacheKey);
+      if (cached is Map) {
+        return SourceComicPage.fromJson(Map<String, dynamic>.from(cached));
+      }
+      rethrow;
+    }
   }
 
   Future<List<ComicSummary>> _getComicList(

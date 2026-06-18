@@ -4,19 +4,19 @@ Frontend TonzToon adalah aplikasi Flutter untuk membaca komik multi-source dari 
 
 ## 1. Stack
 
-| Area | Package |
-|---|---|
-| State | `flutter_riverpod` |
-| Routing | `go_router` |
-| HTTP | `dio` |
-| Local database | `hive`, `hive_flutter` |
-| Token storage | `flutter_secure_storage` |
-| Image cache | `cached_network_image`, `flutter_cache_manager` |
-| UI | `lucide_icons_flutter`, `flutter_svg`, `shimmer`, `awesome_snackbar_content` |
-| Notifications | `flutter_local_notifications` |
-| Files/offline | `path_provider` |
-| Profile media | `image_picker`, `image`, `image_cropper` |
-| Auth provider | `google_sign_in` |
+| Area           | Package                                                                      |
+| -------------- | ---------------------------------------------------------------------------- |
+| State          | `flutter_riverpod`                                                           |
+| Routing        | `go_router`                                                                  |
+| HTTP           | `dio`                                                                        |
+| Local database | `hive`, `hive_flutter`                                                       |
+| Token storage  | `flutter_secure_storage`                                                     |
+| Image cache    | `cached_network_image`, `flutter_cache_manager`                              |
+| UI             | `lucide_icons_flutter`, `flutter_svg`, `shimmer`, `awesome_snackbar_content` |
+| Notifications  | `flutter_local_notifications`                                                |
+| Files/offline  | `path_provider`                                                              |
+| Profile media  | `image_picker`, `image`, `image_cropper`                                     |
+| Auth provider  | `google_sign_in`                                                             |
 
 ## 2. Struktur Direktori
 
@@ -73,27 +73,27 @@ Routing terpusat di `src/routing/app_router.dart` dengan `GoRouter`.
 
 Route utama:
 
-| Route | Screen |
-|---|---|
-| `/splash` | Splash |
-| `/onboarding` | Onboarding |
-| `/` | Home |
-| `/catalog` | Full catalog |
-| `/search` | Search |
-| `/library` | Library tab utama |
-| `/library?tab=collections` | Tab collections |
-| `/library?tab=scenes` | Tab favorite scenes |
-| `/library?tab=history` | Tab history |
-| `/library?tab=downloads` | Tab downloads |
-| `/library/continue-reading` | Continue reading full page |
-| `/settings` | Settings |
-| `/auth` | Auth |
-| `/auth/forgot-password` | Forgot password |
-| `/auth/callback` dan `/callback` | Email/auth callback |
-| `/auth/reset-password` dan `/reset-password` | Reset password |
-| `/notifications` | Notifications |
-| `/comic/:source/:slug` | Comic detail |
-| `/reader/:source/:slug/:chapter` | Reader |
+| Route                                        | Screen                     |
+| -------------------------------------------- | -------------------------- |
+| `/splash`                                    | Splash                     |
+| `/onboarding`                                | Onboarding                 |
+| `/`                                          | Home                       |
+| `/catalog`                                   | Full catalog               |
+| `/search`                                    | Search                     |
+| `/library`                                   | Library tab utama          |
+| `/library?tab=collections`                   | Tab collections            |
+| `/library?tab=scenes`                        | Tab favorite scenes        |
+| `/library?tab=history`                       | Tab history                |
+| `/library?tab=downloads`                     | Tab downloads              |
+| `/library/continue-reading`                  | Continue reading full page |
+| `/settings`                                  | Settings                   |
+| `/auth`                                      | Auth                       |
+| `/auth/forgot-password`                      | Forgot password            |
+| `/auth/callback` dan `/callback`             | Email/auth callback        |
+| `/auth/reset-password` dan `/reset-password` | Reset password             |
+| `/notifications`                             | Notifications              |
+| `/comic/:source/:slug`                       | Comic detail               |
+| `/reader/:source/:slug/:chapter`             | Reader                     |
 
 `StatefulShellRoute.indexedStack` menjaga state tab utama: home, catalog, search, library, settings.
 
@@ -101,14 +101,14 @@ Route utama:
 
 Repository penting:
 
-| Repository | Fungsi |
-|---|---|
-| `AuthRepository` | restore/login/register/google/refresh-aware session, profile, avatar, logout |
-| `CatalogRepository` | source, katalog, latest/popular, detail, chapter list |
-| `ProgressRepository` | continue reading, progress lokal, queue sync progress ke cloud |
-| `LibraryRepository` | summary, bookmark, collection, favorite scene, history, downloads, preferences, reading time, migration |
-| `OfflineRepository` | file offline lokal |
-| `NotificationRepository` | notifikasi internal sync/download |
+| Repository               | Fungsi                                                                                                  |
+| ------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `AuthRepository`         | restore/login/register/google/refresh-aware session, profile, avatar, logout                            |
+| `CatalogRepository`      | source, katalog, latest/popular, detail, chapter list                                                   |
+| `ProgressRepository`     | continue reading, progress lokal, queue sync progress ke cloud                                          |
+| `LibraryRepository`      | summary, bookmark, collection, favorite scene, history, downloads, preferences, reading time, migration |
+| `OfflineRepository`      | file offline lokal                                                                                      |
+| `NotificationRepository` | notifikasi internal sync/download                                                                       |
 
 Provider Riverpod berada terutama di `repositories/providers.dart` dan menghubungkan UI dengan repository.
 
@@ -152,26 +152,30 @@ Flow callback:
 - `/auth/callback` dan `/callback` menerima email verification atau callback auth.
 - `/auth/reset-password` dan `/reset-password` menangani recovery/reset password.
 
-## 8. Local-first Library
+## 8. Local-first Library & Status Implementasi
 
-Data guest tersimpan di Hive. Setelah user login, repository memakai pola:
+Data guest tersimpan di Hive. Setelah user login, repository memakai pola sinkronisasi dengan cloud. Namun, status implementasi _local-first_ pada mode _auth_ (login) belum diterapkan di semua fitur.
 
-1. Render dari cache lokal user-scoped jika ada.
-2. Refresh dari endpoint backend di background atau saat halaman butuh pagination.
-3. Simpan response remote ke cache lokal.
-4. Queue update user action ke backend.
+Berikut rincian status penerapan _local-first_ (UI langsung diperbarui berdasarkan data lokal, API bekerja di latar) pada mode _auth_:
 
-Domain yang disimpan/sinkron:
+**Fitur dengan pendekatan Local-First:**
 
-- Progress dan completed chapters.
-- Continue reading.
-- Bookmarks.
-- Collections.
-- Favorite scenes.
-- History.
-- Download intent/status.
-- Reader preferences.
-- Reading time.
+- **Reading Progress** (`progress_repository.dart`): Data selalu ditulis ke cache Hive. Jika _auth_, progres masuk queue untuk _sync_ API di latar. Bila _sync_ gagal, UI tetap menggunakan data lokal dengan peringatan.
+- **Continue Reading** (`progress_repository.dart`): Mendapatkan _cache_ lokal _authenticated_ secara cepat, proses _refresh_ dari cloud diproses di latar belakang.
+- **Reading Time** (`providers.dart`): Durasi tambahan disimpan ke _local state_, dan dikirim ke _cloud background_ sebagai _pending delta_.
+- **Reader Preferences** (`library_repository.dart`): Menyimpan data persistensi lokal _Hive_ lebih dulu sebelum _sync_ API (meskipun fungsinya masih menunggu respons API untuk _return final value_).
+
+**Fitur dengan pendekatan Server-First:**
+
+- Bookmark (_toggle_ & daftar)
+- Ringkasan Library (_Library summary_)
+- Collections
+- Favorite scenes
+- History
+- Unduhan (_Downloads wishlist_ & status)
+- Aksi hapus/perbarui pustaka (_Library actions_)
+
+*(Catatan: `getComicState()` masih mengambil dari *server* lebih dulu, lalu menggabungkannya (*merge*) dengan data progres/historis lokal sebagai *fallback* bila API gagal).*
 
 Migrasi guest memakai `POST /library/sync/import`. Dialog migrasi menghitung data lokal seperti bookmark, collection, progress, favorite scenes, downloads, dan reading time.
 

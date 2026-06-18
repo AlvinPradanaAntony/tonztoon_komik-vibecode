@@ -11,6 +11,7 @@ class AppSurfaceInk extends StatelessWidget {
     this.boxShadow,
     this.elevation = 0,
     this.shadowColor,
+    this.color,
   });
 
   final Widget child;
@@ -21,6 +22,7 @@ class AppSurfaceInk extends StatelessWidget {
   final List<BoxShadow>? boxShadow;
   final double elevation;
   final Color? shadowColor;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +32,7 @@ class AppSurfaceInk extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(borderRadius: radius, boxShadow: boxShadow),
       child: Material(
-        color: colorScheme.surface,
+        color: color ?? colorScheme.surface,
         elevation: elevation,
         shadowColor: shadowColor,
         borderRadius: radius,

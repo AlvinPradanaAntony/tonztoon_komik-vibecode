@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../helpers/app_icons.dart';
+import '../helpers/dynamic_badge_palette.dart';
 import '../models/comic.dart';
 import 'app_loading_placeholder.dart';
 import 'comic_cover.dart';
+import 'metadata_separator.dart';
 
 part 'comic_card/comic_list_card.dart';
 part 'comic_card/comic_card_shimmers.dart';
@@ -48,6 +50,7 @@ class _ComicCardState extends State<ComicCard> {
     final source = widget.source ?? comicSourceLabel(widget.comic);
     final ratingLabel =
         widget.rating ?? widget.comic.rating?.toStringAsFixed(1);
+    final showNewBadge = widget.showNewBadge && widget.comic.hasNewChapter();
 
     // MouseRegion untuk mendeteksi kursor mouse (berguna di Desktop/Web)
     return MouseRegion(
@@ -74,6 +77,7 @@ class _ComicCardState extends State<ComicCard> {
               child: SizedBox(
                 width: widget.width,
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     DecoratedBox(
@@ -89,58 +93,90 @@ class _ComicCardState extends State<ComicCard> {
                           ),
                         ],
                       ),
-                      child: AspectRatio(
-                        aspectRatio: 2 / 3,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            ComicCover(
-                              imageUrl: widget.comic.coverImageUrl,
-                              borderRadius: 12,
-                            ),
-                            Positioned(
-                              left: 8,
-                              top: 8,
-                              child: ComicSourceBadge(label: source),
-                            ),
-                            if (widget.comic.type != null)
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: AspectRatio(
+                          aspectRatio: 2 / 3,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              ComicCover(
+                                imageUrl: widget.comic.coverImageUrl,
+                                borderRadius: 0,
+                              ),
                               Positioned(
-                                right: 8,
+                                left: 8,
                                 top: 8,
-                                child: ComicTypeFlagBadge(
-                                  type: widget.comic.type!,
+                                right: widget.comic.type == null ? 8 : 44,
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: ComicSourceBadge(label: source),
                                 ),
                               ),
-                            if (widget.showNewBadge &&
-                                widget.comic.hasNewChapter())
-                              const Positioned(
-                                right: 8,
-                                bottom: 8,
-                                child: ComicNewBadge(),
-                              ),
-                            if (chapterNumber != null)
-                              Positioned(
-                                key: const ValueKey(
-                                  'comic-grid-latest-chapter-position',
+                              if (widget.comic.type != null)
+                                Positioned(
+                                  right: 8,
+                                  top: 8,
+                                  child: ComicTypeFlagBadge(
+                                    type: widget.comic.type!,
+                                  ),
                                 ),
-                                left: 0,
-                                bottom: 0,
-                                child: _ComicGridLatestChapterBadge(
-                                  chapterNumber: chapterNumber,
+                              if (showNewBadge && chapterNumber == null)
+                                Positioned(
+                                  right: 8,
+                                  bottom: 8,
+                                  child: const ComicNewBadge(),
                                 ),
-                              ),
-                          ],
+                              if (chapterNumber != null && !showNewBadge)
+                                Positioned(
+                                  key: const ValueKey(
+                                    'comic-grid-latest-chapter-position',
+                                  ),
+                                  left: 0,
+                                  bottom: 0,
+                                  child: _ComicGridLatestChapterBadge(
+                                    chapterNumber: chapterNumber,
+                                  ),
+                                ),
+                              if (chapterNumber != null && showNewBadge)
+                                Positioned(
+                                  key: const ValueKey(
+                                    'comic-grid-latest-chapter-new-group',
+                                  ),
+                                  left: 0,
+                                  right: 0,
+                                  bottom: 0,
+                                  child: Align(
+                                    alignment: Alignment.bottomLeft,
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: Alignment.bottomLeft,
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
+                                        children: [
+                                          _ComicGridLatestChapterBadge(
+                                            chapterNumber: chapterNumber,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          const ComicNewBadge(),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                     const SizedBox(height: 9),
-                    Flexible(
-                      child: Text(
-                        widget.comic.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelLarge,
-                      ),
+                    Text(
+                      widget.comic.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelLarge,
                     ),
                     const SizedBox(height: 6),
                     Row(
@@ -254,9 +290,9 @@ class _ComicGridLatestChapterClipper extends CustomClipper<Path> {
 
   @override
   Path getClip(Size size) {
-    const topLeftRadius = 12.0;
+    const topLeftRadius = 18.0;
     const bottomRightRadius = 12.0;
-    const tail = 15.0;
+    const tail = 22.0;
     final diagonalBottomX = size.width - tail;
 
     return Path()

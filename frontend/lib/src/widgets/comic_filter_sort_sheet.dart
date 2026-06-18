@@ -78,17 +78,30 @@ abstract final class ComicFilterOption {
 abstract final class ComicSortOption {
   static const updateNewest = 'Update Terbaru';
   static const popular = 'Populer';
+  static const totalViewHigh = 'Total View Tertinggi';
   static const az = 'A-Z';
   static const za = 'Z-A';
   static const ratingHigh = 'Rating Tinggi';
   static const relevance = 'Relevansi';
 
-  static const values = [relevance, updateNewest, popular, az, za, ratingHigh];
+  static const values = [
+    relevance,
+    updateNewest,
+    popular,
+    totalViewHigh,
+    az,
+    za,
+    ratingHigh,
+  ];
 
   static String normalize(String value) {
     return switch (value.trim().toLowerCase()) {
       'update terbaru' => updateNewest,
       'paling populer' || 'populer' => popular,
+      'total view tertinggi' ||
+      'view tertinggi' ||
+      'total_view' ||
+      'total_view_high' => totalViewHigh,
       'a-z' => az,
       'z-a' => za,
       'rating tinggi' => ratingHigh,
@@ -178,7 +191,7 @@ class ComicActiveFilterStrip extends StatelessWidget {
 Future<ComicFilterSortState?> showComicFilterSortSheet({
   required BuildContext context,
   required ComicFilterSortState initialState,
-  String title = 'Filter dan Sorting',
+  String title = 'Filter & Sorting',
   String description =
       'Atur komik berdasarkan sumber, tipe, status, genre, dan urutan.',
   String resetSort = ComicSortOption.relevance,
@@ -322,7 +335,7 @@ class _ComicFilterSortSheetState extends State<ComicFilterSortSheet> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
               child: Row(
                 children: [
                   Expanded(

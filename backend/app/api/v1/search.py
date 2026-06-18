@@ -6,13 +6,14 @@ Endpoints:
 """
 
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload, selectinload
 
 from app.database import get_db
 from app.models import Chapter, Comic
-from app.schemas import GenreResponse, SourceComicListItem
+from app.schemas import GenreResponse, SourceComicListItem, SourceComicListResponse
+from app.services.comic_search import comic_search_filter, comic_search_order
 from app.services.image_service import build_proxy_image_url
 
 router = APIRouter()
@@ -35,7 +36,7 @@ def _build_source_comic_detail_url(source_name: str, slug: str) -> str:
     return f"/api/v1/sources/{source_name}/comics/{slug}"
 
 
-@router.get("", response_model=list[SourceComicListItem])
+@router.get("", response_model=SourceComicListResponse)
 async def search_comics(
     request: Request,
     q: str = Query(..., min_length=1, max_length=200, description="Search query"),
@@ -47,19 +48,17 @@ async def search_comics(
     Cari komik berdasarkan keyword.
     Mencari di kolom title dan alternative_titles.
     """
-    search_pattern = f"%{q}%"
+    base_query = select(Comic).where(comic_search_filter(q))
+    count_stmt = select(func.count()).select_from(base_query.subquery())
+    total = (await db.execute(count_stmt)).scalar() or 0
     offset = (page - 1) * page_size
 
     stmt = (
-        select(Comic, _latest_chapter_number_subq.label("latest_chapter_number"))
-        .options(selectinload(Comic.genres), noload(Comic.chapters))
-        .where(
-            or_(
-                Comic.title.ilike(search_pattern),
-                Comic.alternative_titles.ilike(search_pattern),
-            )
+        base_query.add_columns(
+            _latest_chapter_number_subq.label("latest_chapter_number")
         )
-        .order_by(Comic.title)
+        .options(selectinload(Comic.genres), noload(Comic.chapters))
+        .order_by(*comic_search_order(q))
         .offset(offset)
         .limit(page_size)
     )
@@ -67,28 +66,38 @@ async def search_comics(
     rows = result.unique().all()
     base_url = str(request.base_url).rstrip("/")
 
-    return [
-        SourceComicListItem(
-            title=comic.title,
-            slug=comic.slug,
-            source_name=comic.source_name,
-            cover_image_url=build_proxy_image_url(
-                comic.cover_image_url,
-                base_url=base_url,
-            ),
-            status=comic.status,
-            type=comic.type,
-            rating=comic.rating,
-            total_view=comic.total_view,
-            genres=[
-                GenreResponse(id=genre.id, name=genre.name, slug=genre.slug)
-                for genre in comic.genres
-            ],
-            latest_chapter_number=latest_chapter_number,
-            detail_url=_build_absolute_url(
-                request,
-                _build_source_comic_detail_url(comic.source_name, comic.slug),
-            ),
-        )
-        for comic, latest_chapter_number in rows
-    ]
+    total_pages = (total + page_size - 1) // page_size
+    return SourceComicListResponse(
+        items=[
+            SourceComicListItem(
+                title=comic.title,
+                slug=comic.slug,
+                source_name=comic.source_name,
+                cover_image_url=build_proxy_image_url(
+                    comic.cover_image_url,
+                    base_url=base_url,
+                ),
+                status=comic.status,
+                type=comic.type,
+                rating=comic.rating,
+                total_view=comic.total_view,
+                genres=[
+                    GenreResponse(id=genre.id, name=genre.name, slug=genre.slug)
+                    for genre in comic.genres
+                ],
+                latest_chapter_number=latest_chapter_number,
+                detail_url=_build_absolute_url(
+                    request,
+                    _build_source_comic_detail_url(
+                        comic.source_name,
+                        comic.slug,
+                    ),
+                ),
+            )
+            for comic, latest_chapter_number in rows
+        ],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
+    )

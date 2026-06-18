@@ -143,46 +143,66 @@ class _OfflineChapterTile extends ConsumerWidget {
       showBorder: false,
       elevation: 1.5,
       shadowColor: Colors.black.withValues(alpha: 0.05),
-      child: Row(
-        children: [
-          ComicCover(
-            imageUrl: chapter.comic.coverImageUrl,
-            width: 58,
-            height: 82,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  chapter.comic.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium,
-                ),
-                const SizedBox(height: 5),
-                ready
-                    ? _OfflineReadyBadge(
-                        label:
-                            'Ch ${formatChapterNumber(chapter.chapterNumber)} tersedia offline',
-                      )
-                    : Text(
-                        '${chapter.status} - Ch ${formatChapterNumber(chapter.chapterNumber)}',
-                        style: theme.textTheme.bodySmall,
-                      ),
-              ],
+      padding: EdgeInsets.zero,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.horizontal(
+                right: Radius.circular(14),
+              ),
+              child: ComicCover(
+                imageUrl: chapter.comic.coverImageUrl,
+                width: 58,
+                height: 82,
+                borderRadius: 0,
+              ),
             ),
-          ),
-          if (allowDelete)
-            IconButton(
-              tooltip: 'Hapus file offline',
-              onPressed: () => _deleteOfflineChapter(context, ref),
-              icon: const Icon(TonztoonIcons.trash),
-            )
-          else
-            const Icon(TonztoonIcons.chevronRight),
-        ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      chapter.comic.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 5),
+                    ready
+                        ? _OfflineReadyBadge(
+                            label:
+                                'Ch ${formatChapterNumber(chapter.chapterNumber)} tersedia offline',
+                          )
+                        : Text(
+                            '${chapter.status} - Ch ${formatChapterNumber(chapter.chapterNumber)}',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            if (allowDelete)
+              Center(
+                child: IconButton(
+                  tooltip: 'Hapus file offline',
+                  onPressed: () => _deleteOfflineChapter(context, ref),
+                  icon: const Icon(TonztoonIcons.trash),
+                ),
+              )
+            else
+              const Center(
+                child: Icon(TonztoonIcons.chevronRight),
+              ),
+            const SizedBox(width: 12),
+          ],
+        ),
       ),
     );
   }
@@ -258,34 +278,52 @@ class _OfflineChapterGroupTile extends StatelessWidget {
       showBorder: false,
       elevation: 1.5,
       shadowColor: Colors.black.withValues(alpha: 0.05),
-      child: Row(
-        children: [
-          ComicCover(
-            imageUrl: group.comic.coverImageUrl,
-            width: 58,
-            height: 82,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  group.comic.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium,
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  '$readyCount/$chapterCount chapter tersedia offline',
-                  style: theme.textTheme.bodySmall,
-                ),
-              ],
+      padding: EdgeInsets.zero,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.horizontal(
+                right: Radius.circular(14),
+              ),
+              child: ComicCover(
+                imageUrl: group.comic.coverImageUrl,
+                width: 58,
+                height: 82,
+                borderRadius: 0,
+              ),
             ),
-          ),
-          const Icon(TonztoonIcons.chevronRight),
-        ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      group.comic.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      '$readyCount/$chapterCount chapter tersedia offline',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Center(
+              child: Icon(TonztoonIcons.chevronRight),
+            ),
+            const SizedBox(width: 12),
+          ],
+        ),
       ),
     );
   }

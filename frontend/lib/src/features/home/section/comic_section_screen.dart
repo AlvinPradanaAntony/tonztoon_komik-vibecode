@@ -15,6 +15,7 @@ import '../../../widgets/app_loading_placeholder.dart';
 import '../../../widgets/comic_card.dart';
 import '../../../widgets/comic_filter_sort_sheet.dart';
 import '../../../widgets/load_more_footer.dart';
+import '../../../widgets/column_grid.dart';
 
 class ComicSectionPayload {
   const ComicSectionPayload({
@@ -654,15 +655,11 @@ class _SectionGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SliverGrid(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 14,
-        crossAxisSpacing: 12,
-        childAspectRatio: 0.47,
-      ),
-      delegate: SliverChildBuilderDelegate((context, index) {
-        final comic = comics[index];
+    return AppSliverColumnGrid<ComicSummary>(
+      items: comics,
+      minColumnWidth: 104,
+      maxColumnCount: 6,
+      itemBuilder: (context, comic) {
         return ComicCard(
           comic: comic,
           source: comicSourceNameLabel(comic.sourceName),
@@ -670,7 +667,7 @@ class _SectionGrid extends StatelessWidget {
           showNewBadge: showNewBadges,
           onTap: () => onTap(comic),
         );
-      }, childCount: comics.length),
+      },
     );
   }
 }

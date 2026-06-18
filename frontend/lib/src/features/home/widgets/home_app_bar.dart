@@ -124,7 +124,7 @@ class _GuestModeChip extends StatelessWidget {
       child: ExcludeSemantics(
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: colorScheme.primaryContainer.withValues(alpha: 0.72),
+            color: colorScheme.primaryContainer,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: colorScheme.primary.withValues(alpha: 0.18),
@@ -159,7 +159,7 @@ class _NotificationBellBadge extends StatelessWidget {
       label: Text(count > 99 ? '99+' : '$count'),
       alignment: Alignment.topRight,
       offset: const Offset(4, -4),
-      child: const Icon(TonztoonIcons.bell),
+      child: AnimatedNotificationBell(active: count > 0),
     );
   }
 }

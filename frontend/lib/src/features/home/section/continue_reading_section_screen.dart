@@ -14,6 +14,8 @@ import '../../../widgets/app_error_state.dart';
 import '../../../widgets/app_loading_placeholder.dart';
 import '../../../widgets/comic_cover.dart';
 import '../../../widgets/load_more_footer.dart';
+import '../../../widgets/metadata_separator.dart';
+import '../../../widgets/source_tag.dart';
 
 class ContinueReadingSectionPayload {
   const ContinueReadingSectionPayload({required this.items});
@@ -434,11 +436,29 @@ class _ProgressSectionTile extends StatelessWidget {
                       style: theme.textTheme.titleMedium,
                     ),
                     const SizedBox(height: 5),
-                    Text(
-                      'Chapter ${formatChapterNumber(item.chapterNumber)}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
+                    Row(
+                      children: [
+                        Flexible(
+                          fit: FlexFit.loose,
+                          child: Text(
+                            'Chapter ${formatChapterNumber(item.chapterNumber)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        MetadataSeparator(
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        SourceTag(sourceName: item.sourceName),
+                      ],
                     ),
                     const SizedBox(height: 9),
                     LinearProgressIndicator(

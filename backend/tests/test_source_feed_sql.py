@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
 from app.api.v1.sources import (
+    _apply_source_comic_sort,
     _latest_feed_order,
     _popular_feed_order,
     _top_ranking_order,
@@ -63,6 +64,21 @@ class SourceFeedSqlTests(unittest.TestCase):
             .order_by(*_top_ranking_order())
             .limit(10)
         )
+        self.assertIn(
+            "ORDER BY comics.total_view DESC NULLS LAST, "
+            "comics.rating DESC NULLS LAST, comics.title ASC, comics.id ASC",
+            sql,
+        )
+        self.assertNotIn("chapters", sql)
+
+    def test_total_view_sort_orders_catalog_by_highest_views(self):
+        sql = compile_sql(
+            _apply_source_comic_sort(
+                select(Comic.id).where(Comic.source_name == "komikcast"),
+                "total_view",
+            ).limit(20)
+        )
+
         self.assertIn(
             "ORDER BY comics.total_view DESC NULLS LAST, "
             "comics.rating DESC NULLS LAST, comics.title ASC, comics.id ASC",

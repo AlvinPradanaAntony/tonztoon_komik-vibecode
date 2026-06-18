@@ -73,25 +73,6 @@ String _capitalizeBadgeWord(String value) {
   return value[0].toUpperCase() + value.substring(1).toLowerCase();
 }
 
-Color comicGenreColor(String genre) {
-  return switch (genre.toLowerCase()) {
-    'action' => const Color(0xFFE11D48),
-    'adventure' => const Color(0xFF2563EB),
-    'fantasy' => const Color(0xFF7C3AED),
-    'drama' => const Color(0xFFDB2777),
-    'system' => const Color(0xFF0891B2),
-    'comedy' => const Color(0xFFF59E0B),
-    'shounen' => const Color(0xFFEA580C),
-    'apocalypse' => const Color(0xFF475569),
-    'psychological' => const Color(0xFF9333EA),
-    'supernatural' => const Color(0xFF059669),
-    'swordplay' => const Color(0xFFDC2626),
-    'sports' => const Color(0xFF16A34A),
-    'romance' => const Color(0xFFEC4899),
-    _ => const Color(0xFF3A86FF),
-  };
-}
-
 ComicStatusStyle comicStatusStyle(ColorScheme colorScheme, String status) {
   final normalized = status.trim().toLowerCase();
   return switch (normalized) {

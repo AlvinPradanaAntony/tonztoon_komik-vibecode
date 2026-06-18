@@ -86,7 +86,7 @@ class AppRelease {
 
   String get releaseNotes => description.isEmpty
       ? 'Pembaruan ini membawa perbaikan bug dan peningkatan performa.'
-      : description;
+      : _currentVersionReleaseNotes(description, version, tagName);
 
   Map<String, dynamic> toStoredJson() => {
     'tag_name': tagName,
@@ -96,6 +96,133 @@ class AppRelease {
     'apk_download_url': apkDownloadUrl,
     'ios_artifact_download_url': iosArtifactDownloadUrl,
   };
+}
+
+String _currentVersionReleaseNotes(
+  String description,
+  Version version,
+  String tagName,
+) {
+  final normalizedDescription = description.trim();
+  if (normalizedDescription.isEmpty) {
+    return 'Pembaruan ini membawa perbaikan bug dan peningkatan performa.';
+  }
+
+  final lines = normalizedDescription.split(RegExp(r'\r?\n'));
+  final headings = _markdownHeadings(lines);
+  if (headings.isEmpty) return normalizedDescription;
+
+  final labels = _versionLabels(version, tagName);
+  final matchingHeading = headings.firstWhere(
+    (heading) => labels.any((label) => _headingMentionsVersion(heading, label)),
+    orElse: () => const _MarkdownHeading.none(),
+  );
+  if (matchingHeading.exists) {
+    return _sectionForHeading(lines, headings, matchingHeading);
+  }
+
+  final firstVersionHeading = headings.firstWhere(
+    (heading) => _semverPattern.hasMatch(heading.normalizedTitle),
+    orElse: () => const _MarkdownHeading.none(),
+  );
+  if (firstVersionHeading.exists) {
+    return _sectionForHeading(lines, headings, firstVersionHeading);
+  }
+
+  return normalizedDescription;
+}
+
+List<String> _versionLabels(Version version, String tagName) {
+  final labels = <String>{
+    version.toString(),
+    'v$version',
+    version.canonicalizedVersion,
+    'v${version.canonicalizedVersion}',
+    tagName.trim(),
+  };
+
+  return labels
+      .where((label) => label.isNotEmpty)
+      .map(_normalizeVersionText)
+      .where((label) => label.isNotEmpty)
+      .toList();
+}
+
+String _sectionForHeading(
+  List<String> lines,
+  List<_MarkdownHeading> headings,
+  _MarkdownHeading heading,
+) {
+  var endLine = lines.length;
+  for (var index = heading.line + 1; index < lines.length; index++) {
+    final line = lines[index].trim().toLowerCase();
+    if (line == '---' ||
+        line.startsWith('<details') ||
+        line.startsWith('<summary')) {
+      endLine = index;
+      break;
+    }
+  }
+
+  for (final nextHeading in headings) {
+    if (nextHeading.line <= heading.line) continue;
+    if (nextHeading.line >= endLine) continue;
+    if (nextHeading.level <= heading.level ||
+        _semverPattern.hasMatch(nextHeading.normalizedTitle)) {
+      endLine = nextHeading.line;
+      break;
+    }
+  }
+
+  return lines.sublist(heading.line, endLine).join('\n').trim();
+}
+
+List<_MarkdownHeading> _markdownHeadings(List<String> lines) {
+  final headings = <_MarkdownHeading>[];
+  for (var index = 0; index < lines.length; index++) {
+    final match = RegExp(r'^(#{1,6})\s+(.+?)\s*$').firstMatch(lines[index]);
+    if (match == null) continue;
+    headings.add(
+      _MarkdownHeading(
+        line: index,
+        level: match.group(1)!.length,
+        title: match.group(2)!,
+      ),
+    );
+  }
+  return headings;
+}
+
+bool _headingMentionsVersion(_MarkdownHeading heading, String versionLabel) {
+  return heading.normalizedTitle.contains(versionLabel);
+}
+
+String _normalizeVersionText(String value) {
+  return value
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp(r'^[\[\(]+|[\]\)]+$'), '')
+      .replaceAll(RegExp(r'\s+'), ' ');
+}
+
+final _semverPattern = RegExp(r'\bv?\d+\.\d+\.\d+(?:[-+][0-9a-z.-]+)?\b');
+
+class _MarkdownHeading {
+  const _MarkdownHeading({
+    required this.line,
+    required this.level,
+    required this.title,
+  });
+
+  const _MarkdownHeading.none() : line = -1, level = -1, title = '';
+
+  final int line;
+  final int level;
+  final String title;
+
+  bool get exists => line >= 0;
+
+  String get normalizedTitle => _normalizeVersionText(title);
 }
 
 class AppUpdateService {
