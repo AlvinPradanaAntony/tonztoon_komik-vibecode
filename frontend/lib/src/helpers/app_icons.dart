@@ -43,6 +43,7 @@ class TonztoonIcons {
 
   // Ikon antarmuka umum
   static const IconData arrowBack = LucideIcons.arrowLeft;
+  static const IconData arrowUp = LucideIcons.arrowUp;
   static const IconData chevronLeft = LucideIcons.chevronLeft;
   static const IconData close = LucideIcons.x;
   static const IconData chevronRight = LucideIcons.chevronRight;

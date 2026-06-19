@@ -91,10 +91,22 @@ class CatalogRepository {
     String sourceName, {
     int page = 1,
     int pageSize = 20,
+    String? type,
+    String? genre,
+    String? sort,
   }) {
     return _getComicList(
       '/sources/$sourceName/comics/latest',
-      queryParameters: {'page': page, 'page_size': pageSize},
+      queryParameters: {
+        'page': page,
+        'page_size': pageSize,
+        if (type != null && type.trim().isNotEmpty)
+          'type': type.trim().toLowerCase(),
+        if (genre != null && genre.trim().isNotEmpty)
+          'genre': genre.trim().toLowerCase(),
+        if (sort != null && sort.trim().isNotEmpty)
+          'sort': sort.trim().toLowerCase(),
+      },
     );
   }
 
@@ -102,10 +114,25 @@ class CatalogRepository {
     String sourceName, {
     int page = 1,
     int pageSize = 20,
+    String? type,
+    String? status,
+    String? genre,
+    String? sort,
   }) {
     return _getComicList(
       '/sources/$sourceName/comics/popular',
-      queryParameters: {'page': page, 'page_size': pageSize},
+      queryParameters: {
+        'page': page,
+        'page_size': pageSize,
+        if (type != null && type.trim().isNotEmpty)
+          'type': type.trim().toLowerCase(),
+        if (status != null && status.trim().isNotEmpty)
+          'status': status.trim().toLowerCase(),
+        if (genre != null && genre.trim().isNotEmpty)
+          'genre': genre.trim().toLowerCase(),
+        if (sort != null && sort.trim().isNotEmpty)
+          'sort': sort.trim().toLowerCase(),
+      },
     );
   }
 

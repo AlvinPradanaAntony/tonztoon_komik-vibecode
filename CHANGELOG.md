@@ -6,22 +6,37 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
-## [1.17.0] - 2026-06-18
+## [1.18.0] - 2026-06-19
 
 ### Added
-- Fitur pencarian komik (comic search) di backend beserta unit test untuk logika SQL pencariannya.
-- Tampilan pencarian komik di frontend beserta *search providers* dan state view model-nya.
-- Komponen UI baru yang *reusable* seperti `ColumnGrid`, `MetadataSeparator`, `AnimatedNotificationBell`, dan `DynamicBadgePalette` untuk meningkatkan estetika dan fleksibilitas layout.
+- Filter dan sorting pada halaman section komik untuk menyaring berdasarkan tipe, genre, status, serta urutan seperti update terbaru, populer, rating, view, dan judul.
+- Dukungan backend untuk filter `type`, `status`, `genre`, dan `sort` pada feed latest/popular per source.
+- Kartu Continue Reading baru yang menampilkan cover, chapter, source, progress baca, dan aksi lanjut baca dengan tampilan yang lebih kaya.
 
 ### Changed
-- Pembaruan tampilan dan layout di berbagai halaman utama aplikasi termasuk Home, Catalog, Library, Reader, Comic Detail, dan Settings.
-- Penyesuaian tema aplikasi (`app_theme.dart`) dan peningkatan komponen kartu komik (`ComicCard`, `ComicListCard`, `ComicBadges`) agar terlihat lebih modern.
-- Penyempurnaan pada dialog, filter, serta tag sumber untuk menyeragamkan bahasa desain.
+- Header daftar section kini pinned, menampilkan jumlah komik yang dimuat, mode sorting aktif, dan badge filter aktif.
+- Pagination section memakai status halaman berikutnya dari hasil query terbaru agar load-more lebih akurat saat filter aktif.
+- Tampilan rekomendasi, top ranking, source tag, badge komik, shimmer, dan grid kolom dipoles agar responsif dan konsisten di berbagai ukuran layar.
+- Genre option cache dipakai untuk mempercepat pembukaan filter section.
 
 ---
 
 <details>
 <summary><strong>Riwayat versi sebelumnya</strong></summary>
+
+### [1.17.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.17.0) - 2026-06-18
+
+#### Added
+- Fitur pencarian komik (comic search) di backend beserta unit test untuk logika SQL pencariannya.
+- Tampilan pencarian komik di frontend beserta *search providers* dan state view model-nya.
+- Komponen UI baru yang *reusable* seperti `ColumnGrid`, `MetadataSeparator`, `AnimatedNotificationBell`, dan `DynamicBadgePalette` untuk meningkatkan estetika dan fleksibilitas layout.
+
+#### Changed
+- Pembaruan tampilan dan layout di berbagai halaman utama aplikasi termasuk Home, Catalog, Library, Reader, Comic Detail, dan Settings.
+- Penyesuaian tema aplikasi (`app_theme.dart`) dan peningkatan komponen kartu komik (`ComicCard`, `ComicListCard`, `ComicBadges`) agar terlihat lebih modern.
+- Penyempurnaan pada dialog, filter, serta tag sumber untuk menyeragamkan bahasa desain.
+
+---
 
 ### [1.16.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.16.0) - 2026-06-17
 

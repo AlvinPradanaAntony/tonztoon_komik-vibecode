@@ -9,80 +9,28 @@ class _CatalogLoadingState extends StatelessWidget {
   }
 }
 
-class _FilterProcessingIndicator extends StatelessWidget {
-  const _FilterProcessingIndicator({required this.visible});
+class _CatalogReloadingIndicator extends StatelessWidget {
+  const _CatalogReloadingIndicator({required this.visible});
 
   final bool visible;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    if (!visible) return const SizedBox.shrink();
 
-    return IgnorePointer(
-      child: AnimatedSlide(
-        offset: visible ? Offset.zero : const Offset(0, -1),
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        child: AnimatedOpacity(
-          opacity: visible ? 1 : 0,
-          duration: const Duration(milliseconds: 140),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: colorScheme.surface.withValues(alpha: 0.96),
-              border: Border(
-                bottom: BorderSide(color: colorScheme.outlineVariant),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                LinearProgressIndicator(
-                  minHeight: 3,
-                  color: colorScheme.primary,
-                  backgroundColor: colorScheme.primary.withValues(alpha: 0.12),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 9, 16, 10),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox.square(
-                        dimension: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.2,
-                          color: colorScheme.primary,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Memproses hasil filter...',
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return const Positioned(
+      left: 0,
+      right: 0,
+      top: 0,
+      child: IgnorePointer(child: LinearProgressIndicator(minHeight: 3)),
     );
   }
 }
 
 class _CatalogLoadingPlaceholder extends StatelessWidget {
   const _CatalogLoadingPlaceholder();
+
+  static const int _placeholderRows = 3;
 
   @override
   Widget build(BuildContext context) {
@@ -116,17 +64,26 @@ class _CatalogLoadingPlaceholder extends StatelessWidget {
         ),
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          sliver: SliverGrid(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 14,
-              crossAxisSpacing: 12,
-              childAspectRatio: 0.47,
-            ),
-            delegate: SliverChildBuilderDelegate(
-              (context, index) => const _CatalogCardShimmer(),
-              childCount: 6,
-            ),
+          sliver: SliverLayoutBuilder(
+            builder: (context, constraints) {
+              final columnCount = resolveColumnGridColumnCount(
+                maxWidth: constraints.crossAxisExtent,
+                minColumnWidth: _catalogGridMinColumnWidth,
+                maxColumnCount: _catalogGridMaxColumnCount,
+                horizontalSpacing: _catalogGridHorizontalSpacing,
+              );
+              return AppSliverColumnGrid<int>(
+                items: List<int>.generate(
+                  columnCount * _placeholderRows,
+                  (index) => index,
+                ),
+                minColumnWidth: _catalogGridMinColumnWidth,
+                maxColumnCount: _catalogGridMaxColumnCount,
+                horizontalSpacing: _catalogGridHorizontalSpacing,
+                verticalSpacing: _catalogGridVerticalSpacing,
+                itemBuilder: (context, index) => const _CatalogCardShimmer(),
+              );
+            },
           ),
         ),
       ],

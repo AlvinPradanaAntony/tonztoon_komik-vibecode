@@ -163,14 +163,6 @@ class _RecommendationBanner extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final source = comicSourceLabel(comic);
-    final titleStyle = theme.textTheme.titleLarge?.copyWith(
-      color: Colors.white,
-      fontWeight: FontWeight.w900,
-    );
-    final singleLineTitleStyle = titleStyle?.copyWith(
-      fontSize: (titleStyle.fontSize ?? 20) * _bannerSingleLineTitleScale,
-      height: 1.05,
-    );
     final accentColors = const [
       Color(0xFFFF9D00),
       Color(0xFF3A86FF),
@@ -184,192 +176,230 @@ class _RecommendationBanner extends StatelessWidget {
     final hasPills =
         chapter != null || ratingLabel != null || statusLabel != null;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: accent.withValues(alpha: isDark ? 0.24 : 0.15),
-            blurRadius: 38,
-            spreadRadius: -2,
-            offset: const Offset(0, 14),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final metrics = _recommendationBannerMetrics(constraints.maxWidth);
+        final titleStyle = _scaledBannerTextStyle(
+          theme.textTheme.titleLarge?.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.w900,
           ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.34 : 0.13),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(18),
-          child: ClipRRect(
+          metrics.scale,
+        );
+        final singleLineTitleStyle = titleStyle?.copyWith(
+          fontSize: (titleStyle.fontSize ?? 20) * _bannerSingleLineTitleScale,
+          height: 1.05,
+        );
+        final buttonTextStyle = _scaledBannerTextStyle(
+          theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w900),
+          metrics.scale,
+        );
+
+        return DecoratedBox(
+          decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                ComicCover(imageUrl: comic.coverImageUrl, borderRadius: 18),
-                Positioned.fill(
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 2, sigmaY: 2),
-                    child: const SizedBox.shrink(),
-                  ),
-                ),
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                      colors: List.generate(9, (index) {
-                        final p = index / 8;
-                        return Colors.black.withValues(
-                          alpha: 0.84 * (1 - p * p),
-                        );
-                      }),
+            boxShadow: [
+              BoxShadow(
+                color: accent.withValues(alpha: isDark ? 0.4 : 0.25),
+                blurRadius: 45,
+                spreadRadius: -2,
+                offset: const Offset(0, 14),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.23),
+                blurRadius: 25,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(18),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ComicCover(imageUrl: comic.coverImageUrl, borderRadius: 18),
+                    Positioned.fill(
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 2, sigmaY: 2),
+                        child: const SizedBox.shrink(),
+                      ),
                     ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: _bannerPaddingX,
-                    vertical: _bannerPaddingY,
-                  ),
-                  child: MediaQuery.withClampedTextScaling(
-                    maxScaleFactor: _bannerMaxTextScale,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            ComicSourceBadge(label: source),
-                            if (comic.type != null)
-                              ComicTypeFlagBadge(type: comic.type!),
-                          ],
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: List.generate(9, (index) {
+                            final p = index / 8;
+                            return Colors.black.withValues(
+                              alpha: 0.84 * (1 - p * p),
+                            );
+                          }),
                         ),
-                        const SizedBox(height: _bannerBadgeContentGap),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
+                      ),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: metrics.paddingX,
+                        vertical: metrics.paddingY,
+                      ),
+                      child: MediaQuery.withClampedTextScaling(
+                        maxScaleFactor: _bannerMaxTextScale,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  LayoutBuilder(
-                                    builder: (context, constraints) {
-                                      final useLargeTitle =
-                                          _bannerTitleLooksSingleLine(
-                                            context,
-                                            comic.title,
-                                            titleStyle,
-                                            constraints.maxWidth,
-                                            _clampedBannerTextScale(context),
-                                          );
-                                      return Text(
-                                        comic.title,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: useLargeTitle
-                                            ? singleLineTitleStyle
-                                            : titleStyle,
-                                      );
-                                    },
+                            Wrap(
+                              spacing: metrics.pillSpacing,
+                              runSpacing: metrics.pillSpacing,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                ComicSourceBadge(
+                                  label: source,
+                                  scale: metrics.scale,
+                                ),
+                                if (comic.type != null)
+                                  ComicTypeFlagBadge(
+                                    type: comic.type!,
+                                    scale: metrics.scale,
                                   ),
-                                  if (hasPills) ...[
-                                    const SizedBox(height: _bannerTitlePillGap),
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children: [
-                                        if (chapter != null)
-                                          _BannerPill(
-                                            label:
-                                                'Ch ${formatChapterNumber(chapter)}',
-                                            color: accent,
-                                            solidSoftBackground: true,
+                              ],
+                            ),
+                            SizedBox(height: metrics.badgeContentGap),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      LayoutBuilder(
+                                        builder: (context, constraints) {
+                                          final useLargeTitle =
+                                              _bannerTitleLooksSingleLine(
+                                                context,
+                                                comic.title,
+                                                titleStyle,
+                                                constraints.maxWidth,
+                                                _clampedBannerTextScale(
+                                                  context,
+                                                ),
+                                              );
+                                          return Text(
+                                            comic.title,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: useLargeTitle
+                                                ? singleLineTitleStyle
+                                                : titleStyle,
+                                          );
+                                        },
+                                      ),
+                                      if (hasPills) ...[
+                                        SizedBox(height: metrics.titlePillGap),
+                                        Wrap(
+                                          spacing: metrics.pillSpacing,
+                                          runSpacing: metrics.pillSpacing,
+                                          children: [
+                                            if (chapter != null)
+                                              _BannerPill(
+                                                label:
+                                                    'Ch ${formatChapterNumber(chapter)}',
+                                                color: accent,
+                                                scale: metrics.scale,
+                                                solidSoftBackground: true,
+                                              ),
+                                            if (ratingLabel != null)
+                                              _BannerPill(
+                                                label: ratingLabel,
+                                                color: Colors.amber,
+                                                foregroundColor: Colors.amber,
+                                                icon: TonztoonIcons.starFilled,
+                                                scale: metrics.scale,
+                                              ),
+                                            if (statusLabel != null)
+                                              _BannerPill(
+                                                label: statusLabel,
+                                                color: Colors.white,
+                                                foregroundColor: Colors.white,
+                                                scale: metrics.scale,
+                                              ),
+                                          ],
+                                        ),
+                                      ],
+                                      SizedBox(height: metrics.pillButtonGap),
+                                      FilledButton.icon(
+                                        onPressed: onTap,
+                                        icon: Icon(
+                                          TonztoonIcons.play,
+                                          size: 17 * metrics.scale,
+                                        ),
+                                        label: const Text('Baca sekarang'),
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: accent,
+                                          foregroundColor: Colors.white,
+                                          textStyle: buttonTextStyle,
+                                          minimumSize: Size(
+                                            0,
+                                            metrics.buttonMinHeight,
                                           ),
-                                        if (ratingLabel != null)
-                                          _BannerPill(
-                                            label: ratingLabel,
-                                            color: Colors.amber,
-                                            foregroundColor: Colors.amber,
-                                            icon: TonztoonIcons.starFilled,
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: metrics.buttonPaddingX,
                                           ),
-                                        if (statusLabel != null)
-                                          _BannerPill(
-                                            label: statusLabel,
-                                            color: Colors.white,
-                                            foregroundColor: Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                SizedBox(width: metrics.mainContentGap),
+                                SizedBox(
+                                  width: metrics.coverWidth,
+                                  height: metrics.coverHeight,
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(
+                                        metrics.coverRadius,
+                                      ),
+                                      border: Border.all(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.34,
+                                        ),
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.28,
                                           ),
+                                          blurRadius: 14 * metrics.scale,
+                                          offset: Offset(0, 8 * metrics.scale),
+                                        ),
                                       ],
                                     ),
-                                  ],
-                                  const SizedBox(height: _bannerPillButtonGap),
-                                  FilledButton.icon(
-                                    onPressed: onTap,
-                                    icon: const Icon(
-                                      TonztoonIcons.play,
-                                      size: 17,
-                                    ),
-                                    label: const Text('Baca sekarang'),
-                                    style: FilledButton.styleFrom(
-                                      backgroundColor: accent,
-                                      foregroundColor: Colors.white,
-                                      minimumSize: const Size(
-                                        0,
-                                        _bannerButtonMinHeight,
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 14,
-                                      ),
+                                    child: ComicCover(
+                                      imageUrl: comic.coverImageUrl,
+                                      borderRadius: metrics.coverRadius,
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: _bannerMainContentGap),
-                            SizedBox(
-                              width: _bannerCoverWidth,
-                              height: _bannerCoverHeight,
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.34),
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(
-                                        alpha: 0.28,
-                                      ),
-                                      blurRadius: 14,
-                                      offset: const Offset(0, 8),
-                                    ),
-                                  ],
                                 ),
-                                child: ComicCover(
-                                  imageUrl: comic.coverImageUrl,
-                                  borderRadius: 12,
-                                ),
-                              ),
+                              ],
                             ),
                           ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -380,6 +410,7 @@ class _BannerPill extends StatelessWidget {
     required this.color,
     this.foregroundColor,
     this.icon,
+    this.scale = 1,
     this.solidSoftBackground = false,
   });
 
@@ -387,6 +418,7 @@ class _BannerPill extends StatelessWidget {
   final Color color;
   final Color? foregroundColor;
   final IconData? icon;
+  final double scale;
   final bool solidSoftBackground;
 
   @override
@@ -396,29 +428,38 @@ class _BannerPill extends StatelessWidget {
         color: solidSoftBackground
             ? Color.lerp(Colors.white, color, 0.18)
             : color.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(14 * scale),
         border: Border.all(color: color.withValues(alpha: 0.26)),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        padding: EdgeInsets.symmetric(
+          horizontal: 9 * scale,
+          vertical: 5 * scale,
+        ),
         child: icon == null
             ? Text(
                 label,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: foregroundColor ?? color,
-                  fontWeight: FontWeight.w900,
+                style: _scaledBannerTextStyle(
+                  Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: foregroundColor ?? color,
+                    fontWeight: FontWeight.w900,
+                  ),
+                  scale,
                 ),
               )
             : Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(icon, size: 12, color: foregroundColor ?? color),
-                  const SizedBox(width: 4),
+                  Icon(icon, size: 12 * scale, color: foregroundColor ?? color),
+                  SizedBox(width: 4 * scale),
                   Text(
                     label,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: foregroundColor ?? color,
-                      fontWeight: FontWeight.w900,
+                    style: _scaledBannerTextStyle(
+                      Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: foregroundColor ?? color,
+                        fontWeight: FontWeight.w900,
+                      ),
+                      scale,
                     ),
                   ),
                 ],

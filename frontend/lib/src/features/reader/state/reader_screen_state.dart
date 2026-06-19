@@ -407,10 +407,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   Future<void> _showAutoScrollSettings(ReaderPreferences? readerPrefs) async {
     if (readerPrefs == null) return;
     var selectedSpeed = _autoScrollSpeed(readerPrefs);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final savedSpeed = await showModalBottomSheet<double>(
       context: context,
       useSafeArea: true,
       showDragHandle: true,
+      backgroundColor:
+          isDark ? Theme.of(context).colorScheme.surfaceContainerLowest : null,
       builder: (context) {
         final theme = Theme.of(context);
         final colorScheme = theme.colorScheme;
@@ -463,7 +466,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
                           style: FilledButton.styleFrom(
                             minimumSize: const Size(48, 56),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(18),
                             ),
                           ),
                           child: const Text('Save'),
@@ -476,6 +479,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
                           style: TextButton.styleFrom(
                             foregroundColor: colorScheme.onSurface,
                             minimumSize: const Size(48, 56),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
                           ),
                           child: const Text('Later'),
                         ),

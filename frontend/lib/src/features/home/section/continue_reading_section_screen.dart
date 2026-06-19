@@ -3,19 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../helpers/app_icons.dart';
 import '../../../helpers/app_snackbar.dart';
-import '../../../utils/formatters.dart';
 import '../../../helpers/navigation_helpers.dart';
-import '../../../models/comic.dart';
 import '../../../models/progress.dart';
 import '../../../repositories/providers.dart';
 import '../../../widgets/app_edge_fade.dart';
 import '../../../widgets/app_empty_state.dart';
 import '../../../widgets/app_error_state.dart';
 import '../../../widgets/app_loading_placeholder.dart';
-import '../../../widgets/comic_cover.dart';
 import '../../../widgets/load_more_footer.dart';
-import '../../../widgets/metadata_separator.dart';
-import '../../../widgets/source_tag.dart';
+import '../widgets/continue_reading_progress_card.dart';
 
 class ContinueReadingSectionPayload {
   const ContinueReadingSectionPayload({required this.items});
@@ -145,10 +141,20 @@ class _ContinueReadingSectionScreenState
                           SliverPadding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             sliver: SliverList.separated(
-                              itemBuilder: (context, index) =>
-                                  _ProgressSectionTile(item: _items[index]),
+                              itemBuilder: (context, index) => Align(
+                                alignment: Alignment.topCenter,
+                                child: ContinueReadingProgressCard(
+                                  progress: _items[index],
+                                  fullWidth: true,
+                                  showTrailingArrow: true,
+                                  onTap: () => openReaderForProgress(
+                                    context,
+                                    _items[index],
+                                  ),
+                                ),
+                              ),
                               separatorBuilder: (context, index) =>
-                                  const SizedBox(height: 10),
+                                  const SizedBox(height: 12),
                               itemCount: _items.length,
                             ),
                           ),
@@ -401,91 +407,6 @@ class _ProgressCountBadge extends StatelessWidget {
       ),
     );
   }
-}
-
-class _ProgressSectionTile extends StatelessWidget {
-  const _ProgressSectionTile({required this.item});
-
-  final ReadingProgress item;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Material(
-      color: colorScheme.surface,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => _openReader(context, item),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
-            children: [
-              ComicCover(imageUrl: item.coverImageUrl, width: 64, height: 90),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.comicTitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 5),
-                    Row(
-                      children: [
-                        Flexible(
-                          fit: FlexFit.loose,
-                          child: Text(
-                            'Chapter ${formatChapterNumber(item.chapterNumber)}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        MetadataSeparator(
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        SourceTag(sourceName: item.sourceName),
-                      ],
-                    ),
-                    const SizedBox(height: 9),
-                    LinearProgressIndicator(
-                      value: readingProgressValue(item),
-                      borderRadius: BorderRadius.circular(99),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      readingProgressPageLabel(item),
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              const Icon(TonztoonIcons.chevronRight),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _openReader(BuildContext context, ReadingProgress progress) =>
-      openReaderForProgress(context, progress);
 }
 
 class _ProgressSectionLoadingState extends StatelessWidget {

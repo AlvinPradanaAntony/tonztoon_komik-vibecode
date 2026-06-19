@@ -1,5 +1,10 @@
 part of '../full_catalog_screen.dart';
 
+const double _catalogGridMinColumnWidth = 98;
+const int _catalogGridMaxColumnCount = 6;
+const double _catalogGridHorizontalSpacing = 12;
+const double _catalogGridVerticalSpacing = 10;
+
 class _CatalogGrid extends StatelessWidget {
   const _CatalogGrid({required this.entries, required this.onTap});
 
@@ -11,8 +16,10 @@ class _CatalogGrid extends StatelessWidget {
     return AppSliverColumnGrid<_CatalogEntry>(
       key: const ValueKey('catalog-grid'),
       items: entries,
-      minColumnWidth: 104,
-      maxColumnCount: 6,
+      minColumnWidth: _catalogGridMinColumnWidth,
+      maxColumnCount: _catalogGridMaxColumnCount,
+      horizontalSpacing: _catalogGridHorizontalSpacing,
+      verticalSpacing: _catalogGridVerticalSpacing,
       itemBuilder: (context, entry) {
         return ComicCard(
           comic: entry.comic,

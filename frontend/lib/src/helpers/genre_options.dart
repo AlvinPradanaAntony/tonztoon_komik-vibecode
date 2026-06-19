@@ -16,6 +16,33 @@ List<String> cachedGenreOptionNames(WidgetRef ref) {
   return _genreNames(ref.read(catalogRepositoryProvider).getCachedGenres());
 }
 
+Future<List<String>>? _genreWarmupFuture;
+
+/// Warms the local genre cache before a filter sheet is opened.
+///
+/// The repository returns cached genres immediately when available and only
+/// fetches from the API when the local cache is empty. The shared in-flight
+/// future keeps catalog/search/section from starting duplicate requests during
+/// first app navigation.
+Future<List<String>> warmGenreOptionCache(WidgetRef ref) {
+  final cached = cachedGenreOptionNames(ref);
+  if (cached.isNotEmpty) return Future.value(cached);
+
+  final inFlight = _genreWarmupFuture;
+  if (inFlight != null) return inFlight;
+
+  final future = ref
+      .read(catalogRepositoryProvider)
+      .getGenres()
+      .then((genres) {
+        ref.invalidate(genresProvider);
+        return _genreNames(genres);
+      })
+      .whenComplete(() => _genreWarmupFuture = null);
+  _genreWarmupFuture = future;
+  return future;
+}
+
 /// Refreshes genres from the API, invalidates [genresProvider], and returns the
 /// updated names. On failure, shows an error snackbar (guarded by
 /// `context.mounted`) and returns an empty list. [logContext] labels the log.

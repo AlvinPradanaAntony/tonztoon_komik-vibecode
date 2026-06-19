@@ -86,9 +86,9 @@ class _ComicCardState extends State<ComicCard> {
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(
-                              alpha: _hovered ? 0.2 : 0.12,
+                              alpha: _hovered ? 0.4 : 0.2,
                             ),
-                            blurRadius: _hovered ? 22 : 14,
+                            blurRadius: _hovered ? 22 : 15,
                             offset: const Offset(0, 10),
                           ),
                         ],
@@ -97,76 +97,96 @@ class _ComicCardState extends State<ComicCard> {
                         borderRadius: BorderRadius.circular(12),
                         child: AspectRatio(
                           aspectRatio: 2 / 3,
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              ComicCover(
-                                imageUrl: widget.comic.coverImageUrl,
-                                borderRadius: 0,
-                              ),
-                              Positioned(
-                                left: 8,
-                                top: 8,
-                                right: widget.comic.type == null ? 8 : 44,
-                                child: Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: ComicSourceBadge(label: source),
-                                ),
-                              ),
-                              if (widget.comic.type != null)
-                                Positioned(
-                                  right: 8,
-                                  top: 8,
-                                  child: ComicTypeFlagBadge(
-                                    type: widget.comic.type!,
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final overlayScale = _comicCardOverlayScale(
+                                constraints.maxWidth,
+                              );
+                              final overlayInset = 8 * overlayScale;
+                              final sourceRightInset = widget.comic.type == null
+                                  ? overlayInset
+                                  : 44 * overlayScale;
+
+                              return Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  ComicCover(
+                                    imageUrl: widget.comic.coverImageUrl,
+                                    borderRadius: 0,
                                   ),
-                                ),
-                              if (showNewBadge && chapterNumber == null)
-                                Positioned(
-                                  right: 8,
-                                  bottom: 8,
-                                  child: const ComicNewBadge(),
-                                ),
-                              if (chapterNumber != null && !showNewBadge)
-                                Positioned(
-                                  key: const ValueKey(
-                                    'comic-grid-latest-chapter-position',
-                                  ),
-                                  left: 0,
-                                  bottom: 0,
-                                  child: _ComicGridLatestChapterBadge(
-                                    chapterNumber: chapterNumber,
-                                  ),
-                                ),
-                              if (chapterNumber != null && showNewBadge)
-                                Positioned(
-                                  key: const ValueKey(
-                                    'comic-grid-latest-chapter-new-group',
-                                  ),
-                                  left: 0,
-                                  right: 0,
-                                  bottom: 0,
-                                  child: Align(
-                                    alignment: Alignment.bottomLeft,
-                                    child: FittedBox(
-                                      fit: BoxFit.scaleDown,
-                                      alignment: Alignment.bottomLeft,
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.end,
-                                        children: [
-                                          _ComicGridLatestChapterBadge(
-                                            chapterNumber: chapterNumber,
-                                          ),
-                                          const SizedBox(width: 6),
-                                          const ComicNewBadge(),
-                                        ],
+                                  Positioned(
+                                    left: overlayInset,
+                                    top: overlayInset,
+                                    right: sourceRightInset,
+                                    child: Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: ComicSourceBadge(
+                                        label: source,
+                                        scale: overlayScale,
                                       ),
                                     ),
                                   ),
-                                ),
-                            ],
+                                  if (widget.comic.type != null)
+                                    Positioned(
+                                      right: overlayInset,
+                                      top: overlayInset,
+                                      child: ComicTypeFlagBadge(
+                                        type: widget.comic.type!,
+                                        scale: overlayScale,
+                                      ),
+                                    ),
+                                  if (showNewBadge && chapterNumber == null)
+                                    Positioned(
+                                      right: 0,
+                                      bottom: 0,
+                                      child: ComicNewBadge(scale: overlayScale),
+                                    ),
+                                  if (chapterNumber != null && !showNewBadge)
+                                    Positioned(
+                                      key: const ValueKey(
+                                        'comic-grid-latest-chapter-position',
+                                      ),
+                                      left: 0,
+                                      bottom: 0,
+                                      child: _ComicGridLatestChapterBadge(
+                                        chapterNumber: chapterNumber,
+                                        scale: overlayScale,
+                                      ),
+                                    ),
+                                  if (chapterNumber != null && showNewBadge)
+                                    Positioned(
+                                      key: const ValueKey(
+                                        'comic-grid-latest-chapter-new-group',
+                                      ),
+                                      left: 0,
+                                      right: 0,
+                                      bottom: 0,
+                                      child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
+                                        children: [
+                                          Expanded(
+                                            child: Align(
+                                              alignment: Alignment.bottomLeft,
+                                              child: FittedBox(
+                                                fit: BoxFit.scaleDown,
+                                                alignment: Alignment.bottomLeft,
+                                                child:
+                                                    _ComicGridLatestChapterBadge(
+                                                      chapterNumber:
+                                                          chapterNumber,
+                                                      scale: overlayScale,
+                                                    ),
+                                              ),
+                                            ),
+                                          ),
+                                          ComicNewBadge(scale: overlayScale),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                              );
+                            },
                           ),
                         ),
                       ),
@@ -217,10 +237,25 @@ class _ComicCardState extends State<ComicCard> {
   }
 }
 
+double _comicCardOverlayScale(double coverWidth) {
+  if (!coverWidth.isFinite || coverWidth <= 0) return 1;
+  return (coverWidth / 138).clamp(0.74, 1).toDouble();
+}
+
+TextStyle? _scaledTextStyle(TextStyle? style, double scale) {
+  final fontSize = style?.fontSize;
+  if (style == null || fontSize == null || scale == 1) return style;
+  return style.copyWith(fontSize: fontSize * scale);
+}
+
 class _ComicGridLatestChapterBadge extends StatelessWidget {
-  const _ComicGridLatestChapterBadge({required this.chapterNumber});
+  const _ComicGridLatestChapterBadge({
+    required this.chapterNumber,
+    this.scale = 1,
+  });
 
   final double chapterNumber;
+  final double scale;
 
   @override
   Widget build(BuildContext context) {
@@ -228,10 +263,10 @@ class _ComicGridLatestChapterBadge extends StatelessWidget {
 
     return CustomPaint(
       key: const ValueKey('comic-grid-latest-chapter-shadow'),
-      painter: const _ComicGridLatestChapterShadowPainter(),
+      painter: _ComicGridLatestChapterShadowPainter(scale),
       child: ClipPath(
         key: const ValueKey('comic-grid-latest-chapter-badge'),
-        clipper: const _ComicGridLatestChapterClipper(),
+        clipper: _ComicGridLatestChapterClipper(scale),
         child: DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -244,16 +279,24 @@ class _ComicGridLatestChapterBadge extends StatelessWidget {
             ),
           ),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 86, maxWidth: 124),
+            constraints: BoxConstraints(maxWidth: 115 * scale),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 6, 20, 6),
+              padding: EdgeInsets.fromLTRB(
+                10 * scale,
+                6 * scale,
+                14 * scale,
+                6 * scale,
+              ),
               child: Text(
                 'Chapter ${formatChapterNumber(chapterNumber)}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: colorScheme.onPrimary,
-                  fontWeight: FontWeight.w900,
+                style: _scaledTextStyle(
+                  Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: colorScheme.onPrimary,
+                    fontWeight: FontWeight.w900,
+                  ),
+                  scale,
                 ),
               ),
             ),
@@ -265,16 +308,18 @@ class _ComicGridLatestChapterBadge extends StatelessWidget {
 }
 
 class _ComicGridLatestChapterShadowPainter extends CustomPainter {
-  const _ComicGridLatestChapterShadowPainter();
+  const _ComicGridLatestChapterShadowPainter(this.scale);
+
+  final double scale;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final path = const _ComicGridLatestChapterClipper()
-        .getClip(size)
-        .shift(const Offset(0, -3));
+    final path = _ComicGridLatestChapterClipper(
+      scale,
+    ).getClip(size).shift(Offset(0, -3 * scale));
     final paint = Paint()
       ..color = Colors.black.withValues(alpha: 0.34)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7);
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 7 * scale);
 
     canvas.drawPath(path, paint);
   }
@@ -282,23 +327,25 @@ class _ComicGridLatestChapterShadowPainter extends CustomPainter {
   @override
   bool shouldRepaint(
     covariant _ComicGridLatestChapterShadowPainter oldDelegate,
-  ) => false;
+  ) => oldDelegate.scale != scale;
 }
 
 class _ComicGridLatestChapterClipper extends CustomClipper<Path> {
-  const _ComicGridLatestChapterClipper();
+  const _ComicGridLatestChapterClipper(this.scale);
+
+  final double scale;
 
   @override
   Path getClip(Size size) {
-    const topLeftRadius = 18.0;
-    const bottomRightRadius = 12.0;
-    const tail = 22.0;
+    final topLeftRadius = 12.0 * scale;
+    final bottomRightRadius = 12.0 * scale;
+    final tail = 22.0 * scale;
     final diagonalBottomX = size.width - tail;
 
     return Path()
       ..moveTo(topLeftRadius, 0)
       ..lineTo(size.width, 0)
-      ..lineTo(diagonalBottomX + bottomRightRadius, size.height - 4)
+      ..lineTo(diagonalBottomX + bottomRightRadius, size.height - 4 * scale)
       ..quadraticBezierTo(
         diagonalBottomX + bottomRightRadius - 2,
         size.height,
@@ -313,5 +360,5 @@ class _ComicGridLatestChapterClipper extends CustomClipper<Path> {
 
   @override
   bool shouldReclip(covariant _ComicGridLatestChapterClipper oldClipper) =>
-      false;
+      oldClipper.scale != scale;
 }

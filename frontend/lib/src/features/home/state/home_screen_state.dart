@@ -123,20 +123,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                         const SizedBox(height: 10),
                         SizedBox(
-                          height: 154,
+                          height: 148,
                           child: ListView.separated(
                             clipBehavior: Clip.none,
-                            padding: const EdgeInsets.only(bottom: 24),
+                            padding: const EdgeInsets.only(bottom: 14),
                             scrollDirection: Axis.horizontal,
-                            itemBuilder: (context, index) => _ProgressCard(
-                              progress: continueProgress[index],
+                            itemBuilder: (context, index) => Align(
+                              alignment: Alignment.topCenter,
+                              child: ContinueReadingProgressCard(
+                                progress: continueProgress[index],
+                                onTap: () => _openReaderProgress(
+                                  context,
+                                  continueProgress[index],
+                                ),
+                              ),
                             ),
                             separatorBuilder: (context, index) =>
                                 const SizedBox(width: 12),
                             itemCount: continueProgress.length,
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 6),
                       ],
                       _ComicRail(
                         title: 'Rilis Terbaru',

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -31,11 +33,14 @@ class FullCatalogScreen extends ConsumerStatefulWidget {
 class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
   late final ScrollController _scrollController;
   bool _isGrid = true;
+  bool _showScrollToTop = false;
+  bool _showHeaderShadow = false;
 
   @override
   void initState() {
     super.initState();
     _scrollController = ScrollController()..addListener(_onScroll);
+    unawaited(warmGenreOptionCache(ref));
   }
 
   @override
@@ -59,8 +64,7 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
     final comics = _catalogPool(catalog?.comics ?? const []);
 
     // A first-page reload triggered by a filter change keeps the previous data
-    // available, so we show the slim "Memproses hasil filter..." overlay on top
-    // of the existing list instead of clearing it.
+    // available, so only a top linear indicator is needed instead of clearing it.
     final isReloadingWithData = catalogAsync.isLoading && catalog != null;
 
     return Scaffold(
@@ -133,20 +137,19 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
                                 filters: filters,
                                 onClear: _clearFilters,
                               ),
-                              const SizedBox(height: 18),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      '${comics.length} komik dimuat',
-                                      style: theme.textTheme.titleMedium,
-                                    ),
-                                  ),
-                                  _SortPill(label: filters.sort),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
+                              if (filters.hasActiveFilters)
+                                const SizedBox(height: 10),
                             ]),
+                          ),
+                        ),
+                        SliverPersistentHeader(
+                          pinned: true,
+                          delegate: _CatalogListHeaderDelegate(
+                            showShadow: _showHeaderShadow,
+                            child: _CatalogListHeader(
+                              loadedCount: comics.length,
+                              sortLabel: filters.sort,
+                            ),
                           ),
                         ),
                         if (comics.isEmpty)
@@ -193,8 +196,24 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
                     ),
                   ),
           ),
-          _FilterProcessingIndicator(visible: isReloadingWithData),
+          _CatalogReloadingIndicator(visible: isReloadingWithData),
         ],
+      ),
+      floatingActionButton: Padding(
+        padding: EdgeInsets.only(bottom: widget.showBackButton ? 0 : 120),
+        child: AnimatedScale(
+          scale: _showScrollToTop ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 200),
+          child: FloatingActionButton(
+            mini: true,
+            onPressed: _scrollToTop,
+            tooltip: 'Kembali ke atas',
+            backgroundColor: theme.colorScheme.primary,
+            foregroundColor: theme.colorScheme.surface,
+            shape: const CircleBorder(),
+            child: const Icon(TonztoonIcons.arrowUp),
+          ),
+        ),
       ),
     );
   }
@@ -218,6 +237,30 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
     if (!_scrollController.hasClients) return;
     if (_scrollController.position.extentAfter < 640) {
       _loadNextPage();
+    }
+
+    final showScrollToTop = _scrollController.offset > 220;
+    if (showScrollToTop != _showScrollToTop) {
+      setState(() {
+        _showScrollToTop = showScrollToTop;
+      });
+    }
+
+    final showHeaderShadow = _scrollController.offset > 120;
+    if (showHeaderShadow != _showHeaderShadow) {
+      setState(() {
+        _showHeaderShadow = showHeaderShadow;
+      });
+    }
+  }
+
+  void _scrollToTop() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOutCubic,
+      );
     }
   }
 
@@ -257,11 +300,9 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
       initialState: ref.read(catalogFilterProvider),
       resetSort: ComicSortOption.relevance,
       genreOptions: cachedGenreOptions.isEmpty ? null : cachedGenreOptions,
-      genreOptionsRefreshFuture: refreshGenreOptionNames(
-        ref,
-        context,
-        logContext: 'Refresh catalog genres failed',
-      ),
+      genreOptionsFuture: cachedGenreOptions.isEmpty
+          ? warmGenreOptionCache(ref)
+          : null,
       constraints: BoxConstraints(
         maxHeight: MediaQuery.sizeOf(context).height * 0.78,
       ),

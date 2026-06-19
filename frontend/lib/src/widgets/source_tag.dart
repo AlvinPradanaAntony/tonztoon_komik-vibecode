@@ -47,19 +47,22 @@ class SourceTag extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 11, color: palette.foreground),
-            const SizedBox(width: 4),
-            Text(
-              comicSourceNameLabel(sourceName),
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: palette.foreground,
-                fontWeight: FontWeight.w800,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 11, color: palette.foreground),
+              const SizedBox(width: 4),
+              Text(
+                comicSourceNameLabel(sourceName),
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: palette.foreground,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

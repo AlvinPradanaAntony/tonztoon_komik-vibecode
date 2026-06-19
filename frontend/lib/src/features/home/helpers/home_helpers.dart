@@ -11,6 +11,7 @@ String? _formatTopRankingRating(double? rating) {
 const double _bannerPaddingX = 16;
 const double _bannerPaddingY = 10;
 const double _bannerMaxTextScale = 1.08;
+const double _bannerBaseWidth = 342;
 const double _bannerBadgeContentGap = 10;
 const double _bannerMainContentGap = 12;
 const double _bannerCoverWidth = 86;
@@ -21,6 +22,57 @@ const double _bannerButtonMinHeight = 48;
 const double _bannerPageEndGap = 10;
 const double _bannerSingleLineTitleScale = 1.28;
 const double _bannerSingleLineWidthTolerance = 1.08;
+
+class _RecommendationBannerMetrics {
+  const _RecommendationBannerMetrics({
+    required this.scale,
+    required this.paddingX,
+    required this.paddingY,
+    required this.badgeContentGap,
+    required this.mainContentGap,
+    required this.coverWidth,
+    required this.coverHeight,
+    required this.coverRadius,
+    required this.titlePillGap,
+    required this.pillButtonGap,
+    required this.buttonMinHeight,
+    required this.buttonPaddingX,
+    required this.pillSpacing,
+  });
+
+  final double scale;
+  final double paddingX;
+  final double paddingY;
+  final double badgeContentGap;
+  final double mainContentGap;
+  final double coverWidth;
+  final double coverHeight;
+  final double coverRadius;
+  final double titlePillGap;
+  final double pillButtonGap;
+  final double buttonMinHeight;
+  final double buttonPaddingX;
+  final double pillSpacing;
+}
+
+_RecommendationBannerMetrics _recommendationBannerMetrics(double bannerWidth) {
+  final scale = (bannerWidth / _bannerBaseWidth).clamp(0.78, 1.04).toDouble();
+  return _RecommendationBannerMetrics(
+    scale: scale,
+    paddingX: _bannerPaddingX * scale,
+    paddingY: _bannerPaddingY * scale,
+    badgeContentGap: _bannerBadgeContentGap * scale,
+    mainContentGap: _bannerMainContentGap * scale,
+    coverWidth: _bannerCoverWidth * scale,
+    coverHeight: _bannerCoverHeight * scale,
+    coverRadius: 12 * scale,
+    titlePillGap: _bannerTitlePillGap * scale,
+    pillButtonGap: _bannerPillButtonGap * scale,
+    buttonMinHeight: _bannerButtonMinHeight * scale,
+    buttonPaddingX: 14 * scale,
+    pillSpacing: 8 * scale,
+  );
+}
 
 double _recommendationCarouselHeight(
   BuildContext context,
@@ -33,15 +85,19 @@ double _recommendationCarouselHeight(
     (viewportWidth * _RecommendationCarouselState._viewportFraction) -
         (comics.length == 1 ? 0 : _bannerPageEndGap),
   );
-  final contentWidth = math.max(0.0, bannerWidth - (_bannerPaddingX * 2));
+  final metrics = _recommendationBannerMetrics(bannerWidth);
+  final contentWidth = math.max(0.0, bannerWidth - (metrics.paddingX * 2));
   final textColumnWidth = math.max(
     80.0,
-    contentWidth - _bannerMainContentGap - _bannerCoverWidth,
+    contentWidth - metrics.mainContentGap - metrics.coverWidth,
   );
   final theme = Theme.of(context);
-  final titleStyle = theme.textTheme.titleLarge?.copyWith(
-    color: Colors.white,
-    fontWeight: FontWeight.w900,
+  final titleStyle = _scaledBannerTextStyle(
+    theme.textTheme.titleLarge?.copyWith(
+      color: Colors.white,
+      fontWeight: FontWeight.w900,
+    ),
+    metrics.scale,
   );
   final singleLineTitleStyle = titleStyle?.copyWith(
     fontSize: (titleStyle.fontSize ?? 20) * _bannerSingleLineTitleScale,
@@ -54,25 +110,25 @@ double _recommendationCarouselHeight(
     textScale: textScale,
   );
   final topBadgeHeight = math.max(
-    28.0,
+    28.0 * metrics.scale,
     _scaledLineHeight(
-          theme.textTheme.labelSmall,
+          _scaledBannerTextStyle(theme.textTheme.labelSmall, metrics.scale),
           fallbackFontSize: 11,
           fallbackHeight: 1.2,
           textScale: textScale,
         ) +
-        10,
+        (10 * metrics.scale),
   );
   final pillHeight =
       _scaledLineHeight(
-        theme.textTheme.labelSmall,
+        _scaledBannerTextStyle(theme.textTheme.labelSmall, metrics.scale),
         fallbackFontSize: 11,
         fallbackHeight: 1.2,
         textScale: textScale,
       ) +
-      10;
-  final buttonHeight = _bannerButtonMinHeight + ((textScale - 1) * 12);
-  var maxLowerRowHeight = _bannerCoverHeight;
+      (10 * metrics.scale);
+  final buttonHeight = metrics.buttonMinHeight + ((textScale - 1) * 12);
+  var maxLowerRowHeight = metrics.coverHeight;
 
   for (final comic in comics) {
     final statusLabel = _capitalizeBannerStatus(comic.status);
@@ -97,17 +153,17 @@ double _recommendationCarouselHeight(
     );
     final textColumnHeight =
         titleHeight +
-        (hasPills ? _bannerTitlePillGap + pillHeight : 0) +
-        _bannerPillButtonGap +
+        (hasPills ? metrics.titlePillGap + pillHeight : 0) +
+        metrics.pillButtonGap +
         buttonHeight;
     maxLowerRowHeight = math.max(maxLowerRowHeight, textColumnHeight);
   }
 
-  return _bannerPaddingY +
+  return metrics.paddingY +
       topBadgeHeight +
-      _bannerBadgeContentGap +
+      metrics.badgeContentGap +
       maxLowerRowHeight +
-      _bannerPaddingY;
+      metrics.paddingY;
 }
 
 double _measureBannerTitleHeight(
@@ -167,6 +223,12 @@ double _scaledLineHeight(
   return fontSize * height * textScale;
 }
 
+TextStyle? _scaledBannerTextStyle(TextStyle? style, double scale) {
+  final fontSize = style?.fontSize;
+  if (style == null || fontSize == null || scale == 1) return style;
+  return style.copyWith(fontSize: fontSize * scale);
+}
+
 double _clampedBannerTextScale(BuildContext context) {
   return MediaQuery.textScalerOf(
     context,
@@ -200,11 +262,6 @@ void _openContinueReadingSection(
     extra: ContinueReadingSectionPayload(items: items),
   );
 }
-
-double _progressValue(ReadingProgress item) => readingProgressValue(item);
-
-String _progressPageText(ReadingProgress item) =>
-    readingProgressPageLabel(item);
 
 void _openNotifications(BuildContext context) {
   context.push('/notifications');

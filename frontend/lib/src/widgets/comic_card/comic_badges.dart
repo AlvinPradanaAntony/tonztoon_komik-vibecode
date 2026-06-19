@@ -1,16 +1,17 @@
 part of '../comic_card.dart';
 
 class ComicNewBadge extends StatelessWidget {
-  const ComicNewBadge({super.key, this.compact = false});
+  const ComicNewBadge({super.key, this.compact = false, this.scale = 1});
 
   final bool compact;
+  final double scale;
 
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: const Color(0xFFE11D48),
-        borderRadius: BorderRadius.circular(compact ? 10 : 14),
+        borderRadius: BorderRadius.circular((compact ? 10 : 14) * scale),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.2),
@@ -21,16 +22,19 @@ class ComicNewBadge extends StatelessWidget {
       ),
       child: Padding(
         padding: EdgeInsets.symmetric(
-          horizontal: compact ? 6 : 8,
-          vertical: compact ? 3 : 5,
+          horizontal: (compact ? 6 : 8) * scale,
+          vertical: (compact ? 3 : 5) * scale,
         ),
         child: Text(
           'NEW',
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: Colors.white,
-            fontWeight: FontWeight.w900,
-            fontSize: compact ? 9 : null,
-            letterSpacing: compact ? 0.5 : 0.7,
+          style: _scaledTextStyle(
+            Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+              fontSize: compact ? 9 : null,
+              letterSpacing: (compact ? 0.5 : 0.7) * scale,
+            ),
+            scale,
           ),
         ),
       ),
@@ -48,17 +52,21 @@ class ComicSourceBadge extends StatelessWidget {
     super.key,
     required this.label,
     this.prominent = false,
+    this.scale = 1,
   });
 
   final String label;
   final bool prominent;
+  final double scale;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final textStyle =
-        (prominent ? theme.textTheme.labelMedium : theme.textTheme.labelSmall)
-            ?.copyWith(color: Colors.white, fontWeight: FontWeight.w900);
+    final textStyle = _scaledTextStyle(
+      (prominent ? theme.textTheme.labelMedium : theme.textTheme.labelSmall)
+          ?.copyWith(color: Colors.white, fontWeight: FontWeight.w900),
+      scale,
+    );
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -66,21 +74,21 @@ class ComicSourceBadge extends StatelessWidget {
         border: prominent
             ? Border.all(color: Colors.white.withValues(alpha: 0.18))
             : null,
-        borderRadius: BorderRadius.circular(prominent ? 18 : 14),
+        borderRadius: BorderRadius.circular((prominent ? 18 : 14) * scale),
       ),
       child: Padding(
         padding: prominent
-            ? const EdgeInsets.symmetric(horizontal: 11, vertical: 6)
-            : const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            ? EdgeInsets.symmetric(horizontal: 11 * scale, vertical: 6 * scale)
+            : EdgeInsets.symmetric(horizontal: 8 * scale, vertical: 5 * scale),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               TonztoonIcons.travelExplore,
-              size: prominent ? 14 : 12,
+              size: (prominent ? 14 : 12) * scale,
               color: Colors.white,
             ),
-            SizedBox(width: prominent ? 6 : 4),
+            SizedBox(width: (prominent ? 6 : 4) * scale),
             Flexible(
               child: Text(
                 label,
@@ -154,9 +162,10 @@ class ComicMetaBadge extends StatelessWidget {
 }
 
 class ComicTypeFlagBadge extends StatelessWidget {
-  const ComicTypeFlagBadge({super.key, required this.type});
+  const ComicTypeFlagBadge({super.key, required this.type, this.scale = 1});
 
   final String type;
+  final double scale;
 
   @override
   Widget build(BuildContext context) {
@@ -166,12 +175,12 @@ class ComicTypeFlagBadge extends StatelessWidget {
         shape: BoxShape.circle,
       ),
       child: SizedBox.square(
-        dimension: 28,
+        dimension: 28 * scale,
         child: Center(
           child: Text(
             comicTypeFlag(type),
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 16, height: 1),
+            style: TextStyle(fontSize: 16 * scale, height: 1),
           ),
         ),
       ),

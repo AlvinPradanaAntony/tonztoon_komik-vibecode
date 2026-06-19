@@ -3,6 +3,27 @@ import 'package:flutter/material.dart';
 typedef ColumnGridItemBuilder<T> =
     Widget Function(BuildContext context, T item);
 
+int resolveColumnGridColumnCount({
+  required double maxWidth,
+  int? columnCount,
+  required double minColumnWidth,
+  required int maxColumnCount,
+  required double horizontalSpacing,
+}) {
+  final fixedColumnCount = columnCount;
+  if (fixedColumnCount != null) {
+    return fixedColumnCount.clamp(1, maxColumnCount);
+  }
+  if (!maxWidth.isFinite || maxWidth <= 0) return 1;
+
+  final widthWithTrailingGap = maxWidth + horizontalSpacing;
+  final columnWidthWithGap = minColumnWidth + horizontalSpacing;
+  return (widthWithTrailingGap / columnWidthWithGap).floor().clamp(
+    1,
+    maxColumnCount,
+  );
+}
+
 class AppColumnGrid<T> extends StatelessWidget {
   const AppColumnGrid({
     super.key,
@@ -56,17 +77,12 @@ class AppColumnGrid<T> extends StatelessWidget {
   }
 
   int _resolveColumnCount(double maxWidth) {
-    final fixedColumnCount = columnCount;
-    if (fixedColumnCount != null) {
-      return fixedColumnCount.clamp(1, maxColumnCount);
-    }
-    if (!maxWidth.isFinite || maxWidth <= 0) return 1;
-
-    final widthWithTrailingGap = maxWidth + horizontalSpacing;
-    final columnWidthWithGap = minColumnWidth + horizontalSpacing;
-    return (widthWithTrailingGap / columnWidthWithGap).floor().clamp(
-      1,
-      maxColumnCount,
+    return resolveColumnGridColumnCount(
+      maxWidth: maxWidth,
+      columnCount: columnCount,
+      minColumnWidth: minColumnWidth,
+      maxColumnCount: maxColumnCount,
+      horizontalSpacing: horizontalSpacing,
     );
   }
 }
@@ -129,17 +145,12 @@ class AppSliverColumnGrid<T> extends StatelessWidget {
   }
 
   int _resolveColumnCount(double maxWidth) {
-    final fixedColumnCount = columnCount;
-    if (fixedColumnCount != null) {
-      return fixedColumnCount.clamp(1, maxColumnCount);
-    }
-    if (!maxWidth.isFinite || maxWidth <= 0) return 1;
-
-    final widthWithTrailingGap = maxWidth + horizontalSpacing;
-    final columnWidthWithGap = minColumnWidth + horizontalSpacing;
-    return (widthWithTrailingGap / columnWidthWithGap).floor().clamp(
-      1,
-      maxColumnCount,
+    return resolveColumnGridColumnCount(
+      maxWidth: maxWidth,
+      columnCount: columnCount,
+      minColumnWidth: minColumnWidth,
+      maxColumnCount: maxColumnCount,
+      horizontalSpacing: horizontalSpacing,
     );
   }
 }

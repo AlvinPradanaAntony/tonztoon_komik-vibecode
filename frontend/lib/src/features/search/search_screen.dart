@@ -56,6 +56,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void initState() {
     super.initState();
     _scrollController = ScrollController()..addListener(_onScroll);
+    unawaited(warmGenreOptionCache(ref));
   }
 
   @override
@@ -408,11 +409,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       initialState: ref.read(searchFilterProvider),
       resetSort: ComicSortOption.relevance,
       genreOptions: cachedGenreOptions.isEmpty ? null : cachedGenreOptions,
-      genreOptionsRefreshFuture: refreshGenreOptionNames(
-        ref,
-        context,
-        logContext: 'Refresh search genres failed',
-      ),
+      genreOptionsFuture: cachedGenreOptions.isEmpty
+          ? warmGenreOptionCache(ref)
+          : null,
       constraints: BoxConstraints(
         maxHeight: MediaQuery.sizeOf(context).height * 0.78,
       ),

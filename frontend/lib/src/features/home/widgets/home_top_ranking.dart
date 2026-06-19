@@ -147,14 +147,15 @@ class _TypeFilterToggle extends StatelessWidget {
               decoration: BoxDecoration(
                 color: isSelected
                     ? (isDark
-                          ? Colors.white.withValues(alpha: 0.12)
+                          ? colorScheme.secondary
                           : colorScheme.primary)
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: isSelected && !isDark
+                boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: colorScheme.primary.withValues(alpha: 0.15),
+                          color: (isDark ? colorScheme.secondary : colorScheme.primary)
+                              .withValues(alpha: isDark ? 0.24 : 0.15),
                           blurRadius: 4,
                           offset: const Offset(0, 1.5),
                         ),
@@ -238,10 +239,10 @@ class _TopRankingCardState extends State<_TopRankingCard> {
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(
-                          alpha: _hovered ? 0.26 : 0.16,
+                          alpha: _hovered ? 0.35 : 0.28,
                         ),
-                        blurRadius: _hovered ? 24 : 16,
-                        offset: const Offset(0, 10),
+                        blurRadius: _hovered ? 25 : 15,
+                        offset: const Offset(0, 12),
                       ),
                     ],
                   ),

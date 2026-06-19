@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../helpers/app_icons.dart';
 import '../../../helpers/app_snackbar.dart';
+import '../../../helpers/genre_options.dart';
 import '../../../helpers/navigation_helpers.dart';
 import '../../../models/comic.dart';
 import '../../../repositories/providers.dart';
@@ -16,6 +17,7 @@ import '../../../widgets/comic_card.dart';
 import '../../../widgets/comic_filter_sort_sheet.dart';
 import '../../../widgets/load_more_footer.dart';
 import '../../../widgets/column_grid.dart';
+import 'section_filter_sort_sheet.dart';
 
 class ComicSectionPayload {
   const ComicSectionPayload({
@@ -70,14 +72,37 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
   bool _isGrid = true;
   bool _isLatestStatsLoading = false;
   bool _hasLoadedComicSectionPage = false;
+  late SectionComicFilterSortState _filters;
   LatestComicStats? _latestStats;
+  bool _showHeaderShadow = false;
 
   bool get _isPopularSection =>
       ComicSortOption.normalize(widget.initialSort) == ComicSortOption.popular;
 
+  String get _sectionDefaultSort => _isPopularSection
+      ? ComicSortOption.popular
+      : ComicSortOption.updateNewest;
+
+  bool get _usesDefaultSectionQuery {
+    final filters = _filters;
+    return filters.type == ComicFilterOption.all &&
+        (!_isPopularSection || filters.status == ComicFilterOption.all) &&
+        filters.genre == ComicFilterOption.all &&
+        filters.sort == _sectionDefaultSort;
+  }
+
+  bool get _hasActiveSectionControls => _filters.hasActiveControls(
+    _sectionDefaultSort,
+    includeStatus: _isPopularSection,
+  );
+
+  bool get _hasActiveSectionFilters =>
+      _filters.activeFilterLabels(includeStatus: _isPopularSection).isNotEmpty;
+
   @override
   void initState() {
     super.initState();
+    _filters = SectionComicFilterSortState(sort: _sectionDefaultSort);
     _comics = widget.comics;
     _sourceName = _normalizedSource(widget.sourceName);
     _hasLoadedComicSectionPage = false;
@@ -88,6 +113,7 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
     _hasLoadedSection = _comics.isNotEmpty;
     _isFirstPageLoading = _comics.isEmpty;
     _scrollController = ScrollController()..addListener(_onScroll);
+    unawaited(warmGenreOptionCache(ref));
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadFirstPage());
   }
 
@@ -99,12 +125,13 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
       return;
     }
     _sourceName = _normalizedSource(widget.sourceName);
+    _filters = SectionComicFilterSortState(sort: _sectionDefaultSort);
     _comics = widget.comics;
     _hasLoadedComicSectionPage = false;
     _loadCachedComicSection();
     _latestStats = null;
     _loadCachedLatestStats();
-    _loadFirstPage();
+    _loadFirstPage(replaceExisting: true);
   }
 
   @override
@@ -118,7 +145,6 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -138,7 +164,18 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
             onPressed: () => setState(() => _isGrid = !_isGrid),
             icon: Icon(_isGrid ? TonztoonIcons.rows : TonztoonIcons.columns),
           ),
-          const SizedBox(width: 10),
+          Padding(
+            padding: const EdgeInsets.only(right: 10, left: 6),
+            child: IconButton(
+              tooltip: 'Filter dan Sorting section',
+              onPressed: _showFilterSheet,
+              icon: Badge(
+                isLabelVisible: _hasActiveSectionControls,
+                smallSize: 8,
+                child: const Icon(TonztoonIcons.slidersHorizontal),
+              ),
+            ),
+          ),
         ],
       ),
       body: Stack(
@@ -151,11 +188,11 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
                 ? _SectionErrorState(
                     key: const ValueKey('section-error'),
                     error: _error!,
-                    onRetry: _loadFirstPage,
+                    onRetry: () => _loadFirstPage(),
                   )
                 : RefreshIndicator(
                     key: const ValueKey('section-content'),
-                    onRefresh: _loadFirstPage,
+                    onRefresh: () => _loadFirstPage(),
                     child: CustomScrollView(
                       controller: _scrollController,
                       physics: const AlwaysScrollableScrollPhysics(),
@@ -181,36 +218,28 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
                                     !_isPopularSection && _latestStats == null,
                               ),
                               const SizedBox(height: 18),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      widget.title,
-                                      style: theme.textTheme.titleMedium,
-                                    ),
-                                  ),
-                                  if (_isFirstPageLoading &&
-                                      !_hasLoadedComicSectionPage)
-                                    const AppShimmer(
-                                      child: AppShimmerBlock(
-                                        width: 112,
-                                        height: 16,
-                                        borderRadius: 8,
-                                      ),
-                                    )
-                                  else
-                                    Text(
-                                      '${_comics.length} komik dimuat',
-                                      style: theme.textTheme.bodyMedium
-                                          ?.copyWith(
-                                            color: colorScheme.secondary,
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                    ),
-                                ],
+                              SectionActiveFilterStrip(
+                                filters: _filters,
+                                includeStatus: _isPopularSection,
+                                onClear: _clearFilters,
                               ),
-                              const SizedBox(height: 12),
+                              if (_hasActiveSectionFilters)
+                                const SizedBox(height: 10),
                             ]),
+                          ),
+                        ),
+                        SliverPersistentHeader(
+                          pinned: true,
+                          delegate: _SectionListHeaderDelegate(
+                            showShadow: _showHeaderShadow,
+                            child: _SectionListHeader(
+                              title: widget.title,
+                              loadedCount: _comics.length,
+                              sortLabel: _filters.sort,
+                              countLoading:
+                                  _isFirstPageLoading &&
+                                  !_hasLoadedComicSectionPage,
+                            ),
                           ),
                         ),
                         if (_comics.isEmpty)
@@ -267,7 +296,7 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
     );
   }
 
-  Future<void> _loadFirstPage() async {
+  Future<void> _loadFirstPage({bool replaceExisting = false}) async {
     if (!mounted) return;
     final serial = ++_requestSerial;
     final hadSection = _hasLoadedSection;
@@ -286,15 +315,18 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
     try {
       final sourceName = await _resolveSourceName();
       _loadCachedLatestStats(sourceName);
-      final comics = await _loadPage(sourceName, 1);
+      final page = await _loadPage(sourceName, 1);
+      final comics = page.items;
 
       if (!mounted || serial != _requestSerial) return;
-      final nextComics = hadSection ? _mergeRefreshedFirstPage(comics) : comics;
+      final nextComics = hadSection && !replaceExisting
+          ? _mergeRefreshedFirstPage(comics)
+          : comics;
       setState(() {
         _sourceName = sourceName;
         _comics = nextComics;
         _page = 1;
-        _hasNextPage = comics.length >= _pageSize;
+        _hasNextPage = page.hasNextPage;
         _isFirstPageLoading = false;
         _hasLoadedSection = true;
         _hasLoadedComicSectionPage = true;
@@ -341,7 +373,8 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
 
     try {
       final nextPage = _page + 1;
-      final comics = await _loadPage(sourceName, nextPage);
+      final page = await _loadPage(sourceName, nextPage);
+      final comics = page.items;
 
       if (!mounted || serial != _requestSerial) return;
       final existingKeys = _comics
@@ -360,7 +393,7 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
       setState(() {
         _comics = nextComics;
         _page = nextPage;
-        _hasNextPage = comics.length >= _pageSize && addedCount > 0;
+        _hasNextPage = page.hasNextPage && addedCount > 0;
         _isLoadingMore = false;
       });
       _cacheComicSection(sourceName);
@@ -393,12 +426,49 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
     ];
   }
 
-  Future<List<ComicSummary>> _loadPage(String sourceName, int page) {
+  Future<_LoadedSectionPage> _loadPage(String sourceName, int page) async {
     final repository = ref.read(catalogRepositoryProvider);
-    if (_isPopularSection) {
-      return repository.getPopular(sourceName, page: page, pageSize: _pageSize);
+    if (_usesDefaultSectionQuery) {
+      final comics = _isPopularSection
+          ? await repository.getPopular(
+              sourceName,
+              page: page,
+              pageSize: _pageSize,
+            )
+          : await repository.getLatest(
+              sourceName,
+              page: page,
+              pageSize: _pageSize,
+            );
+      return _LoadedSectionPage(
+        items: comics,
+        hasNextPage: comics.length >= _pageSize,
+      );
     }
-    return repository.getLatest(sourceName, page: page, pageSize: _pageSize);
+
+    final filters = _filters;
+    final comics = _isPopularSection
+        ? await repository.getPopular(
+            sourceName,
+            page: page,
+            pageSize: _pageSize,
+            type: _queryFor(filters.type),
+            status: _queryFor(filters.status),
+            genre: _queryFor(filters.genre),
+            sort: filters.sort,
+          )
+        : await repository.getLatest(
+            sourceName,
+            page: page,
+            pageSize: _pageSize,
+            type: _queryFor(filters.type),
+            genre: _queryFor(filters.genre),
+            sort: filters.sort,
+          );
+    return _LoadedSectionPage(
+      items: comics,
+      hasNextPage: comics.length >= _pageSize,
+    );
   }
 
   Future<void> _refreshLatestStats(String sourceName, int serial) async {
@@ -433,6 +503,7 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
   }
 
   void _loadCachedComicSection([String? sourceName]) {
+    if (!_usesDefaultSectionQuery) return;
     final source = _normalizedSource(sourceName ?? _sourceName);
     if (source == null) return;
     final cached = ref
@@ -449,6 +520,7 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
   }
 
   void _cacheComicSection(String sourceName) {
+    if (!_usesDefaultSectionQuery) return;
     ref
         .read(catalogRepositoryProvider)
         .cacheComicSection(
@@ -493,6 +565,9 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
     return sources.first.id;
   }
 
+  String? _queryFor(String option) =>
+      option == ComicFilterOption.all ? null : option.toLowerCase();
+
   String? _normalizedSource(String? sourceName) {
     final value = sourceName?.trim();
     if (value == null || value.isEmpty || value == 'home') return null;
@@ -504,9 +579,63 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
     if (_scrollController.position.extentAfter < 640) {
       _loadNextPage();
     }
+
+    final showHeaderShadow = _scrollController.offset > 120;
+    if (showHeaderShadow != _showHeaderShadow) {
+      setState(() {
+        _showHeaderShadow = showHeaderShadow;
+      });
+    }
+  }
+
+  void _clearFilters() {
+    setState(
+      () => _filters = SectionComicFilterSortState(sort: _sectionDefaultSort),
+    );
+    _loadFirstPage(replaceExisting: true);
+  }
+
+  Future<void> _showFilterSheet() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final cachedGenreOptions = cachedGenreOptionNames(ref);
+
+    final result = await showSectionComicFilterSortSheet(
+      context: context,
+      initialState: _filters,
+      defaultSort: _sectionDefaultSort,
+      includeStatus: _isPopularSection,
+      excludedSort: _sectionDefaultSort,
+      genreOptions: cachedGenreOptions.isEmpty ? null : cachedGenreOptions,
+      genreOptionsFuture: cachedGenreOptions.isEmpty
+          ? warmGenreOptionCache(ref)
+          : null,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.78,
+      ),
+    );
+
+    if (result == null) return;
+    setState(() => _filters = result);
+    if (_scrollController.hasClients) {
+      unawaited(
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+        ),
+      );
+    }
+    await _loadFirstPage(replaceExisting: true);
   }
 
   void _openComicDetail(ComicSummary comic) => openComicDetail(context, comic);
+}
+
+class _LoadedSectionPage {
+  const _LoadedSectionPage({required this.items, required this.hasNextPage});
+
+  final List<ComicSummary> items;
+  final bool hasNextPage;
 }
 
 class _SectionHero extends StatelessWidget {
@@ -599,6 +728,28 @@ class _CountBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
+    if (loading) {
+      return AppShimmer(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppShimmerBlock(width: 28, height: 13, borderRadius: 5),
+                SizedBox(height: 3),
+                AppShimmerBlock(width: 66, height: 9, borderRadius: 4),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colorScheme.primary.withValues(alpha: 0.16),
@@ -606,37 +757,203 @@ class _CountBadge extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-        child: loading
-            ? const AppShimmer(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    AppShimmerBlock(width: 28, height: 13, borderRadius: 5),
-                    SizedBox(height: 3),
-                    AppShimmerBlock(width: 66, height: 9, borderRadius: 4),
-                  ],
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: colorScheme.primary,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            if (caption != null)
+              Text(
+                caption!,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: colorScheme.primary,
+                  fontWeight: FontWeight.w800,
                 ),
-              )
-            : Column(
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionListHeaderDelegate extends SliverPersistentHeaderDelegate {
+  const _SectionListHeaderDelegate({required this.child, required this.showShadow});
+
+  static const double _height = 44;
+
+  final Widget child;
+  final bool showShadow;
+
+  @override
+  double get minExtent => _height;
+
+  @override
+  double get maxExtent => _height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor,
+        boxShadow: (showShadow || overlapsContent)
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(
+                    alpha: theme.brightness == Brightness.dark ? 0.38 : 0.16,
+                  ),
+                  blurRadius: 12,
+                  offset: const Offset(0, 5),
+                ),
+              ]
+            : null,
+        border: Border(
+          bottom: BorderSide(
+            color: (showShadow || overlapsContent)
+                ? colorScheme.outlineVariant.withValues(alpha: 0.42)
+                : Colors.transparent,
+          ),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+        child: child,
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _SectionListHeaderDelegate oldDelegate) {
+    return child != oldDelegate.child || showShadow != oldDelegate.showShadow;
+  }
+}
+
+class _SectionListHeader extends StatelessWidget {
+  const _SectionListHeader({
+    required this.title,
+    required this.loadedCount,
+    required this.sortLabel,
+    required this.countLoading,
+  });
+
+  final String title;
+  final int loadedCount;
+  final String sortLabel;
+  final bool countLoading;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: theme.textTheme.titleMedium,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Flexible(
+          flex: 3,
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    label,
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: colorScheme.primary,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  if (caption != null)
+                  if (countLoading)
+                    const AppShimmer(
+                      child: AppShimmerBlock(
+                        width: 112,
+                        height: 16,
+                        borderRadius: 8,
+                      ),
+                    )
+                  else
                     Text(
-                      caption!,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: colorScheme.primary,
+                      '$loadedCount komik dimuat',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.secondary,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
+                  const SizedBox(width: 8),
+                  _SectionSortPill(label: sortLabel, scale: 0.8),
                 ],
               ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SectionSortPill extends StatelessWidget {
+  const _SectionSortPill({required this.label, this.scale = 1});
+
+  final String label;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final clampedScale = scale.clamp(0.76, 1.0);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: isDark
+            ? colorScheme.surfaceContainerHighest
+            : colorScheme.secondary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(16 * clampedScale),
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: 10 * clampedScale,
+          vertical: 6 * clampedScale,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              TonztoonIcons.slidersHorizontal,
+              size: 15 * clampedScale,
+              color: colorScheme.secondary,
+            ),
+            SizedBox(width: 6 * clampedScale),
+            Text(
+              label,
+              style: theme.textTheme.labelMedium?.copyWith(
+                fontSize:
+                    (theme.textTheme.labelMedium?.fontSize ?? 12) *
+                    clampedScale,
+                fontWeight: FontWeight.w800,
+                color: colorScheme.secondary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -657,7 +974,7 @@ class _SectionGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppSliverColumnGrid<ComicSummary>(
       items: comics,
-      minColumnWidth: 104,
+      minColumnWidth: 98,
       maxColumnCount: 6,
       itemBuilder: (context, comic) {
         return ComicCard(

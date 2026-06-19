@@ -66,15 +66,33 @@ class _HomeRecommendationShimmer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
-      height: 270,
-      child: AppShimmer(
-        child: AppShimmerBlock(
-          width: double.infinity,
-          height: double.infinity,
-          borderRadius: 18,
-        ),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bannerWidth = math.max(
+          0.0,
+          (constraints.maxWidth *
+                  _RecommendationCarouselState._viewportFraction) -
+              _bannerPageEndGap,
+        );
+        final metrics = _recommendationBannerMetrics(bannerWidth);
+        final height =
+            metrics.paddingY +
+            (28 * metrics.scale) +
+            metrics.badgeContentGap +
+            metrics.coverHeight +
+            metrics.paddingY;
+
+        return SizedBox(
+          height: height,
+          child: const AppShimmer(
+            child: AppShimmerBlock(
+              width: double.infinity,
+              height: double.infinity,
+              borderRadius: 18,
+            ),
+          ),
+        );
+      },
     );
   }
 }

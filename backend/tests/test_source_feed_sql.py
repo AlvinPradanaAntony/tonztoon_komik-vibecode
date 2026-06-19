@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
 from app.api.v1.sources import (
+    _apply_source_comic_filters,
     _apply_source_comic_sort,
     _latest_feed_order,
     _popular_feed_order,
@@ -84,6 +85,22 @@ class SourceFeedSqlTests(unittest.TestCase):
             "comics.rating DESC NULLS LAST, comics.title ASC, comics.id ASC",
             sql,
         )
+        self.assertNotIn("chapters", sql)
+
+    def test_source_comic_filters_apply_type_status_and_genre(self):
+        sql = compile_sql(
+            _apply_source_comic_filters(
+                select(Comic.id).where(Comic.source_name == "komikcast"),
+                type="Manhwa",
+                status="Ongoing",
+                genre="Action",
+            ).limit(20)
+        )
+
+        self.assertIn("lower(comics.type) = ", sql)
+        self.assertIn("lower(comics.status) = ", sql)
+        self.assertIn("EXISTS", sql)
+        self.assertIn("genres", sql)
         self.assertNotIn("chapters", sql)
 
 

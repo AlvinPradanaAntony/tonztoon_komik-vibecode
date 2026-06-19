@@ -67,7 +67,8 @@ class ComicGridCardShimmer extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
+          AspectRatio(
+            aspectRatio: 2 / 3,
             child: AppShimmerBlock(width: double.infinity, borderRadius: 12),
           ),
           SizedBox(height: 9),

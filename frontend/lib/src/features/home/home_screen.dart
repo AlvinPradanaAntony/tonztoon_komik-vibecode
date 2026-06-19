@@ -29,9 +29,8 @@ import '../../widgets/comic_cover.dart';
 import '../../widgets/comic_filter_sort_sheet.dart';
 import '../../widgets/guest_migration_dialog.dart';
 import '../../widgets/helpdesk_dialog.dart';
-import '../../widgets/metadata_separator.dart';
-import '../../widgets/source_tag.dart';
 import '../../widgets/tonztoon_modal_dialog.dart';
+import 'widgets/continue_reading_progress_card.dart';
 
 part 'state/home_screen_state.dart';
 part 'helpers/home_helpers.dart';

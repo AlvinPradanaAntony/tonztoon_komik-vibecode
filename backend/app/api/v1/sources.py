@@ -300,6 +300,34 @@ def _apply_source_comic_sort(base_query, sort: str | None):
             return base_query
 
 
+def _apply_source_comic_filters(
+    base_query,
+    *,
+    type: str | None = None,
+    status: str | None = None,
+    genre: str | None = None,
+):
+    type_value = _normalize_query_value(type)
+    status_value = _normalize_query_value(status)
+    genre_value = _normalize_query_value(genre)
+
+    if type_value:
+        base_query = base_query.where(func.lower(Comic.type) == type_value)
+    if status_value:
+        base_query = base_query.where(func.lower(Comic.status) == status_value)
+    if genre_value:
+        genre_slug = _slugify_query_value(genre_value)
+        base_query = base_query.where(
+            Comic.genres.any(
+                or_(
+                    func.lower(Genre.name) == genre_value,
+                    func.lower(Genre.slug) == genre_slug,
+                )
+            )
+        )
+    return base_query
+
+
 def _get_source_or_404(source_name: str) -> dict:
     """Validasi source publik dan ubah ke metadata aktif."""
     try:
@@ -365,25 +393,12 @@ async def list_source_comics(
     """List katalog komik untuk satu source."""
     source = _get_source_or_404(source_name)
     base_query = select(Comic).where(Comic.source_name == source["id"])
-
-    type_value = _normalize_query_value(type)
-    status_value = _normalize_query_value(status)
-    genre_value = _normalize_query_value(genre)
-
-    if type_value:
-        base_query = base_query.where(func.lower(Comic.type) == type_value)
-    if status_value:
-        base_query = base_query.where(func.lower(Comic.status) == status_value)
-    if genre_value:
-        genre_slug = _slugify_query_value(genre_value)
-        base_query = base_query.where(
-            Comic.genres.any(
-                or_(
-                    func.lower(Genre.name) == genre_value,
-                    func.lower(Genre.slug) == genre_slug,
-                )
-            )
-        )
+    base_query = _apply_source_comic_filters(
+        base_query,
+        type=type,
+        status=status,
+        genre=genre,
+    )
 
     count_stmt = select(func.count()).select_from(base_query.subquery())
     total = (await db.execute(count_stmt)).scalar() or 0
@@ -418,20 +433,30 @@ async def get_source_latest_comics(
     source_name: str = Path(..., description="Filter by source name (e.g. komiku, shinigami, komicast, komiku_asia)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    type: str | None = Query(None, description="Filter by type: manga/manhwa/manhua"),
+    genre: str | None = Query(None, description="Filter by genre name or slug"),
+    sort: str | None = Query(
+        None,
+        description="Sort: popular/total_view/rating_high/az/za/relevance",
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """Feed komik terbaru dari satu source."""
     source = _get_source_or_404(source_name)
     offset = (page - 1) * page_size
+    base_query = select(
+        Comic,
+        _latest_chapter_number_subq.label("latest_chapter_number"),
+        _latest_chapter_release_subq.label("latest_chapter_release_date"),
+    ).where(Comic.source_name == source["id"])
+    base_query = _apply_source_comic_filters(
+        base_query,
+        type=type,
+        genre=genre,
+    )
     stmt = (
-        select(
-            Comic,
-            _latest_chapter_number_subq.label("latest_chapter_number"),
-            _latest_chapter_release_subq.label("latest_chapter_release_date"),
-        )
+        _apply_source_comic_sort(base_query, sort or "latest")
         .options(selectinload(Comic.genres), noload(Comic.chapters))
-        .where(Comic.source_name == source["id"])
-        .order_by(*_latest_feed_order())
         .offset(offset)
         .limit(page_size)
     )
@@ -475,20 +500,32 @@ async def get_source_popular_comics(
     source_name: str = Path(..., description="Filter by source name (e.g. komiku, shinigami, komicast, komiku_asia)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    type: str | None = Query(None, description="Filter by type: manga/manhwa/manhua"),
+    status: str | None = Query(None, description="Filter by status: ongoing/completed/hiatus"),
+    genre: str | None = Query(None, description="Filter by genre name or slug"),
+    sort: str | None = Query(
+        None,
+        description="Sort: latest/total_view/rating_high/az/za/relevance",
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """Feed komik populer dari satu source."""
     source = _get_source_or_404(source_name)
     offset = (page - 1) * page_size
+    base_query = select(
+        Comic,
+        _latest_chapter_number_subq.label("latest_chapter_number"),
+        _latest_chapter_release_subq.label("latest_chapter_release_date"),
+    ).where(Comic.source_name == source["id"])
+    base_query = _apply_source_comic_filters(
+        base_query,
+        type=type,
+        status=status,
+        genre=genre,
+    )
     stmt = (
-        select(
-            Comic,
-            _latest_chapter_number_subq.label("latest_chapter_number"),
-            _latest_chapter_release_subq.label("latest_chapter_release_date"),
-        )
+        _apply_source_comic_sort(base_query, sort or "popular")
         .options(selectinload(Comic.genres), noload(Comic.chapters))
-        .where(Comic.source_name == source["id"])
-        .order_by(*_popular_feed_order())
         .offset(offset)
         .limit(page_size)
     )

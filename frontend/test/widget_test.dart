@@ -775,6 +775,9 @@ class _FakeCatalogRepository implements CatalogRepository {
     String sourceName, {
     int page = 1,
     int pageSize = 20,
+    String? type,
+    String? genre,
+    String? sort,
   }) async => const [comic];
 
   @override
@@ -782,6 +785,10 @@ class _FakeCatalogRepository implements CatalogRepository {
     String sourceName, {
     int page = 1,
     int pageSize = 20,
+    String? type,
+    String? status,
+    String? genre,
+    String? sort,
   }) async => const [comic];
 
   @override

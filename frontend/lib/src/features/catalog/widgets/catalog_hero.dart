@@ -93,36 +93,162 @@ class _CatalogHero extends StatelessWidget {
   }
 }
 
-class _SortPill extends StatelessWidget {
-  const _SortPill({required this.label});
+class _CatalogListHeaderDelegate extends SliverPersistentHeaderDelegate {
+  const _CatalogListHeaderDelegate({required this.child, required this.showShadow});
 
-  final String label;
+  static const double _height = 44;
+
+  final Widget child;
+  final bool showShadow;
 
   @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+  double get minExtent => _height;
+
+  @override
+  double get maxExtent => _height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(16),
+        color: theme.scaffoldBackgroundColor,
+        boxShadow: (showShadow || overlapsContent)
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(
+                    alpha: theme.brightness == Brightness.dark ? 0.38 : 0.16,
+                  ),
+                  blurRadius: 12,
+                  offset: const Offset(0, 5),
+                ),
+              ]
+            : null,
+        border: Border(
+          bottom: BorderSide(
+            color: (showShadow || overlapsContent)
+                ? colorScheme.outlineVariant.withValues(alpha: 0.42)
+                : Colors.transparent,
+          ),
+        ),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+        child: child,
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _CatalogListHeaderDelegate oldDelegate) {
+    return child != oldDelegate.child || showShadow != oldDelegate.showShadow;
+  }
+}
+
+class _CatalogListHeader extends StatelessWidget {
+  const _CatalogListHeader({
+    required this.loadedCount,
+    required this.sortLabel,
+  });
+
+  final int loadedCount;
+  final String sortLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Text(
+            'Jelajahi',
+            style: theme.textTheme.titleMedium,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 18),
+        Flexible(
+          flex: 3,
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '$loadedCount komik dimuat',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.secondary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _CatalogSortPill(label: sortLabel, scale: 0.8),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CatalogSortPill extends StatelessWidget {
+  const _CatalogSortPill({required this.label, this.scale = 1});
+
+  final String label;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final clampedScale = scale.clamp(0.76, 1.0);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: isDark
+            ? colorScheme.surfaceContainerHighest
+            : colorScheme.secondary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(16 * clampedScale),
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: 10 * clampedScale,
+          vertical: 6 * clampedScale,
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               TonztoonIcons.slidersHorizontal,
-              size: 15,
+              size: 15 * clampedScale,
               color: colorScheme.secondary,
             ),
-            const SizedBox(width: 6),
+            SizedBox(width: 6 * clampedScale),
             Text(
               label,
-              style: Theme.of(
-                context,
-              ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800),
+              style: theme.textTheme.labelMedium?.copyWith(
+                fontSize:
+                    (theme.textTheme.labelMedium?.fontSize ?? 12) *
+                    clampedScale,
+                fontWeight: FontWeight.w800,
+                color: colorScheme.secondary,
+              ),
             ),
           ],
         ),
