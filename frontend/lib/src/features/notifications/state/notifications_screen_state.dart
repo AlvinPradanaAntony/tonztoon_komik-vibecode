@@ -65,6 +65,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                       _NotificationSummary(unreadCount: unreadCount),
                       const SizedBox(height: 18),
                       _FilterStrip(
+                        notifications: notifications,
                         selectedFilter: _selectedFilter,
                         onChanged: (value) =>
                             setState(() => _selectedFilter = value),
@@ -206,6 +207,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     if (!mounted) return;
     final route = item.actionRoute;
     if (route == null || route.isEmpty) return;
+    final uri = Uri.tryParse(route);
+    if (uri != null && (uri.path == '/notifications' || uri.path == '/notifications/')) {
+      return;
+    }
     await context.push<void>(route);
   }
 }

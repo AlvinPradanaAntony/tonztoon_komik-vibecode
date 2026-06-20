@@ -852,7 +852,7 @@ class _FakeCatalogRepository implements CatalogRepository {
   Future<SourceComicPage> getSourceComics({
     required String? sourceName,
     required int page,
-    int pageSize = 40,
+    int pageSize = 15,
     String? type,
     String? status,
     String? genre,
@@ -862,7 +862,7 @@ class _FakeCatalogRepository implements CatalogRepository {
       items: [comic],
       total: 1,
       page: 1,
-      pageSize: 40,
+      pageSize: 15,
       totalPages: 1,
     );
   }

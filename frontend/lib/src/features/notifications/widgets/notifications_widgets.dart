@@ -71,10 +71,27 @@ class _NotificationSummary extends StatelessWidget {
 }
 
 class _FilterStrip extends StatelessWidget {
-  const _FilterStrip({required this.selectedFilter, required this.onChanged});
+  const _FilterStrip({
+    required this.notifications,
+    required this.selectedFilter,
+    required this.onChanged,
+  });
 
+  final List<AppNotification> notifications;
   final String selectedFilter;
   final ValueChanged<String> onChanged;
+
+  bool _hasUnread(String filter) {
+    if (filter == 'Semua') {
+      return notifications.any((item) => item.unread);
+    }
+    if (filter == 'Sistem') {
+      return notifications.any(
+        (item) => item.unread && item.category != 'Update' && item.category != 'Pustaka',
+      );
+    }
+    return notifications.any((item) => item.unread && item.category == filter);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -94,7 +111,25 @@ class _FilterStrip extends StatelessWidget {
           ]) ...[
             ChoiceChip(
               key: ValueKey('notification-filter-$filter'),
-              label: Text(filter),
+              label: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(filter),
+                  if (_hasUnread(filter)) ...[
+                    const SizedBox(width: 5),
+                    Container(
+                      width: 5.5,
+                      height: 5.5,
+                      decoration: BoxDecoration(
+                        color: selectedFilter == filter
+                            ? colorScheme.onPrimary
+                            : colorScheme.primary,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
               selected: selectedFilter == filter,
               onSelected: (_) => onChanged(filter),
               showCheckmark: false,
@@ -160,17 +195,28 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _NotificationTile extends StatelessWidget {
+class _NotificationTile extends StatefulWidget {
   const _NotificationTile({required this.item, required this.onTap});
 
   final AppNotification item;
   final VoidCallback onTap;
 
   @override
+  State<_NotificationTile> createState() => _NotificationTileState();
+}
+
+class _NotificationTileState extends State<_NotificationTile> {
+  bool _isExpanded = false;
+
+  @override
   Widget build(BuildContext context) {
+    final item = widget.item;
+    final onTap = widget.onTap;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final style = _notificationStyle(item);
+
+    final isExpandable = ['Pengumuman', 'Testing', 'Maintenance'].contains(item.category);
 
     // Background color: Blend with primary if unread for a soft modern tint
     final cardColor = item.unread
@@ -202,16 +248,131 @@ class _NotificationTile extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: onTap,
+        onTap: () {
+          onTap();
+          if (isExpandable) {
+            setState(() {
+              _isExpanded = !_isExpanded;
+            });
+          }
+        },
+        splashColor: theme.splashColor.withValues(alpha: 0.12),
+        highlightColor: theme.highlightColor.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(16),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Visual Accent Indicator on the left edge
-              AnimatedContainer(
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _NotificationIcon(
+                    icon: style.icon,
+                    accent: style.accent,
+                    isUnread: item.unread,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                item.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.titleMedium
+                                    ?.copyWith(
+                                      fontWeight: item.unread
+                                          ? FontWeight.w800
+                                          : FontWeight.w600,
+                                      color: item.unread
+                                          ? null
+                                          : (theme
+                                                        .textTheme
+                                                        .titleMedium
+                                                        ?.color ??
+                                                    colorScheme.onSurface)
+                                                .withValues(alpha: 0.72),
+                                    ),
+                              ),
+                            ),
+                            if (item.unread) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: colorScheme.primary,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: colorScheme.primary.withValues(
+                                        alpha: 0.5,
+                                      ),
+                                      blurRadius: 4,
+                                      spreadRadius: 1.5,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                            const SizedBox(width: 8),
+                            Text(
+                              _relativeTime(item.createdAt),
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: item.unread
+                                    ? colorScheme.secondary
+                                    : colorScheme.secondary.withValues(
+                                        alpha: 0.6,
+                                      ),
+                                fontWeight: item.unread
+                                    ? FontWeight.w900
+                                    : FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 5),
+                        AnimatedSize(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOutCubic,
+                          alignment: Alignment.topCenter,
+                          child: Text(
+                            item.message,
+                            maxLines: (isExpandable && _isExpanded) ? null : 2,
+                            overflow: (isExpandable && _isExpanded) ? null : TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              height: 1.35,
+                              color: item.unread
+                                  ? null
+                                  : (theme.textTheme.bodySmall?.color ??
+                                            colorScheme.onSurfaceVariant)
+                                        .withValues(alpha: 0.65),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 9),
+                        _CategoryPill(
+                          label: item.category,
+                          isUnread: item.unread,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Visual Accent Indicator on the left edge
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: 4.5,
+              child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                width: 4.5,
                 decoration: BoxDecoration(
                   color: item.unread ? colorScheme.primary : Colors.transparent,
                   borderRadius: const BorderRadius.horizontal(
@@ -219,109 +380,8 @@ class _NotificationTile extends StatelessWidget {
                   ),
                 ),
               ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 16, 12),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _NotificationIcon(
-                        icon: style.icon,
-                        accent: style.accent,
-                        isUnread: item.unread,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    item.title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.titleMedium
-                                        ?.copyWith(
-                                          fontWeight: item.unread
-                                              ? FontWeight.w800
-                                              : FontWeight.w600,
-                                          color: item.unread
-                                              ? null
-                                              : (theme
-                                                            .textTheme
-                                                            .titleMedium
-                                                            ?.color ??
-                                                        colorScheme.onSurface)
-                                                    .withValues(alpha: 0.72),
-                                        ),
-                                  ),
-                                ),
-                                if (item.unread) ...[
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: BoxDecoration(
-                                      color: colorScheme.primary,
-                                      shape: BoxShape.circle,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: colorScheme.primary.withValues(
-                                            alpha: 0.5,
-                                          ),
-                                          blurRadius: 4,
-                                          spreadRadius: 1.5,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                                const SizedBox(width: 8),
-                                Text(
-                                  _relativeTime(item.createdAt),
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: item.unread
-                                        ? colorScheme.secondary
-                                        : colorScheme.secondary.withValues(
-                                            alpha: 0.6,
-                                          ),
-                                    fontWeight: item.unread
-                                        ? FontWeight.w900
-                                        : FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              item.message,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                height: 1.35,
-                                color: item.unread
-                                    ? null
-                                    : (theme.textTheme.bodySmall?.color ??
-                                              colorScheme.onSurfaceVariant)
-                                          .withValues(alpha: 0.65),
-                              ),
-                            ),
-                            const SizedBox(height: 9),
-                            _CategoryPill(
-                              label: item.category,
-                              isUnread: item.unread,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -378,26 +438,69 @@ class _CategoryPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+
+    // Define premium gradients for each notification category
+    final List<Color> gradientColors;
+    switch (label) {
+      case 'Update':
+        // Coral Orange
+        gradientColors = const [Color(0xFFFE8C00), Color(0xFFF83600)];
+        break;
+      case 'Pustaka':
+        // Indigo Purple
+        gradientColors = const [Color(0xFF7F00FF), Color(0xFFE100FF)];
+        break;
+      case 'Pengumuman':
+        // Warm Amber
+        gradientColors = const [Color(0xFFF59E0B), Color(0xFFD97706)];
+        break;
+      case 'Testing':
+        // Modern Cyan
+        gradientColors = const [Color(0xFF00B4DB), Color(0xFF0083B0)];
+        break;
+      case 'Maintenance':
+        // Rose Red
+        gradientColors = const [Color(0xFFED213A), Color(0xFF93291E)];
+        break;
+      default:
+        // Teal Green
+        gradientColors = const [Color(0xFF11998E), Color(0xFF38EF7D)];
+    }
+
+    // Soften the gradient colors if the notification is read
+    final colors = isUnread
+        ? gradientColors
+        : gradientColors.map((c) => c.withValues(alpha: 0.35)).toList();
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: isUnread
-            ? colorScheme.surfaceContainerHighest
-            : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(14),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: colors,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: isUnread
+            ? [
+                BoxShadow(
+                  color: gradientColors.first.withValues(alpha: 0.24),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : null,
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         child: Text(
           label,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          style: theme.textTheme.labelSmall?.copyWith(
             fontWeight: FontWeight.w900,
             color: isUnread
-                ? null
-                : (Theme.of(context).textTheme.labelSmall?.color ??
-                          colorScheme.onSurface)
-                      .withValues(alpha: 0.6),
+                ? Colors.white
+                : Colors.white.withValues(alpha: 0.65),
+            letterSpacing: 0.4,
           ),
         ),
       ),

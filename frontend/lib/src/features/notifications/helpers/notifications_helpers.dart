@@ -18,36 +18,73 @@ List<AppNotification> _visibleNotifications(
 }
 
 _NotificationStyle _notificationStyle(AppNotification item) {
-  return switch (item.kind) {
-    'download_completed' => const _NotificationStyle(
-      icon: TonztoonIcons.download,
-      accent: Color(0xFF3A86FF),
-    ),
-    'download_failed' => const _NotificationStyle(
-      icon: TonztoonIcons.warning,
-      accent: Color(0xFFEF4444),
-    ),
-    'download_cancelled' => const _NotificationStyle(
-      icon: TonztoonIcons.close,
-      accent: Color(0xFF64748B),
-    ),
-    'recommendation' => const _NotificationStyle(
-      icon: TonztoonIcons.autoAwesome,
-      accent: Color(0xFFFFD60A),
-    ),
-    'chapter_update' => const _NotificationStyle(
-      icon: TonztoonIcons.bookOpen,
-      accent: Color(0xFFFF9D00),
-    ),
-    'progress_sync_failed' => const _NotificationStyle(
-      icon: TonztoonIcons.warning,
-      accent: Color(0xFFEF4444),
-    ),
-    _ => const _NotificationStyle(
-      icon: TonztoonIcons.bell,
-      accent: Color(0xFF22C55E),
-    ),
-  };
+  // 1. Check for specific action-based kinds first
+  switch (item.kind) {
+    case 'download_completed':
+      return const _NotificationStyle(
+        icon: TonztoonIcons.download,
+        accent: Color(0xFF3A86FF),
+      );
+    case 'download_failed':
+      return const _NotificationStyle(
+        icon: TonztoonIcons.warning,
+        accent: Color(0xFFEF4444),
+      );
+    case 'download_cancelled':
+      return const _NotificationStyle(
+        icon: TonztoonIcons.close,
+        accent: Color(0xFF64748B),
+      );
+    case 'progress_sync_failed':
+      return const _NotificationStyle(
+        icon: TonztoonIcons.warning,
+        accent: Color(0xFFEF4444),
+      );
+    case 'recommendation':
+      return const _NotificationStyle(
+        icon: TonztoonIcons.autoAwesome,
+        accent: Color(0xFFFFD60A),
+      );
+    case 'chapter_update':
+      return const _NotificationStyle(
+        icon: TonztoonIcons.bookOpen,
+        accent: Color(0xFFFF9D00),
+      );
+  }
+
+  // 2. Fallback to category-based styling for consistent visual identity
+  switch (item.category) {
+    case 'Update':
+      return const _NotificationStyle(
+        icon: TonztoonIcons.bookOpen,
+        accent: Color(0xFFFF9D00),
+      );
+    case 'Pustaka':
+      return const _NotificationStyle(
+        icon: TonztoonIcons.library,
+        accent: Color(0xFF7F00FF),
+      );
+    case 'Pengumuman':
+      return const _NotificationStyle(
+        icon: TonztoonIcons.autoAwesome,
+        accent: Color(0xFFF59E0B),
+      );
+    case 'Testing':
+      return const _NotificationStyle(
+        icon: TonztoonIcons.bug,
+        accent: Color(0xFF00B4DB),
+      );
+    case 'Maintenance':
+      return const _NotificationStyle(
+        icon: TonztoonIcons.settings,
+        accent: Color(0xFFED213A),
+      );
+    default:
+      return const _NotificationStyle(
+        icon: TonztoonIcons.bell,
+        accent: Color(0xFF22C55E),
+      );
+  }
 }
 
 String _relativeTime(DateTime value) {

@@ -6,23 +6,39 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
-## [1.18.0] - 2026-06-19
+## [1.18.1] - 2026-06-20
 
 ### Added
+- Dialog App Info di Settings untuk melihat versi/build terpasang dan catatan rilis aplikasi.
+- Tombol kembali ke atas pada Full Catalog, section komik, Continue Reading, serta tab Bookmark dan History.
+- Admin dashboard kini dapat disajikan langsung dari FastAPI melalui path `/admin`, termasuk pada deployment Docker.
+
+### Changed
+- Dialog changelog dan update menampilkan judul versi yang lebih jelas serta area catatan rilis yang lebih luas.
+- Reset filter Catalog dan section kini langsung menerapkan nilai default dan menutup filter sheet.
+- Ukuran halaman Catalog dan section disesuaikan menjadi 15 item agar pagination dan pemuatan bertahap lebih ringan.
+- Admin dashboard memakai origin deployment aktif sebagai API base sehingga tidak lagi bergantung pada alamat localhost.
+- Versi FastAPI diselaraskan dengan versi rilis aplikasi dan dependency FastAPI diperbarui.
+
+---
+
+<details>
+<summary><strong>Riwayat versi sebelumnya</strong></summary>
+
+### [1.18.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.18.0) - 2026-06-19
+
+#### Added
 - Filter dan sorting pada halaman section komik untuk menyaring berdasarkan tipe, genre, status, serta urutan seperti update terbaru, populer, rating, view, dan judul.
 - Dukungan backend untuk filter `type`, `status`, `genre`, dan `sort` pada feed latest/popular per source.
 - Kartu Continue Reading baru yang menampilkan cover, chapter, source, progress baca, dan aksi lanjut baca dengan tampilan yang lebih kaya.
 
-### Changed
+#### Changed
 - Header daftar section kini pinned, menampilkan jumlah komik yang dimuat, mode sorting aktif, dan badge filter aktif.
 - Pagination section memakai status halaman berikutnya dari hasil query terbaru agar load-more lebih akurat saat filter aktif.
 - Tampilan rekomendasi, top ranking, source tag, badge komik, shimmer, dan grid kolom dipoles agar responsif dan konsisten di berbagai ukuran layar.
 - Genre option cache dipakai untuk mempercepat pembukaan filter section.
 
 ---
-
-<details>
-<summary><strong>Riwayat versi sebelumnya</strong></summary>
 
 ### [1.17.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.17.0) - 2026-06-18
 

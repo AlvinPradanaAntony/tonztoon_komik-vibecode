@@ -111,6 +111,73 @@ void main() {
     expect(summaryGradient.colors.last, const Color(0xFF402515));
     expect(summaryDecoration.border, isNull);
   });
+
+  testWidgets(
+    'tapping notification with actionRoute /notifications does not push route',
+    (tester) async {
+      final container = ProviderContainer(
+        overrides: [
+          notificationsProvider.overrideWith(
+            _NotificationsWithRouteController.new,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            home: NotificationsScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Tap on the notification tile. Since actionRoute is '/notifications',
+      // it should NOT call context.push and thus NOT throw GoRouter error.
+      await tester.tap(find.text('Chapter baru tersedia'));
+      await tester.pumpAndSettle();
+      
+      // Verification: The notification should be marked read successfully without throwing GoRouter errors.
+      final controller = container.read(notificationsProvider.notifier) as _NotificationsWithRouteController;
+      expect(controller.markedReadId, 'test:notifications-route');
+    },
+  );
+}
+
+class _NotificationsWithRouteController extends NotificationsController {
+  String? markedReadId;
+
+  @override
+  Future<List<AppNotification>> build() async => [
+    AppNotification(
+      id: 'test:notifications-route',
+      title: 'Chapter baru tersedia',
+      message: 'Tampilan notifikasi.',
+      category: 'Update',
+      kind: 'chapter_update',
+      actionRoute: '/notifications',
+      createdAt: DateTime.now(),
+    ),
+  ];
+
+  @override
+  Future<void> markRead(String id) async {
+    markedReadId = id;
+    state = AsyncData([
+      AppNotification(
+        id: 'test:notifications-route',
+        title: 'Chapter baru tersedia',
+        message: 'Tampilan notifikasi.',
+        category: 'Update',
+        kind: 'chapter_update',
+        actionRoute: '/notifications',
+        createdAt: DateTime.now(),
+        unread: false,
+      ),
+    ]);
+  }
 }
 
 class _TestNotificationsController extends NotificationsController {

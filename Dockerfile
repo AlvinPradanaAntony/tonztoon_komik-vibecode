@@ -60,6 +60,7 @@ USER user
 
 # Salin kode dengan chown agar user punya akses baca/tulis penuh
 COPY --chown=user backend ./
+COPY --chown=user admin ./admin
 
 EXPOSE 7860
 

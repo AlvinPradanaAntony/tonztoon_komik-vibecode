@@ -226,7 +226,7 @@ void main() {
             ],
             'total': 1,
             'page': 1,
-            'page_size': 40,
+            'page_size': 15,
             'total_pages': 1,
           },
         }),

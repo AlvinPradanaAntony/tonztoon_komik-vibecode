@@ -2,7 +2,9 @@
   "use strict";
 
   const SESSION_KEY = "tonztoon.account-manager.session.v2";
-  const DEFAULT_API_BASE = "http://127.0.0.1:8000";
+  const DEFAULT_API_BASE = (typeof window !== "undefined" && window.location.origin && window.location.origin.startsWith("http"))
+    ? window.location.origin
+    : "http://127.0.0.1:8000";
 
   /* ── Sidebar Configuration ──────────────────────────────────────────── */
   const SIDEBAR_LINKS = [
@@ -554,6 +556,7 @@
 
   /* ── Public API ─────────────────────────────────────────────────────── */
   window.TonztoonAdmin = {
+    DEFAULT_API_BASE,
     animateCounter,
     blankPanel,
     createFeatureSession,

@@ -250,7 +250,7 @@ class CatalogRepository {
   Future<SourceComicPage> getSourceComics({
     required String? sourceName,
     required int page,
-    int pageSize = 40,
+    int pageSize = 15,
     String? type,
     String? status,
     String? genre,

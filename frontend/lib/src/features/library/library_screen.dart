@@ -21,6 +21,7 @@ import '../../widgets/comic_cover.dart';
 import '../../widgets/load_more_footer.dart';
 import '../../widgets/metadata_separator.dart';
 import '../../widgets/source_tag.dart';
+import '../../widgets/scroll_to_top_fab.dart';
 import '../../widgets/tonztoon_modal_dialog.dart';
 import 'library_error.dart';
 import 'library_shared_panes.dart';

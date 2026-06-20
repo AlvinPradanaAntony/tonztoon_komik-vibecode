@@ -17,6 +17,7 @@ import '../../../widgets/comic_card.dart';
 import '../../../widgets/comic_filter_sort_sheet.dart';
 import '../../../widgets/load_more_footer.dart';
 import '../../../widgets/column_grid.dart';
+import '../../../widgets/scroll_to_top_fab.dart';
 import 'section_filter_sort_sheet.dart';
 
 class ComicSectionPayload {
@@ -56,7 +57,7 @@ class ComicSectionScreen extends ConsumerStatefulWidget {
 }
 
 class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
-  static const _pageSize = 20;
+  static const _pageSize = 15;
 
   late final ScrollController _scrollController;
 
@@ -293,6 +294,7 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
           AppEdgeFade(background: theme.scaffoldBackgroundColor),
         ],
       ),
+      floatingActionButton: ScrollToTopFab(controller: _scrollController),
     );
   }
 
@@ -783,7 +785,10 @@ class _CountBadge extends StatelessWidget {
 }
 
 class _SectionListHeaderDelegate extends SliverPersistentHeaderDelegate {
-  const _SectionListHeaderDelegate({required this.child, required this.showShadow});
+  const _SectionListHeaderDelegate({
+    required this.child,
+    required this.showShadow,
+  });
 
   static const double _height = 44;
 

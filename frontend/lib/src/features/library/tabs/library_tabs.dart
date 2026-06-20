@@ -160,6 +160,11 @@ class _BookmarksTabState extends ConsumerState<_BookmarksTab>
             child: LinearProgressIndicator(minHeight: 3),
           ),
         AppEdgeFade(background: theme.scaffoldBackgroundColor),
+        Positioned(
+          right: 16,
+          bottom: 120,
+          child: ScrollToTopFab(controller: _scrollController),
+        ),
       ],
     );
   }
@@ -570,6 +575,11 @@ class _HistoryTabState extends ConsumerState<_HistoryTab>
             child: LinearProgressIndicator(minHeight: 3),
           ),
         AppEdgeFade(background: theme.scaffoldBackgroundColor),
+        Positioned(
+          right: 16,
+          bottom: 120,
+          child: ScrollToTopFab(controller: _scrollController),
+        ),
       ],
     );
   }

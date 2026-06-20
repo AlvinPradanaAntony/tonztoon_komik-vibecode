@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "backend/**"
+      - "admin/**"
       - "Dockerfile"
       - ".dockerignore"
       - "README.md"
@@ -74,7 +75,7 @@ jobs:
           echo "🔎 Inspecting trigger range: ${range}"
           git diff --name-only "${range}" > trigger-changed-files.txt || true
 
-          backend_count=$(grep -Ec '^(backend/|Dockerfile$|\.dockerignore$|README\.md$)' trigger-changed-files.txt || true)
+          backend_count=$(grep -Ec '^(backend/|admin/|Dockerfile$|\.dockerignore$|README\.md$)' trigger-changed-files.txt || true)
           total_count=$(wc -l < trigger-changed-files.txt | tr -d ' ')
           commit_subject="$(git log -1 --pretty=%s)"
 
@@ -107,6 +108,7 @@ jobs:
           esac
 
           [[ -d "${BACKEND_DIR}" ]] || fail "Folder ${BACKEND_DIR} tidak ditemukan"
+          [[ -d admin ]] || fail "Folder admin tidak ditemukan"
           [[ -f Dockerfile ]] || fail "Dockerfile tidak ditemukan"
           [[ -f .dockerignore ]] || fail ".dockerignore tidak ditemukan"
           [[ -f README.md ]] || fail "README.md tidak ditemukan"
@@ -136,8 +138,9 @@ jobs:
           rm -rf hf-payload
           mkdir -p hf-payload
 
-          echo "📦 Menyalin backend, Dockerfile, dan .dockerignore"
+          echo "📦 Menyalin backend, admin, Dockerfile, dan .dockerignore"
           cp -R "$BACKEND_DIR" hf-payload/backend
+          cp -R admin hf-payload/admin
           cp Dockerfile .dockerignore hf-payload/
 
           echo "📝 Membangun README Hugging Face dengan header khusus"
@@ -177,6 +180,9 @@ jobs:
           rsync -a --delete --itemize-changes --exclude='.git' hf-payload/ hf-space/ | tee rsync.log
 
           cd hf-space
+          git lfs install
+          git lfs track "admin/logo.png"
+          git add .gitattributes
           git add -A
           echo "✅ Payload berhasil disinkronkan"
 

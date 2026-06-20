@@ -237,11 +237,13 @@ class _AppVersionSection extends StatelessWidget {
     required this.packageInfoFuture,
     required this.checkingForUpdate,
     required this.onCheckForUpdate,
+    required this.onShowAppInfo,
   });
 
   final Future<PackageInfo> packageInfoFuture;
   final bool checkingForUpdate;
   final VoidCallback onCheckForUpdate;
+  final VoidCallback onShowAppInfo;
 
   @override
   Widget build(BuildContext context) {
@@ -261,6 +263,7 @@ class _AppVersionSection extends StatelessWidget {
               icon: TonztoonIcons.badge,
               title: 'App Version',
               subtitle: 'Mengikuti metadata build terbaru',
+              onTap: onShowAppInfo,
               trailing: Text(
                 versionLabel,
                 maxLines: 1,

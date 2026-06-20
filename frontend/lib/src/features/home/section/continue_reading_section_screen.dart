@@ -11,6 +11,7 @@ import '../../../widgets/app_empty_state.dart';
 import '../../../widgets/app_error_state.dart';
 import '../../../widgets/app_loading_placeholder.dart';
 import '../../../widgets/load_more_footer.dart';
+import '../../../widgets/scroll_to_top_fab.dart';
 import '../widgets/continue_reading_progress_card.dart';
 
 class ContinueReadingSectionPayload {
@@ -193,6 +194,7 @@ class _ContinueReadingSectionScreenState
           AppEdgeFade(background: theme.scaffoldBackgroundColor),
         ],
       ),
+      floatingActionButton: ScrollToTopFab(controller: _scrollController),
     );
   }
 

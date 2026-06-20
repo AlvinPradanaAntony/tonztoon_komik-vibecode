@@ -14,6 +14,7 @@ import '../../widgets/comic_filter_sort_sheet.dart';
 import '../../widgets/app_loading_placeholder.dart';
 import '../../widgets/load_more_footer.dart';
 import '../../widgets/column_grid.dart';
+import '../../widgets/scroll_to_top_fab.dart';
 import 'controller/catalog_controller.dart';
 
 part 'models/catalog_view_models.dart';
@@ -33,7 +34,6 @@ class FullCatalogScreen extends ConsumerStatefulWidget {
 class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
   late final ScrollController _scrollController;
   bool _isGrid = true;
-  bool _showScrollToTop = false;
   bool _showHeaderShadow = false;
 
   @override
@@ -201,19 +201,7 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
       ),
       floatingActionButton: Padding(
         padding: EdgeInsets.only(bottom: widget.showBackButton ? 0 : 120),
-        child: AnimatedScale(
-          scale: _showScrollToTop ? 1.0 : 0.0,
-          duration: const Duration(milliseconds: 200),
-          child: FloatingActionButton(
-            mini: true,
-            onPressed: _scrollToTop,
-            tooltip: 'Kembali ke atas',
-            backgroundColor: theme.colorScheme.primary,
-            foregroundColor: theme.colorScheme.surface,
-            shape: const CircleBorder(),
-            child: const Icon(TonztoonIcons.arrowUp),
-          ),
-        ),
+        child: ScrollToTopFab(controller: _scrollController),
       ),
     );
   }
@@ -239,28 +227,11 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
       _loadNextPage();
     }
 
-    final showScrollToTop = _scrollController.offset > 220;
-    if (showScrollToTop != _showScrollToTop) {
-      setState(() {
-        _showScrollToTop = showScrollToTop;
-      });
-    }
-
     final showHeaderShadow = _scrollController.offset > 120;
     if (showHeaderShadow != _showHeaderShadow) {
       setState(() {
         _showHeaderShadow = showHeaderShadow;
       });
-    }
-  }
-
-  void _scrollToTop() {
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        0,
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeInOutCubic,
-      );
     }
   }
 

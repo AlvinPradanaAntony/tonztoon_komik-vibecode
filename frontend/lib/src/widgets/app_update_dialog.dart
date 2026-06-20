@@ -7,8 +7,11 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:ota_update/ota_update.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:package_info_plus/package_info_plus.dart';
+
 import '../helpers/app_icons.dart';
 import '../core/app_update_service.dart';
+import '../utils/app_assets.dart';
 import 'tonztoon_modal_dialog.dart';
 
 bool get isSupportedUpdatePlatform =>
@@ -43,12 +46,135 @@ Future<void> showInstalledChangelogDialog(
       helperIcon: TonztoonIcons.badgeCheck,
       variant: TonztoonModalVariant.success,
       art: TonztoonModalArt.cloudSync,
-      content: _ReleaseNotes(notes: release.releaseNotes),
+      content: _ReleaseNotes(
+        notes: release.releaseNotes,
+        version: release.displayVersion,
+      ),
       primaryLabel: 'Mulai Membaca',
       onPrimaryPressed: () => Navigator.of(context).pop(),
     ),
   );
 }
+
+Future<void> showAppInfoDialog(
+  BuildContext context, {
+  required AppUpdateService service,
+}) {
+  return showTonztoonModal<void>(
+    context: context,
+    builder: (context) => AppInfoDialog(service: service),
+  );
+}
+
+class AppInfoDialog extends StatefulWidget {
+  const AppInfoDialog({super.key, required this.service});
+
+  final AppUpdateService service;
+
+  @override
+  State<AppInfoDialog> createState() => _AppInfoDialogState();
+}
+
+class _AppInfoDialogState extends State<AppInfoDialog> {
+  bool _loading = true;
+  PackageInfo? _packageInfo;
+  String? _releaseNotes;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInfo();
+  }
+
+  Future<void> _loadInfo() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (!mounted) return;
+      setState(() {
+        _packageInfo = info;
+      });
+
+      final currentVer = parseAppVersion(info.version);
+      if (currentVer != null) {
+        try {
+          final latestRelease = await widget.service.fetchLatestRelease();
+          final currentRelease = AppRelease(
+            tagName: 'v$currentVer',
+            version: currentVer,
+            description: latestRelease.description,
+            releasePageUrl: latestRelease.releasePageUrl,
+          );
+          if (mounted) {
+            setState(() {
+              _releaseNotes = currentRelease.releaseNotes;
+              _loading = false;
+            });
+            return;
+          }
+        } catch (_) {
+          // Fallback to local release notes
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _releaseNotes =
+              'Pembaruan ini membawa perbaikan bug dan peningkatan performa.';
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _releaseNotes =
+              'Pembaruan ini membawa perbaikan bug dan peningkatan performa.';
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final info = _packageInfo;
+    final versionLabel =
+        info != null ? 'v${info.version} (${info.buildNumber})' : 'Memuat...';
+
+    return TonztoonModalDialog(
+      contentTopPadding: 74,
+      titleWidget: Image.asset(
+        AppAssets.logoAppLarge,
+        height: 80,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+      ),
+      emphasis: versionLabel,
+      emphasisStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.primary,
+            fontWeight: FontWeight.w800,
+          ),
+      variant: TonztoonModalVariant.primary,
+      art: TonztoonModalArt.cloudSync,
+      content: _loading
+          ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: SizedBox.square(
+                  dimension: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                ),
+              ),
+            )
+          : _ReleaseNotes(
+              notes: _releaseNotes ?? 'Tidak ada catatan rilis.',
+              version: info != null ? 'v${info.version}' : null,
+            ),
+      primaryLabel: 'Tutup',
+      onPrimaryPressed: () => Navigator.of(context).pop(),
+    );
+  }
+}
+
 
 class AppUpdateDialog extends StatefulWidget {
   const AppUpdateDialog({
@@ -104,7 +230,10 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
         content: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _ReleaseNotes(notes: widget.release.releaseNotes),
+            _ReleaseNotes(
+              notes: widget.release.releaseNotes,
+              version: widget.release.displayVersion,
+            ),
             if (_downloading || _statusText != null) ...[
               const SizedBox(height: 16),
               LinearProgressIndicator(
@@ -221,26 +350,37 @@ class _AppUpdateDialogState extends State<AppUpdateDialog> {
 }
 
 class _ReleaseNotes extends StatelessWidget {
-  const _ReleaseNotes({required this.notes});
+  const _ReleaseNotes({required this.notes, this.version});
 
   final String notes;
+  final String? version;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = Theme.of(context).colorScheme;
+    final versionText = version ?? 'versi saat ini';
+    final lines = notes.split(RegExp(r'\r?\n'));
+    if (lines.isNotEmpty && lines.first.trim().startsWith('#')) {
+      lines[0] = '# 🎉 Apa yang baru di $versionText ?';
+    } else {
+      lines.insert(0, '# 🎉 Apa yang baru di $versionText\n ?');
+    }
+    final processedNotes = lines.join('\n');
+
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.58),
         borderRadius: BorderRadius.circular(16),
       ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 150),
-        child: Scrollbar(
+        constraints: const BoxConstraints(maxHeight: 300),
+        child: ScrollConfiguration(
+          behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(14),
             child: MarkdownBody(
-              data: notes,
+              data: processedNotes,
               selectable: true,
               styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
                 p: theme.textTheme.bodySmall?.copyWith(height: 1.45),

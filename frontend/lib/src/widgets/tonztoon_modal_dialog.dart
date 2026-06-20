@@ -269,12 +269,14 @@ class _TonztoonAsyncConfirmDialogState
 class TonztoonModalDialog extends StatelessWidget {
   const TonztoonModalDialog({
     super.key,
-    required this.title,
+    this.title,
+    this.titleWidget,
     this.message,
     this.primaryLabel,
     this.onPrimaryPressed,
     this.eyebrow,
     this.emphasis,
+    this.emphasisStyle,
     this.helperText,
     this.helperIcon = TonztoonIcons.shieldCheck,
     this.content,
@@ -286,12 +288,15 @@ class TonztoonModalDialog extends StatelessWidget {
     this.supportActions = const [],
     this.showActions = true,
     this.showCloseButton = true,
+    this.contentTopPadding = 92,
   });
 
-  final String title;
+  final String? title;
+  final Widget? titleWidget;
   final String? message;
   final String? eyebrow;
   final String? emphasis;
+  final TextStyle? emphasisStyle;
   final String? helperText;
   final IconData helperIcon;
   final Widget? content;
@@ -305,6 +310,7 @@ class TonztoonModalDialog extends StatelessWidget {
   final List<TonztoonModalSupportAction> supportActions;
   final bool showActions;
   final bool showCloseButton;
+  final double contentTopPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -376,7 +382,7 @@ class TonztoonModalDialog extends StatelessWidget {
                         child: _ModalTopOrnaments(color: accent),
                       ),
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 92, 24, 26),
+                        padding: EdgeInsets.fromLTRB(24, contentTopPadding, 24, 26),
                         child: SingleChildScrollView(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
@@ -385,25 +391,30 @@ class TonztoonModalDialog extends StatelessWidget {
                                 _Eyebrow(text: eyebrow!, color: accent),
                                 const SizedBox(height: 12),
                               ],
-                              Text(
-                                title,
-                                textAlign: TextAlign.center,
-                                style: theme.textTheme.headlineSmall?.copyWith(
-                                  color: onSurface,
-                                  fontWeight: FontWeight.w900,
-                                  height: 1.1,
+                              if (titleWidget != null) ...[
+                                titleWidget!,
+                              ] else if (title != null && title!.isNotEmpty) ...[
+                                Text(
+                                  title!,
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.headlineSmall?.copyWith(
+                                    color: onSurface,
+                                    fontWeight: FontWeight.w900,
+                                    height: 1.1,
+                                  ),
                                 ),
-                              ),
+                              ],
                               if (emphasis != null) ...[
                                 const SizedBox(height: 7),
                                 Text(
                                   emphasis!,
                                   textAlign: TextAlign.center,
-                                  style: theme.textTheme.titleSmall?.copyWith(
-                                    color: accent,
-                                    fontWeight: FontWeight.w900,
-                                    height: 1.24,
-                                  ),
+                                  style: emphasisStyle ??
+                                      theme.textTheme.titleSmall?.copyWith(
+                                        color: accent,
+                                        fontWeight: FontWeight.w900,
+                                        height: 1.24,
+                                      ),
                                 ),
                               ],
                               if (message != null &&

@@ -1,4 +1,5 @@
 import sys
+import os
 import asyncio
 
 if sys.platform == "win32":
@@ -8,6 +9,7 @@ if sys.platform == "win32":
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -45,7 +47,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Tonztoon Komik API",
     description="REST API untuk aplikasi pembaca komik (manga/manhwa/manhua)",
-    version="0.1.0",
+    version="1.18.1",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -68,6 +70,15 @@ app.add_middleware(
 
 # Include all API routes
 app.include_router(api_router, prefix="/api")
+
+# Mount admin static files (mendukung local dev & Docker container)
+base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+admin_dir = os.path.join(base_dir, "admin")
+if not os.path.exists(admin_dir):
+    admin_dir = os.path.join(os.path.dirname(base_dir), "admin")
+
+if os.path.exists(admin_dir):
+    app.mount("/admin", StaticFiles(directory=admin_dir, html=True), name="admin")
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -113,7 +124,7 @@ async def root():
     """Health check endpoint."""
     return {
         "app": "Tonztoon Komik API",
-        "version": "0.1.0",
+        "version": "1.18.1",
         "status": "running",
         "environment": settings.APP_ENV,
     }

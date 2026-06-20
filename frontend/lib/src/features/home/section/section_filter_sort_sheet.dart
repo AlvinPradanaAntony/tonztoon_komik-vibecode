@@ -302,12 +302,14 @@ class _SectionComicFilterSortSheetState
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () {
-                          setState(() {
-                            _type = ComicFilterOption.all;
-                            _status = ComicFilterOption.all;
-                            _genre = ComicFilterOption.all;
-                            _sort = widget.defaultSort;
-                          });
+                          Navigator.of(context).pop(
+                            SectionComicFilterSortState(
+                              type: ComicFilterOption.all,
+                              status: ComicFilterOption.all,
+                              genre: ComicFilterOption.all,
+                              sort: widget.defaultSort,
+                            ),
+                          );
                         },
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(48, 48),

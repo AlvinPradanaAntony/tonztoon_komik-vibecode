@@ -14,7 +14,7 @@
   const animateCounter = TonztoonAdmin.animateCounter;
 
   const state = {
-    apiBase: "http://127.0.0.1:8000",
+    apiBase: TonztoonAdmin.DEFAULT_API_BASE || "http://127.0.0.1:8000",
     token: "",
     currentUserId: null,
     users: [],

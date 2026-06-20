@@ -182,6 +182,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 packageInfoFuture: _packageInfoFuture,
                 checkingForUpdate: _checkingForUpdate,
                 onCheckForUpdate: _checkForUpdates,
+                onShowAppInfo: _showAppInfo,
               ),
             ],
           );
@@ -306,6 +307,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         fallbackMessage: 'Cache belum dapat dibersihkan. Silakan coba lagi.',
       );
     }
+  }
+
+  Future<void> _showAppInfo() async {
+    final service = ref.read(appUpdateServiceProvider);
+    await showAppInfoDialog(context, service: service);
   }
 
   Future<void> _checkForUpdates() async {

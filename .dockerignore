@@ -18,7 +18,6 @@ venv/
 
 # Flutter / frontend build artifacts
 frontend/
-admin/
 docs/
 testing/
 

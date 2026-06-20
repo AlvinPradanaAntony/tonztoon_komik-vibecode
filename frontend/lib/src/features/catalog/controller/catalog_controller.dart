@@ -7,7 +7,7 @@ import '../../../widgets/comic_filter_sort_sheet.dart';
 
 /// Page size for catalog requests. Kept here so the controller is the single
 /// owner of pagination concerns.
-const _catalogPageSize = 40;
+const _catalogPageSize = 15;
 
 /// Immutable snapshot of the catalog list: the loaded comics plus the
 /// server-side pagination cursor. The first-load / error states are carried by
