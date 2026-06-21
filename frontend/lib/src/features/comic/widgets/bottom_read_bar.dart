@@ -151,7 +151,7 @@ class _ProgressReadButton extends StatelessWidget {
         ? colorScheme.primaryContainer
         : colorScheme.surfaceContainerHighest;
     final foregroundColor = enabled
-        ? colorScheme.onPrimaryContainer
+        ? colorScheme.onSurface
         : colorScheme.onSurface.withValues(alpha: 0.38);
     final fillColor = colorScheme.primary.withValues(
       alpha: value >= 0.98 ? 1 : 0.32,

@@ -251,91 +251,24 @@ class _SourceSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return PopupMenuButton<String>(
-      initialValue: selectedId,
-      tooltip: 'Pilih Sumber',
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      position: PopupMenuPosition.under,
-      onSelected: onChanged,
-      itemBuilder: (BuildContext context) => sources.map((source) {
-        return PopupMenuItem<String>(
-          value: source.id,
-          child: Row(
-            children: [
-              Icon(
-                selectedId == source.id ? TonztoonIcons.check : null,
-                size: 18,
-                color: colorScheme.primary,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                source.label,
-                style: TextStyle(
-                  fontWeight: selectedId == source.id
-                      ? FontWeight.bold
-                      : FontWeight.normal,
-                ),
-              ),
-            ],
-          ),
-        );
-      }).toList(),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.10)
-              : Colors.white.withValues(alpha: 0.82),
-          border: Border.all(
-            color: colorScheme.primary.withValues(alpha: 0.25),
-          ),
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: colorScheme.primary.withValues(
-                alpha: isDark ? 0.12 : 0.08,
-              ),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                TonztoonIcons.travelExplore,
-                size: 16,
-                color: colorScheme.primary,
-              ),
-              const SizedBox(width: 6),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 90),
-                child: Text(
-                  selectedLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                    color: colorScheme.primary,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 3),
-              Icon(
-                TonztoonIcons.keyboardArrowDown,
-                size: 15,
-                color: colorScheme.primary,
-              ),
-            ],
-          ),
-        ),
-      ),
+    return TonztoonDropdownButton<String>(
+      value: selectedId,
+      items: sources
+          .map((source) => TonztoonDropdownItem<String>(
+                value: source.id,
+                label: source.label,
+              ))
+          .toList(),
+      onChanged: (newValue) {
+        if (newValue != null) {
+          onChanged(newValue);
+        }
+      },
+      hintText: 'Pilih Sumber',
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      iconSize: 16,
+      maxLabelWidth: 90,
+      mainAxisSize: MainAxisSize.min,
     );
   }
 }

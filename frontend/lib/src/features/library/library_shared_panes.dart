@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../helpers/app_icons.dart';
-import '../../core/app_navigation.dart';
+import '../../routing/library_routes.dart';
 import '../../helpers/app_snackbar.dart';
 import '../../helpers/navigation_helpers.dart';
 import '../../models/comic.dart';

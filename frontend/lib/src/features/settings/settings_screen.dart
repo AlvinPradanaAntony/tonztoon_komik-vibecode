@@ -10,7 +10,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../utils/app_error.dart';
 import '../../helpers/app_snackbar.dart';
 import '../../core/avatar_image.dart';
-import '../../core/app_navigation.dart';
+import '../../routing/library_routes.dart';
 import '../../helpers/app_icons.dart';
 import '../../models/auth.dart';
 import '../../models/library.dart';

@@ -3,18 +3,30 @@ part of '../search_screen.dart';
 class _SearchCenteredState extends StatelessWidget {
   const _SearchCenteredState({
     super.key,
-    required this.height,
+    required this.controller,
+    required this.listTopPadding,
     required this.child,
   });
 
-  final double height;
+  final ScrollController controller;
+  final double listTopPadding;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: height,
-      child: Center(child: child),
+    return CustomScrollView(
+      controller: controller,
+      physics: const AlwaysScrollableScrollPhysics(),
+      slivers: [
+        SliverToBoxAdapter(child: SizedBox(height: listTopPadding)),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(child: child),
+          ),
+        ),
+      ],
     );
   }
 }

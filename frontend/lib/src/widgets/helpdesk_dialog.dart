@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../helpers/app_icons.dart';
 import '../models/helpdesk.dart';
+import 'tonztoon_dropdown.dart';
 import 'tonztoon_modal_dialog.dart';
 
 Future<HelpdeskSubmissionReceipt?> showHelpdeskDialog(
@@ -36,6 +37,7 @@ class _HelpdeskDialogState extends State<HelpdeskDialog> {
 
   HelpdeskCategory? _category;
   int _rating = 5;
+  String? _affectedPage;
   bool _submitting = false;
   String? _submitError;
 
@@ -111,6 +113,10 @@ class _HelpdeskDialogState extends State<HelpdeskDialog> {
                           enabled: !_submitting,
                           titleController: _titleController,
                           messageController: _messageController,
+                          affectedPage: _affectedPage,
+                          onAffectedPageChanged: (value) {
+                            setState(() => _affectedPage = value);
+                          },
                         ),
                 ),
               ],
@@ -140,6 +146,7 @@ class _HelpdeskDialogState extends State<HelpdeskDialog> {
       _titleController.clear();
       _messageController.clear();
       _rating = 5;
+      _affectedPage = null;
     });
   }
 
@@ -162,6 +169,9 @@ class _HelpdeskDialogState extends State<HelpdeskDialog> {
               ? _titleController.text.trim()
               : null,
           message: _messageController.text.trim(),
+          clientContext: category == HelpdeskCategory.report && _affectedPage != null
+              ? {'affected_page': _affectedPage}
+              : null,
         ),
       );
       if (mounted) Navigator.of(context).pop(receipt);
@@ -336,11 +346,15 @@ class _ReportForm extends StatelessWidget {
     required this.enabled,
     required this.titleController,
     required this.messageController,
+    required this.affectedPage,
+    required this.onAffectedPageChanged,
   });
 
   final bool enabled;
   final TextEditingController titleController;
   final TextEditingController messageController;
+  final String? affectedPage;
+  final ValueChanged<String?> onAffectedPageChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -361,6 +375,31 @@ class _ReportForm extends StatelessWidget {
             final text = value?.trim() ?? '';
             if (text.isEmpty) return 'Judul masalah wajib diisi.';
             if (text.length < 5) return 'Judul masalah terlalu singkat.';
+            return null;
+          },
+        ),
+        const SizedBox(height: 10),
+        TonztoonDropdown<String>(
+          key: const ValueKey('helpdesk-report-affected-page'),
+          value: affectedPage,
+          onChanged: enabled ? onAffectedPageChanged : null,
+          enabled: enabled,
+          labelText: 'Halaman yang bermasalah',
+          hintText: 'Pilih halaman tempat masalah terjadi',
+          items: const [
+            TonztoonDropdownItem(value: 'home', label: 'Beranda / Home'),
+            TonztoonDropdownItem(value: 'detail_comic', label: 'Detail Komik / Comic Detail'),
+            TonztoonDropdownItem(value: 'catalog', label: 'Katalog / Catalog'),
+            TonztoonDropdownItem(value: 'reader', label: 'Halaman Membaca / Reader'),
+            TonztoonDropdownItem(value: 'library', label: 'Pustaka / Library'),
+            TonztoonDropdownItem(value: 'search', label: 'Pencarian / Search'),
+            TonztoonDropdownItem(value: 'settings', label: 'Pengaturan / Settings'),
+            TonztoonDropdownItem(value: 'other', label: 'Lainnya / Others'),
+          ],
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Halaman yang bermasalah wajib dipilih.';
+            }
             return null;
           },
         ),

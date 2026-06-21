@@ -53,7 +53,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 value: homeAsync,
                 skipLoadingOnRefresh: true,
                 skipError: true,
-                loadingBuilder: (context) => _HomeLoadingPlaceholder(
+                loadingBuilder: (_) => _HomeLoadingPlaceholder(
                   controller: _scrollController,
                   topPadding: _homeContentTopPadding(context),
                 ),

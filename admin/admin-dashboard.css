@@ -802,6 +802,7 @@ table { border-collapse: collapse; }
 .data-table tbody tr {
   border-bottom: 1px solid var(--line-light);
   transition: background var(--duration-fast) ease;
+  cursor: pointer;
 }
 
 .data-table tbody tr:last-child { border-bottom: none; }

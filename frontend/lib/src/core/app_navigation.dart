@@ -3,11 +3,6 @@ import 'package:go_router/go_router.dart';
 
 final appRootNavigatorKey = GlobalKey<NavigatorState>();
 
-const libraryDownloadsLocation = '/library?tab=downloads';
-const libraryBookmarksLocation = '/library';
-const libraryCollectionsLocation = '/library?tab=collections';
-const libraryScenesLocation = '/library?tab=scenes';
-
 String? _pendingNotificationLocation;
 
 void deferNotificationLocation(String location) {

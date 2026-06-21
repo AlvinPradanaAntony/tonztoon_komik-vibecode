@@ -31,7 +31,10 @@ class HelpdeskRepository {
         'app_version': packageInfo?.version,
         'app_build': packageInfo?.buildNumber,
         'locale': PlatformDispatcher.instance.locale.toLanguageTag(),
-        'client_context': {'source': clientSource},
+        'client_context': {
+          'source': clientSource,
+          ...?draft.clientContext,
+        },
       },
     );
     return HelpdeskSubmissionReceipt.fromJson(response.data ?? const {});

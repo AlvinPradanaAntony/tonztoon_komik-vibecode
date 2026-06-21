@@ -30,9 +30,10 @@
     items: [],
     recentItems: [],
     selectedId: null,
+    pendingDeleteId: null,
     pagination: { page: 1, perPage: 50, total: 0 },
     counts: { all: 0, open: 0, in_progress: 0, resolved: 0, closed: 0 },
-    loading: { list: false, save: false },
+    loading: { list: false, save: false, delete: false },
     charts: {
       statusDist: null,
       ticketsTime: null,
@@ -65,6 +66,10 @@
     workflowStatusField: document.querySelector("#workflowStatusField"),
     adminNoteField: document.querySelector("#adminNoteField"),
     saveWorkflowBtn: document.querySelector("#saveWorkflowBtn"),
+    deleteModal: document.querySelector("#deleteModal"),
+    confirmCascade: document.querySelector("#confirmCascade"),
+    confirmDeleteBtn: document.querySelector("#confirmDeleteBtn"),
+    deleteMessage: document.querySelector("#deleteMessage"),
   };
 
   const adminSession = TonztoonAdmin.createFeatureSession({
@@ -112,13 +117,32 @@
       state.pagination.page += 1;
       loadSubmissions();
     });
+    els.confirmCascade.addEventListener("change", () => syncLoading());
+    els.confirmDeleteBtn.addEventListener("click", () => executeDelete());
+
     document.addEventListener("click", (event) => {
+      const closeTarget = event.target.closest("[data-close-modal]");
+      if (closeTarget) closeModal(closeTarget.dataset.closeModal);
+
+      const deleteAction = event.target.closest("[data-delete-submission]");
+      if (deleteAction) {
+        deleteSubmission(deleteAction.dataset.deleteSubmission);
+        return;
+      }
       const rowAction = event.target.closest("[data-select-submission]");
-      if (rowAction) selectSubmission(rowAction.dataset.selectSubmission);
+      if (rowAction) {
+        selectSubmission(rowAction.dataset.selectSubmission);
+      }
       const summary = event.target.closest("[data-summary-status]");
       if (summary) {
         els.statusFilter.value = summary.dataset.summaryStatus;
         resetAndLoad();
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        closeModal("deleteModal");
       }
     });
   }
@@ -202,6 +226,54 @@
     state.selectedId = id;
     renderTable();
     renderDetail();
+  }
+
+  function deleteSubmission(id) {
+    const item = state.items.find((x) => x.id === id);
+    if (!item) return;
+    state.pendingDeleteId = id;
+    els.confirmCascade.checked = false;
+    els.confirmDeleteBtn.disabled = true;
+    const categoryLabel = item.category === "review" ? "Review" : "Report";
+    els.deleteMessage.textContent = `Submission ${item.reference_code} (${categoryLabel}) akan dihapus secara permanen dari database.`;
+    openModal("deleteModal");
+  }
+
+  async function executeDelete() {
+    const id = state.pendingDeleteId;
+    if (!id || !els.confirmCascade.checked || state.loading.delete) return;
+    const item = state.items.find((x) => x.id === id);
+    const refCode = item ? item.reference_code : "Submission";
+
+    setLoading("delete", true);
+    try {
+      await apiFetch(`/api/v1/helpdesk/submissions/${id}`, {
+        method: "DELETE",
+      });
+      state.pendingDeleteId = null;
+      closeModal("deleteModal");
+      notify(`Submission ${refCode} berhasil dihapus.`);
+      if (state.selectedId === id) {
+        state.selectedId = null;
+      }
+      await loadDashboard();
+    } catch (error) {
+      handleRequestError(error);
+    } finally {
+      setLoading("delete", false);
+    }
+  }
+
+  /* ── Modals ─────────────────────────────────────────────────────────── */
+  function openModal(id) {
+    const modal = document.querySelector(`#${id}`);
+    modal.classList.add("modal-open");
+    lucide.createIcons();
+  }
+
+  function closeModal(id) {
+    const modal = document.querySelector(`#${id}`);
+    modal.classList.remove("modal-open");
   }
 
   async function saveWorkflow(event) {
@@ -389,7 +461,7 @@
             : item.title || "Report tanpa judul";
         const isSelected = item.id === state.selectedId;
         return `
-        <tr class="${isSelected ? "row-selected" : ""}">
+        <tr class="${isSelected ? "row-selected" : ""}" data-select-submission="${escapeHtml(item.id)}">
           <td>
             <p class="mono text-xs font-semibold text-brand">${escapeHtml(item.reference_code)}</p>
             <p class="truncate text-sm font-semibold" style="margin-top:4px;max-width:400px">${escapeHtml(title)}</p>
@@ -402,9 +474,9 @@
           </td>
           <td class="text-xs text-muted">${escapeHtml(formatDate(item.created_at))}</td>
           <td style="text-align:right">
-            <button type="button" data-select-submission="${escapeHtml(item.id)}" class="btn btn-secondary" style="height:36px">
-              <i data-lucide="panel-right-open"></i>
-              <span>Detail</span>
+            <button type="button" data-delete-submission="${escapeHtml(item.id)}" class="btn btn-danger" style="height:36px">
+              <i data-lucide="trash-2"></i>
+              <span>Hapus</span>
             </button>
           </td>
         </tr>
@@ -473,8 +545,21 @@
   /* ── Loading ────────────────────────────────────────────────────────── */
   function syncLoading() {
     setButtonLoading(els.reloadBtn, state.loading.list, "Memuat...", "Reload");
-    setButtonLoading(els.saveWorkflowBtn, state.loading.save, "Menyimpan...", "Simpan perubahan");
+    setButtonLoading(els.saveWorkflowBtn, state.loading.save, {
+      loadingText: "Menyimpan...",
+      idleText: "Simpan perubahan",
+      loadingIcon: "loader-2",
+      idleIcon: "save",
+    });
+    setButtonLoading(els.confirmDeleteBtn, state.loading.delete, {
+      loadingText: "Menghapus...",
+      idleText: "Hapus",
+      loadingIcon: "loader-2",
+      idleIcon: "trash-2",
+      disabled: !els.confirmCascade.checked,
+    });
     renderPagination();
+    lucide.createIcons();
   }
 
   function setLoading(key, value) {

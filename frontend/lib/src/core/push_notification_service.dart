@@ -5,7 +5,7 @@ import '../models/app_notification.dart';
 import '../models/comic.dart';
 import '../models/library.dart';
 import '../models/push_notification_preferences.dart';
-import 'app_navigation.dart';
+import '../routing/library_routes.dart';
 
 class PushNotificationService {
   PushNotificationService({
@@ -21,8 +21,7 @@ class PushNotificationService {
   static const _legacyStatusChannelId = 'download_status';
   static const _updatesChannelId = 'comic_updates';
   static const _updatesChannelName = 'Notifikasi TonzToon';
-  static const _updatesChannelDescription =
-      'Update chapter dan status pustaka';
+  static const _updatesChannelDescription = 'Update chapter dan status pustaka';
   static const _androidSmallIcon = 'ic_stat_tonztoon';
 
   final FlutterLocalNotificationsPlugin _plugin;

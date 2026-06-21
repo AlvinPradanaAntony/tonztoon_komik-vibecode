@@ -70,6 +70,86 @@ class _CreatorTile extends StatelessWidget {
   }
 }
 
+class _AlternativeTitleTile extends StatefulWidget {
+  const _AlternativeTitleTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  State<_AlternativeTitleTile> createState() => _AlternativeTitleTileState();
+}
+
+class _AlternativeTitleTileState extends State<_AlternativeTitleTile> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    // Tentukan apakah teks cukup panjang untuk bisa di-collapse/expand.
+    // Judul alternatif > 36 karakter umumnya akan overflow di layar HP rata-rata.
+    final isLong = widget.value.length > 36;
+    final maxLines = _isExpanded ? null : 1;
+
+    return Material(
+      color: colorScheme.surface,
+      elevation: 1,
+      shadowColor: Colors.black.withValues(alpha: 0.05),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        onTap: isLong ? () => setState(() => _isExpanded = !_isExpanded) : null,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment:
+                _isExpanded ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+            children: [
+              Padding(
+                padding: EdgeInsets.only(top: _isExpanded ? 2.0 : 0.0),
+                child: Icon(widget.icon, size: 20, color: colorScheme.primary),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(widget.label, style: theme.textTheme.bodySmall),
+                    const SizedBox(height: 2),
+                    Text(
+                      widget.value,
+                      maxLines: maxLines,
+                      overflow: _isExpanded ? null : TextOverflow.ellipsis,
+                      style: theme.textTheme.labelLarge,
+                    ),
+                  ],
+                ),
+              ),
+              if (isLong) ...[
+                const SizedBox(width: 8),
+                Icon(
+                  _isExpanded
+                      ? TonztoonIcons.keyboardArrowUp
+                      : TonztoonIcons.keyboardArrowDown,
+                  size: 18,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _StatTile extends StatelessWidget {
   const _StatTile({
     required this.icon,

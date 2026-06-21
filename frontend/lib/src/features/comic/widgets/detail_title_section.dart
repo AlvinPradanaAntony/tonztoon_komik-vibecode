@@ -63,7 +63,7 @@ class _TitleBlock extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 10),
-        _CreatorTile(
+        _AlternativeTitleTile(
           icon: TonztoonIcons.tags,
           label: 'Alternative Title',
           value: detail.alternativeTitle,

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:tonztoon/src/core/app_theme.dart';
+import 'package:tonztoon/src/features/library/library_screen.dart';
 import 'package:tonztoon/src/features/notifications/notifications_screen.dart';
 import 'package:tonztoon/src/models/app_notification.dart';
 import 'package:tonztoon/src/repositories/providers.dart';
+import 'package:tonztoon/src/routing/library_routes.dart';
 
 void main() {
   testWidgets('summary and system filter update when notification arrives', (
@@ -107,6 +110,7 @@ void main() {
     expect(updateChip.backgroundColor, theme.colorScheme.surfaceContainer);
     expect(updateChip.backgroundColor, isNot(Colors.white));
     expect(fab.foregroundColor, theme.colorScheme.surface);
+    expect(fab.heroTag, 'notifications-clear');
     expect(summaryGradient.colors.first, const Color(0xFF143248));
     expect(summaryGradient.colors.last, const Color(0xFF402515));
     expect(summaryDecoration.border, isNull);
@@ -127,9 +131,7 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const MaterialApp(
-            home: NotificationsScreen(),
-          ),
+          child: const MaterialApp(home: NotificationsScreen()),
         ),
       );
       await tester.pumpAndSettle();
@@ -138,12 +140,135 @@ void main() {
       // it should NOT call context.push and thus NOT throw GoRouter error.
       await tester.tap(find.text('Chapter baru tersedia'));
       await tester.pumpAndSettle();
-      
+
       // Verification: The notification should be marked read successfully without throwing GoRouter errors.
-      final controller = container.read(notificationsProvider.notifier) as _NotificationsWithRouteController;
+      final controller =
+          container.read(notificationsProvider.notifier)
+              as _NotificationsWithRouteController;
       expect(controller.markedReadId, 'test:notifications-route');
     },
   );
+
+  testWidgets('download notification switches to the library shell branch', (
+    tester,
+  ) async {
+    final container = ProviderContainer(
+      overrides: [
+        notificationsProvider.overrideWith(
+          _DownloadNotificationsController.new,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final router = GoRouter(
+      initialLocation: '/',
+      routes: [
+        StatefulShellRoute.indexedStack(
+          builder: (context, state, navigationShell) => navigationShell,
+          branches: [
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/',
+                  builder: (context, state) =>
+                      const Scaffold(body: Center(child: Text('Beranda'))),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/library',
+                  builder: (context, state) => LibraryScreen(
+                    initialTabIndex: libraryTabIndexFromName(
+                      state.uri.queryParameters['tab'],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        GoRoute(
+          path: '/notifications',
+          builder: (context, state) => const NotificationsScreen(),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+    router.push('/notifications');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Download selesai'));
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 4);
+    expect(
+      router.routeInformationProvider.value.uri.toString(),
+      libraryDownloadsLocation,
+    );
+
+    await tester.tap(find.text('Bookmark'));
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 0);
+    expect(
+      router.routeInformationProvider.value.uri.toString(),
+      libraryBookmarksLocation,
+    );
+
+    router.push('/notifications');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Download selesai'));
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 4);
+    expect(
+      router.routeInformationProvider.value.uri.toString(),
+      libraryDownloadsLocation,
+    );
+    expect(tester.takeException(), isNull);
+  });
+}
+
+class _DownloadNotificationsController extends NotificationsController {
+  @override
+  Future<List<AppNotification>> build() async => [
+    AppNotification(
+      id: 'download:completed',
+      title: 'Download selesai',
+      message: 'Komik sudah tersedia secara offline.',
+      category: 'Download',
+      kind: 'download_completed',
+      actionRoute: '/library?tab=downloads',
+      createdAt: DateTime.now(),
+    ),
+  ];
+
+  @override
+  Future<void> markRead(String id) async {
+    state = AsyncData([
+      AppNotification(
+        id: id,
+        title: 'Download selesai',
+        message: 'Komik sudah tersedia secara offline.',
+        category: 'Download',
+        kind: 'download_completed',
+        actionRoute: '/library?tab=downloads',
+        createdAt: DateTime.now(),
+        unread: false,
+      ),
+    ]);
+  }
 }
 
 class _NotificationsWithRouteController extends NotificationsController {

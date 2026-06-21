@@ -10,12 +10,14 @@ class HelpdeskSubmissionDraft {
     required this.message,
     this.rating,
     this.title,
+    this.clientContext,
   });
 
   final HelpdeskCategory category;
   final int? rating;
   final String? title;
   final String message;
+  final Map<String, dynamic>? clientContext;
 }
 
 class HelpdeskSubmissionReceipt {

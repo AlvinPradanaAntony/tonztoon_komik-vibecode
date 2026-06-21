@@ -16,13 +16,7 @@ class _HomeLoadingPlaceholder extends StatelessWidget {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: EdgeInsets.fromLTRB(16, topPadding, 16, 128),
       children: const [
-        AppShimmer(
-          child: AppShimmerBlock(
-            width: double.infinity,
-            height: 150,
-            borderRadius: 18,
-          ),
-        ),
+        _HomeDiscoverHeaderShimmer(),
         SizedBox(height: 20),
         _HomeSkeletonSectionTitle(width: 136),
         SizedBox(height: 10),
@@ -36,6 +30,56 @@ class _HomeLoadingPlaceholder extends StatelessWidget {
         SizedBox(height: 10),
         _HomeRailShimmer(),
       ],
+    );
+  }
+}
+
+class _HomeDiscoverHeaderShimmer extends StatelessWidget {
+  const _HomeDiscoverHeaderShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final cardColor = isDark
+        ? const Color(0xFF1E2433)
+        : const Color(0xFFFFFDF9);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.06),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      child: AppShimmer(
+        child: Row(
+          children: [
+            const AppShimmerBlock(
+              width: 4,
+              height: 22,
+              borderRadius: 4,
+            ),
+            const SizedBox(width: 10),
+            const AppShimmerBlock(
+              width: 100,
+              height: 22,
+              borderRadius: 4,
+            ),
+            const Spacer(),
+            AppShimmerBlock(
+              width: 130,
+              height: 32,
+              borderRadius: 24,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

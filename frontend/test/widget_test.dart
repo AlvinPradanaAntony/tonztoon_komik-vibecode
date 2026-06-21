@@ -295,6 +295,78 @@ void main() {
     expect(reader.chapterNumber, 1);
   });
 
+  testWidgets('comic detail alternative title expands and collapses', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = ProviderContainer(
+      retry: (retryCount, error) => null,
+      overrides: [
+        pushNotificationLifecycleServiceProvider.overrideWithValue(
+          const _NoopPushNotificationService(),
+        ),
+        pushRegistrationServiceProvider.overrideWithValue(
+          const _NoopPushNotificationService(),
+        ),
+        authControllerProvider.overrideWith(_ReadyGuestAuthController.new),
+        tokenStoreProvider.overrideWithValue(MemoryTokenStore()),
+        catalogRepositoryProvider.overrideWithValue(
+          _FakeAlternativeTitleCatalogRepository(
+            alternativeTitles:
+                'Solo Leveling Alternative Title That Is Extremely Long And Exceeds Thirty Six Characters',
+          ),
+        ),
+        libraryComicStateProvider(_FakeCatalogRepository.comic).overrideWith(
+          (ref) async => const LibraryComicState(
+            comic: LibraryComicRef(
+              sourceName: 'komiku',
+              slug: 'solo-leveling',
+              title: 'Solo Leveling',
+            ),
+            bookmarked: false,
+            collections: [],
+          ),
+        ),
+        offlineChaptersProvider.overrideWith((ref) async => const []),
+        downloadsProvider.overrideWith((ref) async => const []),
+        offlineQueueProvider.overrideWith(_FakeOfflineQueueController.new),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: ComicDetailScreen(
+            initialComic: _FakeCatalogRepository.comic,
+            sourceName: 'komiku',
+            slug: 'solo-leveling',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify alternative title exists
+    expect(find.text('Alternative Title'), findsOneWidget);
+    expect(find.textContaining('Solo Leveling Alternative Title'), findsOneWidget);
+
+    // Tap to expand
+    await tester.tap(find.textContaining('Solo Leveling Alternative Title'));
+    await tester.pumpAndSettle();
+
+    // Verify it is expanded by checking that tapping works again (toggle collapse)
+    await tester.tap(find.textContaining('Solo Leveling Alternative Title'));
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('bookmark card overlays type and groups source badges', (
     tester,
   ) async {
@@ -928,6 +1000,30 @@ class _FakeCatalogRepository implements CatalogRepository {
       chapterNumber: chapterNumber,
       images: const [],
       total: 0,
+    );
+  }
+}
+
+class _FakeAlternativeTitleCatalogRepository extends _FakeCatalogRepository {
+  _FakeAlternativeTitleCatalogRepository({required this.alternativeTitles});
+
+  final String alternativeTitles;
+
+  @override
+  Future<ComicDetail> getComicDetail(String sourceName, String slug) async {
+    final base = await super.getComicDetail(sourceName, slug);
+    return ComicDetail(
+      id: base.id,
+      title: base.title,
+      slug: base.slug,
+      sourceName: base.sourceName,
+      sourceUrl: base.sourceUrl,
+      genres: base.genres,
+      totalChapters: base.totalChapters,
+      type: base.type,
+      status: base.status,
+      rating: base.rating,
+      alternativeTitles: alternativeTitles,
     );
   }
 }

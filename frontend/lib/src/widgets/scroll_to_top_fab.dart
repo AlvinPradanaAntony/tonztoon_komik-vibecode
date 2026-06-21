@@ -51,6 +51,7 @@ class _ScrollToTopFabState extends State<ScrollToTopFab> {
         scale: _isVisible ? 1 : 0,
         duration: const Duration(milliseconds: 200),
         child: FloatingActionButton(
+          heroTag: null,
           mini: true,
           onPressed: _scrollToTop,
           tooltip: 'Kembali ke atas',

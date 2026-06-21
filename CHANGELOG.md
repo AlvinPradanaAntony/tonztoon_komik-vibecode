@@ -6,14 +6,34 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
-## [1.18.1] - 2026-06-20
+## [1.19.0] - 2026-06-21
 
 ### Added
+- Komponen dropdown kustom `TonztoonDropdown` dan `TonztoonDropdownButton` yang reusable dan terintegrasi dengan tema aplikasi.
+- Opsi dropdown untuk memilih halaman tempat masalah terjadi pada form Helpdesk Bug Report.
+- Fitur penghapusan aduan pada Dashboard Admin beserta endpoint API pendukung (`DELETE /submissions/{submission_id}`).
+- Komponen `_AlternativeTitleTile` yang collapsible pada layar Detail Komik untuk menyembunyikan judul alternatif yang panjang.
+- File routing pustaka (`library_routes.dart`) untuk standarisasi navigasi tab.
+
+### Changed
+- Layar Pustaka (Library) kini disinkronkan langsung dengan parameter query GoRouter menggunakan stateful controller.
+- Refaktor layar pencarian (Search) menggunakan layout berbasis `CustomScrollView` dan slivers untuk meningkatkan performa scroll.
+- Delegasi dropdown pemilih sumber pada halaman Beranda (Home) menggunakan `TonztoonDropdownButton`.
+- Peningkatan cakupan unit test dan widget test untuk fungsionalitas Helpdesk, repositori, dan layar Notifikasi.
+
+---
+
+<details>
+<summary><strong>Riwayat versi sebelumnya</strong></summary>
+
+### [1.18.1](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.18.1) - 2026-06-20
+
+#### Added
 - Dialog App Info di Settings untuk melihat versi/build terpasang dan catatan rilis aplikasi.
 - Tombol kembali ke atas pada Full Catalog, section komik, Continue Reading, serta tab Bookmark dan History.
 - Admin dashboard kini dapat disajikan langsung dari FastAPI melalui path `/admin`, termasuk pada deployment Docker.
 
-### Changed
+#### Changed
 - Dialog changelog dan update menampilkan judul versi yang lebih jelas serta area catatan rilis yang lebih luas.
 - Reset filter Catalog dan section kini langsung menerapkan nilai default dan menutup filter sheet.
 - Ukuran halaman Catalog dan section disesuaikan menjadi 15 item agar pagination dan pemuatan bertahap lebih ringan.
@@ -21,9 +41,6 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 - Versi FastAPI diselaraskan dengan versi rilis aplikasi dan dependency FastAPI diperbarui.
 
 ---
-
-<details>
-<summary><strong>Riwayat versi sebelumnya</strong></summary>
 
 ### [1.18.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.18.0) - 2026-06-19
 

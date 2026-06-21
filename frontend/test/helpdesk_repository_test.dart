@@ -43,6 +43,7 @@ void main() {
         category: HelpdeskCategory.report,
         title: 'Chapter tidak terbuka',
         message: 'Layar terus memuat setelah chapter dipilih.',
+        clientContext: {'affected_page': 'reader'},
       ),
     );
 
@@ -53,7 +54,10 @@ void main() {
     expect(payload['category'], 'report');
     expect(payload['title'], 'Chapter tidak terbuka');
     expect(payload['rating'], isNull);
-    expect(payload['client_context'], {'source': 'home_helpdesk'});
+    expect(payload['client_context'], {
+      'source': 'home_helpdesk',
+      'affected_page': 'reader',
+    });
 
     await repository.submit(
       const HelpdeskSubmissionDraft(

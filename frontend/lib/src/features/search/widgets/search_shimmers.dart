@@ -1,17 +1,35 @@
 part of '../search_screen.dart';
 
 class _SearchLoadingPlaceholder extends StatelessWidget {
-  const _SearchLoadingPlaceholder({super.key, required this.gridView});
+  const _SearchLoadingPlaceholder({
+    super.key,
+    required this.gridView,
+    required this.controller,
+    required this.listTopPadding,
+  });
 
   final bool gridView;
+  final ScrollController controller;
+  final double listTopPadding;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        const _SearchLoadingHeader(),
-        const SizedBox(height: 12),
-        gridView ? const _SearchGridShimmer() : const _SearchListShimmer(),
+    return CustomScrollView(
+      controller: controller,
+      physics: const AlwaysScrollableScrollPhysics(),
+      slivers: [
+        SliverToBoxAdapter(child: SizedBox(height: listTopPadding)),
+        const SliverPadding(
+          padding: EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverToBoxAdapter(
+            child: _SearchLoadingHeader(),
+          ),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 12)),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: gridView ? const _SearchGridShimmer() : const _SearchListShimmer(),
+        ),
       ],
     );
   }
@@ -40,13 +58,14 @@ class _SearchListShimmer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        for (var index = 0; index < 4; index++) ...[
-          const _SearchResultTileShimmer(),
-          const SizedBox(height: 12),
-        ],
-      ],
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, index) {
+          if (index.isOdd) return const SizedBox(height: 12);
+          return const _SearchResultTileShimmer();
+        },
+        childCount: 7, // 4 items + 3 spacers
+      ),
     );
   }
 }
@@ -56,16 +75,10 @@ class _SearchGridShimmer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: 4,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 14,
-        crossAxisSpacing: 12,
-        childAspectRatio: 0.47,
-      ),
+    return AppSliverColumnGrid<int>(
+      items: const [0, 1, 2, 3],
+      minColumnWidth: 104,
+      maxColumnCount: 6,
       itemBuilder: (context, index) => const _SearchGridCardShimmer(),
     );
   }

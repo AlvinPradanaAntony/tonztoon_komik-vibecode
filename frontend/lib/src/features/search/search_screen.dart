@@ -101,40 +101,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final availableStateHeight =
-                    constraints.maxHeight -
-                    listTopPadding -
-                    _searchBottomPadding;
-                final stateHeight = availableStateHeight > 220
-                    ? availableStateHeight
-                    : 220.0;
-
-                return ListView(
-                  controller: _scrollController,
-                  padding: EdgeInsets.fromLTRB(
-                    16,
-                    listTopPadding,
-                    16,
-                    _searchBottomPadding,
-                  ),
-                  keyboardDismissBehavior:
-                      ScrollViewKeyboardDismissBehavior.onDrag,
-                  children: [
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 220),
-                      child: _buildSearchContent(
-                        query: query,
-                        searchAsync: searchAsync,
-                        isLoading: isLoading,
-                        stateHeight: stateHeight,
-                        filters: filters,
-                      ),
-                    ),
-                  ],
-                );
-              },
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              child: _buildSearchContent(
+                query: query,
+                searchAsync: searchAsync,
+                isLoading: isLoading,
+                filters: filters,
+                listTopPadding: listTopPadding,
+              ),
             ),
           ),
           AppEdgeFade(
@@ -185,20 +160,23 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     required String query,
     required AsyncValue<SearchResultsState> searchAsync,
     required bool isLoading,
-    required double stateHeight,
     required ComicFilterSortState filters,
+    required double listTopPadding,
   }) {
     if (isLoading) {
       return _SearchLoadingPlaceholder(
         key: ValueKey('search-loading-$_gridView'),
         gridView: _gridView,
+        controller: _scrollController,
+        listTopPadding: listTopPadding,
       );
     }
 
     if (query.isEmpty) {
       return _SearchCenteredState(
         key: const ValueKey('search-empty-initial'),
-        height: stateHeight,
+        controller: _scrollController,
+        listTopPadding: listTopPadding,
         child: const _SearchEmptyState(
           icon: TonztoonIcons.search,
           title: 'Cari komik',
@@ -214,7 +192,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         if (results.isEmpty) {
           return _SearchCenteredState(
             key: const ValueKey('search-empty-results'),
-            height: stateHeight,
+            controller: _scrollController,
+            listTopPadding: listTopPadding,
             child: _SearchEmptyState(
               icon: TonztoonIcons.search,
               title: 'Tidak ada hasil',
@@ -223,48 +202,72 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           );
         }
 
-        return Column(
+        return CustomScrollView(
           key: ValueKey('search-results-$_gridView-$query'),
-          children: [
-            _ResultHeader(
-              query: query,
-              resultCount: filters.hasActiveFilters
-                  ? results.length
-                  : state.total,
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          slivers: [
+            SliverToBoxAdapter(child: SizedBox(height: listTopPadding)),
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              sliver: SliverToBoxAdapter(
+                child: _ResultHeader(
+                  query: query,
+                  resultCount: filters.hasActiveFilters
+                      ? results.length
+                      : state.total,
+                ),
+              ),
             ),
-            const SizedBox(height: 12),
-            _gridView
-                ? _ResultGrid(comics: results)
-                : _ResultList(comics: results),
-            if (state.isLoadingMore) ...[
-              const SizedBox(height: 12),
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: SizedBox.square(
-                    dimension: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2.5),
+            const SliverToBoxAdapter(child: SizedBox(height: 12)),
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              sliver: _gridView
+                  ? _ResultGrid(comics: results)
+                  : _ResultList(comics: results),
+            ),
+            if (state.isLoadingMore)
+              const SliverPadding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                sliver: SliverToBoxAdapter(
+                  child: Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: SizedBox.square(
+                        dimension: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2.5),
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ],
-            LoadMoreFooter(
-              hasNextPage: state.hasNextPage,
-              loadedCount: state.comics.length,
-              completeLabel: 'Semua hasil pencarian sudah dimuat',
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              sliver: SliverToBoxAdapter(
+                child: LoadMoreFooter(
+                  hasNextPage: state.hasNextPage,
+                  loadedCount: state.comics.length,
+                  completeLabel: 'Semua hasil pencarian sudah dimuat',
+                ),
+              ),
             ),
+            const SliverToBoxAdapter(child: SizedBox(height: _searchBottomPadding)),
           ],
         );
       },
       loading: () => _SearchLoadingPlaceholder(
         key: ValueKey('search-async-loading-$_gridView'),
         gridView: _gridView,
+        controller: _scrollController,
+        listTopPadding: listTopPadding,
       ),
       error: (error, stackTrace) {
         logAppError(error, stackTrace, context: 'Search provider failed');
         return _SearchCenteredState(
           key: ValueKey('search-error-$query'),
-          height: stateHeight,
+          controller: _scrollController,
+          listTopPadding: listTopPadding,
           child: _SearchErrorState(
             message: friendlyErrorMessage(
               error,

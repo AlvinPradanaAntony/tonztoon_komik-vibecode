@@ -140,6 +140,20 @@ async def update_helpdesk_submission(
     return build_helpdesk_response(submission)
 
 
+async def delete_helpdesk_submission(
+    db: AsyncSession,
+    submission_id: UUID,
+) -> None:
+    result = await db.execute(
+        select(HelpdeskSubmission).where(HelpdeskSubmission.id == submission_id)
+    )
+    submission = result.scalars().first()
+    if submission is None:
+        raise LookupError("Submission helpdesk tidak ditemukan.")
+    await db.delete(submission)
+    await db.commit()
+
+
 async def _unique_reference_code(db: AsyncSession) -> str:
     for _ in range(5):
         code = f"TT-{secrets.token_hex(4).upper()}"

@@ -20,6 +20,7 @@ import '../features/splash/splash_screen.dart';
 import '../models/auth.dart';
 import '../models/comic.dart';
 import '../repositories/providers.dart';
+import 'library_routes.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final rootNavigatorKey = AppShell.rootNavigatorKey;
@@ -87,13 +88,10 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/library',
                 builder: (context, state) {
-                  final tabIndex = _libraryTabIndex(
+                  final tabIndex = libraryTabIndexFromName(
                     state.uri.queryParameters['tab'],
                   );
-                  return LibraryScreen(
-                    key: ValueKey('library-tab-$tabIndex'),
-                    initialTabIndex: tabIndex,
-                  );
+                  return LibraryScreen(initialTabIndex: tabIndex);
                 },
               ),
             ],
@@ -232,16 +230,6 @@ bool _isAuthCallbackRoute(String path) {
       path == '/callback' ||
       path == '/auth/reset-password' ||
       path == '/reset-password';
-}
-
-int _libraryTabIndex(String? tab) {
-  return switch (tab) {
-    'collections' || 'koleksi' => 1,
-    'scenes' || 'scene' => 2,
-    'history' || 'riwayat' => 3,
-    'downloads' || 'unduhan' => 4,
-    _ => 0,
-  };
 }
 
 String? _normalizedAuthCallbackLocation(Uri uri) {

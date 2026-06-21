@@ -21,7 +21,21 @@ def compile_sql(statement) -> str:
 
 class PushNotificationContractTests(unittest.TestCase):
     def test_router_exposes_notification_contract_paths(self):
-        paths = {getattr(route, "path", "") for route in api_router.routes}
+        def get_all_routes(router, prefix=""):
+            res = []
+            for route in router.routes:
+                path = getattr(route, "path", None)
+                if path is not None:
+                    res.append(prefix + path)
+                else:
+                    original_router = getattr(route, "original_router", None)
+                    include_context = getattr(route, "include_context", None)
+                    if original_router is not None and include_context is not None:
+                        sub_prefix = getattr(include_context, "prefix", "")
+                        res.extend(get_all_routes(original_router, prefix + sub_prefix))
+            return res
+
+        paths = set(get_all_routes(api_router))
         self.assertIn("/v1/notifications/devices", paths)
         self.assertIn("/v1/notifications/events/chapter-update", paths)
         self.assertIn("/v1/notifications/admin-announcements", paths)

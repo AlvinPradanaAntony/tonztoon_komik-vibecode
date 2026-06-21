@@ -9,16 +9,42 @@ from app.schemas import HelpdeskSubmissionCreateRequest
 
 class HelpdeskContractTests(unittest.TestCase):
     def test_router_exposes_helpdesk_paths(self):
-        paths = {getattr(route, "path", "") for route in api_router.routes}
+        def get_all_routes(router, prefix=""):
+            res = []
+            for route in router.routes:
+                path = getattr(route, "path", None)
+                if path is not None:
+                    res.append((prefix + path, getattr(route, "methods", set())))
+                else:
+                    original_router = getattr(route, "original_router", None)
+                    include_context = getattr(route, "include_context", None)
+                    if original_router is not None and include_context is not None:
+                        sub_prefix = getattr(include_context, "prefix", "")
+                        res.extend(get_all_routes(original_router, prefix + sub_prefix))
+            return res
+
+        routes = get_all_routes(api_router)
+        paths = {r[0] for r in routes}
         self.assertIn("/v1/helpdesk/submissions", paths)
+        self.assertIn("/v1/helpdesk/submissions/{submission_id}", paths)
+        
         methods = {
             method
-            for route in api_router.routes
-            if getattr(route, "path", "") == "/v1/helpdesk/submissions"
-            for method in getattr(route, "methods", set())
+            for path, m_set in routes
+            if path == "/v1/helpdesk/submissions"
+            for method in m_set
         }
         self.assertIn("POST", methods)
         self.assertIn("GET", methods)
+
+        detail_methods = {
+            method
+            for path, m_set in routes
+            if path == "/v1/helpdesk/submissions/{submission_id}"
+            for method in m_set
+        }
+        self.assertIn("PATCH", detail_methods)
+        self.assertIn("DELETE", detail_methods)
 
     def test_model_declares_reference_and_workflow_constraints(self):
         constraint_names = {

@@ -115,6 +115,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         floatingActionButton: notifications.isEmpty
             ? null
             : FloatingActionButton(
+                heroTag: 'notifications-clear',
                 tooltip: 'Bersihkan notifikasi',
                 onPressed: _clearNotifications,
                 backgroundColor: theme.colorScheme.secondary,
@@ -208,7 +209,13 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final route = item.actionRoute;
     if (route == null || route.isEmpty) return;
     final uri = Uri.tryParse(route);
-    if (uri != null && (uri.path == '/notifications' || uri.path == '/notifications/')) {
+    if (uri != null &&
+        (uri.path == '/notifications' || uri.path == '/notifications/')) {
+      return;
+    }
+
+    if (uri?.path == '/library') {
+      context.go(route);
       return;
     }
     await context.push<void>(route);

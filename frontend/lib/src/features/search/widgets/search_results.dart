@@ -34,13 +34,16 @@ class _ResultList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        for (final comic in comics) ...[
-          _SearchResultTile(comic: comic),
-          const SizedBox(height: 12),
-        ],
-      ],
+    final childCount = comics.isEmpty ? 0 : comics.length * 2 - 1;
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, index) {
+          if (index.isOdd) return const SizedBox(height: 12);
+          final comic = comics[index ~/ 2];
+          return _SearchResultTile(comic: comic);
+        },
+        childCount: childCount,
+      ),
     );
   }
 }
@@ -52,7 +55,7 @@ class _ResultGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppColumnGrid<_SearchComicUi>(
+    return AppSliverColumnGrid<_SearchComicUi>(
       items: comics,
       minColumnWidth: 104,
       maxColumnCount: 6,

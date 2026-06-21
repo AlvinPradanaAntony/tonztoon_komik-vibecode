@@ -40,6 +40,7 @@ class TonztoonIcons {
   static const IconData localFireDepartment = LucideIcons.flame;
   static const IconData travelExplore = LucideIcons.globe;
   static const IconData keyboardArrowDown = LucideIcons.chevronDown;
+  static const IconData keyboardArrowUp = LucideIcons.chevronUp;
 
   // Ikon antarmuka umum
   static const IconData arrowBack = LucideIcons.arrowLeft;

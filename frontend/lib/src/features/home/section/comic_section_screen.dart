@@ -1082,17 +1082,11 @@ class _SectionLoadingMoreGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SliverGrid(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 14,
-        crossAxisSpacing: 12,
-        childAspectRatio: 0.47,
-      ),
-      delegate: SliverChildBuilderDelegate(
-        (context, index) => const _SectionCardShimmer(),
-        childCount: itemCount,
-      ),
+    return AppSliverColumnGrid<int>(
+      items: List<int>.generate(itemCount, (index) => index),
+      minColumnWidth: 98,
+      maxColumnCount: 6,
+      itemBuilder: (context, index) => const _SectionCardShimmer(),
     );
   }
 }

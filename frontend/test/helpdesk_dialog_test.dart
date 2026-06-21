@@ -58,6 +58,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('Judul masalah wajib diisi.'), findsOneWidget);
+    expect(find.text('Halaman yang bermasalah wajib dipilih.'), findsOneWidget);
     expect(find.text('Pesan wajib diisi.'), findsOneWidget);
   });
 
@@ -98,5 +99,63 @@ void main() {
       submittedDraft?.message,
       'Aplikasi nyaman digunakan dan koleksinya lengkap.',
     );
+  });
+
+  testWidgets('submits a valid report to the callback', (tester) async {
+    HelpdeskSubmissionDraft? submittedDraft;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: HelpdeskDialog(
+            onSubmit: (draft) async {
+              submittedDraft = draft;
+              return HelpdeskSubmissionReceipt(
+                id: 'submission-id',
+                referenceCode: 'TT-12345678',
+                category: draft.category,
+                status: 'open',
+                createdAt: DateTime(2026),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('helpdesk-report-card')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const ValueKey('helpdesk-report-title')),
+      'Chapter tidak terbuka',
+    );
+
+    final affectedPageFinder = find.byKey(const ValueKey('helpdesk-report-affected-page'));
+    await tester.ensureVisible(affectedPageFinder);
+    await tester.tap(affectedPageFinder);
+    await tester.pumpAndSettle();
+    
+    // Tap the dropdown item (last one because of dropdown overlay copies)
+    final dropdownItemFinder = find.text('Halaman Membaca / Reader').last;
+    await tester.tap(dropdownItemFinder);
+    await tester.pumpAndSettle();
+
+    final messageFinder = find.byKey(const ValueKey('helpdesk-report-message'));
+    await tester.ensureVisible(messageFinder);
+    await tester.enterText(
+      messageFinder,
+      'Layar terus memuat setelah chapter dipilih.',
+    );
+    await tester.ensureVisible(find.text('Kirim'));
+    await tester.tap(find.text('Kirim'));
+    await tester.pumpAndSettle();
+
+    expect(submittedDraft?.category, HelpdeskCategory.report);
+    expect(submittedDraft?.title, 'Chapter tidak terbuka');
+    expect(
+      submittedDraft?.message,
+      'Layar terus memuat setelah chapter dipilih.',
+    );
+    expect(submittedDraft?.clientContext, {'affected_page': 'reader'});
   });
 }

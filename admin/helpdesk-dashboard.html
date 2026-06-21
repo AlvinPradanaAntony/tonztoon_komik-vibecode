@@ -289,6 +289,37 @@
         </main>
       </div>
     </div>
+    <!-- Delete Modal -->
+    <div id="deleteModal" class="modal-backdrop" style="z-index:55">
+      <div class="modal-content modal-sm">
+        <div class="modal-header">
+          <div class="flex items-start gap-3">
+            <span class="stat-icon icon-red shrink-0">
+              <i data-lucide="trash-2"></i>
+            </span>
+            <div>
+              <h2 class="text-lg font-semibold">Hapus submission</h2>
+              <p id="deleteMessage" class="text-sm text-muted" style="margin-top:4px"></p>
+            </div>
+          </div>
+        </div>
+        <div style="padding:20px">
+          <label class="confirm-box" style="margin-top:4px;cursor:pointer">
+            <input id="confirmCascade" type="checkbox" class="checkbox" style="margin-top:2px" />
+            <span class="text-sm">Saya paham submission helpdesk ini akan dihapus secara permanen dari database.</span>
+          </label>
+        </div>
+        <div class="modal-footer">
+          <button type="button" data-close-modal="deleteModal" class="btn btn-secondary">
+            Batal
+          </button>
+          <button id="confirmDeleteBtn" type="button" disabled class="btn btn-danger">
+            <i data-lucide="trash-2"></i>
+            <span>Hapus</span>
+          </button>
+        </div>
+      </div>
+    </div>
     <script src="./helpdesk-dashboard.js"></script>
   </body>
 </html>

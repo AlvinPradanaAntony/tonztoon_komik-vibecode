@@ -23,6 +23,7 @@ from app.services.helpdesk_service import (
     create_helpdesk_submission,
     list_helpdesk_submissions,
     update_helpdesk_submission,
+    delete_helpdesk_submission,
 )
 
 router = APIRouter()
@@ -90,6 +91,26 @@ async def patch_helpdesk_submission(
     """Update helpdesk workflow status or an internal admin note."""
     try:
         return await update_helpdesk_submission(db, submission_id, payload)
+    except LookupError as exc:
+        raise_api_error(
+            status.HTTP_404_NOT_FOUND,
+            str(exc),
+            code="helpdesk_submission_not_found",
+        )
+
+
+@router.delete(
+    "/submissions/{submission_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_submission_endpoint(
+    submission_id: UUID,
+    _: AuthenticatedUser = Depends(require_account_manager_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a helpdesk submission."""
+    try:
+        await delete_helpdesk_submission(db, submission_id)
     except LookupError as exc:
         raise_api_error(
             status.HTTP_404_NOT_FOUND,
