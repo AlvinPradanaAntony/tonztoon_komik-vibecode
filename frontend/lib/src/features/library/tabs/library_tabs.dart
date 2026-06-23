@@ -201,6 +201,7 @@ class _BookmarksTabState extends ConsumerState<_BookmarksTab>
       ref
           .read(paginatedBookmarksProvider.notifier)
           .removeItemByKey('${comic.sourceName}|${comic.slug}');
+      ref.invalidate(paginatedBookmarksProvider);
       ref.invalidate(libraryComicStateProvider(comic));
       ref.invalidate(bookmarksProvider);
       ref.invalidate(librarySummaryProvider);
@@ -320,7 +321,7 @@ class _BookmarksTabState extends ConsumerState<_BookmarksTab>
         }
         return PopScope(
           canPop: false,
-          child: _BookmarkLinkProgressDialog(progress: progress),
+          child: BookmarkLinkProgressDialog(progress: progress),
         );
       },
     );

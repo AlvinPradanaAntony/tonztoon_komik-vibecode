@@ -21,21 +21,8 @@ extension LibraryBookmarkLinks on LibraryRepository {
       var hasMore = true;
       while (hasMore) {
         final page = await _loadBookmarkCandidatePage(offset);
-        for (final rawGroup
-            in (page['items'] as List? ?? const []).whereType<Map>()) {
-          final group = Map<String, dynamic>.from(rawGroup);
-          final bookmark = LibraryComicRef.fromJson(
-            Map<String, dynamic>.from(group['bookmark'] as Map? ?? const {}),
-          );
-          for (final item
-              in ((group['candidates'] as List?) ?? const [])
-                  .whereType<Map>()) {
-            final candidate = BookmarkLinkCandidate.fromJson(
-              bookmark,
-              Map<String, dynamic>.from(item),
-            );
-            _bookmarkCandidateScanResults[candidate.key] = candidate;
-          }
+        for (final candidate in _parseBookmarkLinkCandidatePage(page)) {
+          _bookmarkCandidateScanResults[candidate.key] = candidate;
         }
         final nextOffset = (page['next_offset'] as num?)?.toInt() ?? offset;
         hasMore = page['has_more'] == true && nextOffset > offset;
@@ -64,12 +51,13 @@ extension LibraryBookmarkLinks on LibraryRepository {
           .map((link) => link.linked.sourceName)
           .toSet();
 
-      final response = await _api.get<List<dynamic>>(
+      final response = await _api.get<Map<String, dynamic>>(
         '/search',
         queryParameters: {'q': bookmark.title, 'page_size': 50},
       );
       final bestBySource = <String, BookmarkLinkCandidate>{};
-      for (final raw in (response.data ?? const []).whereType<Map>()) {
+      final items = (response.data?['items'] as List?) ?? const [];
+      for (final raw in items.whereType<Map>()) {
         final comic = LibraryComicRef.fromJson(Map<String, dynamic>.from(raw));
         if (comic.sourceName == bookmark.sourceName ||
             linkedSourcesForThisBookmark.contains(comic.sourceName) ||
@@ -96,6 +84,86 @@ extension LibraryBookmarkLinks on LibraryRepository {
     }
     final candidates = _bookmarkCandidateScanResults.values.toList();
     _bookmarkCandidateScanComplete = true;
+    return candidates;
+  }
+
+  Future<List<BookmarkLinkCandidate>> scanBookmarkLinkCandidatesForComic(
+    ComicSummary comic,
+  ) async {
+    if (await _isLoggedIn) {
+      final response = await _api.get<Map<String, dynamic>>(
+        '/library/bookmark-links/candidates',
+        queryParameters: {
+          'source_name': comic.sourceName,
+          'comic_slug': comic.slug,
+          'page_size': 1,
+        },
+      );
+      return _parseBookmarkLinkCandidatePage(response.data ?? const {});
+    }
+
+    final bookmark = _localBookmarks()[comic.key];
+    if (bookmark == null) return const [];
+
+    final links = _localBookmarkLinks();
+    final linkedSources = links
+        .where((link) => link.bookmark.key == bookmark.key)
+        .map((link) => link.linked.sourceName)
+        .toSet();
+    final usedKeys = <String>{
+      ..._localBookmarks().values.map((item) => item.key),
+      ...links.map((item) => item.linked.key),
+    };
+    final response = await _api.get<Map<String, dynamic>>(
+      '/search',
+      queryParameters: {'q': bookmark.title, 'page_size': 50},
+    );
+    final bestBySource = <String, BookmarkLinkCandidate>{};
+    final items = (response.data?['items'] as List?) ?? const [];
+    for (final raw in items.whereType<Map>()) {
+      final candidateComic = LibraryComicRef.fromJson(
+        Map<String, dynamic>.from(raw),
+      );
+      if (candidateComic.sourceName == bookmark.sourceName ||
+          linkedSources.contains(candidateComic.sourceName) ||
+          usedKeys.contains(candidateComic.key)) {
+        continue;
+      }
+      final confidence = titleSimilarity(bookmark.title, candidateComic.title);
+      if (confidence < 0.55) continue;
+      final candidate = BookmarkLinkCandidate(
+        bookmark: bookmark,
+        comic: candidateComic,
+        confidence: confidence,
+      );
+      final current = bestBySource[candidateComic.sourceName];
+      if (current == null || current.confidence < confidence) {
+        bestBySource[candidateComic.sourceName] = candidate;
+      }
+    }
+    return bestBySource.values.toList();
+  }
+
+  List<BookmarkLinkCandidate> _parseBookmarkLinkCandidatePage(
+    Map<String, dynamic> page,
+  ) {
+    final candidates = <BookmarkLinkCandidate>[];
+    for (final rawGroup
+        in (page['items'] as List? ?? const []).whereType<Map>()) {
+      final group = Map<String, dynamic>.from(rawGroup);
+      final bookmark = LibraryComicRef.fromJson(
+        Map<String, dynamic>.from(group['bookmark'] as Map? ?? const {}),
+      );
+      for (final item
+          in ((group['candidates'] as List?) ?? const []).whereType<Map>()) {
+        candidates.add(
+          BookmarkLinkCandidate.fromJson(
+            bookmark,
+            Map<String, dynamic>.from(item),
+          ),
+        );
+      }
+    }
     return candidates;
   }
 

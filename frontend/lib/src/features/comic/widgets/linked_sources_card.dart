@@ -1,10 +1,17 @@
 part of '../comic_detail_screen.dart';
 
 class _LinkedSourcesCard extends StatefulWidget {
-  const _LinkedSourcesCard({required this.state, required this.currentComic});
+  const _LinkedSourcesCard({
+    required this.state,
+    required this.currentComic,
+    required this.isFindingSources,
+    required this.onFindSources,
+  });
 
   final LibraryComicState state;
   final ComicSummary currentComic;
+  final bool isFindingSources;
+  final VoidCallback? onFindSources;
 
   @override
   State<_LinkedSourcesCard> createState() => _LinkedSourcesCardState();
@@ -15,12 +22,29 @@ class _LinkedSourcesCardState extends State<_LinkedSourcesCard>
   var _expanded = false;
 
   @override
+  void initState() {
+    super.initState();
+    _expanded = widget.state.linkedComics.isEmpty;
+  }
+
+  @override
+  void didUpdateWidget(covariant _LinkedSourcesCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.onFindSources == null &&
+        widget.onFindSources != null &&
+        widget.state.linkedComics.isEmpty) {
+      _expanded = true;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final origin = widget.state.bookmarkOrigin;
     final alternatives = widget.state.linkedComics;
-    final canExpand = alternatives.isNotEmpty;
+    final showFinder = widget.onFindSources != null || widget.isFindingSources;
+    final canExpand = alternatives.isNotEmpty || showFinder;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -81,7 +105,7 @@ class _LinkedSourcesCardState extends State<_LinkedSourcesCard>
                           ),
                         ),
                         const SizedBox(height: 3),
-                        Text(
+                        Text.rich(
                           _linkedSourcesSubtitle(
                             widget.state,
                             origin,
@@ -95,7 +119,7 @@ class _LinkedSourcesCardState extends State<_LinkedSourcesCard>
                       ],
                     ),
                   ),
-                  if (canExpand) ...[
+                  if (alternatives.isNotEmpty) ...[
                     const SizedBox(width: 8),
                     DecoratedBox(
                       decoration: BoxDecoration(
@@ -119,6 +143,8 @@ class _LinkedSourcesCardState extends State<_LinkedSourcesCard>
                         ),
                       ),
                     ),
+                  ],
+                  if (canExpand) ...[
                     const SizedBox(width: 6),
                     AnimatedRotation(
                       turns: _expanded ? 0.25 : 0,
@@ -148,11 +174,16 @@ class _LinkedSourcesCardState extends State<_LinkedSourcesCard>
                                 comic.sourceName ==
                                     widget.currentComic.sourceName &&
                                 comic.slug == widget.currentComic.slug;
+                            final isPrimary = (widget.state.bookmarkRelation == BookmarkRelation.direct && isCurrent) ||
+                                (widget.state.bookmarkOrigin != null &&
+                                    comic.sourceName == widget.state.bookmarkOrigin!.sourceName &&
+                                    comic.slug == widget.state.bookmarkOrigin!.slug);
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 8),
                               child: _LinkedSourceTile(
                                 comic: comic,
                                 isCurrent: isCurrent,
+                                isPrimary: isPrimary,
                                 onTap: isCurrent
                                     ? null
                                     : () => openComicDetail(
@@ -162,6 +193,16 @@ class _LinkedSourcesCardState extends State<_LinkedSourcesCard>
                               ),
                             );
                           }),
+                          if (showFinder)
+                            Padding(
+                              padding: EdgeInsets.only(
+                                bottom: alternatives.isEmpty ? 0 : 8,
+                              ),
+                              child: _FindLinkedSourcePlaceholder(
+                                isLoading: widget.isFindingSources,
+                                onTap: widget.onFindSources,
+                              ),
+                            ),
                         ],
                       )
                     : const SizedBox(width: double.infinity),
@@ -172,30 +213,155 @@ class _LinkedSourcesCardState extends State<_LinkedSourcesCard>
     );
   }
 
-  String _linkedSourcesSubtitle(
+  InlineSpan _linkedSourcesSubtitle(
     LibraryComicState state,
     LibraryComicRef? origin,
     List<LibraryComicRef> alternatives,
   ) {
+    final colors = Theme.of(context).colorScheme;
     if (state.bookmarkRelation == BookmarkRelation.linked && origin != null) {
-      return 'Bookmark ini mengikuti ${comicSourceNameLabel(origin.sourceName)} dan tersedia di source lain.';
+      return TextSpan(
+        children: [
+          const TextSpan(text: 'Bookmark ini mengikuti '),
+          TextSpan(
+            text: comicSourceNameLabel(origin.sourceName),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: colors.primary,
+            ),
+          ),
+          const TextSpan(text: ' dan tersedia di source lain.'),
+        ],
+      );
     }
     if (alternatives.isEmpty) {
-      return 'Komik ini ditautkan dengan bookmark dari source lain.';
+      return const TextSpan(
+        text: 'Cari dan hubungkan versi komik ini dari source lain.',
+      );
     }
-    return 'Buka versi komik dari sumber berbeda tanpa mencari ulang.';
+    return const TextSpan(
+      text: 'Buka versi komik dari sumber berbeda tanpa mencari ulang.',
+    );
   }
 }
+
+class _FindLinkedSourcePlaceholder extends StatelessWidget {
+  const _FindLinkedSourcePlaceholder({
+    required this.isLoading,
+    required this.onTap,
+  });
+
+  final bool isLoading;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return CustomPaint(
+      foregroundPainter: _DashedRoundedBorderPainter(
+        color: colors.secondary.withValues(alpha: 0.62),
+        radius: 16,
+      ),
+      child: Material(
+        color: colors.surface.withValues(alpha: 0.52),
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          key: const ValueKey('find-linked-bookmark-source'),
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: SizedBox(
+            width: double.infinity,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (isLoading)
+                    const SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2.4),
+                    )
+                  else
+                    Icon(
+                      TonztoonIcons.search,
+                      size: 20,
+                      color: colors.secondary,
+                    ),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      isLoading
+                          ? 'Mencari source lain...'
+                          : 'Cari dan hubungkan source lain',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: colors.secondary,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashedRoundedBorderPainter extends CustomPainter {
+  const _DashedRoundedBorderPainter({
+    required this.color,
+    required this.radius,
+  });
+
+  final Color color;
+  final double radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius)),
+      );
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        canvas.drawPath(
+          metric.extractPath(distance, math.min(distance + 7, metric.length)),
+          paint,
+        );
+        distance += 12;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedRoundedBorderPainter oldDelegate) {
+    return color != oldDelegate.color || radius != oldDelegate.radius;
+  }
+}
+
 
 class _LinkedSourceTile extends StatelessWidget {
   const _LinkedSourceTile({
     required this.comic,
     required this.isCurrent,
+    required this.isPrimary,
     required this.onTap,
   });
 
   final LibraryComicRef comic;
   final bool isCurrent;
+  final bool isPrimary;
   final VoidCallback? onTap;
 
   @override
@@ -242,6 +408,10 @@ class _LinkedSourceTile extends StatelessWidget {
                               style: SourceTagStyle.linked,
                             ),
                           ),
+                          if (isPrimary) ...[
+                            const SizedBox(width: 6),
+                            const _PrimarySourceBadge(),
+                          ],
                           if (isCurrent) ...[
                             const SizedBox(width: 6),
                             const _CurrentSourceBadge(),
@@ -297,6 +467,46 @@ class _CurrentSourceBadge extends StatelessWidget {
             color: colors.onPrimaryContainer,
             fontWeight: FontWeight.w900,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PrimarySourceBadge extends StatelessWidget {
+  const _PrimarySourceBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: colors.primary.withValues(alpha: 0.32),
+          width: 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              TonztoonIcons.bookmarkFilled,
+              size: 10,
+              color: colors.primary,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              'Utama',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: colors.primary,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
         ),
       ),
     );

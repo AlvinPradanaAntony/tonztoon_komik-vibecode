@@ -1,6 +1,5 @@
 part of '../library_screen.dart';
 
-@visibleForTesting
 Future<List<BookmarkLinkCandidate>?> showBookmarkLinkCandidatesDialog(
   BuildContext context,
   List<BookmarkLinkCandidate> candidates,
@@ -53,178 +52,361 @@ Future<List<BookmarkLinkCandidate>?> showBookmarkLinkCandidatesDialog(
 
     return maxConfB.compareTo(maxConfA);
   });
+  final expandedKeys = <String>{};
+  for (final key in bookmarkKeys) {
+    final hasAutoChecked = grouped[key]!.any((candidate) => selectedKeys.contains(candidate.key));
+    if (hasAutoChecked) {
+      expandedKeys.add(key);
+    }
+  }
 
-  return showDialog<List<BookmarkLinkCandidate>>(
+  return showTonztoonModal<List<BookmarkLinkCandidate>>(
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, setDialogState) {
-        final colorScheme = Theme.of(context).colorScheme;
+        final theme = Theme.of(context);
+        final colorScheme = theme.colorScheme;
 
-        return AlertDialog(
-          title: const Text('Hubungkan source lain'),
-          content: SizedBox(
-            width: 520,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 520),
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: bookmarkKeys.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final key = bookmarkKeys[index];
-                  final bookmarkCandidates = grouped[key]!;
-                  final bookmark = bookmarkCandidates.first.bookmark;
+        return TonztoonModalDialog(
+          title: 'Hubungkan source lain',
+          message: 'Pilih versi komik dari source lain yang ingin Anda hubungkan dengan komik ini.',
+          eyebrow: 'Sinkronisasi',
+          art: TonztoonModalArt.cloudSync,
+          content: ListView.separated(
+            shrinkWrap: true,
+            padding: EdgeInsets.zero,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: bookmarkKeys.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 16),
+            itemBuilder: (context, index) {
+              final key = bookmarkKeys[index];
+              final bookmarkCandidates = grouped[key]!;
+              final bookmark = bookmarkCandidates.first.bookmark;
+              final isExpanded = expandedKeys.contains(key);
 
-                  return Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerLowest.withValues(
-                        alpha: 0.55,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: colorScheme.outlineVariant),
+              return Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainer,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.6),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Group Header: Primary Bookmark Title and Source Badge
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Tooltip(
-                                message: 'Buka detail bookmark utama',
-                                child: InkWell(
-                                  key: ValueKey(
-                                    'bookmark-detail-${bookmark.key}',
+                  ],
+                ),
+                child: AnimatedSize(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutCubic,
+                  alignment: Alignment.topCenter,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Group Header: Primary Bookmark Title, SourceTag & Collapse/Expand Trigger
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.bookmarks_rounded,
+                            size: 18,
+                            color: colorScheme.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Tooltip(
+                              message: 'Buka detail bookmark utama',
+                              child: InkWell(
+                                key: ValueKey(
+                                  'bookmark-detail-${bookmark.key}',
+                                ),
+                                onTap: () => _openComicDetail(
+                                  context,
+                                  bookmark.toSummary(),
+                                ),
+                                borderRadius: BorderRadius.circular(4),
+                                child: Text(
+                                  bookmark.title,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                    color: colorScheme.onSurface,
                                   ),
-                                  onTap: () => _openComicDetail(
-                                    context,
-                                    bookmark.toSummary(),
-                                  ),
-                                  borderRadius: BorderRadius.circular(4),
-                                  child: Text(
-                                    bookmark.title,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.w800,
-                                          color: colorScheme.primary,
-                                        ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                                  maxLines: isExpanded ? 2 : 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            SourceTag(
-                              key: ValueKey('bookmark-source-${bookmark.key}'),
-                              sourceName: bookmark.sourceName,
+                          ),
+                          const SizedBox(width: 8),
+                          // Right-side actions: Circular Badge (count), SourceTag, and Chevron Toggle
+                          Flexible(
+                            child: InkWell(
+                              key: ValueKey('expand-toggle-${bookmark.key}'),
+                              onTap: () {
+                                setDialogState(() {
+                                  if (isExpanded) {
+                                    expandedKeys.remove(key);
+                                  } else {
+                                    expandedKeys.add(key);
+                                  }
+                                });
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 20,
+                                      height: 20,
+                                      decoration: BoxDecoration(
+                                        color: colorScheme.primary.withValues(alpha: 0.12),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          '${bookmarkCandidates.length}',
+                                          style: theme.textTheme.labelSmall?.copyWith(
+                                            color: colorScheme.primary,
+                                            fontWeight: FontWeight.w900,
+                                            fontSize: 10,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: SourceTag(
+                                        key: ValueKey('bookmark-source-${bookmark.key}'),
+                                        sourceName: bookmark.sourceName,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Icon(
+                                      isExpanded
+                                          ? Icons.expand_less_rounded
+                                          : Icons.expand_more_rounded,
+                                      color: colorScheme.onSurfaceVariant,
+                                      size: 20,
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ],
+                          ),
+                        ],
+                      ),
+                      if (isExpanded) ...[
+                        const SizedBox(height: 12),
+                        Divider(
+                          height: 1,
+                          color: colorScheme.outlineVariant.withValues(alpha: 0.6),
                         ),
                         const SizedBox(height: 8),
-                        const Divider(height: 1),
-                        const SizedBox(height: 4),
                         // Sub-list of candidates
                         ...bookmarkCandidates.map((candidate) {
                           final selected = selectedKeys.contains(candidate.key);
-                          return CheckboxListTile(
-                            value: selected,
-                            contentPadding: const EdgeInsets.only(left: 8.0),
-                            onChanged: (value) {
-                              setDialogState(() {
-                                if (value == true) {
-                                  selectedKeys.removeWhere((key) {
-                                    final selectedCandidate = candidates
-                                        .where((item) => item.key == key)
-                                        .firstOrNull;
-                                    return selectedCandidate != null &&
-                                        selectedCandidate.bookmark.key ==
-                                            candidate.bookmark.key &&
-                                        selectedCandidate.comic.sourceName ==
-                                            candidate.comic.sourceName;
-                                  });
-                                  selectedKeys.add(candidate.key);
-                                } else {
-                                  selectedKeys.remove(candidate.key);
-                                }
-                              });
-                            },
-                            title: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    candidate.comic.title,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(fontWeight: FontWeight.w600),
-                                  ),
-                                ),
-                                IconButton(
-                                  key: ValueKey(
-                                    'bookmark-candidate-detail-${candidate.key}',
-                                  ),
-                                  tooltip: 'Buka detail kandidat bookmark',
-                                  visualDensity: VisualDensity.compact,
-                                  constraints: const BoxConstraints(
-                                    minWidth: 32,
-                                    minHeight: 32,
-                                  ),
-                                  padding: const EdgeInsets.all(4),
-                                  onPressed: () => _openComicDetail(
-                                    context,
-                                    candidate.comic.toSummary(),
-                                  ),
-                                  icon: Icon(
-                                    TonztoonIcons.eye,
-                                    size: 18,
-                                    color: colorScheme.secondary,
-                                  ),
-                                ),
-                              ],
+                          final confidencePercent = (candidate.confidence * 100).round();
+
+                          // Color coding for match confidence
+                          Color confidenceColor;
+                          if (candidate.confidence >= 0.90) {
+                            confidenceColor = const Color(0xFF22C55E); // Green
+                          } else if (candidate.confidence >= 0.80) {
+                            confidenceColor = colorScheme.primary; // Primary (Orange)
+                          } else {
+                            confidenceColor = colorScheme.onSurfaceVariant.withValues(alpha: 0.8);
+                          }
+
+                          return AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            margin: const EdgeInsets.symmetric(vertical: 5),
+                            decoration: BoxDecoration(
+                              color: selected
+                                  ? colorScheme.primary.withValues(alpha: 0.06)
+                                  : colorScheme.surfaceContainerLowest,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: selected
+                                    ? colorScheme.primary
+                                    : colorScheme.outlineVariant.withValues(alpha: 0.5),
+                                width: selected ? 1.5 : 1.0,
+                              ),
+                              boxShadow: selected
+                                  ? [
+                                      BoxShadow(
+                                        color: colorScheme.primary.withValues(alpha: 0.08),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ]
+                                  : null,
                             ),
-                            subtitle: Text(
-                              '-> ${comicSourceNameLabel(candidate.comic.sourceName)}'
-                              ' • kecocokan ${(candidate.confidence * 100).round()}%',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: colorScheme.onSurfaceVariant,
-                                  ),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(16),
+                              onTap: () {
+                                        setDialogState(() {
+                                          if (selected == false) {
+                                            // Remove any other selected candidate for the same bookmark and source
+                                            selectedKeys.removeWhere((key) {
+                                              final selectedCandidate = candidates
+                                                  .where((item) => item.key == key)
+                                                  .firstOrNull;
+                                              return selectedCandidate != null &&
+                                                  selectedCandidate.bookmark.key ==
+                                                      candidate.bookmark.key &&
+                                                  selectedCandidate.comic.sourceName ==
+                                                      candidate.comic.sourceName;
+                                            });
+                                            selectedKeys.add(candidate.key);
+                                          } else {
+                                            selectedKeys.remove(candidate.key);
+                                          }
+                                        });
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Row(
+                                  children: [
+                                    // Custom rounded checkbox
+                                    AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      width: 22,
+                                      height: 22,
+                                      decoration: BoxDecoration(
+                                        color: selected
+                                            ? colorScheme.primary
+                                            : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(
+                                          color: selected
+                                              ? colorScheme.primary
+                                              : colorScheme.outline,
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: selected
+                                          ? const Icon(
+                                              Icons.check_rounded,
+                                              size: 16,
+                                              color: Colors.white,
+                                            )
+                                          : null,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    // Title & Subtitle Info
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            candidate.comic.title,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: theme.textTheme.bodyMedium?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                              color: colorScheme.onSurface,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Wrap(
+                                            crossAxisAlignment: WrapCrossAlignment.center,
+                                            spacing: 6,
+                                            children: [
+                                              Text(
+                                                comicSourceNameLabel(
+                                                  candidate.comic.sourceName,
+                                                ),
+                                                style: theme.textTheme.bodySmall?.copyWith(
+                                                  color: colorScheme.onSurfaceVariant,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                              Text(
+                                                '·',
+                                                style: theme.textTheme.bodySmall?.copyWith(
+                                                  color: colorScheme.onSurfaceVariant,
+                                                ),
+                                              ),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 6,
+                                                  vertical: 2,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: confidenceColor.withValues(alpha: 0.1),
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                                child: Text(
+                                                  '$confidencePercent% cocok',
+                                                  style: theme.textTheme.bodySmall?.copyWith(
+                                                    color: confidenceColor,
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 10,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    // Preview icon button with modern background
+                                    Material(
+                                      color: colorScheme.secondary.withValues(alpha: 0.08),
+                                      shape: const CircleBorder(),
+                                      child: IconButton(
+                                        key: ValueKey(
+                                          'bookmark-candidate-detail-${candidate.key}',
+                                        ),
+                                        tooltip: 'Buka detail kandidat bookmark',
+                                        visualDensity: VisualDensity.compact,
+                                        constraints: const BoxConstraints(
+                                          minWidth: 36,
+                                          minHeight: 36,
+                                        ),
+                                        padding: EdgeInsets.zero,
+                                        onPressed: () => _openComicDetail(
+                                          context,
+                                          candidate.comic.toSummary(),
+                                        ),
+                                        icon: Icon(
+                                          TonztoonIcons.eye,
+                                          size: 18,
+                                          color: colorScheme.secondary,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           );
                         }),
                       ],
-                    ),
-                  );
-                },
-              ),
-            ),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Batal'),
-            ),
-            FilledButton(
-              onPressed: selectedKeys.isEmpty
-                  ? null
-                  : () => Navigator.of(context).pop(
-                      candidates
-                          .where(
-                            (candidate) => selectedKeys.contains(candidate.key),
-                          )
-                          .toList(),
-                    ),
-              child: Text('Hubungkan (${selectedKeys.length})'),
-            ),
-          ],
+          primaryLabel: 'Hubungkan (${selectedKeys.length})',
+          onPrimaryPressed: selectedKeys.isEmpty
+              ? null
+              : () => Navigator.of(context).pop(
+                    candidates
+                        .where((candidate) => selectedKeys.contains(candidate.key))
+                        .toList(),
+                  ),
+          secondaryLabel: 'Batal',
+          onSecondaryPressed: () => Navigator.of(context).pop(),
         );
       },
     ),
@@ -355,8 +537,8 @@ class _BookmarkScanProgressDialogState
   }
 }
 
-class _BookmarkLinkProgressDialog extends StatelessWidget {
-  const _BookmarkLinkProgressDialog({required this.progress});
+class BookmarkLinkProgressDialog extends StatelessWidget {
+  const BookmarkLinkProgressDialog({super.key, required this.progress});
 
   final ValueListenable<BookmarkLinkSaveProgress> progress;
 

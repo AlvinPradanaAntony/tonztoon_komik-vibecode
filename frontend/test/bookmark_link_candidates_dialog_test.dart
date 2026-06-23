@@ -51,12 +51,19 @@ void main() {
     
     // Verify primary bookmarked comic title is rendered
     expect(find.text('My Wife and I Dominate the Three Realms'), findsOneWidget);
+
+    // Expand the group since it is collapsed by default (confidence is 0.42, < 0.82)
+    final toggle = find.byKey(const ValueKey('expand-toggle-komiku_asia|judul-bookmark'));
+    expect(toggle, findsOneWidget);
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
     
     // Verify candidate comic title is rendered
     expect(find.text('I Dominate The Game'), findsOneWidget);
     
     // Verify mapping and confidence is rendered in subtitle
-    expect(find.text('-> Komikcast • kecocokan 42%'), findsOneWidget);
+    expect(find.text('Komikcast'), findsOneWidget);
+    expect(find.text('42% cocok'), findsOneWidget);
 
     // Verify detail buttons exist with correct tooltips
     expect(find.byTooltip('Buka detail bookmark utama'), findsOneWidget);

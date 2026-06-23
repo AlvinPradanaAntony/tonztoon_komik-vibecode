@@ -278,6 +278,39 @@ class LibraryServiceBehaviorTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(page.has_more)
         self.assertEqual(len(db.statements), 11)
 
+    async def test_candidate_scan_can_scope_to_one_bookmark(self):
+        bookmark = SimpleNamespace(
+            id=1,
+            comic_id=1,
+            comic=SimpleNamespace(
+                **{
+                    **comic().__dict__,
+                    "alternative_titles": None,
+                }
+            ),
+            links=[],
+        )
+        db = FakeSession(
+            [
+                FakeResult(scalar_rows=[bookmark]),
+                FakeResult(),
+            ]
+        )
+
+        page = await list_bookmark_link_candidates(
+            db,
+            uuid4(),
+            source_name="source",
+            comic_slug="comic",
+        )
+
+        self.assertEqual(page.scanned_total, 1)
+        self.assertFalse(page.has_more)
+        self.assertEqual(len(db.statements), 2)
+        query_params = db.statements[0].compile().params
+        self.assertIn("source", query_params.values())
+        self.assertIn("comic", query_params.values())
+
     async def test_completed_sync_batch_scopes_backfill_to_owned_groups(self):
         db = FakeSession(
             [

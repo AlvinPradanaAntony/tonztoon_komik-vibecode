@@ -334,7 +334,7 @@ class TonztoonModalDialog extends StatelessWidget {
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: 374,
-          maxHeight: MediaQuery.sizeOf(context).height - 48,
+          maxHeight: MediaQuery.sizeOf(context).height - 100,
         ),
         child: Stack(
           clipBehavior: Clip.none,
@@ -382,90 +382,126 @@ class TonztoonModalDialog extends StatelessWidget {
                         child: _ModalTopOrnaments(color: accent),
                       ),
                       Padding(
-                        padding: EdgeInsets.fromLTRB(24, contentTopPadding, 24, 26),
-                        child: SingleChildScrollView(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (eyebrow != null) ...[
-                                _Eyebrow(text: eyebrow!, color: accent),
-                                const SizedBox(height: 12),
-                              ],
-                              if (titleWidget != null) ...[
-                                titleWidget!,
-                              ] else if (title != null && title!.isNotEmpty) ...[
-                                Text(
-                                  title!,
-                                  textAlign: TextAlign.center,
-                                  style: theme.textTheme.headlineSmall?.copyWith(
-                                    color: onSurface,
-                                    fontWeight: FontWeight.w900,
-                                    height: 1.1,
+                        padding: EdgeInsets.fromLTRB(24, contentTopPadding, 24, 16),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Flexible(
+                              child: Stack(
+                                children: [
+                                  SingleChildScrollView(
+                                    padding: EdgeInsets.zero,
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (eyebrow != null) ...[
+                                          Center(
+                                            child: _Eyebrow(text: eyebrow!, color: accent),
+                                          ),
+                                          const SizedBox(height: 12),
+                                        ],
+                                        if (titleWidget != null) ...[
+                                          titleWidget!,
+                                        ] else if (title != null && title!.isNotEmpty) ...[
+                                          Text(
+                                            title!,
+                                            textAlign: TextAlign.center,
+                                            style: theme.textTheme.headlineSmall?.copyWith(
+                                              color: onSurface,
+                                              fontWeight: FontWeight.w900,
+                                              height: 1.1,
+                                            ),
+                                          ),
+                                        ],
+                                        if (emphasis != null) ...[
+                                          const SizedBox(height: 7),
+                                          Text(
+                                            emphasis!,
+                                            textAlign: TextAlign.center,
+                                            style: emphasisStyle ??
+                                                theme.textTheme.titleSmall?.copyWith(
+                                                  color: accent,
+                                                  fontWeight: FontWeight.w900,
+                                                  height: 1.24,
+                                                ),
+                                          ),
+                                        ],
+                                        if (message != null &&
+                                            message!.trim().isNotEmpty) ...[
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            message!,
+                                            textAlign: TextAlign.center,
+                                            style: theme.textTheme.bodySmall?.copyWith(
+                                              color: onSurface.withValues(alpha: 0.54),
+                                              height: 1.48,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                        if (helperText != null) ...[
+                                          const SizedBox(height: 16),
+                                          _HelperBand(
+                                            text: helperText!,
+                                            icon: helperIcon,
+                                            color: accent,
+                                            danger: isDanger,
+                                          ),
+                                        ],
+                                        if (content != null) ...[
+                                          const SizedBox(height: 16),
+                                          content!,
+                                        ],
+                                        if (supportActions.isNotEmpty) ...[
+                                          const SizedBox(height: 14),
+                                          _SupportActions(
+                                            actions: supportActions,
+                                            color: isDanger
+                                                ? const Color(0xFF3955A6)
+                                                : accent,
+                                          ),
+                                        ],
+                                        const SizedBox(height: 8),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              ],
-                              if (emphasis != null) ...[
-                                const SizedBox(height: 7),
-                                Text(
-                                  emphasis!,
-                                  textAlign: TextAlign.center,
-                                  style: emphasisStyle ??
-                                      theme.textTheme.titleSmall?.copyWith(
-                                        color: accent,
-                                        fontWeight: FontWeight.w900,
-                                        height: 1.24,
+                                  Positioned(
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    height: 16,
+                                    child: IgnorePointer(
+                                      child: DecoratedBox(
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            begin: Alignment.topCenter,
+                                            end: Alignment.bottomCenter,
+                                            colors: [
+                                              surface.withValues(alpha: 0.0),
+                                              surface,
+                                            ],
+                                          ),
+                                        ),
                                       ),
-                                ),
-                              ],
-                              if (message != null &&
-                                  message!.trim().isNotEmpty) ...[
-                                const SizedBox(height: 8),
-                                Text(
-                                  message!,
-                                  textAlign: TextAlign.center,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: onSurface.withValues(alpha: 0.54),
-                                    height: 1.48,
-                                    fontWeight: FontWeight.w500,
+                                    ),
                                   ),
-                                ),
-                              ],
-                              if (helperText != null) ...[
-                                const SizedBox(height: 16),
-                                _HelperBand(
-                                  text: helperText!,
-                                  icon: helperIcon,
-                                  color: accent,
-                                  danger: isDanger,
-                                ),
-                              ],
-                              if (content != null) ...[
-                                const SizedBox(height: 16),
-                                content!,
-                              ],
-                              if (supportActions.isNotEmpty) ...[
-                                const SizedBox(height: 14),
-                                _SupportActions(
-                                  actions: supportActions,
-                                  color: isDanger
-                                      ? const Color(0xFF3955A6)
-                                      : accent,
-                                ),
-                              ],
-                              if (showActions && primaryLabel != null) ...[
-                                const SizedBox(height: 20),
-                                _DialogActions(
-                                  primaryLabel: primaryLabel!,
-                                  secondaryLabel: secondaryLabel,
-                                  onPrimaryPressed: onPrimaryPressed,
-                                  onSecondaryPressed: onSecondaryPressed,
-                                  primaryLoading: primaryLoading,
-                                  color: accent,
-                                  variant: variant,
-                                ),
-                              ],
+                                ],
+                              ),
+                            ),
+                            if (showActions && primaryLabel != null) ...[
+                              const SizedBox(height: 20),
+                              _DialogActions(
+                                primaryLabel: primaryLabel!,
+                                secondaryLabel: secondaryLabel,
+                                onPrimaryPressed: onPrimaryPressed,
+                                onSecondaryPressed: onSecondaryPressed,
+                                primaryLoading: primaryLoading,
+                                color: accent,
+                                variant: variant,
+                              ),
                             ],
-                          ),
+                          ],
                         ),
                       ),
                       if (showCloseButton)
@@ -966,12 +1002,16 @@ class _GradientActionButton extends StatelessWidget {
                       ),
                       const SizedBox(width: 10),
                     ],
-                    Text(
-                      label,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
+                    Flexible(
+                      child: Text(
+                        label,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                     ),
                   ],

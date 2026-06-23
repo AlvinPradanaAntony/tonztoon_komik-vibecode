@@ -543,21 +543,44 @@ async def list_bookmark_link_candidates(
     candidates_per_source: int = 2,
     page_size: int = 5,
     offset: int = 0,
+    source_name: str | None = None,
+    comic_slug: str | None = None,
 ) -> BookmarkLinkCandidatePage:
     """Cari kandidat source alternatif hanya saat diminta user."""
-    bookmarks = await list_bookmarks(
-        db,
-        user_id,
-        page_size=page_size + 1,
-        offset=offset,
-    )
+    scoped = source_name is not None and comic_slug is not None
+    if scoped:
+        result = await db.execute(
+            select(UserBookmark)
+            .join(UserBookmark.comic)
+            .options(
+                defaultload(UserBookmark.comic).noload(Comic.genres),
+                selectinload(UserBookmark.links).selectinload(
+                    UserBookmarkLink.comic
+                ).noload(Comic.genres),
+            )
+            .where(
+                UserBookmark.user_id == user_id,
+                Comic.source_name == source_name,
+                Comic.slug == comic_slug,
+            )
+            .limit(1)
+        )
+        bookmark = result.scalars().first()
+        bookmarks = [bookmark] if bookmark is not None else []
+    else:
+        bookmarks = await list_bookmarks(
+            db,
+            user_id,
+            page_size=page_size + 1,
+            offset=offset,
+        )
     if not bookmarks:
         return BookmarkLinkCandidatePage(
             next_offset=offset,
         )
 
-    has_more = len(bookmarks) > page_size
-    scanned_bookmarks = bookmarks[:page_size]
+    has_more = not scoped and len(bookmarks) > page_size
+    scanned_bookmarks = bookmarks if scoped else bookmarks[:page_size]
     groups: list[BookmarkLinkCandidateGroup] = []
 
     for bookmark in scanned_bookmarks:

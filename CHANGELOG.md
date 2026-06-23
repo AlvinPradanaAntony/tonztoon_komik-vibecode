@@ -6,25 +6,40 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
-## [1.19.0] - 2026-06-21
+## [1.20.0] - 2026-06-23
 
 ### Added
+- Aksi untuk mencari dan menghubungkan source alternatif langsung dari kartu source tertaut di halaman Detail Komik.
+- Dialog pencarian dan progres khusus saat menghubungkan bookmark multi-source dari satu komik.
+- Parameter `source_name` dan `comic_slug` pada endpoint kandidat bookmark agar pemindaian dapat dibatasi ke satu bookmark tertentu.
+
+### Changed
+- Dialog kandidat bookmark multi-source dipoles dengan grouping yang dapat dibuka/tutup, indikator kecocokan, pilihan kandidat yang lebih jelas, dan tombol preview.
+- Kartu source tertaut pada Detail Komik kini menampilkan source utama, placeholder pencarian source lain, dan state loading yang lebih informatif.
+- Refresh daftar library kini mengganti halaman pertama dengan data terbaru agar item lama tidak tertahan setelah sinkronisasi.
+- Toggle bookmark untuk guest kini terasa lebih responsif dengan optimistic state dan durasi loading minimum untuk akun login.
+
+---
+
+<details>
+<summary><strong>Riwayat versi sebelumnya</strong></summary>
+
+### [1.19.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.19.0) - 2026-06-21
+
+#### Added
 - Komponen dropdown kustom `TonztoonDropdown` dan `TonztoonDropdownButton` yang reusable dan terintegrasi dengan tema aplikasi.
 - Opsi dropdown untuk memilih halaman tempat masalah terjadi pada form Helpdesk Bug Report.
 - Fitur penghapusan aduan pada Dashboard Admin beserta endpoint API pendukung (`DELETE /submissions/{submission_id}`).
 - Komponen `_AlternativeTitleTile` yang collapsible pada layar Detail Komik untuk menyembunyikan judul alternatif yang panjang.
 - File routing pustaka (`library_routes.dart`) untuk standarisasi navigasi tab.
 
-### Changed
+#### Changed
 - Layar Pustaka (Library) kini disinkronkan langsung dengan parameter query GoRouter menggunakan stateful controller.
 - Refaktor layar pencarian (Search) menggunakan layout berbasis `CustomScrollView` dan slivers untuk meningkatkan performa scroll.
 - Delegasi dropdown pemilih sumber pada halaman Beranda (Home) menggunakan `TonztoonDropdownButton`.
 - Peningkatan cakupan unit test dan widget test untuk fungsionalitas Helpdesk, repositori, dan layar Notifikasi.
 
 ---
-
-<details>
-<summary><strong>Riwayat versi sebelumnya</strong></summary>
 
 ### [1.18.1](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.18.1) - 2026-06-20
 

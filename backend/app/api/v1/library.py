@@ -275,16 +275,25 @@ async def get_bookmark_link_candidates(
     request: Request,
     offset: int = Query(default=0, ge=0),
     page_size: int = Query(default=5, ge=1, le=10),
+    source_name: str | None = Query(default=None),
+    comic_slug: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
 ):
     """Pindai kandidat source alternatif secara eksplisit."""
+    if (source_name is None) != (comic_slug is None):
+        raise HTTPException(
+            status_code=422,
+            detail="source_name dan comic_slug harus dikirim bersamaan.",
+        )
     return await list_bookmark_link_candidates(
         db,
         user_id,
         base_url=_get_request_base_url(request),
         offset=offset,
         page_size=page_size,
+        source_name=source_name,
+        comic_slug=comic_slug,
     )
 
 

@@ -1012,20 +1012,22 @@ void main() {
 
   test('guest bookmark candidate scan skips already linked sources', () async {
     final api = _apiWithResponses({
-      'GET /search': [
-        // Candidate 1: same source name as the linked comic (komikcast), should be skipped
-        {
-          'title': 'Solo Leveling alternate',
-          'slug': 'solo-leveling-alt',
-          'source_name': 'komikcast',
-        },
-        // Candidate 2: different source name (komiku), should be returned
-        {
-          'title': 'Solo Leveling other',
-          'slug': 'solo-leveling-other',
-          'source_name': 'komiku',
-        },
-      ],
+      'GET /search': {
+        'items': [
+          // Candidate 1: same source name as the linked comic (komikcast), should be skipped
+          {
+            'title': 'Solo Leveling alternate',
+            'slug': 'solo-leveling-alt',
+            'source_name': 'komikcast',
+          },
+          // Candidate 2: different source name (komiku), should be returned
+          {
+            'title': 'Solo Leveling other',
+            'slug': 'solo-leveling-other',
+            'source_name': 'komiku',
+          },
+        ],
+      },
     });
     final repository = LibraryRepository(api, MemoryTokenStore(), store);
     const origin = ComicSummary(
@@ -1125,6 +1127,72 @@ void main() {
       expect(candidates.single.comic.sourceName, 'source-b');
     },
   );
+
+  test('authenticated bookmark candidate scan scopes one comic', () async {
+    final tokenStore = MemoryTokenStore();
+    await tokenStore.save(const TokenPair(accessToken: 'access-token'));
+    late RequestOptions capturedRequest;
+    final dio = Dio(BaseOptions(baseUrl: 'https://api.test'));
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          capturedRequest = options;
+          handler.resolve(
+            Response<Map<String, dynamic>>(
+              requestOptions: options,
+              statusCode: 200,
+              data: {
+                'items': [
+                  {
+                    'bookmark': {
+                      'source_name': 'source-a',
+                      'slug': 'comic-a',
+                      'title': 'Comic A',
+                    },
+                    'candidates': [
+                      {
+                        'comic': {
+                          'source_name': 'source-b',
+                          'slug': 'comic-b',
+                          'title': 'Comic A',
+                        },
+                        'confidence': 0.91,
+                      },
+                    ],
+                  },
+                ],
+              },
+            ),
+          );
+        },
+      ),
+    );
+    final repository = LibraryRepository(
+      TonztoonApi(
+        config: const AppConfig(apiBaseUrl: 'https://api.test'),
+        tokenStore: tokenStore,
+        dio: dio,
+      ),
+      tokenStore,
+      store,
+    );
+
+    final candidates = await repository.scanBookmarkLinkCandidatesForComic(
+      const ComicSummary(
+        sourceName: 'source-a',
+        slug: 'comic-a',
+        title: 'Comic A',
+      ),
+    );
+
+    expect(capturedRequest.path, '/library/bookmark-links/candidates');
+    expect(capturedRequest.queryParameters, {
+      'source_name': 'source-a',
+      'comic_slug': 'comic-a',
+      'page_size': 1,
+    });
+    expect(candidates.single.comic.sourceName, 'source-b');
+  });
 
   test(
     'authenticated bookmark scan retries and resumes its checkpoint',
@@ -2119,6 +2187,75 @@ void main() {
       expect(stored, isNot(contains('auto_next')));
     },
   );
+
+  test(
+    'pagination refresh removes items missing from the first page',
+    () async {
+      final container = ProviderContainer(
+        overrides: [
+          _testPaginationProvider.overrideWith(
+            () => _TestPaginationController([
+              ['saved-comic'],
+              <String>[],
+            ]),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final initial = await container.read(_testPaginationProvider.future);
+      expect(initial.items, ['saved-comic']);
+
+      await container.read(_testPaginationProvider.notifier).refreshFirstPage();
+
+      expect(container.read(_testPaginationProvider).value?.items, isEmpty);
+    },
+  );
+
+  test('pagination invalidation does not restore stale items', () async {
+    final container = ProviderContainer(
+      overrides: [
+        _testPaginationProvider.overrideWith(
+          () => _TestPaginationController([
+            ['saved-comic'],
+            <String>[],
+          ]),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final initial = await container.read(_testPaginationProvider.future);
+    expect(initial.items, ['saved-comic']);
+
+    container.invalidate(_testPaginationProvider);
+    final refreshed = await container.read(_testPaginationProvider.future);
+
+    expect(refreshed.items, isEmpty);
+  });
+}
+
+final _testPaginationProvider =
+    AsyncNotifierProvider<_TestPaginationController, PaginatedState<String>>(
+      _TestPaginationController.new,
+    );
+
+class _TestPaginationController extends PaginatedAsyncController<String> {
+  _TestPaginationController([this.responses = const []]);
+
+  final List<List<String>> responses;
+  var _requestIndex = 0;
+
+  @override
+  String itemKey(String item) => item;
+
+  @override
+  Future<List<String>> loadPage({
+    required int page,
+    required int pageSize,
+  }) async {
+    return responses[_requestIndex++];
+  }
 }
 
 class _FakeAuthRepository implements AuthRepository {

@@ -149,6 +149,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                   minHeight: 6,
                   color: colorScheme.tertiary, // Yellow
                   backgroundColor: trackColor,
+                  borderRadius: BorderRadius.all(Radius.circular(99)),
                 ),
               ),
             ],

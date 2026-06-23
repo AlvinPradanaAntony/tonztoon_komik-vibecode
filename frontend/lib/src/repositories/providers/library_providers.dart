@@ -88,7 +88,7 @@ abstract class PaginatedAsyncController<T>
   @override
   Future<PaginatedState<T>> build() async {
     watchDependencies();
-    return _loadFirstPage(previous: state.asData?.value);
+    return _loadFirstPage();
   }
 
   Future<void> loadNextPage() async {
@@ -143,14 +143,10 @@ abstract class PaginatedAsyncController<T>
     );
     try {
       final refreshedItems = await loadPage(page: 1, pageSize: pageSize);
-      final mergedItems = _mergeRefreshedFirstPage(
-        refreshedItems,
-        current.items,
-      );
 
       state = AsyncData(
         current.copyWith(
-          items: mergedItems,
+          items: refreshedItems,
           page: 1,
           hasNextPage: refreshedItems.length >= pageSize,
           isLoadingMore: false,
@@ -201,28 +197,14 @@ abstract class PaginatedAsyncController<T>
     );
   }
 
-  Future<PaginatedState<T>> _loadFirstPage({
-    PaginatedState<T>? previous,
-  }) async {
+  Future<PaginatedState<T>> _loadFirstPage() async {
     final items = await loadPage(page: 1, pageSize: pageSize);
-    final nextItems = previous == null
-        ? items
-        : _mergeRefreshedFirstPage(items, previous.items);
     return PaginatedState<T>(
-      items: nextItems,
+      items: items,
       page: 1,
       pageSize: pageSize,
       hasNextPage: items.length >= pageSize,
     );
-  }
-
-  List<T> _mergeRefreshedFirstPage(List<T> refreshedItems, List<T> oldItems) {
-    final refreshedKeys = refreshedItems.map(itemKey).toSet();
-    return [
-      ...refreshedItems,
-      for (final item in oldItems)
-        if (!refreshedKeys.contains(itemKey(item))) item,
-    ];
   }
 }
 

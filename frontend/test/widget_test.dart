@@ -267,6 +267,84 @@ void main() {
     );
   });
 
+  testWidgets('bookmarked comic shows source finder placeholder', (
+    tester,
+  ) async {
+    final container = _testContainer(bookmarked: true);
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: ComicDetailScreen(
+            initialComic: _FakeCatalogRepository.comic,
+            sourceName: 'komiku',
+            slug: 'solo-leveling',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Source terhubung'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('find-linked-bookmark-source')),
+      findsOneWidget,
+    );
+    expect(find.text('Cari dan hubungkan source lain'), findsOneWidget);
+  });
+
+  testWidgets('comic detail connected sources card expands and collapses', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _testContainer(bookmarked: true);
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: ComicDetailScreen(
+            initialComic: _FakeCatalogRepository.comic,
+            sourceName: 'komiku',
+            slug: 'solo-leveling',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Scroll to make sure the card is in view
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -300));
+    await tester.pumpAndSettle();
+
+    // Verify card is initially expanded (showing placeholder)
+    expect(find.byKey(const ValueKey('find-linked-bookmark-source')), findsOneWidget);
+
+    // Tap the header to collapse it
+    await tester.tap(find.text('Source terhubung'));
+    await tester.pumpAndSettle();
+
+    // Verify placeholder is now collapsed / hidden
+    expect(find.byKey(const ValueKey('find-linked-bookmark-source')), findsNothing);
+
+    // Tap again to expand
+    await tester.tap(find.text('Source terhubung'));
+    await tester.pumpAndSettle();
+
+    // Verify placeholder is visible again
+    expect(find.byKey(const ValueKey('find-linked-bookmark-source')), findsOneWidget);
+  });
+
+
   testWidgets('comic detail starts from first chapter without progress', (
     tester,
   ) async {
@@ -356,7 +434,10 @@ void main() {
 
     // Verify alternative title exists
     expect(find.text('Alternative Title'), findsOneWidget);
-    expect(find.textContaining('Solo Leveling Alternative Title'), findsOneWidget);
+    expect(
+      find.textContaining('Solo Leveling Alternative Title'),
+      findsOneWidget,
+    );
 
     // Tap to expand
     await tester.tap(find.textContaining('Solo Leveling Alternative Title'));
@@ -739,7 +820,7 @@ OfflineChapter _offlineChapter({required String status}) {
   );
 }
 
-ProviderContainer _testContainer() {
+ProviderContainer _testContainer({bool bookmarked = false}) {
   return ProviderContainer(
     retry: (retryCount, error) => null,
     overrides: [
@@ -753,14 +834,14 @@ ProviderContainer _testContainer() {
       tokenStoreProvider.overrideWithValue(MemoryTokenStore()),
       catalogRepositoryProvider.overrideWithValue(_FakeCatalogRepository()),
       libraryComicStateProvider(_FakeCatalogRepository.comic).overrideWith(
-        (ref) async => const LibraryComicState(
-          comic: LibraryComicRef(
+        (ref) async => LibraryComicState(
+          comic: const LibraryComicRef(
             sourceName: 'komiku',
             slug: 'solo-leveling',
             title: 'Solo Leveling',
           ),
-          bookmarked: false,
-          collections: [],
+          bookmarked: bookmarked,
+          collections: const [],
         ),
       ),
       offlineChaptersProvider.overrideWith((ref) async => const []),

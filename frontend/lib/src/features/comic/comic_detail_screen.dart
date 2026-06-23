@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 
@@ -11,6 +12,7 @@ import '../../helpers/app_icons.dart';
 import '../../helpers/app_responsive.dart';
 import '../../helpers/app_snackbar.dart';
 import '../../utils/formatters.dart';
+import '../../models/auth.dart';
 import '../../models/comic.dart';
 import '../../models/library.dart';
 import '../../models/progress.dart';
@@ -24,6 +26,7 @@ import '../../widgets/comic_card.dart';
 import '../../widgets/comic_cover.dart';
 import '../../widgets/source_tag.dart';
 import '../../widgets/tonztoon_modal_dialog.dart';
+import '../library/library_screen.dart';
 
 part 'models/comic_detail_view_models.dart';
 part 'helpers/comic_detail_formatters.dart';
@@ -58,6 +61,9 @@ class ComicDetailScreen extends ConsumerStatefulWidget {
 
 class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
   static const double _titleFadeStart = 150;
+  static const Duration _minimumBookmarkLoadingDuration = Duration(
+    milliseconds: 250,
+  );
   static const double _titleFadeDistance = 90;
 
   late final ScrollController _scrollController;
@@ -68,6 +74,7 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
   bool _collectionBusy = false;
   bool _downloadBusy = false;
   bool _readSyncBusy = false;
+  bool _bookmarkLinkBusy = false;
 
   ValueNotifier<double> get _toolbarProgress =>
       _collapseProgressNotifier ??= ValueNotifier<double>(_collapseProgress);
@@ -140,6 +147,7 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
       );
     }
     final libraryState = libraryStateAsync.asData?.value;
+    final isGuest = ref.watch(authControllerProvider).status == AuthStatus.guest;
     final effectiveBookmarked =
         _bookmarkOverride ?? (libraryState?.bookmarked == true);
     if (_bookmarkOverride != null &&
@@ -277,7 +285,7 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
                             icon: effectiveBookmarked
                                 ? TonztoonIcons.bookmarkFilled
                                 : TonztoonIcons.bookmark,
-                            isLoading: _bookmarkBusy,
+                            isLoading: isGuest ? false : _bookmarkBusy,
                             progress: _toolbarProgress,
                             onPressed: () =>
                                 _toggleBookmark(comic, libraryState),
@@ -324,7 +332,8 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
                             children: [
                               _TitleBlock(detail: detail),
                               if (libraryState != null &&
-                                  (libraryState.bookmarkRelation ==
+                                  (effectiveBookmarked ||
+                                      libraryState.bookmarkRelation ==
                                           BookmarkRelation.linked ||
                                       libraryState
                                           .linkedComics
@@ -333,6 +342,11 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
                                 _LinkedSourcesCard(
                                   state: libraryState,
                                   currentComic: comic,
+                                  isFindingSources: _bookmarkLinkBusy,
+                                  onFindSources:
+                                      effectiveBookmarked && !_bookmarkLinkBusy
+                                      ? () => _findAndLinkBookmarkSources(comic)
+                                      : null,
                                 ),
                               ],
                               const SizedBox(height: 18),
@@ -521,12 +535,23 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
       await _manageLinkedBookmark(comic, currentState!);
       return;
     }
+
+    final isGuest = ref.read(authControllerProvider).status == AuthStatus.guest;
+    final loadingStopwatch = isGuest ? null : (Stopwatch()..start());
     setState(() => _bookmarkBusy = true);
+
+    bool? originalBookmarked;
     try {
       final currentBookmarked =
           _bookmarkOverride ??
           currentState?.bookmarked ??
           (await ref.read(libraryComicStateProvider(comic).future)).bookmarked;
+      originalBookmarked = currentBookmarked;
+
+      if (isGuest) {
+        setState(() => _bookmarkOverride = !currentBookmarked);
+      }
+
       final bookmarked = await ref
           .read(libraryRepositoryProvider)
           .toggleBookmark(comic, currentBookmarked);
@@ -541,8 +566,14 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
         type: AppSnackBarType.success,
       );
     } catch (error, stackTrace) {
+      if (mounted && isGuest && originalBookmarked != null) {
+        setState(() => _bookmarkOverride = originalBookmarked);
+      }
       _showErrorSnack(error, stackTrace, 'Toggle bookmark failed');
     } finally {
+      if (loadingStopwatch != null) {
+        await _waitForMinimumBookmarkLoading(loadingStopwatch);
+      }
       if (mounted) setState(() => _bookmarkBusy = false);
     }
   }
@@ -579,6 +610,7 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
     );
     if (!mounted || action == null) return;
 
+    final loadingStopwatch = Stopwatch()..start();
     setState(() => _bookmarkBusy = true);
     try {
       final repository = ref.read(libraryRepositoryProvider);
@@ -600,7 +632,142 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
     } catch (error, stackTrace) {
       _showErrorSnack(error, stackTrace, 'Manage linked bookmark failed');
     } finally {
+      await _waitForMinimumBookmarkLoading(loadingStopwatch);
       if (mounted) setState(() => _bookmarkBusy = false);
+    }
+  }
+
+  Future<void> _waitForMinimumBookmarkLoading(Stopwatch stopwatch) async {
+    final remaining = _minimumBookmarkLoadingDuration - stopwatch.elapsed;
+    if (remaining > Duration.zero) {
+      await Future<void>.delayed(remaining);
+    }
+  }
+
+  Future<void> _findAndLinkBookmarkSources(ComicSummary comic) async {
+    if (_bookmarkLinkBusy) return;
+    setState(() => _bookmarkLinkBusy = true);
+    try {
+      final candidates = await _scanBookmarkLinkCandidatesForComic(comic);
+      if (!mounted) return;
+      if (candidates.isEmpty) {
+        _showSnack(
+          'Belum ditemukan komik yang cukup mirip di source lain.',
+          type: AppSnackBarType.help,
+        );
+        return;
+      }
+
+      final selected = await showBookmarkLinkCandidatesDialog(
+        context,
+        candidates,
+      );
+      if (!mounted || selected == null || selected.isEmpty) return;
+
+      final result = await _saveBookmarkLinksWithProgress(selected);
+      ref.invalidate(libraryComicStateProvider(comic));
+      ref.invalidate(bookmarksProvider);
+      ref.invalidate(paginatedBookmarksProvider);
+      ref.invalidate(librarySummaryProvider);
+      for (final candidate in selected) {
+        ref.invalidate(libraryComicStateProvider(candidate.comic.toSummary()));
+        ref.invalidate(
+          libraryComicStateProvider(candidate.bookmark.toSummary()),
+        );
+      }
+      if (mounted) {
+        _showSnack(
+          '${result.linkedTotal} source dihubungkan dan '
+          '${result.completedPropagated} status selesai disinkronkan.',
+          type: AppSnackBarType.success,
+        );
+      }
+    } catch (error, stackTrace) {
+      _showErrorSnack(
+        error,
+        stackTrace,
+        'Link bookmark sources from comic detail failed',
+      );
+    } finally {
+      if (mounted) setState(() => _bookmarkLinkBusy = false);
+    }
+  }
+
+  Future<List<BookmarkLinkCandidate>> _scanBookmarkLinkCandidatesForComic(
+    ComicSummary comic,
+  ) async {
+    final dialogReady = Completer<BuildContext>();
+    final dialogFuture = showTonztoonModal<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        if (!dialogReady.isCompleted) dialogReady.complete(dialogContext);
+        return const PopScope(
+          canPop: false,
+          child: TonztoonModalDialog(
+            title: 'Mencari source lain',
+            message: 'Mencocokkan komik ini dengan versi dari source berbeda.',
+            eyebrow: 'Bookmark multi-source',
+            helperText: 'Pencarian hanya dilakukan untuk bookmark ini.',
+            helperIcon: TonztoonIcons.search,
+            art: TonztoonModalArt.cloudSync,
+            showActions: false,
+            showCloseButton: false,
+            content: LinearProgressIndicator(
+              minHeight: 8,
+              borderRadius: BorderRadius.all(Radius.circular(99)),
+            ),
+          ),
+        );
+      },
+    );
+    final dialogContext = await dialogReady.future;
+
+    try {
+      return await ref
+          .read(libraryRepositoryProvider)
+          .scanBookmarkLinkCandidatesForComic(comic);
+    } finally {
+      if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+      await dialogFuture;
+    }
+  }
+
+  Future<BookmarkLinkSaveResult> _saveBookmarkLinksWithProgress(
+    List<BookmarkLinkCandidate> candidates,
+  ) async {
+    final progress = ValueNotifier<BookmarkLinkSaveProgress>(
+      BookmarkLinkSaveProgress(
+        stage: BookmarkLinkSaveStage.linking,
+        completed: 0,
+        total: candidates.length,
+      ),
+    );
+    final dialogReady = Completer<BuildContext>();
+    final dialogFuture = showTonztoonModal<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        if (!dialogReady.isCompleted) dialogReady.complete(dialogContext);
+        return PopScope(
+          canPop: false,
+          child: BookmarkLinkProgressDialog(progress: progress),
+        );
+      },
+    );
+    final dialogContext = await dialogReady.future;
+
+    try {
+      return await ref
+          .read(libraryRepositoryProvider)
+          .saveBookmarkLinks(
+            candidates,
+            onProgress: (value) => progress.value = value,
+          );
+    } finally {
+      if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+      await dialogFuture;
+      progress.dispose();
     }
   }
 
