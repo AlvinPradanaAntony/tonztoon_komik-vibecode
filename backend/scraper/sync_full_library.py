@@ -20,6 +20,11 @@ Strategi Anti-Blocking / Anti-Rate-Limit:
                           (cool-down period) untuk menghindari deteksi burst.
 6. Graceful Shutdown    → Menangkap SIGINT (Ctrl+C) dengan aman: menyimpan
                           checkpoint sebelum berhenti.
+7. Smart Sync           → Membandingkan metadata scraped dengan DB secara mendalam
+                          (termasuk genre & chapter). Menghindari DB write
+                          (update/insert) total jika tidak ada perubahan data.
+                          URL cover image dari Supabase Storage dijaga agar tidak
+                          ditimpa/dibersihkan.
 
 Usage:
     cd backend
@@ -29,6 +34,7 @@ Usage:
     python -m scraper.sync_full_library --mode refresh
     python -m scraper.sync_full_library --mode validate --refresh-fields total_view
     python -m scraper.sync_full_library --mode validate --refresh-fields total_view,rating --refresh-missing-only --limit 100
+    python -m scraper.sync_full_library --source komikcast --refresh-missing-chapters --limit 50
     python -m scraper.sync_full_library --log-file validate.log
     python -m scraper.sync_full_library --mode validate --reset   # Hapus checkpoint validate
     python -m scraper.sync_full_library --mode refresh --reset    # Hapus checkpoint refresh
@@ -62,8 +68,11 @@ Argumen CLI utama:
   - Mode ini DB-driven: script langsung mencari row comic source terkait yang
     field targetnya kosong, lalu fetch metadata patch hanya untuk kandidat itu.
     Tidak scan seluruh halaman katalog source.
+- `--refresh-missing-chapters`
+  - Mode DB-driven untuk mengidentifikasi komik yang belum memiliki data chapter di database (0 chapters) lalu melakukan fetch detail page dan menyimpannya.
+  - Mode ini tidak memindai seluruh direktori halaman web, melainkan langsung menyasar komik tanpa chapter yang sudah terdaftar di DB.
 - `--limit <N>`
-  - Batas jumlah kandidat DB untuk `--refresh-missing-only`.
+  - Batas jumlah kandidat DB untuk `--refresh-missing-only` atau `--refresh-missing-chapters`.
   - Default: 100. Gunakan `0` untuk tanpa limit.
 - `--start <page>`
   - Halaman awal direktori yang ingin diproses.
@@ -91,6 +100,8 @@ Contoh use case:
   `python -m scraper.sync_full_library --source komikcast --mode validate --refresh-fields total_view,rating,status`
 - Backfill hanya metadata yang masih kosong:
   `python -m scraper.sync_full_library --source komikcast --mode validate --refresh-fields total_view,rating --refresh-missing-only --limit 100 --reset`
+- Patch/backfill chapter yang masih kosong untuk source komikcast (maksimal 50 komik):
+  `python -m scraper.sync_full_library --source komikcast --refresh-missing-chapters --limit 50`
 - Ulang dari awal tanpa checkpoint lama:
   `python -m scraper.sync_full_library --source komiku --mode validate --reset`
 
@@ -99,6 +110,7 @@ Panduan pemakaian singkat:
 - Gunakan `refresh` hanya saat memang perlu resync detail penuh, karena lebih berat.
 - Gunakan `--refresh-fields` saat Anda hanya ingin memperbarui sebagian kolom
   comic existing dan ingin menghindari full detail sync yang mahal.
+- Gunakan `--refresh-missing-chapters` jika ada komik yang sudah masuk katalog namun data chapternya masih kosong/tidak ada sama sekali di database.
 - Script ini tidak ditujukan untuk backfill images chapter; gunakan
   `sync_chapter_images.py` untuk backlog images.
 """
@@ -119,7 +131,7 @@ from sqlalchemy import or_, select, update
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.database import async_session
-from app.models import Comic
+from app.models import Chapter, Comic
 from app.schemas import ComicCreate
 from app.services.image_service import is_public_supabase_storage_url
 
@@ -276,6 +288,15 @@ def get_refresh_missing_checkpoint_file(source_name: str) -> Path:
             f"Gunakan salah satu dari {', '.join(SUPPORTED_SOURCES)}."
         )
     return CHECKPOINT_DIR / f"sync_checkpoint_{source_name}_refresh_missing.json"
+
+
+def get_refresh_missing_chapters_checkpoint_file(source_name: str) -> Path:
+    if source_name not in SUPPORTED_SOURCES:
+        raise ValueError(
+            f"Source tidak valid: {source_name}. "
+            f"Gunakan salah satu dari {', '.join(SUPPORTED_SOURCES)}."
+        )
+    return CHECKPOINT_DIR / f"sync_checkpoint_{source_name}_refresh_missing_chapters.json"
 
 
 def _default_stats() -> dict:
@@ -632,6 +653,7 @@ class SyncRuntime:
     completed_slugs: set[str]
     refresh_fields: frozenset[str]
     refresh_missing_only: bool = False
+    refresh_missing_chapters: bool = False
     anti_blocking_enabled: bool = True
     comics_since_cooldown: int = 0
 
@@ -808,6 +830,32 @@ async def load_missing_refresh_candidates(
     return list(result.scalars().all())
 
 
+async def load_missing_chapters_candidates(
+    session,
+    *,
+    source_name: str,
+    resume_after_id: int,
+    limit: int | None,
+) -> list[Comic]:
+    stmt = (
+        select(Comic)
+        .outerjoin(Chapter)
+        .where(
+            Comic.source_name == source_name,
+            Comic.source_url.is_not(None),
+            Comic.source_url != "",
+            Comic.id > resume_after_id,
+            Chapter.id.is_(None),
+        )
+        .order_by(Comic.id.asc())
+    )
+    if limit is not None:
+        stmt = stmt.limit(limit)
+
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
 async def run_refresh_missing_metadata(
     session,
     *,
@@ -957,6 +1005,171 @@ async def run_refresh_missing_metadata(
     )
 
 
+async def run_refresh_missing_chapters(
+    session,
+    *,
+    scraper: BaseComicScraper,
+    runtime: SyncRuntime,
+    source_name: str,
+    limit: int | None,
+) -> None:
+    """Backfill chapter yang kosong langsung dari kandidat DB, tanpa scan katalog source."""
+    resume_after_id = int(runtime.checkpoint.get("last_missing_refresh_comic_id", 0) or 0)
+    candidates = await load_missing_chapters_candidates(
+        session,
+        source_name=source_name,
+        resume_after_id=resume_after_id,
+        limit=limit,
+    )
+
+    logger.info("═" * 60)
+    logger.info("🧩 Refresh missing chapters DB-driven")
+    logger.info("   Source       : %s", source_name)
+    logger.info("   Resume id    : comic_id > %s", resume_after_id)
+    logger.info("   Limit        : %s", limit if limit is not None else "tanpa limit")
+    logger.info("   Kandidat DB  : %s komik", len(candidates))
+    logger.info("═" * 60)
+
+    persist_runtime_checkpoint(
+        runtime,
+        current_page=0,
+        page_comics_total=len(candidates),
+        current_comic_index=-1,
+        state="refresh-missing-chapters-started",
+        note=f"Refresh missing chapters: {len(candidates)} kandidat DB",
+    )
+
+    consecutive_errors = 0
+    for index, comic in enumerate(candidates):
+        if _shutdown.requested:
+            break
+
+        label = f"[{index + 1}/{len(candidates)}]"
+        logger.info("")
+        logger.info("-" * 60)
+        logger.info(
+            "🔎 %s #%s %s:%s — %s",
+            label,
+            comic.id,
+            comic.source_name,
+            comic.slug,
+            comic.title,
+        )
+
+        persist_runtime_checkpoint(
+            runtime,
+            current_page=0,
+            page_comics_total=len(candidates),
+            current_comic_index=index,
+            current_comic_title=comic.title,
+            current_comic_slug=comic.slug,
+            current_comic_url=comic.source_url,
+            state="refresh-missing-chapters-processing",
+            note=f"Refresh missing chapters {label} comic_id={comic.id}",
+        )
+
+        try:
+            await runtime_random_delay(runtime, DELAY_DETAIL_MIN, DELAY_DETAIL_MAX, "delay sebelum fetch detail")
+            
+            logger.info("  📖 Mengambil detail komik...")
+            comic_detail = await scraper.get_comic_detail(comic.source_url)
+            
+            if not comic_detail.get("title"):
+                logger.warning(f"  ⚠️ Tidak ada title di detail, skip: {comic.title}")
+                runtime.stats["total_skipped"] += 1
+                runtime.checkpoint["last_missing_refresh_comic_id"] = comic.id
+                consecutive_errors = 0
+                continue
+                
+            chapters_data = comic_detail.get("chapters", [])
+            valid_chapter_total = sum(1 for chapter in chapters_data if chapter.get("source_url", ""))
+            
+            ch_saved = 0
+            if chapters_data:
+                logger.info(f"  📚 Upserting {len(chapters_data)} chapter metadata...")
+                ch_saved = await save_chapter_metadata(
+                    session,
+                    comic_id=comic.id,
+                    chapters_data=chapters_data,
+                )
+                
+            runtime.checkpoint["last_missing_refresh_comic_id"] = comic.id
+            
+            if ch_saved > 0:
+                runtime.stats["total_chapters_saved"] += ch_saved
+                runtime.stats["total_refreshed"] += 1
+                logger.info("✅ %s chapters saved: %s chapters", label, ch_saved)
+                note = f"Refresh missing chapters {label}: {ch_saved} chapters"
+                state = "refresh-missing-chapters-success"
+            else:
+                runtime.stats["total_skipped"] += 1
+                logger.info("⏭️ %s skipped: tidak ada chapter baru", label)
+                note = f"Refresh missing chapters {label}: no chapters"
+                state = "refresh-missing-chapters-skipped"
+
+            consecutive_errors = 0
+            persist_runtime_checkpoint(
+                runtime,
+                current_page=0,
+                page_comics_total=len(candidates),
+                current_comic_index=index,
+                current_comic_title=comic.title,
+                current_comic_slug=comic.slug,
+                current_comic_url=comic.source_url,
+                state=state,
+                note=note,
+            )
+            
+            await runtime_random_delay(
+                runtime,
+                DELAY_COMIC_MIN,
+                DELAY_COMIC_MAX,
+                "antar-komik refresh missing chapters",
+            )
+        except Exception as exc:
+            await session.rollback()
+            consecutive_errors += 1
+            runtime.stats["total_errors"] += 1
+            runtime.checkpoint["last_missing_refresh_comic_id"] = comic.id
+            logger.error(
+                "❌ %s gagal refresh missing chapters comic_id=%s [%s/%s]: %s",
+                label,
+                comic.id,
+                consecutive_errors,
+                MAX_CONSECUTIVE_ERRORS,
+                exc,
+            )
+            persist_runtime_checkpoint(
+                runtime,
+                current_page=0,
+                page_comics_total=len(candidates),
+                current_comic_index=index,
+                current_comic_title=comic.title,
+                current_comic_slug=comic.slug,
+                current_comic_url=comic.source_url,
+                state="refresh-missing-chapters-error",
+                note=f"Refresh missing chapters {label} error: {exc}",
+            )
+            if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+                logger.error("⛔ Terlalu banyak error berturut-turut, stop refresh missing chapters.")
+                return
+            await runtime_backoff_delay(
+                runtime,
+                consecutive_errors,
+                "error refresh missing chapters",
+                maximum=BACKOFF_MAX,
+            )
+
+    persist_runtime_checkpoint(
+        runtime,
+        current_page=0,
+        page_comics_total=len(candidates),
+        current_comic_index=-1,
+        state="refresh-missing-chapters-complete",
+        note=f"Refresh missing chapters selesai: {len(candidates)} kandidat DB",
+    )
+
+
 async def save_chapter_metadata(
     session,
     *,
@@ -1032,7 +1245,16 @@ async def process_comic(
     resume_comic_index: int,
     consecutive_errors: int,
 ) -> tuple[int, bool]:
-    """Proses satu komik: skip, fetch detail, upsert, lalu simpan chapter."""
+    """Proses satu komik: skip, fetch detail, upsert, lalu simpan chapter.
+
+    Mengimplementasikan Smart Sync Optimization:
+    1. Mencari komik eksisting di DB.
+    2. Membandingkan kolom metadata (judul, pengarang, sinopsis, rating, dsb)
+       serta genres. URL cover image dari Supabase tidak dibandingkan/ditimpa.
+    3. Membandingkan data chapter untuk mencari chapter baru atau yang berubah.
+    4. Jika tidak ada perubahan metadata & chapter baru, proses DB write di-skip total.
+    5. Jika ada perubahan, hanya lakukan upsert untuk bagian yang berubah (metadata/chapter).
+    """
     if page == resume_page and idx <= resume_comic_index:
         return consecutive_errors, False
 
@@ -1176,134 +1398,214 @@ async def process_comic(
             genres=comic_detail.get("genres", []),
         )
 
-        genre_total = len(validated.genres)
-        upsert_total_steps = genre_total + 2
-        logger.info(
-            f"  💾 [{idx + 1}/{page_total}] Upsert database: {validated.title} "
-            f"(metadata + {genre_total} genre + commit)"
-        )
-        persist_runtime_checkpoint(
-            runtime,
-            current_page=page,
-            page_comics_total=page_total,
-            current_comic_index=idx,
-            current_comic_title=validated.title,
-            current_comic_slug=validated.slug,
-            current_comic_url=detail_url,
-            state="upserting-comic",
-            note=f"Upsert DB [{idx + 1}/{page_total}]",
-        )
+        # Smart Sync Comparison
+        existing_comic = None
+        has_metadata_changes = True
+        new_chapters_to_save = comic_detail.get("chapters", [])
 
-        upsert_progress = CliLiveProgress(
-            label=f"[{idx + 1}/{page_total}] upsert DB",
-            total_steps=upsert_total_steps,
+        # Fetch existing comic including genres
+        stmt_existing = select(Comic).where(
+            Comic.source_name == scraper.SOURCE_NAME,
+            Comic.slug == validated.slug
         )
-        upsert_progress.start()
-        upsert_progress.set_detail(
-            f"langkah 1/{upsert_total_steps}: menyimpan metadata komik"
-        )
-        comic_id = await upsert_comic(session, validated)
-        upsert_progress.advance(
-            f"langkah 1/{upsert_total_steps} selesai: metadata komik tersimpan"
-        )
+        res_existing = await session.execute(stmt_existing)
+        existing_comic = res_existing.scalar_one_or_none()
 
-        if genre_total == 0:
-            upsert_progress.set_detail(
-                f"langkah {upsert_total_steps}/{upsert_total_steps}: "
-                "commit transaksi (tanpa genre)"
+        if existing_comic:
+            has_metadata_changes = False
+            fields_to_compare = [
+                "title", "alternative_titles", "cover_image_url", "author", "artist",
+                "status", "type", "synopsis", "rating", "total_view"
+            ]
+            for field in fields_to_compare:
+                current_val = getattr(existing_comic, field)
+                new_val = getattr(validated, field)
+                
+                # If cover is already migrated to Supabase, preserve it
+                if field == "cover_image_url" and current_val and is_public_supabase_storage_url(current_val):
+                    continue
+                
+                # Compare string fields with None tolerance
+                if isinstance(current_val, str) or isinstance(new_val, str):
+                    val1 = current_val or ""
+                    val2 = new_val or ""
+                else:
+                    val1 = current_val
+                    val2 = new_val
+                
+                if val1 != val2:
+                    has_metadata_changes = True
+                    break
+            
+            # Compare genres
+            existing_genres = sorted([g.name.lower() for g in existing_comic.genres])
+            new_genres = sorted([g.lower() for g in validated.genres])
+            if existing_genres != new_genres:
+                has_metadata_changes = True
+            
+            # Compare chapters
+            stmt_ch = select(Chapter.chapter_number, Chapter.source_url).where(
+                Chapter.comic_id == existing_comic.id
+            )
+            res_ch = await session.execute(stmt_ch)
+            existing_ch_map = {row.chapter_number: row.source_url for row in res_ch.all()}
+            
+            new_chapters_to_save = []
+            for ch_data in comic_detail.get("chapters", []):
+                ch_num = ch_data.get("chapter_number")
+                ch_url = ch_data.get("source_url")
+                if ch_num not in existing_ch_map or existing_ch_map[ch_num] != ch_url:
+                    new_chapters_to_save.append(ch_data)
+
+        # Skip DB writes completely if there are no changes
+        if existing_comic and not has_metadata_changes and len(new_chapters_to_save) == 0:
+            runtime.stats["total_skipped"] += 1
+            logger.info(f"  ⏭️ [{idx + 1}/{page_total}] Skip (tidak ada perubahan data): {validated.title}")
+            runtime.completed_slugs.add(validated.slug)
+            persist_runtime_checkpoint(
+                runtime,
+                last_completed_page=page,
+                last_comic_index=idx,
+                current_page=page,
+                page_comics_total=page_total,
+                current_comic_index=idx,
+                current_comic_title=validated.title,
+                current_comic_slug=validated.slug,
+                current_comic_url=detail_url,
+                state="comic-skipped-unchanged",
+                note=f"Skip unchanged [{idx + 1}/{page_total}]",
+            )
+            await runtime_random_delay(runtime, DELAY_COMIC_MIN, DELAY_COMIC_MAX, "delay antar-komik")
+            return consecutive_errors, False
+
+        # Upsert Comic Metadata only if changed
+        comic_id = None
+        if has_metadata_changes or not existing_comic:
+            genre_total = len(validated.genres)
+            upsert_total_steps = genre_total + 2
+            logger.info(
+                f"  💾 [{idx + 1}/{page_total}] Upsert database: {validated.title} "
+                f"(metadata + {genre_total} genre + commit)"
+            )
+            persist_runtime_checkpoint(
+                runtime,
+                current_page=page,
+                page_comics_total=page_total,
+                current_comic_index=idx,
+                current_comic_title=validated.title,
+                current_comic_slug=validated.slug,
+                current_comic_url=detail_url,
+                state="upserting-comic",
+                note=f"Upsert DB [{idx + 1}/{page_total}]",
             )
 
-        if genre_total:
-            upsert_progress.set_detail(
-                f"langkah 2/{upsert_total_steps}: bulk sinkron {genre_total} genre"
+            upsert_progress = CliLiveProgress(
+                label=f"[{idx + 1}/{page_total}] upsert DB",
+                total_steps=upsert_total_steps,
             )
-            await sync_comic_genres(session, comic_id, validated.genres)
-            for genre_index, genre_name in enumerate(validated.genres, start=1):
-                genre_step = genre_index + 1
-                upsert_progress.advance(
-                    f"genre {genre_index}/{genre_total} | "
-                    f"langkah {genre_step}/{upsert_total_steps}: {genre_name}"
+            upsert_progress.start()
+            upsert_progress.set_detail(
+                f"langkah 1/{upsert_total_steps}: menyimpan metadata komik"
+            )
+            comic_id = await upsert_comic(session, validated)
+            upsert_progress.advance(
+                f"langkah 1/{upsert_total_steps} selesai: metadata komik tersimpan"
+            )
+
+            if genre_total == 0:
+                upsert_progress.set_detail(
+                    f"langkah {upsert_total_steps}/{upsert_total_steps}: "
+                    "commit transaksi (tanpa genre)"
                 )
 
-        upsert_progress.set_detail(
-            f"commit final | langkah {upsert_total_steps}/{upsert_total_steps}"
-        )
-        await session.commit()
-        upsert_progress.advance(
-            f"commit final selesai | langkah {upsert_total_steps}/{upsert_total_steps}"
-        )
-        await upsert_progress.stop()
-        upsert_progress = None
+            if genre_total:
+                upsert_progress.set_detail(
+                    f"langkah 2/{upsert_total_steps}: bulk sinkron {genre_total} genre"
+                )
+                await sync_comic_genres(session, comic_id, validated.genres)
+                for genre_index, genre_name in enumerate(validated.genres, start=1):
+                    genre_step = genre_index + 1
+                    upsert_progress.advance(
+                        f"genre {genre_index}/{genre_total} | "
+                        f"langkah {genre_step}/{upsert_total_steps}: {genre_name}"
+                    )
 
-        runtime.stats["total_upserted"] += 1
+            upsert_progress.set_detail(
+                f"commit final | langkah {upsert_total_steps}/{upsert_total_steps}"
+            )
+            await session.commit()
+            upsert_progress.advance(
+                f"commit final selesai | langkah {upsert_total_steps}/{upsert_total_steps}"
+            )
+            await upsert_progress.stop()
+            upsert_progress = None
+
+            runtime.stats["total_upserted"] += 1
+            logger.info(
+                f"  ✅ Upserted: {validated.title} "
+                f"({len(validated.genres)} genre) "
+                f"[Total: {runtime.stats['total_upserted']}]"
+            )
+        else:
+            comic_id = existing_comic.id
+            logger.info(f"  ⏭️ [{idx + 1}/{page_total}] Skip metadata upsert (tidak ada perubahan): {validated.title}")
+
         runtime.comics_since_cooldown += 1
         consecutive_errors = 0
 
-        logger.info(
-            f"  ✅ Upserted: {validated.title} "
-            f"({len(validated.genres)} genre) "
-            f"[Total: {runtime.stats['total_upserted']}]"
-        )
+        # Upsert Chapters Metadata only if there are new/changed chapters
+        ch_saved = 0
+        if new_chapters_to_save:
+            valid_chapter_total = sum(
+                1 for chapter in new_chapters_to_save if chapter.get("source_url", "")
+            )
+            if valid_chapter_total:
+                persist_runtime_checkpoint(
+                    runtime,
+                    current_page=page,
+                    page_comics_total=page_total,
+                    current_comic_index=idx,
+                    current_comic_title=validated.title,
+                    current_comic_slug=validated.slug,
+                    current_comic_url=detail_url,
+                    state="saving-chapter-metadata",
+                    note=f"Menyimpan chapter [{idx + 1}/{page_total}]",
+                )
 
-        persist_runtime_checkpoint(
-            runtime,
-            current_page=page,
-            page_comics_total=page_total,
-            current_comic_index=idx,
-            current_comic_title=validated.title,
-            current_comic_slug=validated.slug,
-            current_comic_url=detail_url,
-            state="saving-chapter-metadata",
-            note=f"Menyimpan chapter [{idx + 1}/{page_total}]",
-        )
+                chapter_progress_total_steps = len(new_chapters_to_save) + 1
+                logger.info(
+                    f"  📚 [{idx + 1}/{page_total}] Upsert chapter metadata: "
+                    f"{len(new_chapters_to_save)} chapter"
+                    f" + 1 commit"
+                )
+                chapter_progress = CliLiveProgress(
+                    label=f"[{idx + 1}/{page_total}] chapter metadata",
+                    total_steps=chapter_progress_total_steps,
+                )
+                chapter_progress.start()
+                chapter_progress.set_detail(
+                    f"menyiapkan {len(new_chapters_to_save)} chapter"
+                    f" + commit final"
+                )
 
-        chapters_data = comic_detail.get("chapters", [])
-        valid_chapter_total = sum(
-            1 for chapter in chapters_data if chapter.get("source_url", "")
-        )
-        if chapters_data:
-            chapter_progress_total_steps = len(chapters_data) + (
-                1 if valid_chapter_total else 0
-            )
-            logger.info(
-                f"  📚 [{idx + 1}/{page_total}] Upsert chapter metadata: "
-                f"{len(chapters_data)} chapter"
-                + (" + 1 commit" if valid_chapter_total else "")
-            )
-            chapter_progress = CliLiveProgress(
-                label=f"[{idx + 1}/{page_total}] chapter metadata",
-                total_steps=chapter_progress_total_steps,
-            )
-            chapter_progress.start()
-            chapter_progress.set_detail(
-                f"menyiapkan {len(chapters_data)} chapter"
-                + (" + commit final" if valid_chapter_total else "")
-            )
+                ch_saved = await save_chapter_metadata(
+                    session,
+                    comic_id=comic_id,
+                    chapters_data=new_chapters_to_save,
+                    progress=chapter_progress,
+                )
+                if chapter_progress is not None:
+                    await chapter_progress.stop()
+                    chapter_progress = None
         else:
-            logger.info(f"  📚 [{idx + 1}/{page_total}] Tidak ada chapter metadata.")
+            logger.info(f"  📚 [{idx + 1}/{page_total}] Skip chapter upsert (tidak ada chapter baru).")
 
-        ch_saved = await save_chapter_metadata(
-            session,
-            comic_id=comic_id,
-            chapters_data=chapters_data,
-            progress=chapter_progress,
-        )
-        if chapter_progress is not None:
-            await chapter_progress.stop()
-            chapter_progress = None
         if ch_saved:
             runtime.stats["total_chapters_saved"] += ch_saved
             logger.info(
-                f"    📚 {ch_saved} chapter metadata tersimpan "
+                f"    📚 {ch_saved} chapter metadata baru tersimpan "
                 f"(images akan di-fetch on-demand)"
             )
-        else:
-            if chapters_data:
-                logger.info(
-                    "    ℹ️ Chapter metadata ada, tetapi tidak ada source URL yang valid."
-                )
-            else:
-                logger.info("    ℹ️ Tidak ada daftar chapter dari detail page.")
 
         runtime.completed_slugs.add(validated.slug)
         persist_runtime_checkpoint(
@@ -1493,6 +1795,7 @@ async def run_sync_full_library(
     source: str = "komiku",
     refresh_fields: frozenset[str] = frozenset(),
     refresh_missing_only: bool = False,
+    refresh_missing_chapters: bool = False,
     refresh_missing_limit: int | None = DEFAULT_REFRESH_MISSING_LIMIT,
     anti_blocking_enabled: bool = True,
 ):
@@ -1501,13 +1804,17 @@ async def run_sync_full_library(
     start_time = time.time()
     started_at = now_wib()
     checkpoint_file = (
-        get_refresh_missing_checkpoint_file(source)
-        if refresh_missing_only
-        else get_checkpoint_file(mode, source)
+        get_refresh_missing_chapters_checkpoint_file(source)
+        if refresh_missing_chapters
+        else (
+            get_refresh_missing_checkpoint_file(source)
+            if refresh_missing_only
+            else get_checkpoint_file(mode, source)
+        )
     )
     checkpoint = (
         load_checkpoint_from_file(checkpoint_file)
-        if refresh_missing_only
+        if (refresh_missing_only or refresh_missing_chapters)
         else load_checkpoint(mode, source)
     )
     completed_slugs = set(checkpoint.get("completed_slugs", []))
@@ -1538,6 +1845,7 @@ async def run_sync_full_library(
         completed_slugs=completed_slugs,
         refresh_fields=refresh_fields,
         refresh_missing_only=refresh_missing_only,
+        refresh_missing_chapters=refresh_missing_chapters,
         anti_blocking_enabled=anti_blocking_enabled,
     )
 
@@ -1563,7 +1871,7 @@ async def run_sync_full_library(
         "   Refresh rule   : %s",
         "hanya field kosong" if runtime.refresh_missing_only else "update jika berbeda",
     )
-    if runtime.refresh_missing_only:
+    if runtime.refresh_missing_only or runtime.refresh_missing_chapters:
         logger.info(
             "   Refresh source : DB candidates only (tanpa scan katalog source)"
         )
@@ -1576,9 +1884,13 @@ async def run_sync_full_library(
     logger.info(f"   Resume reason   : {resume_reason}")
     logger.info(f"   Komik sudah done: {len(completed_slugs)}")
     checkpoint_scope = (
-        f"{source}:refresh_missing (terpisah dari validate/refresh)"
-        if runtime.refresh_missing_only
-        else get_checkpoint_scope_label(mode, source)
+        f"{source}:refresh_missing_chapters (terpisah dari validate/refresh)"
+        if runtime.refresh_missing_chapters
+        else (
+            f"{source}:refresh_missing (terpisah dari validate/refresh)"
+            if runtime.refresh_missing_only
+            else get_checkpoint_scope_label(mode, source)
+        )
     )
     logger.info(f"   Checkpoint scope: {checkpoint_scope}")
     logger.info(
@@ -1600,7 +1912,15 @@ async def run_sync_full_library(
 
     try:
         async with async_session() as session:
-            if runtime.refresh_missing_only and runtime.refresh_fields:
+            if runtime.refresh_missing_chapters:
+                await run_refresh_missing_chapters(
+                    session,
+                    scraper=scraper,
+                    runtime=runtime,
+                    source_name=source,
+                    limit=refresh_missing_limit,
+                )
+            elif runtime.refresh_missing_only and runtime.refresh_fields:
                 await run_refresh_missing_metadata(
                     session,
                     scraper=scraper,
@@ -1683,6 +2003,7 @@ def parse_args():
         "log_file": None,
         "refresh_fields": frozenset(),
         "refresh_missing_only": False,
+        "refresh_missing_chapters": False,
         "limit": DEFAULT_REFRESH_MISSING_LIMIT,
         "anti_blocking_enabled": True,
     }
@@ -1695,6 +2016,8 @@ def parse_args():
             args["reset"] = True
         elif argv[i] == "--refresh-missing-only":
             args["refresh_missing_only"] = True
+        elif argv[i] == "--refresh-missing-chapters":
+            args["refresh_missing_chapters"] = True
         elif argv[i] == "--no-anti-blocking":
             args["anti_blocking_enabled"] = False
         elif argv[i] == "--source" and i + 1 < len(argv):
@@ -1754,6 +2077,8 @@ def parse_args():
         )
     if args["refresh_missing_only"] and not args["refresh_fields"]:
         raise ValueError("--refresh-missing-only harus dipakai bersama --refresh-fields")
+    if args["refresh_missing_chapters"] and args["refresh_missing_only"]:
+        raise ValueError("Gunakan salah satu: --refresh-missing-only atau --refresh-missing-chapters, bukan keduanya sekaligus.")
     if args["limit"] < 0:
         raise ValueError("--limit harus >= 0")
     if "--log-file" in argv and not args["log_file"]:
@@ -1781,7 +2106,14 @@ def main():
     _shutdown.install()
 
     if args["reset"]:
-        if args["refresh_missing_only"]:
+        if args["refresh_missing_chapters"]:
+            checkpoint_file = get_refresh_missing_chapters_checkpoint_file(args["source"])
+            if checkpoint_file.exists():
+                checkpoint_file.unlink()
+                logger.info("🗑️ Checkpoint refresh missing chapters dihapus: %s", checkpoint_file)
+            else:
+                logger.info("ℹ️ Tidak ada checkpoint refresh missing chapters yang perlu dihapus.")
+        elif args["refresh_missing_only"]:
             checkpoint_file = get_refresh_missing_checkpoint_file(args["source"])
             if checkpoint_file.exists():
                 checkpoint_file.unlink()
@@ -1800,6 +2132,7 @@ def main():
             mode=args["mode"],
             refresh_fields=args["refresh_fields"],
             refresh_missing_only=args["refresh_missing_only"],
+            refresh_missing_chapters=args["refresh_missing_chapters"],
             refresh_missing_limit=None if args["limit"] == 0 else args["limit"],
             anti_blocking_enabled=args["anti_blocking_enabled"],
         ))
