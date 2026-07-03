@@ -16,7 +16,7 @@ class AppConfig {
     const googleIosClientId = String.fromEnvironment('GOOGLE_IOS_CLIENT_ID');
     return const AppConfig(
       apiBaseUrl: configured == ''
-          ? 'http://192.168.1.8:8000/api/v1'
+          ? 'http://192.168.1.5:8000/api/v1'
           : configured,
       githubRepository: githubRepository,
       googleWebClientId: googleWebClientId == ''

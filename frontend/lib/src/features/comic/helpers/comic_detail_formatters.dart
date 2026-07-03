@@ -106,21 +106,60 @@ double _readingProgressFraction(ReadingProgress? progress) {
   return ((currentIndex + 1) / total).clamp(0, 1).toDouble();
 }
 
-_ChapterUi? _continueChapter(_ComicDetailUi detail, ReadingProgress? progress) {
+_ChapterUi? _continueChapter(
+  _ComicDetailUi detail,
+  ReadingProgress? progress,
+  Set<double> completedChapterNumbers,
+) {
   if (detail.chapters.isEmpty) return null;
-  if (progress == null) {
-    return detail.chapters.reduce(
-      (earliest, chapter) =>
-          chapter.chapterNumber < earliest.chapterNumber ? chapter : earliest,
-    );
+
+  final maxCompleted = completedChapterNumbers.isEmpty
+      ? -1.0
+      : completedChapterNumbers.reduce((a, b) => a > b ? a : b);
+  final progressChapter = progress?.chapterNumber;
+  final progressCompleted = progress?.isCompleted ?? false;
+
+  double? targetChapterNumber;
+
+  if (progressChapter != null &&
+      !progressCompleted &&
+      !completedChapterNumbers.contains(progressChapter)) {
+    targetChapterNumber = progressChapter;
+  } else {
+    final lastRead = (progressChapter != null && progressChapter > maxCompleted)
+        ? progressChapter
+        : maxCompleted;
+
+    if (lastRead == -1.0) {
+      return detail.chapters.reduce(
+        (earliest, chapter) =>
+            chapter.chapterNumber < earliest.chapterNumber ? chapter : earliest,
+      );
+    }
+
+    final ascendingChapters = detail.chapters.toList()
+      ..sort((a, b) => a.chapterNumber.compareTo(b.chapterNumber));
+
+    for (final chapter in ascendingChapters) {
+      if (chapter.chapterNumber > lastRead) {
+        targetChapterNumber = chapter.chapterNumber;
+        break;
+      }
+    }
+
+    if (targetChapterNumber == null) {
+      return ascendingChapters.last;
+    }
   }
+
   for (final chapter in detail.chapters) {
-    if (chapter.chapterNumber == progress.chapterNumber) return chapter;
+    if (chapter.chapterNumber == targetChapterNumber) return chapter;
   }
+
   return _ChapterUi(
-    title: 'Chapter ${formatChapterNumber(progress.chapterNumber)}',
+    title: 'Chapter ${formatChapterNumber(targetChapterNumber)}',
     subtitle: 'Lanjutkan bacaan terakhir',
-    chapterNumber: progress.chapterNumber,
+    chapterNumber: targetChapterNumber,
   );
 }
 

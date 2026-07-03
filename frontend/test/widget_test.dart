@@ -237,9 +237,11 @@ void main() {
     await tester.pumpAndSettle();
 
     final bottomFade = tester.widget<AppEdgeFade>(
-      find.descendant(
-        of: find.byType(ComicDetailScreen),
-        matching: find.byType(AppEdgeFade),
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is AppEdgeFade &&
+            widget.edge == AppFadeEdge.bottom &&
+            widget.height == 120,
       ),
     );
     expect(bottomFade.edge, AppFadeEdge.bottom);
@@ -327,23 +329,31 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify card is initially expanded (showing placeholder)
-    expect(find.byKey(const ValueKey('find-linked-bookmark-source')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('find-linked-bookmark-source')),
+      findsOneWidget,
+    );
 
     // Tap the header to collapse it
     await tester.tap(find.text('Source terhubung'));
     await tester.pumpAndSettle();
 
     // Verify placeholder is now collapsed / hidden
-    expect(find.byKey(const ValueKey('find-linked-bookmark-source')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('find-linked-bookmark-source')),
+      findsNothing,
+    );
 
     // Tap again to expand
     await tester.tap(find.text('Source terhubung'));
     await tester.pumpAndSettle();
 
     // Verify placeholder is visible again
-    expect(find.byKey(const ValueKey('find-linked-bookmark-source')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('find-linked-bookmark-source')),
+      findsOneWidget,
+    );
   });
-
 
   testWidgets('comic detail starts from first chapter without progress', (
     tester,

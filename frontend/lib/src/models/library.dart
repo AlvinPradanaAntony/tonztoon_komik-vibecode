@@ -14,6 +14,7 @@ class LibraryComicRef {
     this.rating,
     this.totalView,
     this.linkedComics = const [],
+    this.hasNewChapter = false,
   });
 
   factory LibraryComicRef.fromJson(Map<String, dynamic> json) {
@@ -34,6 +35,7 @@ class LibraryComicRef {
             (item) => LibraryComicRef.fromJson(Map<String, dynamic>.from(item)),
           )
           .toList(),
+      hasNewChapter: json['has_new_chapter'] as bool? ?? false,
     );
   }
 
@@ -47,6 +49,7 @@ class LibraryComicRef {
       type: comic.type,
       rating: comic.rating,
       totalView: comic.totalView,
+      hasNewChapter: false,
     );
   }
 
@@ -75,6 +78,7 @@ class LibraryComicRef {
     'rating': rating,
     'total_view': totalView,
     'linked_comics': linkedComics.map((item) => item.toJson()).toList(),
+    'has_new_chapter': hasNewChapter,
   };
 
   String get key => '$sourceName|$slug';
@@ -90,6 +94,7 @@ class LibraryComicRef {
   final double? rating;
   final int? totalView;
   final List<LibraryComicRef> linkedComics;
+  final bool hasNewChapter;
 }
 
 class BookmarkLinkCandidate {

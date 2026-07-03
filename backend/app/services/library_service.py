@@ -91,6 +91,7 @@ def normalize_collection_name(name: str) -> str:
 def build_comic_ref(
     comic: Comic,
     base_url: str | None = None,
+    has_new_chapter: bool = False,
 ) -> LibraryComicRef:
     """Bangun snapshot ringan komik untuk response library."""
     return LibraryComicRef(
@@ -107,6 +108,7 @@ def build_comic_ref(
         type=comic.type,
         rating=comic.rating,
         total_view=comic.total_view,
+        has_new_chapter=has_new_chapter,
     )
 
 
@@ -223,11 +225,12 @@ def build_history_projection_response(
 def build_bookmark_response(
     bookmark: UserBookmark,
     base_url: str | None = None,
+    has_new_chapter: bool = False,
 ) -> BookmarkResponse:
     """Serialisasi bookmark ORM -> schema."""
     return BookmarkResponse(
         id=bookmark.id,
-        comic=build_comic_ref(bookmark.comic, base_url=base_url),
+        comic=build_comic_ref(bookmark.comic, base_url=base_url, has_new_chapter=has_new_chapter),
         linked_comics=[
             build_comic_ref(link.comic, base_url=base_url)
             for link in bookmark.__dict__.get("links", ())
@@ -459,10 +462,47 @@ async def list_bookmarks(
     *,
     page_size: int = 20,
     offset: int = 0,
-) -> list[UserBookmark]:
+) -> list[tuple[UserBookmark, bool]]:
     """List bookmark user terbaru."""
+    progress_subq = (
+        select(func.max(Chapter.chapter_number))
+        .select_from(UserProgress)
+        .join(Chapter, Chapter.id == UserProgress.chapter_id)
+        .where(
+            UserProgress.user_id == user_id,
+            UserProgress.comic_id == UserBookmark.comic_id
+        )
+        .correlate(UserBookmark)
+        .scalar_subquery()
+    )
+
+    completed_subq = (
+        select(func.max(Chapter.chapter_number))
+        .select_from(UserCompletedChapter)
+        .join(Chapter, Chapter.id == UserCompletedChapter.chapter_id)
+        .where(
+            UserCompletedChapter.user_id == user_id,
+            UserCompletedChapter.comic_id == UserBookmark.comic_id
+        )
+        .correlate(UserBookmark)
+        .scalar_subquery()
+    )
+
+    has_new_chapter_expr = exists(
+        select(1)
+        .select_from(Chapter)
+        .where(
+            Chapter.comic_id == UserBookmark.comic_id,
+            Chapter.chapter_number > func.greatest(
+                func.coalesce(progress_subq, -1.0),
+                func.coalesce(completed_subq, -1.0)
+            )
+        )
+        .correlate(UserBookmark)
+    ).label("has_new_chapter")
+
     result = await db.execute(
-        select(UserBookmark)
+        select(UserBookmark, has_new_chapter_expr)
         .options(
             defaultload(UserBookmark.comic).noload(Comic.genres),
             selectinload(UserBookmark.links).selectinload(
@@ -474,7 +514,7 @@ async def list_bookmarks(
         .limit(page_size)
         .offset(offset)
     )
-    return result.scalars().all()
+    return list(result.all())
 
 
 def _bookmark_match_score(primary: Comic, candidate: Comic):
@@ -568,12 +608,13 @@ async def list_bookmark_link_candidates(
         bookmark = result.scalars().first()
         bookmarks = [bookmark] if bookmark is not None else []
     else:
-        bookmarks = await list_bookmarks(
+        bookmarks_result = await list_bookmarks(
             db,
             user_id,
             page_size=page_size + 1,
             offset=offset,
         )
+        bookmarks = [b for b, _ in bookmarks_result]
     if not bookmarks:
         return BookmarkLinkCandidatePage(
             next_offset=offset,

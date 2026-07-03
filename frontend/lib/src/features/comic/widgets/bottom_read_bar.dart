@@ -5,6 +5,7 @@ class _BottomReadBar extends StatelessWidget {
     required this.detail,
     required this.chaptersLoading,
     required this.progress,
+    required this.completedChapterNumbers,
     required this.downloadState,
     required this.downloadBusy,
     required this.collectionBusy,
@@ -16,6 +17,7 @@ class _BottomReadBar extends StatelessWidget {
   final _ComicDetailUi detail;
   final bool chaptersLoading;
   final ReadingProgress? progress;
+  final Set<double> completedChapterNumbers;
   final _ComicDownloadState downloadState;
   final bool downloadBusy;
   final bool collectionBusy;
@@ -28,17 +30,33 @@ class _BottomReadBar extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final hasChapters = detail.chapters.isNotEmpty;
     final canRead = hasChapters && !chaptersLoading;
-    final continueChapter = _continueChapter(detail, progress);
+    final continueChapter = _continueChapter(
+      detail,
+      progress,
+      completedChapterNumbers,
+    );
     final downloadTooltip = downloadState.label ?? 'Unduh';
-    final hasReadingProgress = progress != null;
+
+    final isReRead =
+        continueChapter != null &&
+        (completedChapterNumbers.contains(continueChapter.chapterNumber) ||
+            (progress != null &&
+                progress!.chapterNumber == continueChapter.chapterNumber &&
+                progress!.isCompleted));
+
+    final hasHistory = progress != null || completedChapterNumbers.isNotEmpty;
+    final hasReadingProgress = hasHistory;
     final readProgress = _readingProgressFraction(progress);
+
     final readLabel = chaptersLoading
         ? 'Memuat chapter...'
-        : progress == null
-        ? hasChapters
-              ? 'Baca ${continueChapter?.title ?? detail.firstChapterLabel}'
-              : 'Chapter belum tersedia'
-        : 'Lanjut ${continueChapter?.title ?? 'Chapter ${formatChapterNumber(progress!.chapterNumber)}'}';
+        : !hasChapters
+        ? 'Chapter belum tersedia'
+        : isReRead
+        ? 'Baca Kembali ${continueChapter.title}'
+        : hasHistory
+        ? 'Lanjut ${continueChapter?.title}'
+        : 'Baca ${continueChapter?.title ?? detail.firstChapterLabel}';
 
     return SafeArea(
       top: false,

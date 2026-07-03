@@ -1,6 +1,6 @@
 part of '../comic_detail_screen.dart';
 
-class _ChapterPanel extends StatelessWidget {
+class _ChapterPanel extends StatefulWidget {
   const _ChapterPanel({
     required this.chapters,
     required this.downloadState,
@@ -26,6 +26,19 @@ class _ChapterPanel extends StatelessWidget {
   final VoidCallback onRetry;
   final ValueChanged<_ChapterUi> onOpenChapter;
   final VoidCallback onSyncReadStatus;
+
+  @override
+  State<_ChapterPanel> createState() => _ChapterPanelState();
+}
+
+class _ChapterPanelState extends State<_ChapterPanel> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -62,15 +75,17 @@ class _ChapterPanel extends StatelessWidget {
                   title: 'Daftar Chapter',
                 ),
                 const Spacer(),
-                if (showReadSync) ...[
+                if (widget.showReadSync) ...[
                   _ReadSyncIconButton(
-                    busy: readSyncBusy,
-                    onPressed: readSyncBusy ? null : onSyncReadStatus,
+                    busy: widget.readSyncBusy,
+                    onPressed: widget.readSyncBusy
+                        ? null
+                        : widget.onSyncReadStatus,
                   ),
                   const SizedBox(width: 6),
                 ],
                 Text(
-                  '${chapters.length} terbaru',
+                  '${widget.chapters.length} terbaru',
                   style: theme.textTheme.labelMedium?.copyWith(
                     color: colorScheme.secondary,
                     fontWeight: FontWeight.w800,
@@ -79,22 +94,22 @@ class _ChapterPanel extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-            if (loading)
+            if (widget.loading)
               const _ChapterListShimmer()
-            else if (error != null)
+            else if (widget.error != null)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 24),
                 child: AppErrorState(
-                  error: error!,
+                  error: widget.error!,
                   fallbackMessage:
                       'Chapter belum dapat dimuat. Silakan coba lagi.',
-                  onRetry: onRetry,
+                  onRetry: widget.onRetry,
                   retryLabel: 'Retry',
                   icon: null,
                   messageStyle: theme.textTheme.bodyMedium,
                 ),
               )
-            else if (chapters.isEmpty)
+            else if (widget.chapters.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 24),
                 child: Text(
@@ -107,30 +122,53 @@ class _ChapterPanel extends StatelessWidget {
                 height: 430,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: Scrollbar(
-                    child: ListView.separated(
-                      primary: false,
-                      padding: const EdgeInsets.only(bottom: 4),
-                      physics: const BouncingScrollPhysics(),
-                      itemBuilder: (context, index) {
-                        return _ChapterRow(
-                          chapter: chapters[index],
-                          isLatest: index == 0,
-                          offline: downloadState.offlineChapterNumbers.contains(
-                            chapters[index].chapterNumber,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: MediaQuery.removePadding(
+                          context: context,
+                          removeTop: true,
+                          removeBottom: true,
+                          child: Scrollbar(
+                            controller: _scrollController,
+                            child: ListView.separated(
+                              controller: _scrollController,
+                              primary: false,
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              physics: const BouncingScrollPhysics(),
+                              itemBuilder: (context, index) {
+                                return _ChapterRow(
+                                  chapter: widget.chapters[index],
+                                  isLatest: index == 0,
+                                  offline: widget
+                                      .downloadState
+                                      .offlineChapterNumbers
+                                      .contains(
+                                        widget.chapters[index].chapterNumber,
+                                      ),
+                                  readState: _chapterReadState(
+                                    widget.chapters[index],
+                                    widget.progress,
+                                    widget.completedChapterNumbers,
+                                  ),
+                                  onTap: () => widget.onOpenChapter(
+                                    widget.chapters[index],
+                                  ),
+                                );
+                              },
+                              separatorBuilder: (context, index) =>
+                                  const SizedBox(height: 10),
+                              itemCount: widget.chapters.length,
+                            ),
                           ),
-                          readState: _chapterReadState(
-                            chapters[index],
-                            progress,
-                            completedChapterNumbers,
-                          ),
-                          onTap: () => onOpenChapter(chapters[index]),
-                        );
-                      },
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(height: 10),
-                      itemCount: chapters.length,
-                    ),
+                        ),
+                      ),
+                      AppEdgeFade(
+                        background: colorScheme.surface,
+                        edge: AppFadeEdge.bottom,
+                        height: 16,
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -225,10 +263,11 @@ class _LatestChapterBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return ClipPath(
       clipper: const _LatestChapterBadgeClipper(),
       child: ColoredBox(
-        color: const Color(0xFFFF9700),
+        color: colorScheme.primary,
         child: SizedBox(
           width: 66,
           height: 20,
@@ -293,11 +332,13 @@ class _ChapterRow extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Material(
-      color: colorScheme.surface,
-      elevation: 2.6,
-      shadowColor: Colors.black.withValues(alpha: 0.18),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+    return Card(
+      color: colorScheme.surfaceContainer,
+      elevation: 1.2,
+      shadowColor: Colors.black.withValues(
+        alpha: theme.brightness == Brightness.dark ? 0.25 : 0.06,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,

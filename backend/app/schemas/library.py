@@ -53,6 +53,7 @@ class LibraryComicRef(BaseModel):
     type: str | None = None
     rating: float | None = None
     total_view: int | None = None
+    has_new_chapter: bool = False
 
 
 class LibraryChapterRef(BaseModel):

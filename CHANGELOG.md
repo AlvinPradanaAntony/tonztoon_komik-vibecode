@@ -6,23 +6,37 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
-## [1.20.0] - 2026-06-23
+## [1.21.0] - 2026-07-03
 
 ### Added
+- Badge chapter baru pada bookmark Library agar komik dengan chapter lanjutan lebih mudah terlihat.
+- Field `has_new_chapter` pada response bookmark library untuk menandai komik yang memiliki chapter di atas progres atau chapter selesai terakhir.
+- Script sinkronisasi full library dengan checkpointing dan dukungan anti-blocking untuk pemrosesan data komik secara bulk.
+
+### Changed
+- Tombol lanjut baca di Detail Komik kini memakai data chapter selesai untuk membuka chapter berikutnya, atau menampilkan mode baca kembali jika semua chapter sudah selesai.
+- Daftar chapter di Detail Komik dipoles dengan scroll controller, edge fade, card row yang lebih konsisten, dan warna badge terbaru mengikuti tema aplikasi.
+- Perhitungan statistik source terbaru di backend kini memakai keberadaan chapter dengan tanggal rilis dalam periode aktif.
+
+---
+
+<details>
+<summary><strong>Riwayat versi sebelumnya</strong></summary>
+
+### [1.20.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.20.0) - 2026-06-23
+
+#### Added
 - Aksi untuk mencari dan menghubungkan source alternatif langsung dari kartu source tertaut di halaman Detail Komik.
 - Dialog pencarian dan progres khusus saat menghubungkan bookmark multi-source dari satu komik.
 - Parameter `source_name` dan `comic_slug` pada endpoint kandidat bookmark agar pemindaian dapat dibatasi ke satu bookmark tertentu.
 
-### Changed
+#### Changed
 - Dialog kandidat bookmark multi-source dipoles dengan grouping yang dapat dibuka/tutup, indikator kecocokan, pilihan kandidat yang lebih jelas, dan tombol preview.
 - Kartu source tertaut pada Detail Komik kini menampilkan source utama, placeholder pencarian source lain, dan state loading yang lebih informatif.
 - Refresh daftar library kini mengganti halaman pertama dengan data terbaru agar item lama tidak tertahan setelah sinkronisasi.
 - Toggle bookmark untuk guest kini terasa lebih responsif dengan optimistic state dan durasi loading minimum untuk akun login.
 
 ---
-
-<details>
-<summary><strong>Riwayat versi sebelumnya</strong></summary>
 
 ### [1.19.0](https://github.com/AlvinPradanaAntony/tonztoon_komik-vibecode/releases/tag/v1.19.0) - 2026-06-21
 

@@ -147,7 +147,8 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
       );
     }
     final libraryState = libraryStateAsync.asData?.value;
-    final isGuest = ref.watch(authControllerProvider).status == AuthStatus.guest;
+    final isGuest =
+        ref.watch(authControllerProvider).status == AuthStatus.guest;
     final effectiveBookmarked =
         _bookmarkOverride ?? (libraryState?.bookmarked == true);
     if (_bookmarkOverride != null &&
@@ -433,6 +434,7 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
           detail: detail,
           chaptersLoading: chaptersLoading,
           progress: progress,
+          completedChapterNumbers: completedChapterNumbers,
           downloadState: downloadState,
           downloadBusy: _downloadBusy,
           collectionBusy: _collectionBusy,
@@ -440,8 +442,13 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
               ? null
               : () => _showDownloadSheet(comic, chapterItems, downloadState),
           onManageCollections: () => _showCollectionSheet(comic, libraryState),
-          onContinueReading: () =>
-              _continueReading(comic, request, detail, progress),
+          onContinueReading: () => _continueReading(
+            comic,
+            request,
+            detail,
+            progress,
+            completedChapterNumbers,
+          ),
         ),
       ),
     );
@@ -452,8 +459,9 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
     ComicRequest request,
     _ComicDetailUi detail,
     ReadingProgress? progress,
+    Set<double> completedChapterNumbers,
   ) {
-    final chapter = _continueChapter(detail, progress);
+    final chapter = _continueChapter(detail, progress, completedChapterNumbers);
     if (chapter == null) {
       _showSnack('Chapter belum tersedia.');
       return;

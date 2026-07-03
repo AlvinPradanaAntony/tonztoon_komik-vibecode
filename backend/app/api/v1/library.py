@@ -231,7 +231,7 @@ async def get_bookmarks(
         offset=(page - 1) * page_size,
     )
     base_url = _get_request_base_url(request)
-    return [build_bookmark_response(item, base_url=base_url) for item in items]
+    return [build_bookmark_response(item, has_new_chapter=hnc, base_url=base_url) for item, hnc in items]
 
 
 @router.put(

@@ -485,7 +485,7 @@ async def get_source_latest_comic_stats(
     cutoff = datetime.now(timezone.utc) - timedelta(days=period_days)
     stmt = select(func.count(Comic.id)).where(
         Comic.source_name == source["id"],
-        _latest_chapter_release_subq >= cutoff,
+        Comic.chapters.any(Chapter.release_date >= cutoff),
     )
     updated_comic_count = (await db.execute(stmt)).scalar() or 0
     return SourceLatestComicStats(

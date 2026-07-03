@@ -47,6 +47,12 @@ class _BookmarkTile extends StatelessWidget {
                       child: ComicTypeFlagBadge(type: comic.type!),
                     ),
                   ),
+                if (comic.hasNewChapter)
+                  const Positioned(
+                    top: 4,
+                    left: 4,
+                    child: ComicNewBadge(compact: true, scale: 0.85),
+                  ),
               ],
             ),
           ),
