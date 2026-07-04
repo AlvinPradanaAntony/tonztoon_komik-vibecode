@@ -81,6 +81,36 @@ class LibraryComicRef {
     'has_new_chapter': hasNewChapter,
   };
 
+  LibraryComicRef copyWith({
+    int? comicId,
+    String? sourceName,
+    String? slug,
+    String? title,
+    String? coverImageUrl,
+    String? author,
+    String? status,
+    String? type,
+    double? rating,
+    int? totalView,
+    List<LibraryComicRef>? linkedComics,
+    bool? hasNewChapter,
+  }) {
+    return LibraryComicRef(
+      comicId: comicId ?? this.comicId,
+      sourceName: sourceName ?? this.sourceName,
+      slug: slug ?? this.slug,
+      title: title ?? this.title,
+      coverImageUrl: coverImageUrl ?? this.coverImageUrl,
+      author: author ?? this.author,
+      status: status ?? this.status,
+      type: type ?? this.type,
+      rating: rating ?? this.rating,
+      totalView: totalView ?? this.totalView,
+      linkedComics: linkedComics ?? this.linkedComics,
+      hasNewChapter: hasNewChapter ?? this.hasNewChapter,
+    );
+  }
+
   String get key => '$sourceName|$slug';
 
   final int? comicId;

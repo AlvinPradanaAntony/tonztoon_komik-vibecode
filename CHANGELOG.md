@@ -6,6 +6,13 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
+## [1.21.1] - 2026-07-04
+
+### Changed
+- Invalidate UI pada tab Bookmark secara instan ketika komik telah ditandai selesai/dibaca hingga bab terbaru (menghapus badge "new" secara langsung).
+
+---
+
 ## [1.21.0] - 2026-07-03
 
 ### Added

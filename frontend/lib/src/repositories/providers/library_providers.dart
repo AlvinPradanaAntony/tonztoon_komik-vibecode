@@ -171,6 +171,24 @@ abstract class PaginatedAsyncController<T>
     state = AsyncData(current.copyWith(items: nextItems));
   }
 
+  void updateItems(bool Function(T item) test, T Function(T item) update) {
+    final current = state.asData?.value;
+    if (current == null) return;
+
+    var changed = false;
+    final nextItems = current.items.map((item) {
+      if (test(item)) {
+        changed = true;
+        return update(item);
+      }
+      return item;
+    }).toList(growable: false);
+
+    if (!changed) return;
+
+    state = AsyncData(current.copyWith(items: nextItems));
+  }
+
   void upsertItemAtTop(T item) {
     final current = state.asData?.value;
     if (current == null) {

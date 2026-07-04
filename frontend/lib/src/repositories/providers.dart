@@ -114,6 +114,22 @@ final progressRepositoryProvider = Provider<ProgressRepository>((ref) {
     onContinueReadingChanged: (progress) {
       ref.read(paginatedHistoryProvider.notifier).upsertItemAtTop(progress);
       ref.read(continueReadingRefreshSignalProvider.notifier).bump();
+      if (progress.isCompleted) {
+        ref.read(paginatedBookmarksProvider.notifier).updateItems(
+          (item) {
+            if (item.sourceName == progress.sourceName &&
+                item.slug == progress.comicSlug) {
+              return true;
+            }
+            return item.linkedComics.any(
+              (linked) =>
+                  linked.sourceName == progress.sourceName &&
+                  linked.slug == progress.comicSlug,
+            );
+          },
+          (item) => item.copyWith(hasNewChapter: false),
+        );
+      }
     },
   );
 });
