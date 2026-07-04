@@ -6,6 +6,21 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
+## [1.21.2] - 2026-07-04
+
+### Added
+- Tombol FAB hapus (*delete*) berbentuk lingkaran dengan warna *secondary* pada halaman detail grup komik (File Lokal dan Wishlist Offline) di tab Unduhan Pustaka untuk memudahkan penghapusan seluruh chapter komik sekaligus.
+- Dukungan filter dinamis (*type* dan *genre*) pada perhitungan statistik "total update dalam 7 hari" di backend dan frontend pada halaman Rilis Terbaru.
+
+### Changed
+- Modifikasi posisi FAB delete dinaikkan ke atas dengan padding bawah 120px agar tidak tertutup oleh *floating bottom navigation bar*.
+- Desain *skeleton shimmer* banner "Jelajahi" di halaman utama disesuaikan dengan menghilangkan border dan menggunakan *gradient background* yang sama dengan banner aslinya.
+
+### Fixed
+- Memperbaiki kesalahan kompilasi, kesalahan linting, dan *override signature* pada kelas *mock repository* di dalam *widget testing*.
+
+---
+
 ## [1.21.1] - 2026-07-04
 
 ### Changed

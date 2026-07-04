@@ -191,9 +191,17 @@ class CatalogRepository {
     return '${popular ? 'popular' : 'latest'}|${sourceName.trim()}';
   }
 
-  Future<LatestComicStats> getLatestStats(String sourceName) async {
+  Future<LatestComicStats> getLatestStats(
+    String sourceName, {
+    String? type,
+    String? genre,
+  }) async {
     final path = '/sources/$sourceName/comics/latest/stats';
-    const queryParameters = {'period_days': 7};
+    final queryParameters = {
+      'period_days': 7,
+      if (type != null && type.trim().isNotEmpty) 'type': type.trim().toLowerCase(),
+      if (genre != null && genre.trim().isNotEmpty) 'genre': genre.trim().toLowerCase(),
+    };
     final cacheKey = _latestStatsCacheKey(path, queryParameters);
     try {
       final response = await _api.get<Map<String, dynamic>>(
@@ -207,15 +215,23 @@ class CatalogRepository {
       });
       return LatestComicStats.fromJson(data);
     } catch (_) {
-      final cached = getCachedLatestStats(sourceName);
+      final cached = getCachedLatestStats(sourceName, type: type, genre: genre);
       if (cached != null) return cached;
       rethrow;
     }
   }
 
-  LatestComicStats? getCachedLatestStats(String sourceName) {
+  LatestComicStats? getCachedLatestStats(
+    String sourceName, {
+    String? type,
+    String? genre,
+  }) {
     final path = '/sources/$sourceName/comics/latest/stats';
-    const queryParameters = {'period_days': 7};
+    final queryParameters = {
+      'period_days': 7,
+      if (type != null && type.trim().isNotEmpty) 'type': type.trim().toLowerCase(),
+      if (genre != null && genre.trim().isNotEmpty) 'genre': genre.trim().toLowerCase(),
+    };
     final cached = _store.cache.get(
       _latestStatsCacheKey(path, queryParameters),
     );
@@ -230,10 +246,16 @@ class CatalogRepository {
 
   bool shouldRefreshLatestStats(
     String sourceName, {
+    String? type,
+    String? genre,
     Duration maxAge = const Duration(hours: 1),
   }) {
     final path = '/sources/$sourceName/comics/latest/stats';
-    const queryParameters = {'period_days': 7};
+    final queryParameters = {
+      'period_days': 7,
+      if (type != null && type.trim().isNotEmpty) 'type': type.trim().toLowerCase(),
+      if (genre != null && genre.trim().isNotEmpty) 'genre': genre.trim().toLowerCase(),
+    };
     final cached = _store.cache.get(
       _latestStatsCacheKey(path, queryParameters),
     );

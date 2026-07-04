@@ -50,11 +50,6 @@ class _HomeDiscoverHeaderShimmer extends StatelessWidget {
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.08)
-              : Colors.black.withValues(alpha: 0.06),
-        ),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       child: AppShimmer(

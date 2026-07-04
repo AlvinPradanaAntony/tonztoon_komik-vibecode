@@ -338,7 +338,7 @@ class _OfflineChapterGroupTile extends StatelessWidget {
   }
 }
 
-class _OfflineChapterGroupScreen extends StatelessWidget {
+class _OfflineChapterGroupScreen extends ConsumerWidget {
   const _OfflineChapterGroupScreen({
     required this.group,
     required this.allowDelete,
@@ -348,7 +348,7 @@ class _OfflineChapterGroupScreen extends StatelessWidget {
   final bool allowDelete;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: AppBar(title: Text(group.comic.title)),
       body: ListView(
@@ -366,7 +366,60 @@ class _OfflineChapterGroupScreen extends StatelessWidget {
           ],
         ],
       ),
+      floatingActionButton: allowDelete
+          ? Padding(
+              padding: const EdgeInsets.only(bottom: 120),
+              child: FloatingActionButton(
+                onPressed: () => _deleteGroup(context, ref),
+                tooltip: 'Hapus semua file lokal',
+                backgroundColor: Theme.of(context).colorScheme.secondary,
+                foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                shape: const CircleBorder(),
+                child: const Icon(TonztoonIcons.trash),
+              ),
+            )
+          : null,
     );
+  }
+
+  Future<void> _deleteGroup(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showTonztoonAsyncConfirmDialog(
+      context,
+      title: 'Hapus semua file lokal',
+      message: 'Hapus semua ${group.chapters.length} file lokal untuk komik "${group.comic.title}"?',
+      helperText: 'Semua file offline dan wishlist chapter terkait akan dihapus.',
+      helperIcon: TonztoonIcons.trash,
+      cancelLabel: 'Batal',
+      confirmLabel: 'Hapus Semua',
+      variant: TonztoonModalVariant.danger,
+      art: TonztoonModalArt.trash,
+      onConfirm: () async {
+        for (final chapter in group.chapters) {
+          final downloads = await ref.read(downloadsProvider.future);
+          DownloadEntry? matchingDownload;
+          for (final entry in downloads) {
+            if ('${entry.comic.sourceName}|${entry.comic.slug}|${entry.chapterNumber}' ==
+                '${chapter.comic.sourceName}|${chapter.comic.slug}|${chapter.chapterNumber}') {
+              matchingDownload = entry;
+              break;
+            }
+          }
+          await ref.read(offlineRepositoryProvider).deleteOfflineChapter(chapter);
+          if (matchingDownload != null) {
+            await ref.read(libraryRepositoryProvider).deleteDownloadEntry(matchingDownload);
+          }
+        }
+        await _reloadDownloadsAfterDelete(ref);
+      },
+      onError: (error, stackTrace) {
+        if (context.mounted) {
+          showLibraryActionError(context, error, stackTrace);
+        }
+      },
+    );
+    if (!context.mounted || confirmed != true) return;
+    Navigator.of(context).pop();
+    _returnToDownloadsAfterDelete(context, 'Semua unduhan offline dihapus.');
   }
 }
 

@@ -307,6 +307,7 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
       _isFirstPageLoading = true;
       _isLoadingMore = false;
       _error = null;
+      _latestStats = null;
       if (!hadSection) {
         _page = 0;
         _hasNextPage = true;
@@ -340,7 +341,11 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
             latestChanged ||
             ref
                 .read(catalogRepositoryProvider)
-                .shouldRefreshLatestStats(sourceName)) {
+                .shouldRefreshLatestStats(
+                  sourceName,
+                  type: _queryFor(_filters.type),
+                  genre: _queryFor(_filters.genre),
+                )) {
           unawaited(_refreshLatestStats(sourceName, serial));
         }
       }
@@ -479,7 +484,11 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
     try {
       final stats = await ref
           .read(catalogRepositoryProvider)
-          .getLatestStats(sourceName);
+          .getLatestStats(
+            sourceName,
+            type: _queryFor(_filters.type),
+            genre: _queryFor(_filters.genre),
+          );
       if (!mounted || serial != _requestSerial) return;
       setState(() {
         _latestStats = stats;
@@ -499,9 +508,17 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
     if (source == null) return;
     final cached = ref
         .read(catalogRepositoryProvider)
-        .getCachedLatestStats(source);
+        .getCachedLatestStats(
+          source,
+          type: _queryFor(_filters.type),
+          genre: _queryFor(_filters.genre),
+        );
     if (cached == null || cached == _latestStats) return;
-    _latestStats = cached;
+    if (mounted) {
+      setState(() => _latestStats = cached);
+    } else {
+      _latestStats = cached;
+    }
   }
 
   void _loadCachedComicSection([String? sourceName]) {

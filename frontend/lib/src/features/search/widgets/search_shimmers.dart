@@ -77,7 +77,7 @@ class _SearchGridShimmer extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppSliverColumnGrid<int>(
       items: const [0, 1, 2, 3],
-      minColumnWidth: 104,
+      minColumnWidth: 98,
       maxColumnCount: 6,
       itemBuilder: (context, index) => const _SearchGridCardShimmer(),
     );

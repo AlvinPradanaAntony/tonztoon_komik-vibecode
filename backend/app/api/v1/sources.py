@@ -478,6 +478,9 @@ async def get_source_latest_comics(
 async def get_source_latest_comic_stats(
     source_name: str = Path(..., description="Filter by source name"),
     period_days: int = Query(7, ge=1, le=30),
+    type: str | None = Query(None, description="Filter by type: manga/manhwa/manhua"),
+    status: str | None = Query(None, description="Filter by status: ongoing/completed/hiatus"),
+    genre: str | None = Query(None, description="Filter by genre name or slug"),
     db: AsyncSession = Depends(get_db),
 ):
     """Hitung komik yang memiliki rilis chapter dalam rentang waktu terbaru."""
@@ -487,6 +490,7 @@ async def get_source_latest_comic_stats(
         Comic.source_name == source["id"],
         Comic.chapters.any(Chapter.release_date >= cutoff),
     )
+    stmt = _apply_source_comic_filters(stmt, type=type, status=status, genre=genre)
     updated_comic_count = (await db.execute(stmt)).scalar() or 0
     return SourceLatestComicStats(
         period_days=period_days,

@@ -968,16 +968,26 @@ class _FakeCatalogRepository implements CatalogRepository {
   }) async => const [comic];
 
   @override
-  Future<LatestComicStats> getLatestStats(String sourceName) async {
+  Future<LatestComicStats> getLatestStats(
+    String sourceName, {
+    String? type,
+    String? genre,
+  }) async {
     return const LatestComicStats(periodDays: 7, updatedComicCount: 1);
   }
 
   @override
-  LatestComicStats? getCachedLatestStats(String sourceName) => null;
+  LatestComicStats? getCachedLatestStats(
+    String sourceName, {
+    String? type,
+    String? genre,
+  }) => null;
 
   @override
   bool shouldRefreshLatestStats(
     String sourceName, {
+    String? type,
+    String? genre,
     Duration maxAge = const Duration(hours: 1),
   }) => true;
 

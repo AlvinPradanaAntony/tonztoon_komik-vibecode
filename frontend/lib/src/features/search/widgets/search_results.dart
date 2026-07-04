@@ -57,7 +57,7 @@ class _ResultGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppSliverColumnGrid<_SearchComicUi>(
       items: comics,
-      minColumnWidth: 104,
+      minColumnWidth: 98,
       maxColumnCount: 6,
       itemBuilder: (context, comic) {
         return ComicCard(

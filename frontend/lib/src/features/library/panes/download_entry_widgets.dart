@@ -487,6 +487,47 @@ class _DownloadEntryGroupScreen extends ConsumerWidget {
           ],
         ],
       ),
+      floatingActionButton: allowDelete
+          ? Padding(
+              padding: const EdgeInsets.only(bottom: 120),
+              child: FloatingActionButton(
+                onPressed: () => _deleteGroup(context, ref),
+                tooltip: 'Hapus semua wishlist offline',
+                backgroundColor: Theme.of(context).colorScheme.secondary,
+                foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                shape: const CircleBorder(),
+                child: const Icon(TonztoonIcons.trash),
+              ),
+            )
+          : null,
     );
+  }
+
+  Future<void> _deleteGroup(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showTonztoonAsyncConfirmDialog(
+      context,
+      title: 'Hapus semua wishlist offline',
+      message: 'Hapus semua ${group.entries.length} wishlist offline untuk komik "${group.comic.title}"?',
+      helperText: 'Status wishlist akan dihapus. File lokal yang sudah tersedia di perangkat tidak ikut terhapus.',
+      helperIcon: TonztoonIcons.trash,
+      cancelLabel: 'Batal',
+      confirmLabel: 'Hapus Semua',
+      variant: TonztoonModalVariant.danger,
+      art: TonztoonModalArt.trash,
+      onConfirm: () async {
+        for (final entry in group.entries) {
+          await ref.read(libraryRepositoryProvider).deleteDownloadEntry(entry);
+        }
+        await _reloadDownloadsAfterDelete(ref);
+      },
+      onError: (error, stackTrace) {
+        if (context.mounted) {
+          showLibraryActionError(context, error, stackTrace);
+        }
+      },
+    );
+    if (!context.mounted || confirmed != true) return;
+    Navigator.of(context).pop();
+    _returnToDownloadsAfterDelete(context, 'Semua wishlist offline dihapus.');
   }
 }
