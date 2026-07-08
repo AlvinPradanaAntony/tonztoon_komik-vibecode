@@ -374,8 +374,14 @@
           action_route: route,
         },
       });
+      const queued = payload.queued_messages || 0;
+      const targets = payload.target_devices || 0;
+      const failed = payload.failed_messages || 0;
       notify(
-        `Push terkirim ke ${payload.queued_messages || 0}/${payload.target_devices || 0} device aktif.`,
+        failed > 0
+          ? `Push terkirim ke ${queued}/${targets} device aktif. ${failed} gagal dikirim.`
+          : `Push terkirim ke ${queued}/${targets} device aktif.`,
+        failed > 0,
       );
       els.announcementMessageField.value = "";
     } catch (error) {

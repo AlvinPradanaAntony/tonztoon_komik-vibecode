@@ -118,4 +118,5 @@ class AdminAnnouncementResponse(BaseModel):
     matched_users: int
     target_devices: int
     queued_messages: int
+    failed_messages: int = 0
     duplicate: bool = False

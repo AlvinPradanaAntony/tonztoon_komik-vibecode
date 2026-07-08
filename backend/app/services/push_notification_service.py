@@ -207,6 +207,7 @@ async def handle_admin_announcement(
             matched_users=counts[0],
             target_devices=counts[1],
             queued_messages=0,
+            failed_messages=0,
             duplicate=True,
         )
 
@@ -224,17 +225,27 @@ async def handle_admin_announcement(
     db.add(event)
     await db.commit()
 
-    queued_messages = await _send_admin_announcement_to_devices(
+    queued_messages, failed_messages = await _send_admin_announcement_to_devices(
         db,
         payload,
         devices,
         event_id=event_id,
     )
+    event.payload = {
+        **(event.payload or {}),
+        "delivery": {
+            "target_devices": len(devices),
+            "queued_messages": queued_messages,
+            "failed_messages": failed_messages,
+        },
+    }
+    await db.commit()
     return AdminAnnouncementResponse(
         event_id=event_id,
         matched_users=matched_users,
         target_devices=len(devices),
         queued_messages=queued_messages,
+        failed_messages=failed_messages,
         duplicate=False,
     )
 
@@ -302,25 +313,19 @@ async def _list_chapter_target_devices(
 
 
 async def _broadcast_target_counts(db: AsyncSession) -> tuple[int, int]:
+    target_devices = _broadcast_target_device_statement().subquery()
     result = await db.execute(
         select(
-            func.count(distinct(UserPushDevice.user_id)),
-            func.count(UserPushDevice.id),
-        )
-        .join(Profile, Profile.id == UserPushDevice.user_id)
-        .where(
-            UserPushDevice.provider == "fcm",
-            UserPushDevice.platform == "android",
-            UserPushDevice.active.is_(True),
-            Profile.push_notifications_enabled.is_(True),
+            func.count(distinct(target_devices.c.user_id)),
+            func.count(target_devices.c.id),
         )
     )
     row = result.one()
     return int(row[0] or 0), int(row[1] or 0)
 
 
-async def _list_broadcast_target_devices(db: AsyncSession) -> list[UserPushDevice]:
-    result = await db.execute(
+def _broadcast_target_device_statement():
+    return (
         select(UserPushDevice)
         .join(Profile, Profile.id == UserPushDevice.user_id)
         .where(
@@ -330,6 +335,10 @@ async def _list_broadcast_target_devices(db: AsyncSession) -> list[UserPushDevic
             Profile.push_notifications_enabled.is_(True),
         )
     )
+
+
+async def _list_broadcast_target_devices(db: AsyncSession) -> list[UserPushDevice]:
+    result = await db.execute(_broadcast_target_device_statement())
     return list(result.scalars().all())
 
 
@@ -385,9 +394,9 @@ async def _send_admin_announcement_to_devices(
     devices: list[UserPushDevice],
     *,
     event_id: str,
-) -> int:
+) -> tuple[int, int]:
     if not devices:
-        return 0
+        return 0, 0
 
     try:
         sender = FcmHttpV1Sender()
@@ -396,7 +405,7 @@ async def _send_admin_announcement_to_devices(
             "FCM is not configured; admin announcement recorded without delivery: %s",
             exc,
         )
-        return 0
+        return 0, len(devices)
 
     data = {
         "id": event_id,
@@ -406,6 +415,7 @@ async def _send_admin_announcement_to_devices(
     }
 
     queued = 0
+    failed = 0
     for device in devices:
         try:
             await sender.send(
@@ -418,7 +428,9 @@ async def _send_admin_announcement_to_devices(
         except FcmInvalidTokenError:
             device.active = False
             device.updated_at = _utcnow()
+            failed += 1
         except Exception as exc:  # noqa: BLE001
+            failed += 1
             logger.warning(
                 "Admin announcement FCM delivery failed for device %s: %s",
                 device.id,
@@ -426,7 +438,7 @@ async def _send_admin_announcement_to_devices(
             )
 
     await db.commit()
-    return queued
+    return queued, failed
 
 
 class FcmInvalidTokenError(RuntimeError):

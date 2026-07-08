@@ -11,7 +11,10 @@ from app.schemas import (
     ComicCreate,
     PushDeviceRegisterRequest,
 )
-from app.services.push_notification_service import _chapter_target_device_statement
+from app.services.push_notification_service import (
+    _broadcast_target_device_statement,
+    _chapter_target_device_statement,
+)
 from scraper.main import build_chapter_update_event
 
 
@@ -66,6 +69,15 @@ class PushNotificationContractTests(unittest.TestCase):
             sql,
         )
         self.assertIn("user_bookmarks.comic_id =", sql)
+        self.assertIn("user_push_devices.provider", sql)
+        self.assertIn("user_push_devices.platform", sql)
+        self.assertIn("user_push_devices.active IS true", sql)
+        self.assertIn("profiles.push_notifications_enabled IS true", sql)
+
+    def test_admin_broadcast_target_query_requires_active_enabled_android_device(self):
+        sql = compile_sql(_broadcast_target_device_statement())
+        self.assertNotIn("JOIN user_bookmarks", sql)
+        self.assertIn("JOIN profiles", sql)
         self.assertIn("user_push_devices.provider", sql)
         self.assertIn("user_push_devices.platform", sql)
         self.assertIn("user_push_devices.active IS true", sql)
