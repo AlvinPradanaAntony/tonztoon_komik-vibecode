@@ -5,6 +5,7 @@ class SourceInfo {
     required this.baseUrl,
     required this.enabled,
     required this.dbComicCount,
+    required this.isUnstable,
   });
 
   factory SourceInfo.fromJson(Map<String, dynamic> json) {
@@ -14,6 +15,7 @@ class SourceInfo {
       baseUrl: json['base_url'] as String? ?? '',
       enabled: json['enabled'] as bool? ?? true,
       dbComicCount: json['db_comic_count'] as int? ?? 0,
+      isUnstable: json['is_unstable'] as bool? ?? false,
     );
   }
 
@@ -22,4 +24,5 @@ class SourceInfo {
   final String baseUrl;
   final bool enabled;
   final int dbComicCount;
+  final bool isUnstable;
 }

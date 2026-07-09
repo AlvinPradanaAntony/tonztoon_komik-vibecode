@@ -929,6 +929,7 @@ class _FakeCatalogRepository implements CatalogRepository {
         baseUrl: 'https://example.test',
         enabled: true,
         dbComicCount: 1,
+        isUnstable: false,
       ),
     ];
   }

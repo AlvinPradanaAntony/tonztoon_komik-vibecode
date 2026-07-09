@@ -6,6 +6,18 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
+## [1.21.3] - 2026-07-10
+
+### Added
+- Fitur deteksi instabilitas scraper source pada backend dengan menambahkan field `is_unstable` di endpoint `/api/v1/sources` berdasarkan status error terakhir atau data usang (> 3 jam).
+- UI Banner peringatan dinamis pada beranda (Home Screen) frontend Flutter jika source yang sedang aktif dipilih mengalami kendala stabilitas (misal `komiku_asia`), menyarankan pengguna untuk memindahkan bookmark utamanya ke source lain (seperti `komikcast` atau `shinigami`). Banner ini otomatis tersembunyi jika source kembali stabil/berhasil direfresh.
+
+### Fixed
+- Migrasi database massal (bulk migration) pada Supabase untuk memindahkan seluruh bookmark utama user `73b2c2a4-9254-45a6-88a8-0d9791d6ff9a` dari `komiku_asia` ke `komikcast` (prioritas 1) atau `shinigami` (prioritas 2) beserta sinkronisasi riwayat, progres membaca, dan chapter selesai.
+- Memperbaiki peringatan depresiasi (*deprecation warnings/lint*) pada Flutter dengan mengganti penggunaan `.withOpacity(...)` ke `.withValues(alpha: ...)` pada widget halaman Home.
+
+---
+
 ## [1.21.2] - 2026-07-04
 
 ### Added

@@ -356,23 +356,37 @@ async def list_sources(db: AsyncSession = Depends(get_db)):
     source_names = [source_metadata["id"] for source_metadata in source_metadata_list]
     db_counts = await _get_db_comic_counts_by_source(db)
     source_stats_map = await get_source_stats_map(db, source_names)
-    return [
-        SourceInfoResponse(
-            **source_metadata,
-            source_comic_count=(
-                source_stats_map[source_metadata["id"]].source_comic_count
-                if source_metadata["id"] in source_stats_map
-                else None
-            ),
-            source_comic_count_last_refreshed_at=(
-                source_stats_map[source_metadata["id"]].last_refreshed_at
-                if source_metadata["id"] in source_stats_map
-                else None
-            ),
-            db_comic_count=db_counts.get(source_metadata["id"], 0),
+    
+    res = []
+    for source_metadata in source_metadata_list:
+        s_id = source_metadata["id"]
+        stat = source_stats_map.get(s_id)
+        is_unstable = False
+        if stat:
+            if stat.last_error:
+                is_unstable = True
+            elif stat.last_refreshed_at and stat.last_attempted_at:
+                ref_at = stat.last_refreshed_at
+                if ref_at.tzinfo is None:
+                    ref_at = ref_at.replace(tzinfo=timezone.utc)
+                att_at = stat.last_attempted_at
+                if att_at.tzinfo is None:
+                    att_at = att_at.replace(tzinfo=timezone.utc)
+                
+                is_stale = datetime.now(timezone.utc) - ref_at > timedelta(hours=3)
+                if is_stale and att_at > ref_at:
+                    is_unstable = True
+                    
+        res.append(
+            SourceInfoResponse(
+                **source_metadata,
+                source_comic_count=stat.source_comic_count if stat else None,
+                source_comic_count_last_refreshed_at=stat.last_refreshed_at if stat else None,
+                db_comic_count=db_counts.get(s_id, 0),
+                is_unstable=is_unstable,
+            )
         )
-        for source_metadata in source_metadata_list
-    ]
+    return res
 
 
 @router.get("/{source_name}/comics", response_model=SourceComicListResponse)

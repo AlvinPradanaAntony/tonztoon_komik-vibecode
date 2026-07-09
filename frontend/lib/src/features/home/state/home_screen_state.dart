@@ -92,6 +92,70 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               .select(value);
                         },
                       ),
+                      if (home.selectedSource.isUnstable) ...[
+                        const SizedBox(height: 12),
+                        Builder(
+                          builder: (context) {
+                            final isDark = Theme.of(context).brightness == Brightness.dark;
+                            final warningColor = isDark ? Colors.amberAccent : (Colors.amber[900] ?? Colors.amber);
+                            final warningBgColor = isDark ? Colors.amber.withValues(alpha: 0.08) : Colors.amber.withValues(alpha: 0.12);
+                            final warningBorderColor = isDark ? Colors.amberAccent.withValues(alpha: 0.2) : Colors.amber.withValues(alpha: 0.35);
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: warningBgColor,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: warningBorderColor),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(
+                                    Icons.warning_amber_rounded,
+                                    color: warningColor,
+                                    size: 22,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Sumber Kurang Stabil',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleSmall
+                                              ?.copyWith(
+                                                color: warningColor,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Sumber "${home.selectedSource.label}" sedang mengalami gangguan atau lambat diperbarui dari situs aslinya. Disarankan untuk beralih ke sumber lain (seperti Komikcast atau Shinigami) demi kenyamanan membaca.',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .onSurface
+                                                    .withValues(alpha: 0.85),
+                                                height: 1.35,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                       const SizedBox(height: 20),
                       if (recommendationComics.isNotEmpty) ...[
                         const _SectionTitle(title: 'Rekomendasi'),

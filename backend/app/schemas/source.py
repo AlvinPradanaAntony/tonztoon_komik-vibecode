@@ -35,6 +35,10 @@ class SourceInfoResponse(BaseModel):
         examples=[1243],
         description="Total komik source ini yang sudah tersimpan di database lokal.",
     )
+    is_unstable: bool = Field(
+        default=False,
+        description="Apakah source ini terindikasi kurang stabil (ada error atau tidak ada update dalam selang waktu tertentu).",
+    )
 
     @field_serializer("source_comic_count_last_refreshed_at", when_used="json")
     def serialize_source_comic_count_last_refreshed_at(
