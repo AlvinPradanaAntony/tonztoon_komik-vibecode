@@ -33,6 +33,8 @@ Argumen CLI utama:
   - Nonaktifkan early-stop untuk popular feed.
   - Cocok saat onboarding source baru atau saat ingin menyapu ranking lebih
     dalam tanpa berhenti walau page awal hanya berisi comic lama.
+- `--early-stop <N>`
+  - Jumlah halaman unchanged berturut-turut sebelum berhenti.
 - `--log-file <path>`
   - Ubah lokasi file log. Jika relatif, file akan ditulis ke `backend/logs/`.
 - `--no-anti-blocking`
@@ -164,7 +166,7 @@ MAX_LATEST_PAGES = 10
 # Popular berubah lebih lambat daripada latest, jadi default cron utama tidak
 # perlu memprosesnya. Jalankan eksplisit via `--popular-pages N` saat dibutuhkan.
 DEFAULT_POPULAR_PAGES = 0
-STOP_AFTER_UNCHANGED_PAGES = 3
+DEFAULT_EARLY_STOP = 3
 
 # Delay antar-request (detik) — random untuk menghindari deteksi bot
 DELAY_DETAIL_MIN  = 1.5   # jeda sebelum fetch halaman detail komik
@@ -279,6 +281,9 @@ async def fetch_latest_comics_with_retry(scraper: BaseComicScraper, page: int = 
                 f"  ✗ Gagal fetch listing {scraper.SOURCE_NAME} page {page} "
                 f"(attempt {attempt + 1}): {e}"
             )
+            if scraper.SOURCE_NAME == "komiku_asia":
+                logger.error("  ⛔ Deteksi kegagalan Cloudflare/Timeout pada komiku_asia. Menghentikan retry.")
+                break
             await _backoff_delay(attempt, f"retry listing {scraper.SOURCE_NAME}")
     return comics_list
 
@@ -311,6 +316,9 @@ async def fetch_popular_comics_with_retry(scraper: BaseComicScraper, page: int =
                 f"  ✗ Gagal fetch popular {scraper.SOURCE_NAME} page {page} "
                 f"(attempt {attempt + 1}): {e}"
             )
+            if scraper.SOURCE_NAME == "komiku_asia":
+                logger.error("  ⛔ Deteksi kegagalan Cloudflare/Timeout pada komiku_asia. Menghentikan retry.")
+                break
             await _backoff_delay(attempt, f"retry popular {scraper.SOURCE_NAME}")
     return comics_list
 
@@ -1049,6 +1057,7 @@ async def process_latest_pages(
     stats: ScrapeStats,
     max_pages: int,
     latest_feed_batch_at,
+    early_stop: int,
 ) -> None:
     """
     Scan beberapa halaman latest updates secara incremental.
@@ -1152,6 +1161,10 @@ async def process_latest_pages(
                 )
                 await session.rollback()
 
+                if scraper.SOURCE_NAME == "komiku_asia":
+                    logger.error("  ⛔ Deteksi error pada komiku_asia. Menghentikan scraper komiku_asia untuk menghemat waktu.")
+                    return
+
                 if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
                     logger.error(
                         f"  ⛔ {MAX_CONSECUTIVE_ERRORS} error berturut-turut! "
@@ -1178,9 +1191,9 @@ async def process_latest_pages(
             unchanged_pages += 1
             logger.info(
                 f"  🛑 Page {page} tidak menghasilkan kandidat update baru "
-                f"({unchanged_pages}/{STOP_AFTER_UNCHANGED_PAGES} unchanged pages)"
+                f"({unchanged_pages}/{early_stop} unchanged pages)"
             )
-            if unchanged_pages >= STOP_AFTER_UNCHANGED_PAGES:
+            if unchanged_pages >= early_stop:
                 logger.info("  🧠 Early stop: halaman berikutnya diperkirakan berisi update yang lebih lama.")
                 break
         else:
@@ -1195,6 +1208,7 @@ async def process_popular_pages(
     max_pages: int,
     popular_feed_batch_at,
     allow_early_stop: bool = True,
+    early_stop: int,
 ) -> None:
     """
     Scan beberapa halaman popular secara incremental.
@@ -1288,6 +1302,10 @@ async def process_popular_pages(
                 )
                 await session.rollback()
 
+                if scraper.SOURCE_NAME == "komiku_asia":
+                    logger.error("  ⛔ Deteksi error pada komiku_asia. Menghentikan scraper komiku_asia untuk menghemat waktu.")
+                    return
+
                 if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
                     logger.error(
                         f"  ⛔ {MAX_CONSECUTIVE_ERRORS} error berturut-turut! "
@@ -1314,9 +1332,9 @@ async def process_popular_pages(
             unchanged_pages += 1
             logger.info(
                 f"  🛑 Popular page {page} tidak menghasilkan comic baru "
-                f"({unchanged_pages}/{STOP_AFTER_UNCHANGED_PAGES} unchanged pages)"
+                f"({unchanged_pages}/{early_stop} unchanged pages)"
             )
-            if allow_early_stop and unchanged_pages >= STOP_AFTER_UNCHANGED_PAGES:
+            if allow_early_stop and unchanged_pages >= early_stop:
                 logger.info("  🧠 Early stop popular: halaman berikutnya diperkirakan ranking lama.")
                 break
         else:
@@ -1330,6 +1348,7 @@ async def run_scraper(
     popular_pages: int = DEFAULT_POPULAR_PAGES,
     source_name: str | None = None,
     popular_allow_early_stop: bool = True,
+    early_stop: int = DEFAULT_EARLY_STOP,
 ):
     """
     Main scraping pipeline untuk cron updater incremental.
@@ -1351,7 +1370,7 @@ async def run_scraper(
     if max_pages > 0:
         logger.info(
             f"   Target        : latest updates source feed page 1..{max_pages} "
-            f"(early stop after {STOP_AFTER_UNCHANGED_PAGES} unchanged page)"
+            f"(early stop after {early_stop} unchanged page)"
         )
     else:
         logger.info("   Target        : latest disabled")
@@ -1359,7 +1378,7 @@ async def run_scraper(
         if popular_allow_early_stop:
             logger.info(
                 f"   Popular target: popular source feed page 1..{popular_pages} "
-                f"(early stop after {STOP_AFTER_UNCHANGED_PAGES} unchanged page)"
+                f"(early stop after {early_stop} unchanged page)"
             )
         else:
             logger.info(
@@ -1410,6 +1429,7 @@ async def run_scraper(
                         stats=stats,
                         max_pages=max_pages,
                         latest_feed_batch_at=latest_feed_batch_at,
+                        early_stop=early_stop,
                     )
                 if popular_pages > 0:
                     await process_popular_pages(
@@ -1419,6 +1439,7 @@ async def run_scraper(
                         max_pages=popular_pages,
                         popular_feed_batch_at=popular_feed_batch_at,
                         allow_early_stop=popular_allow_early_stop,
+                        early_stop=early_stop,
                     )
 
                 logger.info(
@@ -1477,6 +1498,7 @@ def parse_args() -> dict[str, str | int | bool]:
         "max_pages": MAX_LATEST_PAGES,
         "popular_pages": DEFAULT_POPULAR_PAGES,
         "popular_allow_early_stop": True,
+        "early_stop": DEFAULT_EARLY_STOP,
         "source": "",
         "anti_blocking_enabled": True,
     }
@@ -1505,6 +1527,12 @@ def parse_args() -> dict[str, str | int | bool]:
             i += 1
         elif argv[i] == "--popular-no-early-stop":
             args["popular_allow_early_stop"] = False
+        elif argv[i] == "--early-stop" and i + 1 < len(argv):
+            try:
+                args["early_stop"] = max(1, int(argv[i + 1]))
+            except ValueError as e:
+                raise ValueError("--early-stop harus berupa integer >= 1") from e
+            i += 1
         elif argv[i] == "--no-anti-blocking":
             args["anti_blocking_enabled"] = False
         elif argv[i] == "--help":
@@ -1540,6 +1568,7 @@ def main():
             popular_pages=int(args["popular_pages"]),
             source_name=str(args["source"]) or None,
             popular_allow_early_stop=bool(args["popular_allow_early_stop"]),
+            early_stop=int(args["early_stop"]),
         )
     )
 

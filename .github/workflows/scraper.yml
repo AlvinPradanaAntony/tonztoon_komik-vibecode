@@ -26,6 +26,10 @@ on:
         description: "Latest pages to scan (0 disables latest feed)"
         required: false
         default: "10"
+      early_stop:
+        description: "Number of unchanged pages before stopping"
+        required: false
+        default: "3"
 
 # Force Node.js 24 to avoid deprecation warnings
 env:
@@ -127,6 +131,7 @@ jobs:
           FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
           SCRAPER_SOURCE: ${{ github.event.inputs.source || '' }}
           SCRAPER_MAX_PAGES: ${{ github.event.inputs.max_pages || '' }}
+          SCRAPER_EARLY_STOP: ${{ github.event.inputs.early_stop || '' }}
           KOMIKU_ASIA_HEADLESS: "false"
         run: |
           set +e
@@ -139,6 +144,9 @@ jobs:
 
             if [ -n "${SCRAPER_SOURCE}" ] && [ "${SCRAPER_SOURCE}" != "all" ]; then
               args+=(--source "${SCRAPER_SOURCE}")
+              if [[ "${SCRAPER_SOURCE}" == "komiku" || "${SCRAPER_SOURCE}" == "komikcast" || "${SCRAPER_SOURCE}" == "shinigami" ]]; then
+                args+=(--no-anti-blocking)
+              fi
             fi
 
             if [ -n "${SCRAPER_MAX_PAGES}" ]; then
@@ -147,6 +155,14 @@ jobs:
                 exit 1
               fi
               args+=(--max-pages "${SCRAPER_MAX_PAGES}")
+            fi
+
+            if [ -n "${SCRAPER_EARLY_STOP}" ]; then
+              if ! [[ "${SCRAPER_EARLY_STOP}" =~ ^[0-9]+$ ]]; then
+                echo "early_stop must be an integer >= 1"
+                exit 1
+              fi
+              args+=(--early-stop "${SCRAPER_EARLY_STOP}")
             fi
 
             printf 'Running scraper with args:'
@@ -159,7 +175,7 @@ jobs:
             elif [ -z "${SCRAPER_SOURCE}" ] || [ "${SCRAPER_SOURCE}" = "all" ]; then
               echo "Running non-komiku_asia sources without xvfb."
               for source in komiku komikcast shinigami; do
-                python -m scraper.main --source "${source}" "${args[@]}"
+                python -m scraper.main --source "${source}" --no-anti-blocking "${args[@]}"
               done
               echo "Running komiku_asia through xvfb."
               xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.main --source komiku_asia "${args[@]}"
@@ -178,6 +194,7 @@ jobs:
           TRIGGER_SOURCE: ${{ github.event.inputs.trigger_source || github.event_name }}
           SCRAPER_SOURCE: ${{ github.event.inputs.source || 'all' }}
           SCRAPER_MAX_PAGES: ${{ github.event.inputs.max_pages || 'default' }}
+          SCRAPER_EARLY_STOP: ${{ github.event.inputs.early_stop || 'default' }}
         run: |
           set -euo pipefail
 
@@ -209,6 +226,7 @@ jobs:
             echo "| Trigger source | ${TRIGGER_SOURCE} |"
             echo "| Source | ${SCRAPER_SOURCE} |"
             echo "| Latest pages | ${SCRAPER_MAX_PAGES} |"
+            echo "| Early stop | ${SCRAPER_EARLY_STOP} |"
             echo "| Exit status | ${status} (${conclusion}) |"
             echo "| Completed at | ${completed_at} |"
             echo

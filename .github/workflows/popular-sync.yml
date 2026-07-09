@@ -31,6 +31,10 @@ on:
         required: false
         type: boolean
         default: false
+      early_stop:
+        description: "Number of unchanged pages before stopping"
+        required: false
+        default: "3"
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -132,6 +136,7 @@ jobs:
           POPULAR_PAGES: ${{ github.event.inputs.popular_pages || '10' }}
           SCRAPER_SOURCE: ${{ github.event.inputs.source || '' }}
           POPULAR_NO_EARLY_STOP: ${{ github.event.inputs.popular_no_early_stop || 'false' }}
+          SCRAPER_EARLY_STOP: ${{ github.event.inputs.early_stop || '' }}
           KOMIKU_ASIA_HEADLESS: "false"
         run: |
           set +e
@@ -144,10 +149,21 @@ jobs:
 
             if [ -n "${SCRAPER_SOURCE}" ] && [ "${SCRAPER_SOURCE}" != "all" ]; then
               args+=(--source "${SCRAPER_SOURCE}")
+              if [[ "${SCRAPER_SOURCE}" == "komiku" || "${SCRAPER_SOURCE}" == "komikcast" || "${SCRAPER_SOURCE}" == "shinigami" ]]; then
+                args+=(--no-anti-blocking)
+              fi
             fi
 
             if [ "${POPULAR_NO_EARLY_STOP}" = "true" ]; then
               args+=(--popular-no-early-stop)
+            fi
+
+            if [ -n "${SCRAPER_EARLY_STOP}" ]; then
+              if ! [[ "${SCRAPER_EARLY_STOP}" =~ ^[0-9]+$ ]]; then
+                echo "early_stop must be an integer >= 1"
+                exit 1
+              fi
+              args+=(--early-stop "${SCRAPER_EARLY_STOP}")
             fi
 
             printf 'Running popular sync with args:'
@@ -160,7 +176,7 @@ jobs:
             elif [ -z "${SCRAPER_SOURCE}" ] || [ "${SCRAPER_SOURCE}" = "all" ]; then
               echo "Running non-komiku_asia sources without xvfb."
               for source in komiku komikcast shinigami; do
-                python -m scraper.main --source "${source}" "${args[@]}"
+                python -m scraper.main --source "${source}" --no-anti-blocking "${args[@]}"
               done
               echo "Running komiku_asia through xvfb."
               xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.main --source komiku_asia "${args[@]}"
@@ -180,6 +196,7 @@ jobs:
           POPULAR_PAGES: ${{ github.event.inputs.popular_pages || '10' }}
           SCRAPER_SOURCE: ${{ github.event.inputs.source || 'all' }}
           POPULAR_NO_EARLY_STOP: ${{ github.event.inputs.popular_no_early_stop || 'false' }}
+          SCRAPER_EARLY_STOP: ${{ github.event.inputs.early_stop || 'default' }}
         run: |
           set -euo pipefail
 
@@ -212,6 +229,7 @@ jobs:
             echo "| Source | ${SCRAPER_SOURCE} |"
             echo "| Popular pages | ${POPULAR_PAGES} |"
             echo "| Popular no early-stop | ${POPULAR_NO_EARLY_STOP} |"
+            echo "| Early stop | ${SCRAPER_EARLY_STOP} |"
             echo "| Exit status | ${status} (${conclusion}) |"
             echo "| Completed at | ${completed_at} |"
             echo

@@ -180,20 +180,27 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
     ):
         """
         Ambil halaman via AsyncStealthySession agar lolos Cloudflare.
-        Karena menggunakan session, status cache dan validasi Turnstile
-        akan tetap disimpan di pemanggilan `.fetch(...)` berikutnya.
+        Bungkus session.fetch dengan asyncio.wait_for (timeout 45 detik) untuk mencegah
+        stuck karena loop rekursif internal Turnstile solver di scrapling.
         """
         logger.info("Stealth fetch: %s", url)
         try:
             session = await self.get_session()
-            page = await session.fetch(
-                url,
-                wait_selector=wait_selector,
-                wait_selector_state="visible",
-                timeout=timeout_ms,
-                wait=wait_ms,
+            page = await asyncio.wait_for(
+                session.fetch(
+                    url,
+                    wait_selector=wait_selector,
+                    wait_selector_state="visible",
+                    timeout=timeout_ms,
+                    wait=wait_ms,
+                ),
+                timeout=120.0
             )
         except Exception as exc:
+            if isinstance(exc, (asyncio.TimeoutError, TimeoutError)):
+                logger.error("Timeout terdeteksi saat melakukan stealth fetch (kemungkinan besar stuck di Cloudflare Turnstile).")
+                raise RuntimeError("Gagal melewati proteksi Cloudflare (Timeout)") from exc
+
             if self._should_reset_session_on_error(exc):
                 await self.reset_shared_session(
                     f"{type(exc).__name__}: {exc}"
