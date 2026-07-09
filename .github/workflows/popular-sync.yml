@@ -9,8 +9,8 @@ name: "🔥 Scraper: Popular Sync"
 
 on:
   schedule:
-    # Jalankan setiap 8 jam sekali (0:00, 8:00, 16:00 UTC)
-    - cron: "0 */8 * * *"
+    # Jalankan setiap 3 jam sekali (0:00, 3:00, 6:00 UTC)
+    - cron: "0 */3 * * *"
 
   workflow_dispatch:
     inputs:
