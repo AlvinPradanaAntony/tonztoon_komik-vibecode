@@ -54,6 +54,7 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SOURCE_FILTER: ${{ github.event.inputs.source || '' }}
           KOMIKU_ASIA_HEADLESS: "false"
+          KOMIKU_ASIA_PROXY: ${{ secrets.KOMIKU_ASIA_PROXY }}
         run: |
           set +e
           {

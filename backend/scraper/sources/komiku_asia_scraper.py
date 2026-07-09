@@ -108,6 +108,15 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
     async def get_session(cls) -> AsyncStealthySession:
         if cls._shared_session is None:
             logger.info("Membuka AsyncStealthySession (Persistent) baru...")
+            proxy = os.getenv("KOMIKU_ASIA_PROXY")
+            if proxy:
+                proxy = proxy.strip()
+                # Sembunyikan credential password pada logging
+                masked_proxy = re.sub(r":[^:/@]+@", ":***@", proxy) if "@" in proxy else proxy
+                logger.info("Menggunakan proxy untuk stealth session Komiku Asia: %s", masked_proxy)
+            else:
+                proxy = None
+
             cls._shared_session = AsyncStealthySession(
                 headless=cls._headless(),
                 real_chrome=True,
@@ -115,6 +124,7 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
                 solve_cloudflare=True,
                 google_search=True,
                 extra_flags=cls._browser_extra_flags(),
+                proxy=proxy,
             )
             await cls._shared_session.__aenter__()
         return cls._shared_session

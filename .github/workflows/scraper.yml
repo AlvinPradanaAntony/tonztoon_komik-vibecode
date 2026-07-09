@@ -133,6 +133,7 @@ jobs:
           SCRAPER_MAX_PAGES: ${{ github.event.inputs.max_pages || '' }}
           SCRAPER_EARLY_STOP: ${{ github.event.inputs.early_stop || '' }}
           KOMIKU_ASIA_HEADLESS: "false"
+          KOMIKU_ASIA_PROXY: ${{ secrets.KOMIKU_ASIA_PROXY }}
         run: |
           set +e
           {

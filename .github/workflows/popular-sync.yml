@@ -138,6 +138,7 @@ jobs:
           POPULAR_NO_EARLY_STOP: ${{ github.event.inputs.popular_no_early_stop || 'false' }}
           SCRAPER_EARLY_STOP: ${{ github.event.inputs.early_stop || '' }}
           KOMIKU_ASIA_HEADLESS: "false"
+          KOMIKU_ASIA_PROXY: ${{ secrets.KOMIKU_ASIA_PROXY }}
         run: |
           set +e
           {

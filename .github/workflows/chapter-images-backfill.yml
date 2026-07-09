@@ -144,6 +144,7 @@ jobs:
           BATCH_SIZE: ${{ github.event.inputs.batch_size || '10' }}
           LIMIT_COUNT: ${{ github.event.inputs.limit || '20' }}
           KOMIKU_ASIA_HEADLESS: "false"
+          KOMIKU_ASIA_PROXY: ${{ secrets.KOMIKU_ASIA_PROXY }}
         run: |
           set -euo pipefail
 
