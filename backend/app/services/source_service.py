@@ -89,3 +89,32 @@ async def refresh_source_stats(
         refreshed_rows.append(await refresh_source_stat(db, source_name))
 
     return refreshed_rows
+
+
+async def update_source_status(
+    db: AsyncSession,
+    source_name: str,
+    *,
+    last_attempted_at: datetime | None = None,
+    last_refreshed_at: datetime | None = None,
+    last_error: str | None = None,
+    clear_error: bool = False,
+) -> SourceStat:
+    """Mencatat info runtime (attempt, success, error) ke SourceStat di database."""
+    source_stat = await db.get(SourceStat, source_name)
+    if source_stat is None:
+        source_stat = SourceStat(source_name=source_name)
+        db.add(source_stat)
+
+    if last_attempted_at is not None:
+        source_stat.last_attempted_at = last_attempted_at
+    if last_refreshed_at is not None:
+        source_stat.last_refreshed_at = last_refreshed_at
+    if clear_error:
+        source_stat.last_error = None
+    elif last_error is not None:
+        source_stat.last_error = last_error
+
+    await db.commit()
+    await db.refresh(source_stat)
+    return source_stat

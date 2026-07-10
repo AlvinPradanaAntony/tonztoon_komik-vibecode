@@ -108,6 +108,8 @@ sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.par
 from app.database import async_session
 from app.models import Comic, Chapter
 from app.schemas import ChapterUpdateEventRequest, ComicCreate
+from datetime import UTC, datetime
+from app.services.source_service import update_source_status
 from app.services.push_notification_service import handle_chapter_update_event
 
 from scraper.base_scraper import BaseComicScraper
@@ -262,11 +264,12 @@ async def fetch_latest_comics_with_retry(scraper: BaseComicScraper, page: int = 
     - Setiap item listing akan divalidasi dulu terhadap DB sebelum detail fetch.
     """
     comics_list: list[dict[str, Any]] = []
+    last_exc: Exception | None = None
     for attempt in range(3):
         try:
             comics_list = await scraper.get_latest_updates(page=page)
             if comics_list:
-                break
+                return comics_list
 
             logger.warning(
                 f"  ⚠️ Listing {scraper.SOURCE_NAME} page {page} kosong "
@@ -275,16 +278,20 @@ async def fetch_latest_comics_with_retry(scraper: BaseComicScraper, page: int = 
             if attempt < 2:
                 await _backoff_delay(attempt, f"retry empty listing {scraper.SOURCE_NAME}")
                 continue
-            break
         except Exception as e:
+            last_exc = e
             logger.error(
                 f"  ✗ Gagal fetch listing {scraper.SOURCE_NAME} page {page} "
                 f"(attempt {attempt + 1}): {e}"
             )
             if scraper.SOURCE_NAME == "komiku_asia":
                 logger.error("  ⛔ Deteksi kegagalan Cloudflare/Timeout pada komiku_asia. Menghentikan retry.")
-                break
-            await _backoff_delay(attempt, f"retry listing {scraper.SOURCE_NAME}")
+                raise e
+            if attempt < 2:
+                await _backoff_delay(attempt, f"retry listing {scraper.SOURCE_NAME}")
+                
+    if last_exc:
+        raise last_exc
     return comics_list
 
 
@@ -297,11 +304,12 @@ async def fetch_popular_comics_with_retry(scraper: BaseComicScraper, page: int =
     sebelum disimpan.
     """
     comics_list: list[dict[str, Any]] = []
+    last_exc: Exception | None = None
     for attempt in range(3):
         try:
             comics_list = await scraper.get_popular(page=page)
             if comics_list:
-                break
+                return comics_list
 
             logger.warning(
                 f"  ⚠️ Popular listing {scraper.SOURCE_NAME} page {page} kosong "
@@ -310,16 +318,20 @@ async def fetch_popular_comics_with_retry(scraper: BaseComicScraper, page: int =
             if attempt < 2:
                 await _backoff_delay(attempt, f"retry empty popular {scraper.SOURCE_NAME}")
                 continue
-            break
         except Exception as e:
+            last_exc = e
             logger.error(
                 f"  ✗ Gagal fetch popular {scraper.SOURCE_NAME} page {page} "
                 f"(attempt {attempt + 1}): {e}"
             )
             if scraper.SOURCE_NAME == "komiku_asia":
                 logger.error("  ⛔ Deteksi kegagalan Cloudflare/Timeout pada komiku_asia. Menghentikan retry.")
-                break
-            await _backoff_delay(attempt, f"retry popular {scraper.SOURCE_NAME}")
+                raise e
+            if attempt < 2:
+                await _backoff_delay(attempt, f"retry popular {scraper.SOURCE_NAME}")
+                
+    if last_exc:
+        raise last_exc
     return comics_list
 
 
@@ -1163,14 +1175,14 @@ async def process_latest_pages(
 
                 if scraper.SOURCE_NAME == "komiku_asia":
                     logger.error("  ⛔ Deteksi error pada komiku_asia. Menghentikan scraper komiku_asia untuk menghemat waktu.")
-                    return
+                    raise RuntimeError("Deteksi kegagalan Cloudflare/Timeout pada komiku_asia.")
 
                 if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
                     logger.error(
                         f"  ⛔ {MAX_CONSECUTIVE_ERRORS} error berturut-turut! "
                         f"Stop scraper {scraper.SOURCE_NAME} lebih awal."
                     )
-                    return
+                    raise RuntimeError(f"{MAX_CONSECUTIVE_ERRORS} error berturut-turut.")
 
                 await _backoff_delay(
                     consecutive_errors,
@@ -1304,14 +1316,14 @@ async def process_popular_pages(
 
                 if scraper.SOURCE_NAME == "komiku_asia":
                     logger.error("  ⛔ Deteksi error pada komiku_asia. Menghentikan scraper komiku_asia untuk menghemat waktu.")
-                    return
+                    raise RuntimeError("Deteksi kegagalan Cloudflare/Timeout pada komiku_asia.")
 
                 if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
                     logger.error(
                         f"  ⛔ {MAX_CONSECUTIVE_ERRORS} error berturut-turut! "
                         f"Stop popular scraper {scraper.SOURCE_NAME} lebih awal."
                     )
-                    return
+                    raise RuntimeError(f"{MAX_CONSECUTIVE_ERRORS} error berturut-turut.")
 
                 await _backoff_delay(
                     consecutive_errors,
@@ -1410,6 +1422,14 @@ async def run_scraper(
         for scraper in scrapers:
             logger.info(f"🕷️ Scraper: {scraper.SOURCE_NAME} ({scraper.BASE_URL})")
 
+            # Mark attempt start
+            async with async_session() as stat_session:
+                await update_source_status(
+                    stat_session,
+                    scraper.SOURCE_NAME,
+                    last_attempted_at=datetime.now(UTC),
+                )
+
             scraper_start_comics = stats.total_comics
             scraper_start_meta = stats.total_chapters_meta
             scraper_start_images = stats.total_chapters_images
@@ -1457,10 +1477,26 @@ async def run_scraper(
                     f"{stats.total_errors - scraper_start_errors} errors"
                 )
 
+                # Mark success
+                async with async_session() as stat_session:
+                    await update_source_status(
+                        stat_session,
+                        scraper.SOURCE_NAME,
+                        last_refreshed_at=datetime.now(UTC),
+                        clear_error=True,
+                    )
+
             except Exception as e:
                 stats.total_errors += 1
                 logger.error(f"  ✗ Scraper {scraper.SOURCE_NAME} failed: {e}")
                 await session.rollback()
+                # Mark error
+                async with async_session() as stat_session:
+                    await update_source_status(
+                        stat_session,
+                        scraper.SOURCE_NAME,
+                        last_error=f"{type(e).__name__}: {e}",
+                    )
                 continue
             finally:
                 try:
