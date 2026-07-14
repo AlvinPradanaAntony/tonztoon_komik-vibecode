@@ -16,7 +16,8 @@ email-validator>=2.0.0
 PyJWT[crypto]>=2.8.0
 
 # Scraping
-scrapling[all]>=0.3.0
+scrapling[all]==0.4.7
+browserforge==1.2.4
 beautifulsoup4>=4.12.0
 
 # HTTP Client (for image proxy & GitHub API)

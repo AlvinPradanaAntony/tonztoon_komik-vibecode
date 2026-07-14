@@ -10,12 +10,12 @@ dan Genre. Diekstrak dari main.py agar:
 3. Mudah diuji secara independen
 """
 
-from sqlalchemy import DateTime, Integer, case, column, delete, or_, select, update, values
+from sqlalchemy import DateTime, Integer, case, column, delete, func, or_, select, update, values
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models import Chapter, Comic, Genre, comic_genre
+from app.models import Chapter, Comic, Genre, UserBookmark, UserBookmarkLink, comic_genre
 from app.schemas import ComicCreate
 from app.services.image_service import enrich_chapter_image_dimensions
 from scraper.time_utils import now_wib
@@ -412,12 +412,89 @@ def _dedupe_chapter_metadata_rows(chapters_data: list[dict]) -> list[dict]:
     return list(chapters_by_number.values())
 
 
+async def _mark_bookmarks_ongoing_for_new_chapters(
+    session: AsyncSession,
+    comic_id: int,
+    chapters_data: list[dict],
+) -> None:
+    """Set status bookmark ke ongoing ketika source menambahkan chapter baru."""
+    chapter_numbers = []
+    for chapter in chapters_data:
+        try:
+            chapter_numbers.append(float(chapter["chapter_number"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+    if not chapter_numbers:
+        return
+
+    latest_existing = (
+        await session.execute(
+            select(func.max(Chapter.chapter_number)).where(Chapter.comic_id == comic_id)
+        )
+    ).scalar_one_or_none()
+    if latest_existing is None or max(chapter_numbers) <= latest_existing:
+        return
+
+    await session.execute(build_comic_status_ongoing_statement(comic_id))
+    await session.execute(build_bookmark_status_ongoing_statement(comic_id))
+
+
+def _bookmark_group_comic_ids_subquery(comic_id: int):
+    """Resolve all source comics connected to a bookmark group."""
+    bookmark_ids = (
+        select(UserBookmark.id)
+        .outerjoin(UserBookmarkLink, UserBookmarkLink.bookmark_id == UserBookmark.id)
+        .where(
+            or_(
+                UserBookmark.comic_id == comic_id,
+                UserBookmarkLink.comic_id == comic_id,
+            )
+        )
+    )
+    return select(UserBookmark.comic_id).where(
+        UserBookmark.id.in_(bookmark_ids)
+    ).union(
+        select(UserBookmarkLink.comic_id).where(
+            UserBookmarkLink.bookmark_id.in_(bookmark_ids)
+        )
+    )
+
+
+def build_comic_status_ongoing_statement(comic_id: int):
+    """Bangun update status global komik ketika chapter baru masuk."""
+    return (
+        update(Comic)
+        .where(
+            or_(
+                Comic.id == comic_id,
+                Comic.id.in_(_bookmark_group_comic_ids_subquery(comic_id)),
+            )
+        )
+        .values(status="ongoing", updated_at=now_wib())
+    )
+
+
+def build_bookmark_status_ongoing_statement(comic_id: int):
+    """Bangun update status seluruh bookmark ketika chapter baru masuk."""
+    return (
+        update(UserBookmark)
+        .where(
+            or_(
+                UserBookmark.comic_id == comic_id,
+                UserBookmark.comic_id.in_(_bookmark_group_comic_ids_subquery(comic_id)),
+            )
+        )
+        .values(status_override="ongoing", updated_at=now_wib())
+    )
+
+
 async def upsert_chapter_metadata(
     session: AsyncSession,
     comic_id: int,
     ch_data: dict,
 ) -> None:
     """Upsert metadata chapter ke database (tanpa images)."""
+    await _mark_bookmarks_ongoing_for_new_chapters(session, comic_id, [ch_data])
     stmt = pg_insert(Chapter).values(
         comic_id=comic_id,
         chapter_number=ch_data["chapter_number"],
@@ -475,6 +552,11 @@ async def upsert_chapter_metadata_many(
     if not valid_chapters:
         return 0
 
+    await _mark_bookmarks_ongoing_for_new_chapters(
+        session,
+        comic_id,
+        valid_chapters,
+    )
     await session.execute(
         build_chapter_metadata_upsert_statement(comic_id, valid_chapters)
     )

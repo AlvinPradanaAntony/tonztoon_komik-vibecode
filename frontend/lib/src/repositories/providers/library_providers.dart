@@ -1,5 +1,51 @@
 part of '../providers.dart';
 
+final bookmarkBrowseOptionsProvider =
+    NotifierProvider<BookmarkBrowseOptionsController, ComicFilterSortState>(
+      BookmarkBrowseOptionsController.new,
+    );
+
+class BookmarkBrowseOptionsController extends Notifier<ComicFilterSortState> {
+  @override
+  ComicFilterSortState build() =>
+      const ComicFilterSortState(sort: ComicSortOption.relevance);
+
+  void apply(ComicFilterSortState options) => state = options.normalized();
+}
+
+extension BookmarkFilterSortStateX on ComicFilterSortState {
+  bool get hasActiveBookmarkControls =>
+      type != ComicFilterOption.all ||
+      status != ComicFilterOption.all ||
+      sort != ComicSortOption.relevance;
+
+  String? get bookmarkTypeQuery {
+    final values = selectedFilterValues(type);
+    return values.isEmpty
+        ? null
+        : values.map((value) => value.toLowerCase()).join(',');
+  }
+
+  String? get bookmarkStatusQuery {
+    final values = selectedFilterValues(status);
+    if (values.isEmpty) return null;
+    return values
+        .map(
+          (value) => value.toLowerCase() == 'selesai'
+              ? 'completed'
+              : value.toLowerCase(),
+        )
+        .join(',');
+  }
+
+  String? get bookmarkSortQuery => switch (sort) {
+    ComicSortOption.updateNewest => 'latest',
+    ComicSortOption.az => 'az',
+    ComicSortOption.za => 'za',
+    _ => null,
+  };
+}
+
 final libraryComicStateProvider =
     FutureProvider.family<LibraryComicState, ComicSummary>((ref, comic) {
       return ref.watch(libraryRepositoryProvider).getComicState(comic);
@@ -21,6 +67,7 @@ class BookmarksPaginationController
   @override
   void watchDependencies() {
     ref.watch(authControllerProvider.select((auth) => auth.user?.id));
+    ref.watch(bookmarkBrowseOptionsProvider);
   }
 
   @override
@@ -28,9 +75,16 @@ class BookmarksPaginationController
     required int page,
     required int pageSize,
   }) {
+    final options = ref.read(bookmarkBrowseOptionsProvider);
     return ref
         .read(libraryRepositoryProvider)
-        .getBookmarksPage(page: page, pageSize: pageSize);
+        .getBookmarksPage(
+          page: page,
+          pageSize: pageSize,
+          type: options.bookmarkTypeQuery,
+          status: options.bookmarkStatusQuery,
+          sort: options.bookmarkSortQuery,
+        );
   }
 
   @override
@@ -176,13 +230,15 @@ abstract class PaginatedAsyncController<T>
     if (current == null) return;
 
     var changed = false;
-    final nextItems = current.items.map((item) {
-      if (test(item)) {
-        changed = true;
-        return update(item);
-      }
-      return item;
-    }).toList(growable: false);
+    final nextItems = current.items
+        .map((item) {
+          if (test(item)) {
+            changed = true;
+            return update(item);
+          }
+          return item;
+        })
+        .toList(growable: false);
 
     if (!changed) return;
 

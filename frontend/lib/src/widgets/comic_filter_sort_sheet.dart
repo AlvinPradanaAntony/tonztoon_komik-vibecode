@@ -27,10 +27,10 @@ class ComicFilterSortState {
       genre != ComicFilterOption.all;
 
   List<String> get activeFilterLabels => [
-    if (source != ComicFilterOption.all) source,
-    if (type != ComicFilterOption.all) type,
-    if (status != ComicFilterOption.all) status,
-    if (genre != ComicFilterOption.all) genre,
+    ...selectedFilterValues(source),
+    ...selectedFilterValues(type),
+    ...selectedFilterValues(status),
+    ...selectedFilterValues(genre),
   ];
 
   ComicFilterSortState reset({String sort = ComicSortOption.relevance}) {
@@ -132,11 +132,39 @@ bool matchesComicFilters({
   required String status,
   required String genre,
 }) {
-  return (filters.source == ComicFilterOption.all ||
-          source == filters.source) &&
-      (filters.type == ComicFilterOption.all || type == filters.type) &&
-      (filters.status == ComicFilterOption.all || status == filters.status) &&
-      (filters.genre == ComicFilterOption.all || genre == filters.genre);
+  return filterSelectionMatches(filters.source, source) &&
+      filterSelectionMatches(filters.type, type) &&
+      filterSelectionMatches(filters.status, status) &&
+      filterSelectionMatches(filters.genre, genre);
+}
+
+List<String> selectedFilterValues(String selection) {
+  if (selection == ComicFilterOption.all || selection.trim().isEmpty) {
+    return const [];
+  }
+  return selection
+      .split(',')
+      .map((value) => value.trim())
+      .where((value) => value.isNotEmpty)
+      .toList(growable: false);
+}
+
+bool filterSelectionMatches(String selection, String value) {
+  final selected = selectedFilterValues(selection);
+  return selected.isEmpty || selected.contains(value);
+}
+
+String toggleFilterSelection(String selection, String value) {
+  if (value == ComicFilterOption.all) return ComicFilterOption.all;
+
+  final selected = selectedFilterValues(selection).toSet();
+  if (selected.contains(value)) {
+    selected.remove(value);
+  } else {
+    selected.add(value);
+  }
+  if (selected.isEmpty) return ComicFilterOption.all;
+  return selected.join(',');
 }
 
 class ComicActiveFilterStrip extends StatelessWidget {
@@ -198,6 +226,13 @@ Future<ComicFilterSortState?> showComicFilterSortSheet({
   List<String>? genreOptions,
   Future<List<String>>? genreOptionsFuture,
   Future<List<String>>? genreOptionsRefreshFuture,
+  bool showSource = true,
+  bool showType = true,
+  bool showStatus = true,
+  bool showGenre = true,
+  List<String>? typeOptions,
+  List<String>? statusOptions,
+  List<String>? sortOptions,
   AnimationStyle? animationStyle,
   BoxConstraints? constraints,
 }) {
@@ -222,6 +257,13 @@ Future<ComicFilterSortState?> showComicFilterSortSheet({
       genreOptions: genreOptions,
       genreOptionsFuture: genreOptionsFuture,
       genreOptionsRefreshFuture: genreOptionsRefreshFuture,
+      showSource: showSource,
+      showType: showType,
+      showStatus: showStatus,
+      showGenre: showGenre,
+      typeOptions: typeOptions,
+      statusOptions: statusOptions,
+      sortOptions: sortOptions,
     ),
   );
 }
@@ -236,6 +278,13 @@ class ComicFilterSortSheet extends StatefulWidget {
     this.genreOptions,
     this.genreOptionsFuture,
     this.genreOptionsRefreshFuture,
+    this.showSource = true,
+    this.showType = true,
+    this.showStatus = true,
+    this.showGenre = true,
+    this.typeOptions,
+    this.statusOptions,
+    this.sortOptions,
   });
 
   final ComicFilterSortState initialState;
@@ -245,6 +294,13 @@ class ComicFilterSortSheet extends StatefulWidget {
   final List<String>? genreOptions;
   final Future<List<String>>? genreOptionsFuture;
   final Future<List<String>>? genreOptionsRefreshFuture;
+  final bool showSource;
+  final bool showType;
+  final bool showStatus;
+  final bool showGenre;
+  final List<String>? typeOptions;
+  final List<String>? statusOptions;
+  final List<String>? sortOptions;
 
   @override
   State<ComicFilterSortSheet> createState() => _ComicFilterSortSheetState();
@@ -268,10 +324,10 @@ class _ComicFilterSortSheetState extends State<ComicFilterSortSheet> {
     final values = _filterOptionsWithAll(options, selectedValue: _genre);
     final visibleCount = _visibleGenreCount.clamp(1, values.length);
     final visible = values.take(visibleCount).toList();
-    if (_genre != ComicFilterOption.all &&
-        values.contains(_genre) &&
-        !visible.contains(_genre)) {
-      visible.add(_genre);
+    for (final selected in selectedFilterValues(_genre)) {
+      if (values.contains(selected) && !visible.contains(selected)) {
+        visible.add(selected);
+      }
     }
     return visible;
   }
@@ -287,7 +343,7 @@ class _ComicFilterSortSheetState extends State<ComicFilterSortSheet> {
   @override
   void initState() {
     super.initState();
-    _resolveGenreOptions();
+    if (widget.showGenre) _resolveGenreOptions();
   }
 
   Future<void> _resolveGenreOptions() async {
@@ -349,9 +405,11 @@ class _ComicFilterSortSheetState extends State<ComicFilterSortSheet> {
     if (options == null || _genre == ComicFilterOption.all) return;
 
     final values = _filterOptionsWithAll(options, selectedValue: _genre);
-    final selectedIndex = values.indexOf(_genre);
-    if (selectedIndex >= _visibleGenreCount) {
-      _visibleGenreCount = selectedIndex + 1;
+    for (final selected in selectedFilterValues(_genre)) {
+      final selectedIndex = values.indexOf(selected);
+      if (selectedIndex >= _visibleGenreCount) {
+        _visibleGenreCount = selectedIndex + 1;
+      }
     }
   }
 
@@ -399,56 +457,78 @@ class _ComicFilterSortSheetState extends State<ComicFilterSortSheet> {
                   children: [
                     Text(widget.description, style: theme.textTheme.bodySmall),
                     const SizedBox(height: 18),
-                    ChoiceChipGroup(
-                      label: 'Sumber',
-                      values: ComicFilterOption.sources,
-                      selectedValue: _source,
-                      onChanged: (value) => setState(() => _source = value),
-                      scrollable: false,
-                      labelStyle: theme.textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 16),
-                    ChoiceChipGroup(
-                      label: 'Tipe',
-                      values: ComicFilterOption.types,
-                      selectedValue: _type,
-                      onChanged: (value) => setState(() => _type = value),
-                      scrollable: false,
-                      labelStyle: theme.textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 16),
-                    ChoiceChipGroup(
-                      label: 'Status',
-                      values: ComicFilterOption.statuses,
-                      selectedValue: _status,
-                      onChanged: (value) => setState(() => _status = value),
-                      scrollable: false,
-                      labelStyle: theme.textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 16),
-                    ChoiceChipGroup(
-                      label: 'Genre',
-                      values: _genreValues,
-                      selectedValue: _genre,
-                      onChanged: (value) => setState(() => _genre = value),
-                      scrollable: false,
-                      labelStyle: theme.textTheme.titleSmall,
-                    ),
-                    if (_genreOptionsLoading) ...[
-                      const SizedBox(height: 10),
-                      const _GenreOptionsLoading(),
-                    ],
-                    if (_canLoadMoreGenres) ...[
-                      const SizedBox(height: 8),
-                      _LoadMoreGenresButton(
-                        remainingCount: _remainingGenreCount,
-                        onPressed: _loadMoreGenres,
+                    if (widget.showSource) ...[
+                      ChoiceChipGroup(
+                        label: 'Sumber',
+                        values: ComicFilterOption.sources,
+                        selectedValue: _source,
+                        selectedValues: selectedFilterValues(_source).toSet(),
+                        multiSelect: true,
+                        onChanged: (value) => setState(
+                          () => _source = toggleFilterSelection(_source, value),
+                        ),
+                        scrollable: false,
+                        labelStyle: theme.textTheme.titleSmall,
                       ),
+                      const SizedBox(height: 16),
                     ],
-                    const SizedBox(height: 16),
+                    if (widget.showType) ...[
+                      Text('Tipe', style: theme.textTheme.titleSmall),
+                      const SizedBox(height: 8),
+                      ComicTypeCardGrid(
+                        types: widget.typeOptions ?? ComicFilterOption.types,
+                        selectedType: _type,
+                        onChanged: (value) => setState(
+                          () => _type = toggleFilterSelection(_type, value),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    if (widget.showStatus) ...[
+                      ChoiceChipGroup(
+                        label: 'Status',
+                        values:
+                            widget.statusOptions ?? ComicFilterOption.statuses,
+                        selectedValue: _status,
+                        selectedValues: selectedFilterValues(_status).toSet(),
+                        multiSelect: true,
+                        onChanged: (value) => setState(
+                          () => _status = toggleFilterSelection(_status, value),
+                        ),
+                        scrollable: false,
+                        labelStyle: theme.textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    if (widget.showGenre) ...[
+                      ChoiceChipGroup(
+                        label: 'Genre',
+                        values: _genreValues,
+                        selectedValue: _genre,
+                        selectedValues: selectedFilterValues(_genre).toSet(),
+                        multiSelect: true,
+                        onChanged: (value) => setState(
+                          () => _genre = toggleFilterSelection(_genre, value),
+                        ),
+                        scrollable: false,
+                        labelStyle: theme.textTheme.titleSmall,
+                      ),
+                      if (_genreOptionsLoading) ...[
+                        const SizedBox(height: 10),
+                        const _GenreOptionsLoading(),
+                      ],
+                      if (_canLoadMoreGenres) ...[
+                        const SizedBox(height: 8),
+                        _LoadMoreGenresButton(
+                          remainingCount: _remainingGenreCount,
+                          onPressed: _loadMoreGenres,
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                    ],
                     ChoiceChipGroup(
                       label: 'Urutkan',
-                      values: ComicSortOption.values,
+                      values: widget.sortOptions ?? ComicSortOption.values,
                       selectedValue: _sort,
                       onChanged: (value) => setState(() => _sort = value),
                       scrollable: false,
@@ -570,6 +650,104 @@ class _LoadMoreGenresButton extends StatelessWidget {
   }
 }
 
+class ComicTypeCardGrid extends StatelessWidget {
+  const ComicTypeCardGrid({
+    super.key,
+    this.types = ComicFilterOption.types,
+    required this.selectedType,
+    required this.onChanged,
+  });
+
+  final List<String> types;
+  final String selectedType;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedValues = selectedFilterValues(selectedType).toSet();
+    return Row(
+      children: [
+        for (final type in types) ...[
+          if (type != types.first) const SizedBox(width: 8),
+          Expanded(
+            child: _ComicTypeChoiceCard(
+              type: type,
+              selected: type == ComicFilterOption.all
+                  ? selectedValues.isEmpty
+                  : selectedValues.contains(type),
+              onTap: () => onChanged(type),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ComicTypeChoiceCard extends StatelessWidget {
+  const _ComicTypeChoiceCard({
+    required this.type,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String type;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final accent = selected ? colors.primary : colors.onSurfaceVariant;
+    final flag = type == ComicFilterOption.all ? '🌐' : comicTypeFlag(type);
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: type,
+      child: Material(
+        color: selected
+            ? colors.primary.withValues(alpha: 0.11)
+            : colors.surfaceContainerHighest.withValues(alpha: 0.58),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(
+            color: selected
+                ? colors.primary
+                : colors.outlineVariant.withValues(alpha: 0.7),
+            width: selected ? 1.8 : 1,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+            child: Column(
+              children: [
+                Text(flag, style: const TextStyle(fontSize: 30, height: 1)),
+                const SizedBox(height: 9),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    type,
+                    maxLines: 1,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: accent,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 List<String> _filterOptionsWithAll(
   Iterable<String> options, {
   required String selectedValue,
@@ -584,11 +762,10 @@ List<String> _filterOptionsWithAll(
     if (seen.add(key)) values.add(value);
   }
 
-  final selected = selectedValue.trim();
-  if (selected.isNotEmpty &&
-      selected != ComicFilterOption.all &&
-      seen.add(selected.toLowerCase())) {
-    values.add(selected);
+  for (final selected in selectedFilterValues(selectedValue)) {
+    if (seen.add(selected.toLowerCase())) {
+      values.add(selected);
+    }
   }
 
   return values;

@@ -25,6 +25,7 @@ from app.schemas.source import (
 )
 from app.schemas.library import (
     BookmarkResponse,
+    BookmarkStatusUpdateRequest,
     BookmarkLinkBatchRequest,
     BookmarkLinkBatchResponse,
     BookmarkLinkCandidate,
@@ -122,6 +123,7 @@ __all__ = [
     "SourceChapterListItem",
     "SourceChapterResponse",
     "BookmarkResponse",
+    "BookmarkStatusUpdateRequest",
     "BookmarkLinkBatchRequest",
     "BookmarkLinkBatchResponse",
     "BookmarkLinkCandidate",

@@ -3,21 +3,28 @@ part of '../library_screen.dart';
 class _LibraryHero extends StatelessWidget {
   const _LibraryHero({
     required this.bookmarks,
+    required this.bookmarkStatusCounts,
     required this.downloadsCount,
     required this.totalBookmarks,
   });
 
   final List<LibraryComicRef> bookmarks;
+  final Map<String, int> bookmarkStatusCounts;
   final int downloadsCount;
   final int totalBookmarks;
 
-  int get _ongoingCount =>
-      bookmarks.where((item) => item.status?.toLowerCase() == 'ongoing').length;
-  int get _completedCount => bookmarks
-      .where((item) => item.status?.toLowerCase() == 'completed')
-      .length;
-  int get _hiatusCount =>
-      bookmarks.where((item) => item.status?.toLowerCase() == 'hiatus').length;
+  int get _ongoingCount => _statusCount('ongoing');
+  int get _completedCount => _statusCount('completed');
+  int get _hiatusCount => _statusCount('hiatus');
+
+  int _statusCount(String status) {
+    if (bookmarkStatusCounts.isNotEmpty) {
+      return bookmarkStatusCounts[status] ?? 0;
+    }
+    return bookmarks
+        .where((item) => item.status?.trim().toLowerCase() == status)
+        .length;
+  }
 
   @override
   Widget build(BuildContext context) {

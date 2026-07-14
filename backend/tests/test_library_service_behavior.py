@@ -4,6 +4,8 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
+from sqlalchemy.dialects import postgresql
+
 from app.schemas.library import (
     BookmarkLinkBatchRequest,
     DownloadBatchRequest,
@@ -13,6 +15,7 @@ from app.services.library_service import (
     _bookmark_group_comic_ids,
     _propagate_completed_chapter,
     _synchronize_existing_completed_for_links,
+    build_bookmark_response,
     build_reader_preferences_response,
     enqueue_download_batch,
     get_collection_detail,
@@ -20,6 +23,7 @@ from app.services.library_service import (
     list_bookmarks,
     list_bookmark_link_candidates,
     set_bookmark_links,
+    set_bookmark_status,
     synchronize_completed_link_batch,
 )
 
@@ -71,6 +75,9 @@ class FakeSession:
     async def commit(self):
         self.commit_count += 1
 
+    async def refresh(self, instance):
+        return None
+
     def begin(self):
         return FakeTransaction(self)
 
@@ -102,6 +109,80 @@ def chapters(total: int):
 
 
 class LibraryServiceBehaviorTests(unittest.IsolatedAsyncioTestCase):
+    async def test_bookmark_response_uses_personal_status_override(self):
+        now = datetime(2026, 8, 2, tzinfo=timezone.utc)
+        bookmark = SimpleNamespace(
+            id=1,
+            comic=comic(),
+            status_override="hiatus",
+            links=[],
+            created_at=now,
+            updated_at=now,
+        )
+
+        response = build_bookmark_response(bookmark)
+
+        self.assertEqual(response.comic.status, "hiatus")
+
+    async def test_admin_bookmark_status_updates_comic_globally(self):
+        comic_row = comic()
+        linked_comic = comic()
+        linked_comic.id = 2
+        linked_comic.source_name = "source-b"
+        bookmark = SimpleNamespace(
+            id=1,
+            comic=comic_row,
+            status_override="completed",
+            links=[SimpleNamespace(comic_id=linked_comic.id, comic=linked_comic)],
+            updated_at=None,
+        )
+        db = FakeSession([FakeResult(scalar_rows=[bookmark])])
+
+        with patch(
+            "app.services.library_service.resolve_comic_or_raise",
+            return_value=comic_row,
+        ):
+            result = await set_bookmark_status(
+                db,
+                uuid4(),
+                "source",
+                "comic",
+                "hiatus",
+                global_scope=True,
+            )
+
+        self.assertIs(result, bookmark)
+        self.assertEqual(comic_row.status, "hiatus")
+        self.assertEqual(linked_comic.status, "hiatus")
+        self.assertIsNone(bookmark.status_override)
+        self.assertEqual(db.commit_count, 1)
+
+    async def test_reader_bookmark_status_remains_personal(self):
+        comic_row = comic()
+        bookmark = SimpleNamespace(
+            id=1,
+            comic=comic_row,
+            status_override=None,
+            links=[],
+            updated_at=None,
+        )
+        db = FakeSession([FakeResult(scalar_rows=[bookmark])])
+
+        with patch(
+            "app.services.library_service.resolve_comic_or_raise",
+            return_value=comic_row,
+        ):
+            await set_bookmark_status(
+                db,
+                uuid4(),
+                "source",
+                "comic",
+                "completed",
+            )
+
+        self.assertEqual(bookmark.status_override, "completed")
+        self.assertIsNone(comic_row.status)
+
     async def test_reader_preferences_response_includes_autoscroll(self):
         preference = SimpleNamespace(
             default_reading_mode="vertical",
@@ -177,12 +258,43 @@ class LibraryServiceBehaviorTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_list_bookmarks_returns_query_rows(self):
         bookmark = SimpleNamespace(id=7)
-        db = FakeSession([FakeResult(scalar_rows=[bookmark])])
+        db = FakeSession([FakeResult(rows=[bookmark])])
 
         response = await list_bookmarks(db, uuid4(), page_size=20, offset=0)
 
         self.assertEqual(response, [bookmark])
         self.assertEqual(len(db.statements), 1)
+        self.assertNotIn("EXISTS", str(db.statements[0].whereclause))
+
+    async def test_list_bookmarks_filters_and_sorts_by_title(self):
+        db = FakeSession([FakeResult(rows=[])])
+
+        await list_bookmarks(
+            db,
+            uuid4(),
+            comic_type="manhwa",
+            comic_status="hiatus",
+            sort="az",
+        )
+
+        statement = db.statements[0]
+        sql = str(statement.compile(dialect=postgresql.dialect()))
+        self.assertIn("comics.type", sql)
+        self.assertIn("status_override", sql)
+        self.assertIn("ORDER BY lower(comics.title) ASC", sql)
+        self.assertIn(["manhwa"], statement.compile().params.values())
+        self.assertIn(["hiatus"], statement.compile().params.values())
+
+    async def test_list_bookmarks_latest_prioritizes_has_new_chapter(self):
+        db = FakeSession([FakeResult(rows=[])])
+
+        await list_bookmarks(db, uuid4(), sort="latest")
+
+        sql = str(db.statements[0].compile(dialect=postgresql.dialect()))
+        order_sql = sql.split("ORDER BY", 1)[1]
+        self.assertTrue(order_sql.lstrip().startswith("has_new_chapter DESC"))
+        self.assertNotIn("comics.updated_at", order_sql)
+        self.assertIn("EXISTS", str(db.statements[0].whereclause))
 
     async def test_bookmark_group_contains_hub_and_all_spokes(self):
         db = FakeSession(

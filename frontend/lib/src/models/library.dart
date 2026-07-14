@@ -1,6 +1,14 @@
 import 'comic.dart';
 import 'progress.dart';
 
+Map<String, int> _readCountMap(Object? raw) {
+  if (raw is! Map) return const {};
+  return raw.map((key, value) {
+    final count = value is num ? value.toInt() : 0;
+    return MapEntry(key.toString(), count);
+  });
+}
+
 class LibraryComicRef {
   const LibraryComicRef({
     required this.sourceName,
@@ -690,6 +698,7 @@ class LibraryComicState {
 class LibrarySummaryCounts {
   const LibrarySummaryCounts({
     required this.bookmarks,
+    this.bookmarkStatusCounts = const {},
     required this.collections,
     required this.favoriteScenes,
     required this.history,
@@ -700,6 +709,7 @@ class LibrarySummaryCounts {
   factory LibrarySummaryCounts.fromJson(Map<String, dynamic> json) {
     return LibrarySummaryCounts(
       bookmarks: json['bookmarks'] as int? ?? 0,
+      bookmarkStatusCounts: _readCountMap(json['bookmark_status_counts']),
       collections: json['collections'] as int? ?? 0,
       favoriteScenes: json['favorite_scenes'] as int? ?? 0,
       history: json['history'] as int? ?? 0,
@@ -709,6 +719,7 @@ class LibrarySummaryCounts {
   }
 
   final int bookmarks;
+  final Map<String, int> bookmarkStatusCounts;
   final int collections;
   final int favoriteScenes;
   final int history;

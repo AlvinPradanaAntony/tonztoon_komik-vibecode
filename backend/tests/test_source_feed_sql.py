@@ -97,8 +97,8 @@ class SourceFeedSqlTests(unittest.TestCase):
             ).limit(20)
         )
 
-        self.assertIn("lower(comics.type) = ", sql)
-        self.assertIn("lower(comics.status) = ", sql)
+        self.assertIn("lower(comics.type) IN ", sql)
+        self.assertIn("lower(comics.status) IN ", sql)
         self.assertIn("EXISTS", sql)
         self.assertIn("genres", sql)
         self.assertNotIn("chapters", sql)

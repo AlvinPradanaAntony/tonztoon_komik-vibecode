@@ -492,6 +492,7 @@ void main() {
           (ref) async => const LibrarySummary(
             counts: LibrarySummaryCounts(
               bookmarks: 1,
+              bookmarkStatusCounts: {'ongoing': 8, 'completed': 4, 'hiatus': 2},
               collections: 0,
               favoriteScenes: 0,
               history: 0,
@@ -561,6 +562,9 @@ void main() {
     );
     expect(find.text('4.8'), findsOneWidget);
     expect(find.text('13K views'), findsOneWidget);
+    expect(find.text('8'), findsOneWidget);
+    expect(find.text('4'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
 
     await tester.drag(
       find.byKey(
@@ -584,6 +588,15 @@ void main() {
       ),
       findsOneWidget,
     );
+
+    await tester.tap(find.byTooltip('Opsi bookmark'));
+    await tester.pumpAndSettle();
+    expect(find.text('Ubah status'), findsOneWidget);
+
+    await tester.tap(find.text('Ubah status'));
+    await tester.pumpAndSettle();
+    expect(find.text('Ubah status komik'), findsOneWidget);
+    expect(find.text('Ongoing'), findsWidgets);
   });
 
   testWidgets('wishlist download shows active chapter progress', (
@@ -1027,6 +1040,7 @@ class _FakeCatalogRepository implements CatalogRepository {
     required String? sourceName,
     required int page,
     int pageSize = 15,
+    String? source,
     String? type,
     String? status,
     String? genre,

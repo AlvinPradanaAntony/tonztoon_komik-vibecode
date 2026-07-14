@@ -20,18 +20,25 @@ class ComicCard extends StatefulWidget {
     super.key,
     required this.comic,
     required this.onTap,
+    this.onLongPress,
     this.source,
     this.rating,
     this.width = 138,
     this.showNewBadge = false,
+    this.hasNewChapter,
   });
 
   final ComicSummary comic;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
   final String? source;
   final String? rating;
   final double? width;
   final bool showNewBadge;
+
+  /// Overrides the date-based new badge check when the caller has reading
+  /// progress data, such as the Bookmark library response.
+  final bool? hasNewChapter;
 
   @override
   State<ComicCard> createState() => _ComicCardState();
@@ -50,7 +57,9 @@ class _ComicCardState extends State<ComicCard> {
     final source = widget.source ?? comicSourceLabel(widget.comic);
     final ratingLabel =
         widget.rating ?? widget.comic.rating?.toStringAsFixed(1);
-    final showNewBadge = widget.showNewBadge && widget.comic.hasNewChapter();
+    final showNewBadge =
+        widget.hasNewChapter ??
+        (widget.showNewBadge && widget.comic.hasNewChapter());
 
     // MouseRegion untuk mendeteksi kursor mouse (berguna di Desktop/Web)
     return MouseRegion(
@@ -72,6 +81,7 @@ class _ComicCardState extends State<ComicCard> {
           child: InkWell(
             borderRadius: BorderRadius.circular(12),
             onTap: widget.onTap,
+            onLongPress: widget.onLongPress,
             child: MediaQuery.withClampedTextScaling(
               maxScaleFactor: 1.12,
               child: SizedBox(
