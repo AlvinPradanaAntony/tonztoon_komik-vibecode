@@ -193,7 +193,15 @@ class LibraryRepository {
     }
     final start = (page - 1) * pageSize;
     final links = _localBookmarkLinks();
-    return _localBookmarks().values.skip(start).take(pageSize).map((bookmark) {
+    
+    final localBookmarks = _localBookmarks().values.toList().reversed.toList();
+    localBookmarks.sort((a, b) {
+      if (a.hasNewChapter && !b.hasNewChapter) return -1;
+      if (!a.hasNewChapter && b.hasNewChapter) return 1;
+      return 0;
+    });
+
+    return localBookmarks.skip(start).take(pageSize).map((bookmark) {
       return LibraryComicRef.fromJson({
         ...bookmark.toJson(),
         'linked_comics': links

@@ -510,7 +510,11 @@ async def list_bookmarks(
             ).noload(Comic.genres),
         )
         .where(UserBookmark.user_id == user_id)
-        .order_by(UserBookmark.created_at.desc(), UserBookmark.id.desc())
+        .order_by(
+            has_new_chapter_expr.desc(),
+            UserBookmark.created_at.desc(),
+            UserBookmark.id.desc(),
+        )
         .limit(page_size)
         .offset(offset)
     )

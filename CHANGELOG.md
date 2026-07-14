@@ -6,6 +6,13 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
+## [1.21.4] - 2026-07-14
+
+### Changed
+- Posisi komik yang memiliki tanda **NEW** (ada chapter baru yang belum terbaca) pada halaman tab Bookmark Pustaka kini dibuat dinamis dan diprioritaskan untuk naik ke posisi paling atas (berlaku untuk mode akun terhubung maupun mode guest lokal).
+
+---
+
 ## [1.21.3] - 2026-07-10
 
 ### Added
