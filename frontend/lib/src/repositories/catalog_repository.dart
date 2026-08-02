@@ -199,8 +199,10 @@ class CatalogRepository {
     final path = '/sources/$sourceName/comics/latest/stats';
     final queryParameters = {
       'period_days': 7,
-      if (type != null && type.trim().isNotEmpty) 'type': type.trim().toLowerCase(),
-      if (genre != null && genre.trim().isNotEmpty) 'genre': genre.trim().toLowerCase(),
+      if (type != null && type.trim().isNotEmpty)
+        'type': type.trim().toLowerCase(),
+      if (genre != null && genre.trim().isNotEmpty)
+        'genre': genre.trim().toLowerCase(),
     };
     final cacheKey = _latestStatsCacheKey(path, queryParameters);
     try {
@@ -229,8 +231,10 @@ class CatalogRepository {
     final path = '/sources/$sourceName/comics/latest/stats';
     final queryParameters = {
       'period_days': 7,
-      if (type != null && type.trim().isNotEmpty) 'type': type.trim().toLowerCase(),
-      if (genre != null && genre.trim().isNotEmpty) 'genre': genre.trim().toLowerCase(),
+      if (type != null && type.trim().isNotEmpty)
+        'type': type.trim().toLowerCase(),
+      if (genre != null && genre.trim().isNotEmpty)
+        'genre': genre.trim().toLowerCase(),
     };
     final cached = _store.cache.get(
       _latestStatsCacheKey(path, queryParameters),
@@ -253,8 +257,10 @@ class CatalogRepository {
     final path = '/sources/$sourceName/comics/latest/stats';
     final queryParameters = {
       'period_days': 7,
-      if (type != null && type.trim().isNotEmpty) 'type': type.trim().toLowerCase(),
-      if (genre != null && genre.trim().isNotEmpty) 'genre': genre.trim().toLowerCase(),
+      if (type != null && type.trim().isNotEmpty)
+        'type': type.trim().toLowerCase(),
+      if (genre != null && genre.trim().isNotEmpty)
+        'genre': genre.trim().toLowerCase(),
     };
     final cached = _store.cache.get(
       _latestStatsCacheKey(path, queryParameters),
@@ -273,6 +279,7 @@ class CatalogRepository {
     required String? sourceName,
     required int page,
     int pageSize = 15,
+    String? source,
     String? type,
     String? status,
     String? genre,
@@ -281,6 +288,8 @@ class CatalogRepository {
     final queryParameters = <String, dynamic>{
       'page': page,
       'page_size': pageSize,
+      if (sourceName == null && source != null && source.trim().isNotEmpty)
+        'source': source.trim().toLowerCase(),
       if (type != null && type.trim().isNotEmpty)
         'type': type.trim().toLowerCase(),
       if (status != null && status.trim().isNotEmpty)
@@ -290,10 +299,10 @@ class CatalogRepository {
       if (sort != null && sort.trim().isNotEmpty)
         'sort': sort.trim().toLowerCase(),
     };
-    final source = sourceName?.trim();
-    final path = source == null || source.isEmpty
+    final sourcePath = sourceName?.trim();
+    final path = sourcePath == null || sourcePath.isEmpty
         ? '/comics'
-        : '/sources/$source/comics';
+        : '/sources/$sourcePath/comics';
     final cacheKey = 'source-comics|$path|$queryParameters';
     try {
       final response = await _api.get<Map<String, dynamic>>(

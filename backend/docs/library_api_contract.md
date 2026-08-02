@@ -63,6 +63,11 @@ Response:
 {
   "counts": {
     "bookmarks": 12,
+    "bookmark_status_counts": {
+      "ongoing": 5,
+      "completed": 3,
+      "hiatus": 2
+    },
     "collections": 3,
     "favorite_scenes": 5,
     "history": 20,
@@ -156,13 +161,34 @@ Request:
 
 | Method | Endpoint | Response |
 |---|---|---|
-| `GET` | `/api/v1/library/bookmarks?page=1&page_size=20` | `BookmarkResponse[]` |
+| `GET` | `/api/v1/library/bookmarks?page=1&page_size=20&type=&status=&sort=` | `BookmarkResponse[]` |
 | `PUT` | `/api/v1/library/bookmarks/{source_name}/comics/{comic_slug}` | `BookmarkResponse` |
+| `PATCH` | `/api/v1/library/bookmarks/{source_name}/comics/{comic_slug}/status` | `BookmarkResponse` |
 | `DELETE` | `/api/v1/library/bookmarks/{source_name}/comics/{comic_slug}` | `{ "deleted": true }` |
 
 Pagination bookmark memakai `page` dan `page_size` dengan batas `1..100`.
 Setiap `BookmarkResponse` juga memiliki `linked_comics`, yaitu source alternatif
 yang sudah dikonfirmasi user.
+Urutan response menempatkan bookmark dengan chapter baru yang belum dibaca di
+posisi teratas berdasarkan source utama bookmark.
+
+Filter opsional: `type` (`manga`, `manhwa`, `manhua`) dan `status`
+(`ongoing`, `completed`, `hiatus`). Beberapa nilai dapat dikirim dengan pemisah
+koma dan diperlakukan sebagai pilihan OR. Nilai `status` mengikuti override
+bookmark reader bila tersedia. Pilihan `sort`: `latest`, `az`, dan `za`.
+Tanpa parameter `sort`, seluruh bookmark tetap ditampilkan dengan urutan normal.
+`sort=latest` mengutamakan bookmark dengan `hasNewChapter=true` berdasarkan
+source utama dan hanya mengembalikan bookmark tersebut; bookmark tanpa chapter
+baru tidak ditampilkan. Jika sama, urutan dilanjutkan dari bookmark yang dibuat
+lebih baru.
+
+`PATCH .../status` menerima `{ "status": "ongoing" | "completed" | "hiatus" }`.
+Untuk role `reader`, status disimpan sebagai override pada bookmark milik user.
+Untuk role `admin` (role claim Supabase atau `ADMIN_USER_IDS`), status diterapkan
+ke seluruh `Comic` dalam grup multi-source bookmark dan override bookmark lama
+dibersihkan. Saat scraper menyimpan chapter baru dari salah satu source dalam grup,
+status seluruh source terhubung dan bookmark terkait otomatis kembali menjadi
+`ongoing`.
 
 ## Relasi Bookmark Multi-source
 

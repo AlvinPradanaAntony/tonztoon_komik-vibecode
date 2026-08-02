@@ -49,4 +49,22 @@ void main() {
     await tester.tap(find.byType(ComicCard));
     expect(tapped, isTrue);
   });
+
+  testWidgets('grid card shows an explicit unread latest-chapter badge', (
+    tester,
+  ) async {
+    const comic = ComicSummary(title: 'Unread Bookmark', sourceName: 'komiku');
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: ComicCard(comic: comic, hasNewChapter: true, onTap: _noop),
+        ),
+      ),
+    );
+
+    expect(find.byType(ComicNewBadge), findsOneWidget);
+  });
 }
+
+void _noop() {}

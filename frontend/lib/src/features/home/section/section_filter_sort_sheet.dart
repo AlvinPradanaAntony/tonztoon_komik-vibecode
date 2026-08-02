@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../helpers/app_icons.dart';
 import '../../../widgets/app_loading_placeholder.dart';
 import '../../../widgets/choice_chip_group.dart';
-import '../../../widgets/comic_card.dart';
 import '../../../widgets/comic_filter_sort_sheet.dart';
 
 class SectionComicFilterSortState {
@@ -20,21 +19,21 @@ class SectionComicFilterSortState {
   final String sort;
 
   bool hasActiveControls(String defaultSort, {required bool includeStatus}) {
-    return type != ComicFilterOption.all ||
-        (includeStatus && status != ComicFilterOption.all) ||
-        genre != ComicFilterOption.all ||
+    return selectedFilterValues(type).isNotEmpty ||
+        (includeStatus && selectedFilterValues(status).isNotEmpty) ||
+        selectedFilterValues(genre).isNotEmpty ||
         sort != defaultSort;
   }
 
   bool get hasActiveFilters =>
-      type != ComicFilterOption.all ||
-      status != ComicFilterOption.all ||
-      genre != ComicFilterOption.all;
+      selectedFilterValues(type).isNotEmpty ||
+      selectedFilterValues(status).isNotEmpty ||
+      selectedFilterValues(genre).isNotEmpty;
 
   List<String> activeFilterLabels({required bool includeStatus}) => [
-    if (type != ComicFilterOption.all) type,
-    if (includeStatus && status != ComicFilterOption.all) status,
-    if (genre != ComicFilterOption.all) genre,
+    ...selectedFilterValues(type),
+    if (includeStatus) ...selectedFilterValues(status),
+    ...selectedFilterValues(genre),
   ];
 
   SectionComicFilterSortState reset(String defaultSort) {
@@ -120,10 +119,10 @@ class _SectionComicFilterSortSheetState
     final values = _filterOptionsWithAll(options, selectedValue: _genre);
     final visibleCount = _visibleGenreCount.clamp(1, values.length);
     final visible = values.take(visibleCount).toList();
-    if (_genre != ComicFilterOption.all &&
-        values.contains(_genre) &&
-        !visible.contains(_genre)) {
-      visible.add(_genre);
+    for (final selected in selectedFilterValues(_genre)) {
+      if (values.contains(selected) && !visible.contains(selected)) {
+        visible.add(selected);
+      }
     }
     return visible;
   }
@@ -190,9 +189,11 @@ class _SectionComicFilterSortSheetState
     if (options == null || _genre == ComicFilterOption.all) return;
 
     final values = _filterOptionsWithAll(options, selectedValue: _genre);
-    final selectedIndex = values.indexOf(_genre);
-    if (selectedIndex >= _visibleGenreCount) {
-      _visibleGenreCount = selectedIndex + 1;
+    for (final selected in selectedFilterValues(_genre)) {
+      final selectedIndex = values.indexOf(selected);
+      if (selectedIndex >= _visibleGenreCount) {
+        _visibleGenreCount = selectedIndex + 1;
+      }
     }
   }
 
@@ -240,9 +241,11 @@ class _SectionComicFilterSortSheetState
                   children: [
                     Text('Tipe', style: theme.textTheme.titleSmall),
                     const SizedBox(height: 8),
-                    _TypeCardGrid(
+                    ComicTypeCardGrid(
                       selectedType: _type,
-                      onChanged: (value) => setState(() => _type = value),
+                      onChanged: (value) => setState(
+                        () => _type = toggleFilterSelection(_type, value),
+                      ),
                     ),
                     if (widget.includeStatus) ...[
                       const SizedBox(height: 16),
@@ -250,7 +253,11 @@ class _SectionComicFilterSortSheetState
                         label: 'Status',
                         values: ComicFilterOption.statuses,
                         selectedValue: _status,
-                        onChanged: (value) => setState(() => _status = value),
+                        selectedValues: selectedFilterValues(_status).toSet(),
+                        multiSelect: true,
+                        onChanged: (value) => setState(
+                          () => _status = toggleFilterSelection(_status, value),
+                        ),
                         scrollable: false,
                         labelStyle: theme.textTheme.titleSmall,
                       ),
@@ -260,7 +267,11 @@ class _SectionComicFilterSortSheetState
                       label: 'Genre',
                       values: _genreValues,
                       selectedValue: _genre,
-                      onChanged: (value) => setState(() => _genre = value),
+                      selectedValues: selectedFilterValues(_genre).toSet(),
+                      multiSelect: true,
+                      onChanged: (value) => setState(
+                        () => _genre = toggleFilterSelection(_genre, value),
+                      ),
                       scrollable: false,
                       labelStyle: theme.textTheme.titleSmall,
                     ),
@@ -404,95 +415,6 @@ class SectionActiveFilterStrip extends StatelessWidget {
   }
 }
 
-class _TypeCardGrid extends StatelessWidget {
-  const _TypeCardGrid({required this.selectedType, required this.onChanged});
-
-  final String selectedType;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        for (final type in ComicFilterOption.types) ...[
-          if (type != ComicFilterOption.types.first) const SizedBox(width: 8),
-          Expanded(
-            child: _TypeChoiceCard(
-              type: type,
-              selected: selectedType == type,
-              onTap: () => onChanged(type),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _TypeChoiceCard extends StatelessWidget {
-  const _TypeChoiceCard({
-    required this.type,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String type;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final accent = selected ? colors.primary : colors.onSurfaceVariant;
-    final flag = type == ComicFilterOption.all ? '🌐' : comicTypeFlag(type);
-
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: type,
-      child: Material(
-        color: selected
-            ? colors.primary.withValues(alpha: 0.11)
-            : colors.surfaceContainerHighest.withValues(alpha: 0.58),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: BorderSide(
-            color: selected
-                ? colors.primary
-                : colors.outlineVariant.withValues(alpha: 0.7),
-            width: selected ? 1.8 : 1,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
-            child: Column(
-              children: [
-                Text(flag, style: const TextStyle(fontSize: 30, height: 1)),
-                const SizedBox(height: 9),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    type,
-                    maxLines: 1,
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: accent,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _SectionGenreOptionsLoading extends StatelessWidget {
   const _SectionGenreOptionsLoading();
 
@@ -555,11 +477,10 @@ List<String> _filterOptionsWithAll(
     if (seen.add(key)) values.add(value);
   }
 
-  final selected = selectedValue.trim();
-  if (selected.isNotEmpty &&
-      selected != ComicFilterOption.all &&
-      seen.add(selected.toLowerCase())) {
-    values.add(selected);
+  for (final selected in selectedFilterValues(selectedValue)) {
+    if (seen.add(selected.toLowerCase())) {
+      values.add(selected);
+    }
   }
 
   return values;

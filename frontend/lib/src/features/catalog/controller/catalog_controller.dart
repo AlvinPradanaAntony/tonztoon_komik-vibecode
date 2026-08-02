@@ -102,10 +102,12 @@ class CatalogController extends AsyncNotifier<CatalogState> {
     }
 
     final source = _sourceFromFilter(sources, filters);
+    final sourceQuery = _sourceQuery(sources, filters);
     final page = await repository.getSourceComics(
       sourceName: source?.id,
       page: 1,
       pageSize: _catalogPageSize,
+      source: sourceQuery,
       type: _queryFor(filters.type),
       status: _queryFor(filters.status),
       genre: _queryFor(filters.genre),
@@ -167,6 +169,10 @@ class CatalogController extends AsyncNotifier<CatalogState> {
             sourceName: current.activeSource?.id,
             page: current.page + 1,
             pageSize: _catalogPageSize,
+            source: _sourceQuery(
+              await ref.read(catalogRepositoryProvider).getSources(),
+              filters,
+            ),
             type: _queryFor(filters.type),
             status: _queryFor(filters.status),
             genre: _queryFor(filters.genre),
@@ -223,15 +229,20 @@ class CatalogController extends AsyncNotifier<CatalogState> {
   String _comicKey(ComicSummary comic) =>
       '${comic.sourceName}|${comic.slug}|${comic.title}';
 
-  String? _queryFor(String option) =>
-      option == ComicFilterOption.all ? null : option.toLowerCase();
+  String? _queryFor(String option) {
+    final values = selectedFilterValues(option);
+    return values.isEmpty
+        ? null
+        : values.map((value) => value.toLowerCase()).join(',');
+  }
 
   SourceInfo? _sourceFromFilter(
     List<SourceInfo> sources,
     ComicFilterSortState filters,
   ) {
-    final selectedSource = filters.source;
-    if (selectedSource == ComicFilterOption.all) return null;
+    final selectedSources = selectedFilterValues(filters.source);
+    if (selectedSources.length != 1) return null;
+    final selectedSource = selectedSources.single;
     for (final source in sources) {
       if (source.label == selectedSource ||
           comicSourceDisplayName(source.id) == selectedSource) {
@@ -239,5 +250,21 @@ class CatalogController extends AsyncNotifier<CatalogState> {
       }
     }
     return null;
+  }
+
+  String? _sourceQuery(List<SourceInfo> sources, ComicFilterSortState filters) {
+    final selectedSources = selectedFilterValues(filters.source);
+    if (selectedSources.length <= 1) return null;
+    final ids = <String>[];
+    for (final selected in selectedSources) {
+      for (final source in sources) {
+        if (source.label == selected ||
+            comicSourceDisplayName(source.id) == selected) {
+          ids.add(source.id);
+          break;
+        }
+      }
+    }
+    return ids.isEmpty ? null : ids.join(',');
   }
 }

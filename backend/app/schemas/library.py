@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 READING_MODE = Literal["vertical", "paged"]
 READING_DIRECTION = Literal["ltr", "rtl"]
+BOOKMARK_STATUS = Literal["ongoing", "completed", "hiatus"]
 DOWNLOAD_STATUS = Literal[
     "pending",
     "downloading",
@@ -54,6 +55,12 @@ class LibraryComicRef(BaseModel):
     rating: float | None = None
     total_view: int | None = None
     has_new_chapter: bool = False
+
+
+class BookmarkStatusUpdateRequest(BaseModel):
+    """Status personal komik pada bookmark user."""
+
+    status: BOOKMARK_STATUS
 
 
 class LibraryChapterRef(BaseModel):
@@ -341,6 +348,7 @@ class LibrarySummaryCounts(BaseModel):
     """Counter ringkas untuk tab library."""
 
     bookmarks: int = Field(default=0, ge=0)
+    bookmark_status_counts: dict[str, int] = Field(default_factory=dict)
     collections: int = Field(default=0, ge=0)
     favorite_scenes: int = Field(default=0, ge=0)
     history: int = Field(default=0, ge=0)

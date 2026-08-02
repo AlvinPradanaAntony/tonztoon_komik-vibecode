@@ -584,8 +584,12 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
     return sources.first.id;
   }
 
-  String? _queryFor(String option) =>
-      option == ComicFilterOption.all ? null : option.toLowerCase();
+  String? _queryFor(String option) {
+    final values = selectedFilterValues(option);
+    return values.isEmpty
+        ? null
+        : values.map((value) => value.toLowerCase()).join(',');
+  }
 
   String? _normalizedSource(String? sourceName) {
     final value = sourceName?.trim();

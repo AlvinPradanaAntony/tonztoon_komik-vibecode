@@ -14,7 +14,7 @@ from app.api.v1.sources import (
     _apply_source_comic_sort,
     _build_source_comic_list_item,
     _latest_chapter_number_subq,
-    _normalize_query_value,
+    _normalize_query_values,
     _slugify_query_value,
 )
 from app.database import get_db
@@ -29,6 +29,7 @@ async def list_comics(
     request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    source: str | None = Query(None, description="Comma-separated source ids"),
     type: str | None = Query(None, description="Filter by type: manga/manhwa/manhua"),
     status: str | None = Query(None, description="Filter by status: ongoing/completed/hiatus"),
     genre: str | None = Query(None, description="Filter by genre name or slug"),
@@ -41,23 +42,29 @@ async def list_comics(
     """List katalog komik gabungan dari semua source."""
     base_query = select(Comic)
 
-    type_value = _normalize_query_value(type)
-    status_value = _normalize_query_value(status)
-    genre_value = _normalize_query_value(genre)
+    source_values = _normalize_query_values(source)
+    type_values = _normalize_query_values(type)
+    status_values = _normalize_query_values(status)
+    genre_values = _normalize_query_values(genre)
 
-    if type_value:
-        base_query = base_query.where(func.lower(Comic.type) == type_value)
-    if status_value:
-        base_query = base_query.where(func.lower(Comic.status) == status_value)
-    if genre_value:
-        genre_slug = _slugify_query_value(genre_value)
-        base_query = base_query.where(
-            Comic.genres.any(
-                or_(
+    if source_values:
+        base_query = base_query.where(Comic.source_name.in_(source_values))
+    if type_values:
+        base_query = base_query.where(func.lower(Comic.type).in_(type_values))
+    if status_values:
+        base_query = base_query.where(func.lower(Comic.status).in_(status_values))
+    if genre_values:
+        genre_conditions = []
+        for genre_value in genre_values:
+            genre_slug = _slugify_query_value(genre_value)
+            genre_conditions.extend(
+                [
                     func.lower(Genre.name) == genre_value,
                     func.lower(Genre.slug) == genre_slug,
-                )
+                ]
             )
+        base_query = base_query.where(
+            Comic.genres.any(or_(*genre_conditions))
         )
 
     count_stmt = select(func.count()).select_from(base_query.subquery())

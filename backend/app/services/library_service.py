@@ -20,6 +20,7 @@ from sqlalchemy import (
     literal,
     or_,
     select,
+    update,
     union_all,
     values,
 )
@@ -92,6 +93,7 @@ def build_comic_ref(
     comic: Comic,
     base_url: str | None = None,
     has_new_chapter: bool = False,
+    status_override: str | None = None,
 ) -> LibraryComicRef:
     """Bangun snapshot ringan komik untuk response library."""
     return LibraryComicRef(
@@ -104,7 +106,7 @@ def build_comic_ref(
             base_url=base_url,
         ),
         author=comic.author,
-        status=comic.status,
+        status=status_override if status_override is not None else comic.status,
         type=comic.type,
         rating=comic.rating,
         total_view=comic.total_view,
@@ -230,7 +232,12 @@ def build_bookmark_response(
     """Serialisasi bookmark ORM -> schema."""
     return BookmarkResponse(
         id=bookmark.id,
-        comic=build_comic_ref(bookmark.comic, base_url=base_url, has_new_chapter=has_new_chapter),
+        comic=build_comic_ref(
+            bookmark.comic,
+            base_url=base_url,
+            has_new_chapter=has_new_chapter,
+            status_override=bookmark.status_override,
+        ),
         linked_comics=[
             build_comic_ref(link.comic, base_url=base_url)
             for link in bookmark.__dict__.get("links", ())
@@ -462,8 +469,11 @@ async def list_bookmarks(
     *,
     page_size: int = 20,
     offset: int = 0,
+    comic_type: str | None = None,
+    comic_status: str | None = None,
+    sort: str | None = None,
 ) -> list[tuple[UserBookmark, bool]]:
-    """List bookmark user terbaru."""
+    """List bookmark user dengan filter tipe/status dan urutan terpilih."""
     progress_subq = (
         select(func.max(Chapter.chapter_number))
         .select_from(UserProgress)
@@ -501,8 +511,12 @@ async def list_bookmarks(
         .correlate(UserBookmark)
     ).label("has_new_chapter")
 
-    result = await db.execute(
+    effective_status = func.lower(
+        func.trim(func.coalesce(UserBookmark.status_override, Comic.status))
+    )
+    statement = (
         select(UserBookmark, has_new_chapter_expr)
+        .join(Comic, Comic.id == UserBookmark.comic_id)
         .options(
             defaultload(UserBookmark.comic).noload(Comic.genres),
             selectinload(UserBookmark.links).selectinload(
@@ -510,13 +524,46 @@ async def list_bookmarks(
             ).noload(Comic.genres),
         )
         .where(UserBookmark.user_id == user_id)
-        .order_by(
+    )
+
+    comic_types = [
+        value.strip().lower()
+        for value in (comic_type or "").split(",")
+        if value.strip()
+    ]
+    comic_statuses = [
+        ("completed" if value.strip().lower() == "selesai" else value.strip().lower())
+        for value in (comic_status or "").split(",")
+        if value.strip()
+    ]
+    if comic_types:
+        statement = statement.where(func.lower(func.trim(Comic.type)).in_(comic_types))
+    if comic_statuses:
+        statement = statement.where(effective_status.in_(comic_statuses))
+
+    if sort == "az":
+        order_by = (func.lower(Comic.title).asc(), UserBookmark.id.desc())
+    elif sort == "za":
+        order_by = (func.lower(Comic.title).desc(), UserBookmark.id.desc())
+    elif sort == "latest":
+        # "Update terbaru" is a new-chapter-only view.  Keep the same
+        # primary-source has_new_chapter expression used in the response so
+        # pagination never includes bookmarks without the New badge.
+        statement = statement.where(has_new_chapter_expr)
+        order_by = (
             has_new_chapter_expr.desc(),
             UserBookmark.created_at.desc(),
             UserBookmark.id.desc(),
         )
-        .limit(page_size)
-        .offset(offset)
+    else:
+        order_by = (
+            has_new_chapter_expr.desc(),
+            UserBookmark.created_at.desc(),
+            UserBookmark.id.desc(),
+        )
+
+    result = await db.execute(
+        statement.order_by(*order_by).limit(page_size).offset(offset)
     )
     return list(result.all())
 
@@ -1217,6 +1264,58 @@ async def set_bookmark(
     if bookmark is None:
         bookmark = UserBookmark(user_id=user_id, comic_id=comic.id)
         db.add(bookmark)
+    bookmark.updated_at = _utcnow()
+    await db.commit()
+    await db.refresh(bookmark)
+    return bookmark
+
+
+async def set_bookmark_status(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    source_name: str,
+    comic_slug: str,
+    status: str,
+    *,
+    global_scope: bool = False,
+) -> UserBookmark:
+    """Set status bookmark personal, atau status komik global untuk admin."""
+    comic = await resolve_comic_or_raise(db, source_name, comic_slug)
+    bookmark = (
+        await db.execute(
+            select(UserBookmark)
+            .options(selectinload(UserBookmark.links).selectinload(UserBookmarkLink.comic))
+            .where(
+                UserBookmark.user_id == user_id,
+                UserBookmark.comic_id == comic.id,
+            )
+        )
+    ).scalars().first()
+    if bookmark is None:
+        raise LookupError("Bookmark tidak ditemukan.")
+
+    if global_scope:
+        # A global admin status follows the complete multi-source bookmark group.
+        group_comic_ids = {
+            comic.id,
+            *(link.comic_id for link in bookmark.links),
+        }
+        await db.execute(
+            update(Comic)
+            .where(Comic.id.in_(group_comic_ids))
+            .values(status=status, updated_at=_utcnow())
+        )
+        await db.execute(
+            update(UserBookmark)
+            .where(UserBookmark.comic_id.in_(group_comic_ids))
+            .values(status_override=None, updated_at=_utcnow())
+        )
+        comic.status = status
+        for link in bookmark.links:
+            link.comic.status = status
+        bookmark.status_override = None
+    else:
+        bookmark.status_override = status
     bookmark.updated_at = _utcnow()
     await db.commit()
     await db.refresh(bookmark)
@@ -2092,6 +2191,23 @@ async def _get_library_summary_counts(
         )
     )
     counts = {row.key: row.total for row in result.all()}
+    status_expression = func.lower(
+        func.trim(func.coalesce(UserBookmark.status_override, Comic.status))
+    )
+    status_result = await db.execute(
+        select(status_expression, func.count(UserBookmark.id))
+        .join(Comic, Comic.id == UserBookmark.comic_id)
+        .where(
+            UserBookmark.user_id == user_id,
+            func.coalesce(UserBookmark.status_override, Comic.status).is_not(None),
+        )
+        .group_by(status_expression)
+    )
+    counts["bookmark_status_counts"] = {
+        status: total
+        for status, total in status_result.all()
+        if status
+    }
     return LibrarySummaryCounts(**counts)
 
 
@@ -2258,11 +2374,21 @@ async def get_library_state_for_comic(
     completed_chapter_numbers = [float(number) for number in completed_rows.scalars().all()]
 
     return LibraryComicStateResponse(
-        comic=build_comic_ref(comic, base_url=base_url),
+        comic=build_comic_ref(
+            comic,
+            base_url=base_url,
+            status_override=direct_bookmark.status_override
+            if direct_bookmark is not None
+            else None,
+        ),
         bookmarked=bookmark is not None,
         bookmark_relation=bookmark_relation,
         bookmark_origin=(
-            build_comic_ref(bookmark.comic, base_url=base_url)
+            build_comic_ref(
+                bookmark.comic,
+                base_url=base_url,
+                status_override=bookmark.status_override,
+            )
             if bookmark is not None
             else None
         ),

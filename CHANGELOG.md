@@ -6,6 +6,23 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
+## [1.22.0] - 2026-08-02
+
+### Added
+- Filter dan sorting bookmark pada Library, termasuk filter tipe/status, urutan terbaru, A-Z, dan Z-A.
+- Mode tampilan grid atau daftar untuk bookmark Library, lengkap dengan ringkasan jumlah bookmark berdasarkan status.
+- Dukungan multi-select filter sumber, tipe, status, dan genre pada katalog serta halaman section komik.
+- Pengubahan status bookmark menjadi **ongoing**, **selesai**, atau **hiatus** melalui alur Library.
+- Endpoint API untuk filter bookmark dan pembaruan status bookmark, beserta migrasi `status_override` per pengguna.
+
+### Changed
+- Bookmark dengan chapter baru tetap diprioritaskan dan kini dapat difilter khusus sebagai update terbaru.
+- Status bookmark pengguna dapat menggunakan override tanpa mengubah status komik global.
+- Saat scraper menemukan chapter baru, status komik dan bookmark terkait dalam grup multi-source otomatis dikembalikan menjadi ongoing.
+- Kontrak API dan provider frontend diperbarui untuk mendukung query multi-nilai dan status bookmark efektif.
+
+---
+
 ## [1.21.4] - 2026-07-14
 
 ### Changed

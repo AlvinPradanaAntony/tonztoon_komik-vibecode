@@ -220,6 +220,14 @@ def _normalize_query_value(value: str | None) -> str | None:
     return normalized or None
 
 
+def _normalize_query_values(value: str | None) -> list[str]:
+    return [
+        item
+        for item in (_normalize_query_value(part) for part in (value or "").split(","))
+        if item
+    ]
+
+
 def _slugify_query_value(value: str) -> str:
     return "-".join(value.replace("_", " ").split())
 
@@ -307,23 +315,26 @@ def _apply_source_comic_filters(
     status: str | None = None,
     genre: str | None = None,
 ):
-    type_value = _normalize_query_value(type)
-    status_value = _normalize_query_value(status)
-    genre_value = _normalize_query_value(genre)
+    type_values = _normalize_query_values(type)
+    status_values = _normalize_query_values(status)
+    genre_values = _normalize_query_values(genre)
 
-    if type_value:
-        base_query = base_query.where(func.lower(Comic.type) == type_value)
-    if status_value:
-        base_query = base_query.where(func.lower(Comic.status) == status_value)
-    if genre_value:
-        genre_slug = _slugify_query_value(genre_value)
-        base_query = base_query.where(
-            Comic.genres.any(
-                or_(
+    if type_values:
+        base_query = base_query.where(func.lower(Comic.type).in_(type_values))
+    if status_values:
+        base_query = base_query.where(func.lower(Comic.status).in_(status_values))
+    if genre_values:
+        genre_conditions = []
+        for genre_value in genre_values:
+            genre_slug = _slugify_query_value(genre_value)
+            genre_conditions.extend(
+                [
                     func.lower(Genre.name) == genre_value,
                     func.lower(Genre.slug) == genre_slug,
-                )
+                ]
             )
+        base_query = base_query.where(
+            Comic.genres.any(or_(*genre_conditions))
         )
     return base_query
 
@@ -647,10 +658,10 @@ async def get_source_top_ranking_comics(
 ):
     """Top ranking komik dari total view tertinggi pada satu source."""
     source = _get_source_or_404(source_name)
-    type_value = _normalize_query_value(type)
+    type_values = _normalize_query_values(type)
     filters = [Comic.source_name == source["id"], Comic.total_view.is_not(None)]
-    if type_value:
-        filters.append(func.lower(Comic.type) == type_value)
+    if type_values:
+        filters.append(func.lower(Comic.type).in_(type_values))
 
     stmt = (
         select(

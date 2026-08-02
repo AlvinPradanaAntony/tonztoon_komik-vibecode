@@ -252,7 +252,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ),
               ),
             ),
-            const SliverToBoxAdapter(child: SizedBox(height: _searchBottomPadding)),
+            const SliverToBoxAdapter(
+              child: SizedBox(height: _searchBottomPadding),
+            ),
           ],
         );
       },
@@ -316,15 +318,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   bool _matchesFilters(_SearchComicUi comic, ComicFilterSortState filters) {
+    final selectedGenres = selectedFilterValues(filters.genre);
     final genreMatches =
-        filters.genre == ComicFilterOption.all ||
-        comic.genres.any((genre) => genre == filters.genre);
+        selectedGenres.isEmpty ||
+        selectedGenres.any((selected) => comic.genres.contains(selected));
 
-    return (filters.source == ComicFilterOption.all ||
-            comic.source == filters.source) &&
-        (filters.type == ComicFilterOption.all || comic.type == filters.type) &&
-        (filters.status == ComicFilterOption.all ||
-            comic.status == filters.status) &&
+    return filterSelectionMatches(filters.source, comic.source) &&
+        filterSelectionMatches(filters.type, comic.type) &&
+        filterSelectionMatches(filters.status, comic.status) &&
         genreMatches;
   }
 

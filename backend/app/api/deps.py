@@ -17,6 +17,31 @@ from app.services.auth_service import AuthValidationError, validate_supabase_jwt
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
+def is_admin_auth_user(auth_user: AuthenticatedUser) -> bool:
+    """Return whether an authenticated user has the application admin role."""
+    allowed_admin_ids = {
+        value.strip()
+        for value in (settings.ADMIN_USER_IDS or "").split(",")
+        if value.strip()
+    }
+    if str(auth_user.user_id) in allowed_admin_ids:
+        return True
+
+    role_values = {auth_user.role}
+    claims = auth_user.raw_claims or {}
+    for metadata_key in ("app_metadata", "user_metadata"):
+        metadata = claims.get(metadata_key) or {}
+        role_values.update(
+            metadata.get(key)
+            for key in ("role", "account_role", "admin_role")
+        )
+    return any(
+        str(value).strip().lower() in {"admin", "owner", "superadmin"}
+        for value in role_values
+        if value
+    )
+
+
 async def get_current_auth_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     x_user_id: UUID | None = Header(default=None, alias="X-User-Id"),

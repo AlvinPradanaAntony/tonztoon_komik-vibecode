@@ -1,7 +1,23 @@
 part of '../library_screen.dart';
 
+String _bookmarkStatusLabel(String status) => switch (status) {
+  'ongoing' => 'Ongoing',
+  'completed' => 'Selesai',
+  'hiatus' => 'Hiatus',
+  _ => status,
+};
+
+IconData _bookmarkStatusIcon(String status) => switch (status) {
+  'ongoing' => TonztoonIcons.clock,
+  'completed' => TonztoonIcons.badgeCheck,
+  'hiatus' => TonztoonIcons.circleDotDashed,
+  _ => TonztoonIcons.bookmark,
+};
+
 class _BookmarksTab extends ConsumerStatefulWidget {
-  const _BookmarksTab();
+  const _BookmarksTab({required this.isGrid});
+
+  final bool isGrid;
 
   @override
   ConsumerState<_BookmarksTab> createState() => _BookmarksTabState();
@@ -33,13 +49,18 @@ class _BookmarksTabState extends ConsumerState<_BookmarksTab>
     final bookmarksAsync = ref.watch(paginatedBookmarksProvider);
     final bookmarkPage = bookmarksAsync.asData?.value;
     final bookmarks = bookmarkPage?.items ?? const <LibraryComicRef>[];
+    final bookmarkOptions = ref.watch(bookmarkBrowseOptionsProvider);
     final summaryAsync = ref.watch(librarySummaryProvider);
     final downloadsCount =
         ref.watch(downloadsProvider).asData?.value.length ?? 0;
 
     final totalBookmarks =
         summaryAsync.asData?.value.counts.bookmarks ?? bookmarks.length;
-    final trailing = totalBookmarks > bookmarks.length
+    final bookmarkStatusCounts =
+        summaryAsync.asData?.value.counts.bookmarkStatusCounts;
+    final trailing = bookmarkOptions.hasActiveBookmarkControls
+        ? '${bookmarks.length}${bookmarkPage?.hasNextPage == true ? '+' : ''} hasil'
+        : totalBookmarks > bookmarks.length
         ? '${bookmarks.length} dari $totalBookmarks item'
         : '$totalBookmarks item';
     final isInitialLoading =
@@ -76,6 +97,8 @@ class _BookmarksTabState extends ConsumerState<_BookmarksTab>
                           delegate: SliverChildListDelegate.fixed([
                             _LibraryHero(
                               bookmarks: bookmarks,
+                              bookmarkStatusCounts:
+                                  bookmarkStatusCounts ?? const <String, int>{},
                               downloadsCount: downloadsCount,
                               totalBookmarks: totalBookmarks,
                             ),
@@ -105,27 +128,32 @@ class _BookmarksTabState extends ConsumerState<_BookmarksTab>
                         ),
                       ),
                       if (bookmarks.isEmpty)
-                        const SliverFillRemaining(
+                        SliverFillRemaining(
                           hasScrollBody: false,
                           child: _EmptyState(
                             icon: TonztoonIcons.bookmark,
-                            title: 'Belum ada bookmark',
-                            message:
-                                'Simpan komik dari halaman detail untuk menaruhnya di sini.',
+                            title: bookmarkOptions.hasActiveBookmarkControls
+                                ? 'Tidak ada bookmark yang cocok'
+                                : 'Belum ada bookmark',
+                            message: bookmarkOptions.hasActiveBookmarkControls
+                                ? 'Coba ubah atau reset filter bookmark.'
+                                : 'Simpan komik dari halaman detail untuk menaruhnya di sini.',
                           ),
                         )
                       else
                         SliverPadding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
-                          sliver: SliverList.separated(
-                            itemBuilder: (context, index) => _BookmarkTile(
-                              comic: bookmarks[index],
-                              onRemove: _removeBookmark,
-                            ),
-                            separatorBuilder: (context, index) =>
-                                const SizedBox(height: 12),
-                            itemCount: bookmarks.length,
-                          ),
+                          sliver: widget.isGrid
+                              ? _BookmarkGrid(
+                                  bookmarks: bookmarks,
+                                  onRemove: _removeBookmark,
+                                  onChangeStatus: _showBookmarkStatusPicker,
+                                )
+                              : _BookmarkList(
+                                  bookmarks: bookmarks,
+                                  onRemove: _removeBookmark,
+                                  onChangeStatus: _showBookmarkStatusPicker,
+                                ),
                         ),
                       if (bookmarkPage?.isLoadingMore == true)
                         const SliverPadding(
@@ -206,6 +234,97 @@ class _BookmarksTabState extends ConsumerState<_BookmarksTab>
       ref.invalidate(bookmarksProvider);
       ref.invalidate(librarySummaryProvider);
       if (mounted) _showMessage(context, 'Bookmark dihapus.');
+    } catch (error, stackTrace) {
+      if (mounted) showLibraryActionError(context, error, stackTrace);
+    } finally {
+      if (mounted) setState(() => _isBookmarkActionLoading = false);
+    }
+  }
+
+  Future<void> _showBookmarkStatusPicker(ComicSummary comic) async {
+    final selectedStatus = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Ubah status komik',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  comic.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 12),
+                for (final status in const ['ongoing', 'completed', 'hiatus'])
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(_bookmarkStatusIcon(status)),
+                    title: Text(_bookmarkStatusLabel(status)),
+                    trailing: comic.status?.trim().toLowerCase() == status
+                        ? const Icon(TonztoonIcons.check)
+                        : null,
+                    onTap: () => Navigator.of(context).pop(status),
+                  ),
+                const SizedBox(height: 4),
+                Text(
+                  'Saat source menemukan chapter baru, status otomatis kembali ke Ongoing.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (selectedStatus == null ||
+        comic.status?.trim().toLowerCase() == selectedStatus) {
+      return;
+    }
+
+    await _updateBookmarkStatus(comic, selectedStatus);
+  }
+
+  Future<void> _updateBookmarkStatus(ComicSummary comic, String status) async {
+    if (_isBookmarkActionLoading) return;
+    setState(() => _isBookmarkActionLoading = true);
+    try {
+      await ref
+          .read(libraryRepositoryProvider)
+          .updateBookmarkStatus(comic, status);
+      // Patch the visible item in-place so the current page and scroll offset
+      // stay intact while the server-backed providers refresh in the background.
+      final pagination = ref.read(paginatedBookmarksProvider.notifier);
+      final filters = ref.read(bookmarkBrowseOptionsProvider);
+      if (filters.bookmarkStatusQuery != null &&
+          filters.bookmarkStatusQuery != status) {
+        pagination.removeItemByKey('${comic.sourceName}|${comic.slug}');
+      } else {
+        pagination.updateItems(
+          (item) =>
+              item.sourceName == comic.sourceName && item.slug == comic.slug,
+          (item) => item.copyWith(status: status),
+        );
+      }
+      ref.invalidate(bookmarksProvider);
+      ref.invalidate(librarySummaryProvider);
+      ref.invalidate(libraryComicStateProvider(comic));
+      if (mounted) {
+        _showMessage(
+          context,
+          'Status ${comic.title} diubah menjadi ${_bookmarkStatusLabel(status)}.',
+        );
+      }
     } catch (error, stackTrace) {
       if (mounted) showLibraryActionError(context, error, stackTrace);
     } finally {

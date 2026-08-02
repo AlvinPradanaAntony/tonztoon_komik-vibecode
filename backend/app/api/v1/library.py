@@ -14,10 +14,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user_id
+from app.api.deps import get_current_auth_user, get_current_user_id, is_admin_auth_user
 from app.database import get_db
 from app.schemas import (
+    AuthenticatedUser,
     BookmarkResponse,
+    BookmarkStatusUpdateRequest,
     BookmarkLinkBatchRequest,
     BookmarkLinkBatchResponse,
     BookmarkLinkCandidatePage,
@@ -82,6 +84,7 @@ from app.services.library_service import (
     remove_comic_from_collection,
     rename_collection,
     set_bookmark,
+    set_bookmark_status,
     set_bookmark_links,
     synchronize_completed_link_batch,
     update_reader_preferences,
@@ -220,6 +223,9 @@ async def get_bookmarks(
     request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    comic_type: str | None = Query(default=None, alias="type"),
+    comic_status: str | None = Query(default=None, alias="status"),
+    sort: Literal["latest", "az", "za"] | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
 ):
@@ -229,6 +235,9 @@ async def get_bookmarks(
         user_id,
         page_size=page_size,
         offset=(page - 1) * page_size,
+        comic_type=comic_type,
+        comic_status=comic_status,
+        sort=sort,
     )
     base_url = _get_request_base_url(request)
     return [build_bookmark_response(item, has_new_chapter=hnc, base_url=base_url) for item, hnc in items]
@@ -248,6 +257,34 @@ async def put_bookmark(
     """Toggle on / upsert bookmark komik."""
     try:
         bookmark = await set_bookmark(db, user_id, source_name, comic_slug)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return build_bookmark_response(bookmark, base_url=_get_request_base_url(request))
+
+
+@router.patch(
+    "/bookmarks/{source_name}/comics/{comic_slug}/status",
+    response_model=BookmarkResponse,
+)
+async def patch_bookmark_status(
+    request: Request,
+    source_name: str,
+    comic_slug: str,
+    payload: BookmarkStatusUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    auth_user: AuthenticatedUser = Depends(get_current_auth_user),
+):
+    """Ubah status bookmark; admin mengubah status komik secara global."""
+    user_id = auth_user.user_id
+    try:
+        bookmark = await set_bookmark_status(
+            db,
+            user_id,
+            source_name,
+            comic_slug,
+            payload.status,
+            global_scope=is_admin_auth_user(auth_user),
+        )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return build_bookmark_response(bookmark, base_url=_get_request_base_url(request))

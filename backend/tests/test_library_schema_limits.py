@@ -2,8 +2,11 @@ import unittest
 
 from pydantic import ValidationError
 
+from app.api.deps import is_admin_auth_user
+from app.schemas.auth import AuthenticatedUser
 from app.schemas.library import (
     BookmarkLinkCompletionSyncRequest,
+    BookmarkStatusUpdateRequest,
     DownloadBatchRequest,
     LibrarySyncImportRequest,
     ReaderPreferenceUpdateRequest,
@@ -19,6 +22,27 @@ def progress(index: int) -> dict:
 
 
 class LibrarySchemaLimitTests(unittest.TestCase):
+    def test_admin_role_is_resolved_from_auth_claims(self):
+        admin = AuthenticatedUser(
+            user_id="00000000-0000-0000-0000-000000000001",
+            raw_claims={"app_metadata": {"account_role": "admin"}},
+        )
+        reader = AuthenticatedUser(
+            user_id="00000000-0000-0000-0000-000000000002",
+            role="reader",
+        )
+
+        self.assertTrue(is_admin_auth_user(admin))
+        self.assertFalse(is_admin_auth_user(reader))
+
+    def test_bookmark_status_only_accepts_supported_values(self):
+        self.assertEqual(
+            BookmarkStatusUpdateRequest(status="hiatus").status,
+            "hiatus",
+        )
+        with self.assertRaises(ValidationError):
+            BookmarkStatusUpdateRequest(status="dropped")
+
     def test_bookmark_links_count_toward_import_total(self):
         payload = {
             "bookmarks": [

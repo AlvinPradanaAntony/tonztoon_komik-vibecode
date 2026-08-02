@@ -1,10 +1,170 @@
 part of '../library_screen.dart';
 
-class _BookmarkTile extends StatelessWidget {
-  const _BookmarkTile({required this.comic, required this.onRemove});
+class _BookmarkGrid extends StatelessWidget {
+  const _BookmarkGrid({
+    required this.bookmarks,
+    required this.onRemove,
+    required this.onChangeStatus,
+  });
+
+  final List<LibraryComicRef> bookmarks;
+  final Future<void> Function(ComicSummary comic) onRemove;
+  final Future<void> Function(ComicSummary comic) onChangeStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSliverColumnGrid<LibraryComicRef>(
+      key: const ValueKey('bookmark-grid'),
+      items: bookmarks,
+      minColumnWidth: 98,
+      maxColumnCount: 6,
+      itemBuilder: (context, bookmark) => _BookmarkGridCard(
+        comic: bookmark,
+        onRemove: onRemove,
+        onChangeStatus: onChangeStatus,
+      ),
+    );
+  }
+}
+
+class _BookmarkList extends StatelessWidget {
+  const _BookmarkList({
+    required this.bookmarks,
+    required this.onRemove,
+    required this.onChangeStatus,
+  });
+
+  final List<LibraryComicRef> bookmarks;
+  final Future<void> Function(ComicSummary comic) onRemove;
+  final Future<void> Function(ComicSummary comic) onChangeStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverList.separated(
+      key: const ValueKey('bookmark-list'),
+      itemBuilder: (context, index) => _BookmarkTile(
+        comic: bookmarks[index],
+        onRemove: onRemove,
+        onChangeStatus: onChangeStatus,
+      ),
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      itemCount: bookmarks.length,
+    );
+  }
+}
+
+class _BookmarkGridCard extends StatelessWidget {
+  const _BookmarkGridCard({
+    required this.comic,
+    required this.onRemove,
+    required this.onChangeStatus,
+  });
 
   final LibraryComicRef comic;
   final Future<void> Function(ComicSummary comic) onRemove;
+  final Future<void> Function(ComicSummary comic) onChangeStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    final summary = comic.toSummary();
+    return Stack(
+      children: [
+        ComicCard(
+          comic: summary,
+          width: double.infinity,
+          hasNewChapter: comic.hasNewChapter,
+          onTap: () => _openComicDetail(context, summary),
+          onLongPress: () => _showBookmarkGridActions(
+            context,
+            summary,
+            onRemove: onRemove,
+            onChangeStatus: onChangeStatus,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+Future<void> _showBookmarkGridActions(
+  BuildContext context,
+  ComicSummary comic, {
+  required Future<void> Function(ComicSummary comic) onRemove,
+  required Future<void> Function(ComicSummary comic) onChangeStatus,
+}) async {
+  final renderBox = context.findRenderObject() as RenderBox?;
+  if (renderBox == null || !renderBox.hasSize) return;
+
+  final offset = renderBox.localToGlobal(Offset.zero);
+  final action = await showMenu<String>(
+    context: context,
+    position: RelativeRect.fromLTRB(
+      offset.dx + 8,
+      offset.dy + 42,
+      offset.dx + renderBox.size.width - 8,
+      offset.dy + renderBox.size.height - 8,
+    ),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    items: [
+      const PopupMenuItem(
+        value: 'open',
+        child: _BookmarkMenuItem(
+          icon: TonztoonIcons.bookOpen,
+          label: 'Buka detail',
+        ),
+      ),
+      const PopupMenuItem(
+        value: 'status',
+        child: _BookmarkMenuItem(
+          icon: TonztoonIcons.pencil,
+          label: 'Ubah status',
+        ),
+      ),
+      const PopupMenuItem(
+        value: 'remove',
+        child: _BookmarkMenuItem(
+          icon: TonztoonIcons.trash,
+          label: 'Hapus bookmark',
+        ),
+      ),
+    ],
+  );
+
+  if (!context.mounted || action == null) return;
+  switch (action) {
+    case 'open':
+      _openComicDetail(context, comic);
+    case 'status':
+      await onChangeStatus(comic);
+    case 'remove':
+      await onRemove(comic);
+  }
+}
+
+class _BookmarkMenuItem extends StatelessWidget {
+  const _BookmarkMenuItem({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [Icon(icon, size: 19), const SizedBox(width: 12), Text(label)],
+    );
+  }
+}
+
+class _BookmarkTile extends StatelessWidget {
+  const _BookmarkTile({
+    required this.comic,
+    required this.onRemove,
+    required this.onChangeStatus,
+  });
+
+  final LibraryComicRef comic;
+  final Future<void> Function(ComicSummary comic) onRemove;
+  final Future<void> Function(ComicSummary comic) onChangeStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -80,24 +240,49 @@ class _BookmarkTile extends StatelessWidget {
               ),
             ),
           ),
-          PopupMenuButton<String>(
-            tooltip: 'Opsi bookmark',
-            icon: const Icon(TonztoonIcons.moreHoriz),
-            onSelected: (value) async {
-              if (value == 'open') {
-                _openComicDetail(context, summary);
-              }
-              if (value == 'remove') {
-                await onRemove(summary);
-              }
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'open', child: Text('Buka detail')),
-              PopupMenuItem(value: 'remove', child: Text('Hapus bookmark')),
-            ],
+          _BookmarkActionsMenu(
+            comic: summary,
+            onOpen: () => _openComicDetail(context, summary),
+            onRemove: () => onRemove(summary),
+            onChangeStatus: onChangeStatus,
           ),
         ],
       ),
+    );
+  }
+}
+
+class _BookmarkActionsMenu extends StatelessWidget {
+  const _BookmarkActionsMenu({
+    required this.comic,
+    required this.onChangeStatus,
+    this.onOpen,
+    this.onRemove,
+  });
+
+  final ComicSummary comic;
+  final VoidCallback? onOpen;
+  final Future<void> Function()? onRemove;
+  final Future<void> Function(ComicSummary comic) onChangeStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      tooltip: 'Opsi bookmark',
+      icon: const Icon(TonztoonIcons.moreHoriz),
+      padding: const EdgeInsets.all(8),
+      onSelected: (value) async {
+        if (value == 'open') onOpen?.call();
+        if (value == 'status') await onChangeStatus(comic);
+        if (value == 'remove') await onRemove?.call();
+      },
+      itemBuilder: (context) => [
+        if (onOpen != null)
+          const PopupMenuItem(value: 'open', child: Text('Buka detail')),
+        const PopupMenuItem(value: 'status', child: Text('Ubah status')),
+        if (onRemove != null)
+          const PopupMenuItem(value: 'remove', child: Text('Hapus bookmark')),
+      ],
     );
   }
 }

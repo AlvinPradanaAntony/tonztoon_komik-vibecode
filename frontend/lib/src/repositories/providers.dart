@@ -20,6 +20,7 @@ import '../models/library.dart';
 import '../models/progress.dart';
 import '../models/push_notification_preferences.dart';
 import '../models/source_info.dart';
+import '../widgets/comic_filter_sort_sheet.dart';
 import 'auth_repository.dart';
 import 'catalog_repository.dart';
 import 'library_repository.dart';
@@ -115,20 +116,17 @@ final progressRepositoryProvider = Provider<ProgressRepository>((ref) {
       ref.read(paginatedHistoryProvider.notifier).upsertItemAtTop(progress);
       ref.read(continueReadingRefreshSignalProvider.notifier).bump();
       if (progress.isCompleted) {
-        ref.read(paginatedBookmarksProvider.notifier).updateItems(
-          (item) {
-            if (item.sourceName == progress.sourceName &&
-                item.slug == progress.comicSlug) {
-              return true;
-            }
-            return item.linkedComics.any(
-              (linked) =>
-                  linked.sourceName == progress.sourceName &&
-                  linked.slug == progress.comicSlug,
-            );
-          },
-          (item) => item.copyWith(hasNewChapter: false),
-        );
+        ref.read(paginatedBookmarksProvider.notifier).updateItems((item) {
+          if (item.sourceName == progress.sourceName &&
+              item.slug == progress.comicSlug) {
+            return true;
+          }
+          return item.linkedComics.any(
+            (linked) =>
+                linked.sourceName == progress.sourceName &&
+                linked.slug == progress.comicSlug,
+          );
+        }, (item) => item.copyWith(hasNewChapter: false));
       }
     },
   );

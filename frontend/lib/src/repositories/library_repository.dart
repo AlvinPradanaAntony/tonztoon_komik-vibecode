@@ -174,11 +174,21 @@ class LibraryRepository {
   Future<List<LibraryComicRef>> getBookmarksPage({
     required int page,
     required int pageSize,
+    String? type,
+    String? status,
+    String? sort,
   }) async {
     if (await _isLoggedIn) {
+      final queryParameters = <String, dynamic>{
+        'page': page,
+        'page_size': pageSize,
+        ...?sort == null ? null : {'sort': sort},
+        ...?type == null ? null : {'type': type},
+        ...?status == null ? null : {'status': status},
+      };
       final response = await _api.get<List<dynamic>>(
         '/library/bookmarks',
-        queryParameters: {'page': page, 'page_size': pageSize},
+        queryParameters: queryParameters,
       );
       return (response.data ?? const []).whereType<Map>().map((json) {
         final comicRaw = json['comic'];
@@ -193,13 +203,26 @@ class LibraryRepository {
     }
     final start = (page - 1) * pageSize;
     final links = _localBookmarkLinks();
-    
-    final localBookmarks = _localBookmarks().values.toList().reversed.toList();
-    localBookmarks.sort((a, b) {
-      if (a.hasNewChapter && !b.hasNewChapter) return -1;
-      if (!a.hasNewChapter && b.hasNewChapter) return 1;
-      return 0;
-    });
+
+    final localBookmarks = _localBookmarks().values
+        .where((bookmark) {
+          final typeMatches =
+              type == null || bookmark.type?.toLowerCase() == type;
+          final statusMatches =
+              status == null || bookmark.status?.toLowerCase() == status;
+          final newChapterMatches = sort != 'latest' || bookmark.hasNewChapter;
+          return typeMatches && statusMatches && newChapterMatches;
+        })
+        .toList()
+        .reversed
+        .toList();
+    localBookmarks.sort(
+      (a, b) => switch (sort) {
+        'az' => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+        'za' => b.title.toLowerCase().compareTo(a.title.toLowerCase()),
+        _ => _compareBookmarksByLatestUpdate(a, b),
+      },
+    );
 
     return localBookmarks.skip(start).take(pageSize).map((bookmark) {
       return LibraryComicRef.fromJson({
@@ -212,15 +235,33 @@ class LibraryRepository {
     }).toList();
   }
 
+  int _compareBookmarksByLatestUpdate(
+    LibraryComicRef first,
+    LibraryComicRef second,
+  ) {
+    if (first.hasNewChapter && !second.hasNewChapter) return -1;
+    if (!first.hasNewChapter && second.hasNewChapter) return 1;
+    return 0;
+  }
+
   Future<LibrarySummary> getLibrarySummary() async {
     if (await _isLoggedIn) {
       final response = await _api.get<Map<String, dynamic>>('/library/summary');
       return LibrarySummary.fromJson(response.data ?? const {});
     }
 
+    final localBookmarks = _localBookmarks();
+    final bookmarkStatusCounts = <String, int>{};
+    for (final bookmark in localBookmarks.values) {
+      final status = bookmark.status?.trim().toLowerCase();
+      if (status == null || status.isEmpty) continue;
+      bookmarkStatusCounts[status] = (bookmarkStatusCounts[status] ?? 0) + 1;
+    }
+
     return LibrarySummary(
       counts: LibrarySummaryCounts(
-        bookmarks: _localBookmarks().length,
+        bookmarks: localBookmarks.length,
+        bookmarkStatusCounts: bookmarkStatusCounts,
         collections: _localCollections().length,
         favoriteScenes: _localFavoriteScenes().length,
         history: _localHistory().length,
@@ -263,6 +304,22 @@ class LibraryRepository {
     await _store.library.put('bookmarks', _encodeComicRefMap(bookmarks));
     _resetBookmarkCandidateScan();
     return true;
+  }
+
+  Future<void> updateBookmarkStatus(ComicSummary comic, String status) async {
+    if (await _isLoggedIn) {
+      await _api.patch<void>(
+        '/library/bookmarks/${comic.sourceName}/comics/${comic.slug}/status',
+        data: {'status': status},
+      );
+      return;
+    }
+
+    final bookmarks = _localBookmarks();
+    final bookmark = bookmarks[comic.key];
+    if (bookmark == null) throw StateError('Bookmark tidak ditemukan.');
+    bookmarks[comic.key] = bookmark.copyWith(status: status);
+    await _store.library.put('bookmarks', _encodeComicRefMap(bookmarks));
   }
 
   void _resetBookmarkCandidateScan() {
