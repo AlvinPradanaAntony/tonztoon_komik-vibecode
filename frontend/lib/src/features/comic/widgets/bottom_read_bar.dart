@@ -7,6 +7,7 @@ class _BottomReadBar extends StatelessWidget {
     required this.progress,
     required this.completedChapterNumbers,
     required this.downloadState,
+    required this.hasCollections,
     required this.downloadBusy,
     required this.collectionBusy,
     required this.onDownload,
@@ -19,6 +20,7 @@ class _BottomReadBar extends StatelessWidget {
   final ReadingProgress? progress;
   final Set<double> completedChapterNumbers;
   final _ComicDownloadState downloadState;
+  final bool hasCollections;
   final bool downloadBusy;
   final bool collectionBusy;
   final VoidCallback? onDownload;
@@ -98,7 +100,11 @@ class _BottomReadBar extends StatelessWidget {
                                   strokeWidth: 2,
                                 ),
                               )
-                            : Icon(downloadState.icon),
+                            : Badge(
+                                isLabelVisible: downloadState.hasActivity,
+                                smallSize: 8,
+                                child: Icon(downloadState.icon),
+                              ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -132,7 +138,11 @@ class _BottomReadBar extends StatelessWidget {
                                   strokeWidth: 2,
                                 ),
                               )
-                            : const Icon(TonztoonIcons.library),
+                            : Badge(
+                                isLabelVisible: hasCollections,
+                                smallSize: 8,
+                                child: const Icon(TonztoonIcons.library),
+                              ),
                       ),
                     ],
                   ),

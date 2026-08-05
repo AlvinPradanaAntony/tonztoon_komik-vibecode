@@ -223,6 +223,21 @@ class CollectionUpdateRequest(CollectionCreateRequest):
     """Payload rename collection."""
 
 
+class ComicCollectionsUpdateRequest(BaseModel):
+    """Set koleksi tujuan untuk satu komik dalam satu mutasi atomik."""
+
+    collection_ids: list[int] = Field(default_factory=list, max_length=100)
+
+    @field_validator("collection_ids")
+    @classmethod
+    def validate_collection_ids(cls, value: list[int]) -> list[int]:
+        if any(collection_id <= 0 for collection_id in value):
+            raise ValueError("Collection id harus bernilai positif.")
+        if len(set(value)) != len(value):
+            raise ValueError("Collection id tidak boleh duplikat.")
+        return value
+
+
 class CollectionSummaryResponse(BaseModel):
     """Ringkasan collection untuk picker / checklist."""
 

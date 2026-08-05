@@ -22,6 +22,7 @@ from app.services.library_service import (
     import_library_snapshot,
     list_bookmarks,
     list_bookmark_link_candidates,
+    set_comic_collections,
     set_bookmark_links,
     set_bookmark_status,
     synchronize_completed_link_batch,
@@ -49,6 +50,13 @@ class FakeResult:
         value = rows[0]
         return value[0] if isinstance(value, tuple) else value
 
+    def scalar_one_or_none(self):
+        rows = self.scalar_rows if self.scalar_rows else self.rows
+        if not rows:
+            return None
+        value = rows[0]
+        return value[0] if isinstance(value, tuple) else value
+
 
 class FakeTransaction:
     def __init__(self, db):
@@ -66,6 +74,7 @@ class FakeSession:
         self.results = list(results or [])
         self.statements = []
         self.commit_count = 0
+        self.refresh_count = 0
         self.rolled_back = False
 
     async def execute(self, statement):
@@ -76,6 +85,7 @@ class FakeSession:
         self.commit_count += 1
 
     async def refresh(self, instance):
+        self.refresh_count += 1
         return None
 
     def begin(self):
@@ -109,6 +119,38 @@ def chapters(total: int):
 
 
 class LibraryServiceBehaviorTests(unittest.IsolatedAsyncioTestCase):
+    async def test_set_comic_collections_uses_bulk_writes_and_one_commit(self):
+        db = FakeSession(
+            [
+                FakeResult(scalar_rows=[1, 2]),
+                FakeResult(scalar_rows=[1]),
+                FakeResult(),
+                FakeResult(),
+            ]
+        )
+
+        with patch(
+            "app.services.library_service.resolve_comic_or_raise",
+            return_value=comic(),
+        ):
+            await set_comic_collections(
+                db,
+                uuid4(),
+                "source",
+                "comic",
+                {1, 2},
+            )
+
+        self.assertEqual(db.commit_count, 1)
+        self.assertEqual(len(db.statements), 4)
+        compiled = [
+            str(statement.compile(dialect=postgresql.dialect()))
+            for statement in db.statements
+        ]
+        self.assertIn("ON CONFLICT (collection_id, comic_id) DO NOTHING", compiled[2])
+        self.assertIn("UPDATE user_collections", compiled[3])
+        self.assertNotIn("JOIN comics", "\n".join(compiled))
+
     async def test_bookmark_response_uses_personal_status_override(self):
         now = datetime(2026, 8, 2, tzinfo=timezone.utc)
         bookmark = SimpleNamespace(
@@ -142,7 +184,7 @@ class LibraryServiceBehaviorTests(unittest.IsolatedAsyncioTestCase):
             "app.services.library_service.resolve_comic_or_raise",
             return_value=comic_row,
         ):
-            result = await set_bookmark_status(
+            await set_bookmark_status(
                 db,
                 uuid4(),
                 "source",
@@ -151,11 +193,11 @@ class LibraryServiceBehaviorTests(unittest.IsolatedAsyncioTestCase):
                 global_scope=True,
             )
 
-        self.assertIs(result, bookmark)
         self.assertEqual(comic_row.status, "hiatus")
         self.assertEqual(linked_comic.status, "hiatus")
         self.assertIsNone(bookmark.status_override)
         self.assertEqual(db.commit_count, 1)
+        self.assertEqual(db.refresh_count, 0)
 
     async def test_reader_bookmark_status_remains_personal(self):
         comic_row = comic()
@@ -374,7 +416,7 @@ class LibraryServiceBehaviorTests(unittest.IsolatedAsyncioTestCase):
         ]
         db = FakeSession(
             [
-                FakeResult(scalar_rows=bookmark_rows),
+                FakeResult(rows=[(bookmark, False) for bookmark in bookmark_rows]),
                 *(FakeResult() for _ in range(10)),
             ]
         )

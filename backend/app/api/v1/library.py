@@ -25,6 +25,7 @@ from app.schemas import (
     BookmarkLinkCandidatePage,
     BookmarkLinkCompletionSyncRequest,
     BookmarkLinkCompletionSyncResponse,
+    ComicCollectionsUpdateRequest,
     CollectionCreateRequest,
     CollectionResponse,
     CollectionSummaryResponse,
@@ -85,6 +86,7 @@ from app.services.library_service import (
     rename_collection,
     set_bookmark,
     set_bookmark_status,
+    set_comic_collections,
     set_bookmark_links,
     synchronize_completed_link_batch,
     update_reader_preferences,
@@ -264,20 +266,19 @@ async def put_bookmark(
 
 @router.patch(
     "/bookmarks/{source_name}/comics/{comic_slug}/status",
-    response_model=BookmarkResponse,
+    status_code=status.HTTP_204_NO_CONTENT,
 )
 async def patch_bookmark_status(
-    request: Request,
     source_name: str,
     comic_slug: str,
     payload: BookmarkStatusUpdateRequest,
     db: AsyncSession = Depends(get_db),
     auth_user: AuthenticatedUser = Depends(get_current_auth_user),
-):
+) -> None:
     """Ubah status bookmark; admin mengubah status komik secara global."""
     user_id = auth_user.user_id
     try:
-        bookmark = await set_bookmark_status(
+        await set_bookmark_status(
             db,
             user_id,
             source_name,
@@ -287,7 +288,6 @@ async def patch_bookmark_status(
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return build_bookmark_response(bookmark, base_url=_get_request_base_url(request))
 
 
 @router.delete("/bookmarks/{source_name}/comics/{comic_slug}")
@@ -463,20 +463,43 @@ async def remove_collection(
 
 
 @router.put(
+    "/comics/{source_name}/{comic_slug}/collections",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def put_comic_collections(
+    source_name: str,
+    comic_slug: str,
+    payload: ComicCollectionsUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
+) -> None:
+    """Set seluruh membership koleksi satu komik dalam satu transaksi."""
+    try:
+        await set_comic_collections(
+            db,
+            user_id,
+            source_name,
+            comic_slug,
+            set(payload.collection_ids),
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.put(
     "/collections/{collection_id}/comics/{source_name}/{comic_slug}",
-    response_model=CollectionResponse,
+    status_code=status.HTTP_204_NO_CONTENT,
 )
 async def put_collection_comic(
-    request: Request,
     collection_id: int,
     source_name: str,
     comic_slug: str,
     db: AsyncSession = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
-):
+) -> None:
     """Tambahkan komik ke koleksi."""
     try:
-        collection = await add_comic_to_collection(
+        await add_comic_to_collection(
             db,
             user_id,
             collection_id,
@@ -485,24 +508,22 @@ async def put_collection_comic(
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return build_collection_response(collection, base_url=_get_request_base_url(request))
 
 
 @router.delete(
     "/collections/{collection_id}/comics/{source_name}/{comic_slug}",
-    response_model=CollectionResponse,
+    status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_collection_comic(
-    request: Request,
     collection_id: int,
     source_name: str,
     comic_slug: str,
     db: AsyncSession = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
-):
+) -> None:
     """Hapus komik dari koleksi."""
     try:
-        collection = await remove_comic_from_collection(
+        await remove_comic_from_collection(
             db,
             user_id,
             collection_id,
@@ -511,7 +532,6 @@ async def delete_collection_comic(
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return build_collection_response(collection, base_url=_get_request_base_url(request))
 
 
 @router.get("/favorite-scenes", response_model=list[FavoriteSceneResponse])

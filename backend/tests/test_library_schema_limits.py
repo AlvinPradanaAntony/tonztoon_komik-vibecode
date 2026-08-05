@@ -7,6 +7,7 @@ from app.schemas.auth import AuthenticatedUser
 from app.schemas.library import (
     BookmarkLinkCompletionSyncRequest,
     BookmarkStatusUpdateRequest,
+    ComicCollectionsUpdateRequest,
     DownloadBatchRequest,
     LibrarySyncImportRequest,
     ReaderPreferenceUpdateRequest,
@@ -42,6 +43,16 @@ class LibrarySchemaLimitTests(unittest.TestCase):
         )
         with self.assertRaises(ValidationError):
             BookmarkStatusUpdateRequest(status="dropped")
+
+    def test_collection_membership_rejects_duplicate_or_invalid_ids(self):
+        self.assertEqual(
+            ComicCollectionsUpdateRequest(collection_ids=[1, 2]).collection_ids,
+            [1, 2],
+        )
+        with self.assertRaises(ValidationError):
+            ComicCollectionsUpdateRequest(collection_ids=[1, 1])
+        with self.assertRaises(ValidationError):
+            ComicCollectionsUpdateRequest(collection_ids=[0])
 
     def test_bookmark_links_count_toward_import_total(self):
         payload = {

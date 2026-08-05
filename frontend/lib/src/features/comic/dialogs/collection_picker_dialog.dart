@@ -17,6 +17,9 @@ Future<Set<int>?> _showCollectionPicker(
     useSafeArea: true,
     requestFocus: false,
     backgroundColor: Theme.of(context).colorScheme.surface,
+    constraints: BoxConstraints(
+      maxHeight: MediaQuery.sizeOf(context).height * 0.78,
+    ),
     clipBehavior: Clip.antiAlias,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
@@ -30,7 +33,7 @@ Future<Set<int>?> _showCollectionPicker(
           return SafeArea(
             top: false,
             child: FractionallySizedBox(
-              heightFactor: 0.45,
+              heightFactor: 0.94,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

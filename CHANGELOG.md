@@ -6,6 +6,21 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
+## [1.23.0] - 2026-08-05
+
+### Added
+- Pengelolaan koleksi komik secara batch dari Detail Komik melalui satu transaksi, termasuk validasi daftar collection ID.
+- Indikator pada tombol Detail Komik untuk menandai komik yang sudah berada di koleksi atau memiliki aktivitas download.
+- Refresh state Library dan daftar koleksi setelah perubahan koleksi agar tampilan tetap sinkron.
+
+### Changed
+- Endpoint perubahan status bookmark serta endpoint tambah/hapus komik dari koleksi kini menggunakan `204 No Content`; frontend memperbarui data melalui state dan refresh berikutnya.
+- Operasi membership koleksi menggunakan bulk write yang lebih efisien dan idempotent.
+- Dialog pemilih koleksi menggunakan ruang yang lebih besar dengan batas responsif terhadap tinggi layar.
+- Dependensi backend scraper diperbarui untuk mendukung fingerprint datapoints pada proses scraping.
+
+---
+
 ## [1.22.0] - 2026-08-02
 
 ### Added

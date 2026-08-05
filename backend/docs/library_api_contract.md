@@ -163,7 +163,7 @@ Request:
 |---|---|---|
 | `GET` | `/api/v1/library/bookmarks?page=1&page_size=20&type=&status=&sort=` | `BookmarkResponse[]` |
 | `PUT` | `/api/v1/library/bookmarks/{source_name}/comics/{comic_slug}` | `BookmarkResponse` |
-| `PATCH` | `/api/v1/library/bookmarks/{source_name}/comics/{comic_slug}/status` | `BookmarkResponse` |
+| `PATCH` | `/api/v1/library/bookmarks/{source_name}/comics/{comic_slug}/status` | `204 No Content` |
 | `DELETE` | `/api/v1/library/bookmarks/{source_name}/comics/{comic_slug}` | `{ "deleted": true }` |
 
 Pagination bookmark memakai `page` dan `page_size` dengan batas `1..100`.
@@ -183,6 +183,8 @@ baru tidak ditampilkan. Jika sama, urutan dilanjutkan dari bookmark yang dibuat
 lebih baru.
 
 `PATCH .../status` menerima `{ "status": "ongoing" | "completed" | "hiatus" }`.
+Endpoint ini hanya mengonfirmasi perubahan dengan `204 No Content`; klien
+memperbarui item bookmark, ringkasan pustaka, dan detail komik dari state-nya.
 Untuk role `reader`, status disimpan sebagai override pada bookmark milik user.
 Untuk role `admin` (role claim Supabase atau `ADMIN_USER_IDS`), status diterapkan
 ke seluruh `Comic` dalam grup multi-source bookmark dan override bookmark lama
@@ -271,8 +273,9 @@ memaksa frontend memindai seluruh bookmark lagi.
 | `GET` | `/api/v1/library/collections/{collection_id}` | Detail koleksi beserta item |
 | `PATCH` | `/api/v1/library/collections/{collection_id}` | Rename koleksi |
 | `DELETE` | `/api/v1/library/collections/{collection_id}` | Hapus koleksi |
-| `PUT` | `/api/v1/library/collections/{collection_id}/comics/{source_name}/{comic_slug}` | Tambahkan komik |
-| `DELETE` | `/api/v1/library/collections/{collection_id}/comics/{source_name}/{comic_slug}` | Hapus komik dari koleksi |
+| `PUT` | `/api/v1/library/comics/{source_name}/{comic_slug}/collections` | Set seluruh koleksi komik (`204`) |
+| `PUT` | `/api/v1/library/collections/{collection_id}/comics/{source_name}/{comic_slug}` | Tambahkan komik (`204`) |
+| `DELETE` | `/api/v1/library/collections/{collection_id}/comics/{source_name}/{comic_slug}` | Hapus komik dari koleksi (`204`) |
 
 Create/rename payload:
 
@@ -283,6 +286,17 @@ Create/rename payload:
 ```
 
 Nama dinormalisasi dengan trim dan collapse whitespace. Duplikasi nama per user menghasilkan `409`.
+
+Halaman detail memakai endpoint set membership dalam satu transaksi:
+
+```json
+{
+  "collection_ids": [3, 8, 12]
+}
+```
+
+Payload kosong menghapus komik dari seluruh koleksi user. Ketiga endpoint membership
+mengembalikan `204 No Content`; detail dan daftar koleksi dimuat ulang oleh client.
 
 ## Favorite Scenes
 

@@ -283,6 +283,7 @@ POST /library/collections
 GET /library/collections/{collection_id}
 PATCH /library/collections/{collection_id}
 DELETE /library/collections/{collection_id}
+PUT /library/comics/{source_name}/{comic_slug}/collections
 PUT /library/collections/{collection_id}/comics/{source_name}/{comic_slug}
 DELETE /library/collections/{collection_id}/comics/{source_name}/{comic_slug}
 ```

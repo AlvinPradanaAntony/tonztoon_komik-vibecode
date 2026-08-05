@@ -2189,6 +2189,30 @@ void main() {
   );
 
   test(
+    'library repository sets comic collections with one batch request',
+    () async {
+      final tokenStore = MemoryTokenStore();
+      await tokenStore.save(const TokenPair(accessToken: 'access-token'));
+      final repository = LibraryRepository(
+        _apiWithResponses({
+          'PUT /library/comics/komiku/solo-leveling/collections': null,
+        }),
+        tokenStore,
+        store,
+      );
+
+      await repository.setComicCollections(
+        const ComicSummary(
+          title: 'Solo Leveling',
+          sourceName: 'komiku',
+          slug: 'solo-leveling',
+        ),
+        {1, 2},
+      );
+    },
+  );
+
+  test(
     'pagination refresh removes items missing from the first page',
     () async {
       final container = ProviderContainer(

@@ -134,18 +134,10 @@ extension LibraryCollections on LibraryRepository {
     Set<int> selectedCollectionIds,
   ) async {
     if (await _isLoggedIn) {
-      final current = await getComicState(comic);
-      final currentIds = current.collections.map((item) => item.id).toSet();
-      for (final id in selectedCollectionIds.difference(currentIds)) {
-        await _api.put<Map<String, dynamic>>(
-          '/library/collections/$id/comics/${comic.sourceName}/${comic.slug}',
-        );
-      }
-      for (final id in currentIds.difference(selectedCollectionIds)) {
-        await _api.delete<Map<String, dynamic>>(
-          '/library/collections/$id/comics/${comic.sourceName}/${comic.slug}',
-        );
-      }
+      await _api.put<void>(
+        '/library/comics/${comic.sourceName}/${comic.slug}/collections',
+        data: {'collection_ids': selectedCollectionIds.toList()},
+      );
       return;
     }
 
@@ -168,15 +160,15 @@ extension LibraryCollections on LibraryRepository {
     await _saveLocalCollections(updated);
   }
 
-  Future<CollectionDetail> addComicToCollection(
+  Future<void> addComicToCollection(
     int collectionId,
     ComicSummary comic,
   ) async {
     if (await _isLoggedIn) {
-      final response = await _api.put<Map<String, dynamic>>(
+      await _api.put<void>(
         '/library/collections/$collectionId/comics/${comic.sourceName}/${comic.slug}',
       );
-      return CollectionDetail.fromJson(response.data ?? const {});
+      return;
     }
 
     final collections = _localCollections();
@@ -195,18 +187,18 @@ extension LibraryCollections on LibraryRepository {
     );
     collections[index] = updated;
     await _saveLocalCollections(collections);
-    return updated;
+    return;
   }
 
-  Future<CollectionDetail> removeComicFromCollection(
+  Future<void> removeComicFromCollection(
     int collectionId,
     ComicSummary comic,
   ) async {
     if (await _isLoggedIn) {
-      final response = await _api.delete<Map<String, dynamic>>(
+      await _api.delete<void>(
         '/library/collections/$collectionId/comics/${comic.sourceName}/${comic.slug}',
       );
-      return CollectionDetail.fromJson(response.data ?? const {});
+      return;
     }
 
     final collections = _localCollections();
@@ -224,6 +216,6 @@ extension LibraryCollections on LibraryRepository {
     );
     collections[index] = updated;
     await _saveLocalCollections(collections);
-    return updated;
+    return;
   }
 }

@@ -436,6 +436,7 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
           progress: progress,
           completedChapterNumbers: completedChapterNumbers,
           downloadState: downloadState,
+          hasCollections: libraryState?.collections.isNotEmpty == true,
           downloadBusy: _downloadBusy,
           collectionBusy: _collectionBusy,
           onDownload: chapterItems == null || chapterItems.isEmpty
@@ -814,6 +815,15 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
       ref.invalidate(libraryComicStateProvider(comic));
       ref.invalidate(collectionsProvider);
       _showSnack('Koleksi diperbarui.', type: AppSnackBarType.success);
+      try {
+        await Future.wait([
+          ref.read(libraryComicStateProvider(comic).future),
+          ref.read(collectionsProvider.future),
+        ]);
+      } catch (_) {
+        // Mutasi sudah tersimpan. Biarkan refresh berikutnya mencoba lagi
+        // tanpa mengganti snackbar sukses dengan error yang menyesatkan.
+      }
     } catch (error, stackTrace) {
       if (mounted) {
         _showErrorSnack(error, stackTrace, 'Update comic collections failed');

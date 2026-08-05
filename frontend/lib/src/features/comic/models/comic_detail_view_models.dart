@@ -80,6 +80,9 @@ class _ComicDownloadState {
     if (syncedCount > 0) return '$syncedCount chapter punya status download';
     return null;
   }
+
+  bool get hasActivity =>
+      offlineCount > 0 || queuedCount > 0 || syncedCount > 0;
 }
 
 class _ComicDetailUi {

@@ -1278,7 +1278,7 @@ async def set_bookmark_status(
     status: str,
     *,
     global_scope: bool = False,
-) -> UserBookmark:
+) -> None:
     """Set status bookmark personal, atau status komik global untuk admin."""
     comic = await resolve_comic_or_raise(db, source_name, comic_slug)
     bookmark = (
@@ -1318,8 +1318,6 @@ async def set_bookmark_status(
         bookmark.status_override = status
     bookmark.updated_at = _utcnow()
     await db.commit()
-    await db.refresh(bookmark)
-    return bookmark
 
 
 async def delete_bookmark(
@@ -1522,19 +1520,40 @@ async def add_comic_to_collection(
     collection_id: int,
     source_name: str,
     comic_slug: str,
-) -> UserCollection:
+) -> None:
     """Tambahkan komik ke collection jika belum ada."""
-    collection = await _load_collection(db, user_id, collection_id)
-    if collection is None:
+    collection_exists = (
+        await db.execute(
+            select(UserCollection.id).where(
+                UserCollection.user_id == user_id,
+                UserCollection.id == collection_id,
+            )
+        )
+    ).scalars().first()
+    if collection_exists is None:
         raise LookupError("Collection tidak ditemukan.")
 
     comic = await resolve_comic_or_raise(db, source_name, comic_slug)
-    exists = any(item.comic_id == comic.id for item in collection.items)
-    if not exists:
-        db.add(UserCollectionComic(collection_id=collection_id, comic_id=comic.id))
-        collection.updated_at = _utcnow()
+    inserted_id = (
+        await db.execute(
+            insert(UserCollectionComic)
+            .values(collection_id=collection_id, comic_id=comic.id)
+            .on_conflict_do_nothing(
+                index_elements=[
+                    UserCollectionComic.collection_id,
+                    UserCollectionComic.comic_id,
+                ]
+            )
+            .returning(UserCollectionComic.id)
+        )
+    ).scalar_one_or_none()
+    if inserted_id is not None:
+        await db.execute(
+            update(UserCollection)
+            .where(UserCollection.id == collection_id)
+            .values(updated_at=_utcnow())
+        )
         await db.commit()
-    return await _load_collection(db, user_id, collection_id)
 
 
 async def remove_comic_from_collection(
@@ -1543,22 +1562,116 @@ async def remove_comic_from_collection(
     collection_id: int,
     source_name: str,
     comic_slug: str,
-) -> UserCollection:
+) -> None:
     """Hapus komik dari collection bila ada."""
-    collection = await _load_collection(db, user_id, collection_id)
-    if collection is None:
+    collection_exists = (
+        await db.execute(
+            select(UserCollection.id).where(
+                UserCollection.user_id == user_id,
+                UserCollection.id == collection_id,
+            )
+        )
+    ).scalars().first()
+    if collection_exists is None:
         raise LookupError("Collection tidak ditemukan.")
 
     comic = await resolve_comic_or_raise(db, source_name, comic_slug)
-    await db.execute(
-        delete(UserCollectionComic).where(
-            UserCollectionComic.collection_id == collection_id,
-            UserCollectionComic.comic_id == comic.id,
+    deleted_id = (
+        await db.execute(
+            delete(UserCollectionComic)
+            .where(
+                UserCollectionComic.collection_id == collection_id,
+                UserCollectionComic.comic_id == comic.id,
+            )
+            .returning(UserCollectionComic.id)
         )
+    ).scalar_one_or_none()
+    if deleted_id is not None:
+        await db.execute(
+            update(UserCollection)
+            .where(UserCollection.id == collection_id)
+            .values(updated_at=_utcnow())
+        )
+        await db.commit()
+
+
+async def set_comic_collections(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    source_name: str,
+    comic_slug: str,
+    selected_collection_ids: set[int],
+) -> None:
+    """Set membership koleksi komik dengan bulk write dalam satu transaksi."""
+    comic = await resolve_comic_or_raise(db, source_name, comic_slug)
+    selected_ids = set(selected_collection_ids)
+    if selected_ids:
+        owned_ids = set(
+            (
+                await db.execute(
+                    select(UserCollection.id).where(
+                        UserCollection.user_id == user_id,
+                        UserCollection.id.in_(selected_ids),
+                    )
+                )
+            ).scalars().all()
+        )
+        if owned_ids != selected_ids:
+            raise LookupError("Satu atau lebih collection tidak ditemukan.")
+
+    current_ids = set(
+        (
+            await db.execute(
+                select(UserCollectionComic.collection_id)
+                .join(
+                    UserCollection,
+                    UserCollection.id == UserCollectionComic.collection_id,
+                )
+                .where(
+                    UserCollection.user_id == user_id,
+                    UserCollectionComic.comic_id == comic.id,
+                )
+            )
+        ).scalars().all()
     )
-    collection.updated_at = _utcnow()
+    added_ids = selected_ids.difference(current_ids)
+    removed_ids = current_ids.difference(selected_ids)
+    changed_ids = added_ids | removed_ids
+    if not changed_ids:
+        return
+
+    if added_ids:
+        await db.execute(
+            insert(UserCollectionComic)
+            .values(
+                [
+                    {"collection_id": collection_id, "comic_id": comic.id}
+                    for collection_id in added_ids
+                ]
+            )
+            .on_conflict_do_nothing(
+                index_elements=[
+                    UserCollectionComic.collection_id,
+                    UserCollectionComic.comic_id,
+                ]
+            )
+        )
+    if removed_ids:
+        await db.execute(
+            delete(UserCollectionComic).where(
+                UserCollectionComic.collection_id.in_(removed_ids),
+                UserCollectionComic.comic_id == comic.id,
+            )
+        )
+    await db.execute(
+        update(UserCollection)
+        .where(
+            UserCollection.user_id == user_id,
+            UserCollection.id.in_(changed_ids),
+        )
+        .values(updated_at=_utcnow())
+    )
     await db.commit()
-    return await _load_collection(db, user_id, collection_id)
 
 
 async def upsert_history_from_progress(

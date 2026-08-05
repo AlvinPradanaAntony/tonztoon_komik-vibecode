@@ -269,6 +269,62 @@ void main() {
     );
   });
 
+  testWidgets('comic detail action buttons show stored data indicators', (
+    tester,
+  ) async {
+    final container = _testContainer(
+      collections: const [
+        CollectionSummary(id: 1, name: 'Favorit', totalItems: 1),
+      ],
+      downloadEntries: const [
+        DownloadEntry(
+          id: 1,
+          comic: LibraryComicRef(
+            sourceName: 'komiku',
+            slug: 'solo-leveling',
+            title: 'Solo Leveling',
+          ),
+          chapterNumber: 1,
+          status: 'queued',
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: ComicDetailScreen(
+            initialComic: _FakeCatalogRepository.comic,
+            sourceName: 'komiku',
+            slug: 'solo-leveling',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final collectionButton = find.byTooltip('Tambah ke koleksi');
+    final downloadButton = find.byTooltip('1 chapter punya status download');
+    expect(
+      tester
+          .widget<Badge>(
+            find.descendant(of: collectionButton, matching: find.byType(Badge)),
+          )
+          .isLabelVisible,
+      isTrue,
+    );
+    expect(
+      tester
+          .widget<Badge>(
+            find.descendant(of: downloadButton, matching: find.byType(Badge)),
+          )
+          .isLabelVisible,
+      isTrue,
+    );
+  });
+
   testWidgets('bookmarked comic shows source finder placeholder', (
     tester,
   ) async {
@@ -843,7 +899,11 @@ OfflineChapter _offlineChapter({required String status}) {
   );
 }
 
-ProviderContainer _testContainer({bool bookmarked = false}) {
+ProviderContainer _testContainer({
+  bool bookmarked = false,
+  List<CollectionSummary> collections = const [],
+  List<DownloadEntry> downloadEntries = const [],
+}) {
   return ProviderContainer(
     retry: (retryCount, error) => null,
     overrides: [
@@ -864,7 +924,8 @@ ProviderContainer _testContainer({bool bookmarked = false}) {
             title: 'Solo Leveling',
           ),
           bookmarked: bookmarked,
-          collections: const [],
+          collections: collections,
+          downloadEntries: downloadEntries,
         ),
       ),
       offlineChaptersProvider.overrideWith((ref) async => const []),
