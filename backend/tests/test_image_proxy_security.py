@@ -8,6 +8,7 @@ from app.config import settings
 from app.services.image_service import (
     ImageProxyPayloadTooLargeError,
     ImageProxyValidationError,
+    get_proxy_headers,
     is_allowed_image_content_type,
     open_validated_image_proxy_response,
     validate_image_response_headers,
@@ -22,6 +23,18 @@ class ImageProxySecurityTests(unittest.IsolatedAsyncioTestCase):
             validate_proxy_image_url("https://cdnkomiku.xyz/images/page-1.jpg"),
             "https://cdnkomiku.xyz/images/page-1.jpg",
         )
+        self.assertEqual(
+            validate_proxy_image_url(
+                "https://cdn.komikcast.fit/wp-content/img/C/Chronicles_of_the_Reincarnated_Demon_God/001/00.jpg"
+            ),
+            "https://cdn.komikcast.fit/wp-content/img/C/Chronicles_of_the_Reincarnated_Demon_God/001/00.jpg",
+        )
+
+    def test_komikcast_cdn_referer_header(self):
+        headers = get_proxy_headers(
+            "https://cdn.komikcast.fit/wp-content/img/C/Chronicles_of_the_Reincarnated_Demon_God/001/00.jpg"
+        )
+        self.assertEqual(headers.get("Referer"), "https://v1.komikcast.fit/")
 
     def test_private_ip_literal_is_rejected(self):
         with self.assertRaises(ImageProxyValidationError):

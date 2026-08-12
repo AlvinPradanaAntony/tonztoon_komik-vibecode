@@ -37,9 +37,12 @@ KOMIKCAST_API_BASE_URL = "https://be.komikcast.cc"
 KOMIKCAST_WEB_BASE_URL = "https://v1.komikcast.fit"
 KOMIKCAST_WEB_REFERER = f"{KOMIKCAST_WEB_BASE_URL}/"
 KOMIKCAST_IMAGE_HOSTS = (
+    "komikcast.fit",
+    "komikcast.cc",
     "komikcast.to",
     "imgkc1.my.id",
     "imgkc2.my.id",
+    "imgkc3.my.id",
     "imgkc.my.id",
 )
 KOMIKCAST_COVER_PATH_RE = re.compile(r"^/prod/series/([^/]+)/cover/")
@@ -54,12 +57,20 @@ IMAGE_PROXY_DEFAULT_ALLOWED_HOST_SUFFIXES = (
     "shinigami.asia",
     "shngm.id",
     "api.shngm.io",
+    "komikcast.fit",
+    "komikcast.cc",
     "komikcast.to",
+    "komikcast.cz",
+    "komikcast.site",
     "imgkc1.my.id",
     "imgkc2.my.id",
+    "imgkc3.my.id",
     "imgkc.my.id",
     "be.komikcast.cc",
     "v1.komikcast.fit",
+    "kiryuu.to",
+    "kiryuu.id",
+    "kiryuu.org",
     "blogspot.com",
     "blogger.googleusercontent.com",
     "googleusercontent.com",
