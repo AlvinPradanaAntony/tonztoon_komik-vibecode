@@ -119,20 +119,20 @@ class VoratoonScraper(ScraperCommonMixin, BaseComicScraper):
             if clean_text(g.get("data", {}).get("name") if isinstance(g, dict) else g)
         ]
 
-        return {
-            "title": title,
-            "slug": slug,
-            "source_url": f"{self.BASE_URL}/series/{slug}",
-            "cover_image_url": cover,
-            "type": comic_type,
-            "status": status,
-            "rating": rating,
-            "total_view": total_view,
-            "genres": genres,
-            "author": clean_text(data.get("author")) or None,
-            "synopsis": clean_text(data.get("synopsis")) or None,
-            "raw": item,
-        }
+        return self._build_comic_payload(
+            title=title,
+            source_url=f"{self.BASE_URL}/series/{slug}",
+            slug=slug,
+            cover_image_url=cover,
+            type=comic_type,
+            status=status,
+            rating=rating,
+            total_view=total_view,
+            genres=genres,
+            author=clean_text(data.get("author")) or None,
+            synopsis=clean_text(data.get("synopsis")) or None,
+            raw=item,
+        )
 
     def _parse_api_chapter_items(self, series_slug: str, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
         chapters: list[dict[str, Any]] = []

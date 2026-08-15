@@ -86,6 +86,9 @@ def parse_voratoon_iso_datetime(value: str | None) -> datetime | None:
         return None
 
 
+MAX_INT32 = 2_147_483_647
+
+
 def coalesce_voratoon_total_view(
     *,
     item_data: dict[str, Any],
@@ -95,16 +98,18 @@ def coalesce_voratoon_total_view(
     candidates = (
         item_data.get("totalViews"),
         (item_metadata.get("views") or {}).get("total"),
-        item_data_metadata.get("totalViewsComputed"),
         item_data_metadata.get("historyViews"),
         item_data_metadata.get("analyticsViews"),
+        item_data_metadata.get("monthlyViews"),
+        item_data_metadata.get("totalViewsComputed"),
     )
 
     for value in candidates:
         if value is None:
             continue
         try:
-            return int(value)
+            val = int(value)
+            return min(val, MAX_INT32) if val > 0 else 0
         except (TypeError, ValueError):
             continue
     return None
