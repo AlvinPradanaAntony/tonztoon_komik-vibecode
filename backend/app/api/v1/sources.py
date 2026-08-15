@@ -455,7 +455,7 @@ async def list_source_comics(
 @router.get("/{source_name}/comics/latest", response_model=list[SourceComicListItem])
 async def get_source_latest_comics(
     request: Request,
-    source_name: str = Path(..., description="Filter by source name (e.g. komiku, shinigami, komicast, komiku_asia)"),
+    source_name: str = Path(..., description="Filter by source name (e.g. komiku, shinigami, komicast, komiku_asia, voratoon)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     type: str | None = Query(None, description="Filter by type: manga/manhwa/manhua"),
@@ -526,7 +526,7 @@ async def get_source_latest_comic_stats(
 @router.get("/{source_name}/comics/popular", response_model=list[SourceComicListItem])
 async def get_source_popular_comics(
     request: Request,
-    source_name: str = Path(..., description="Filter by source name (e.g. komiku, shinigami, komicast, komiku_asia)"),
+    source_name: str = Path(..., description="Filter by source name (e.g. komiku, shinigami, komicast, komiku_asia, voratoon)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     type: str | None = Query(None, description="Filter by type: manga/manhwa/manhua"),
@@ -582,7 +582,7 @@ async def get_source_recommended_comics(
         ...,
         description=(
             "Filter by source name "
-            "(e.g. komiku, shinigami, komicast, komiku_asia)"
+            "(e.g. komiku, shinigami, komicast, komiku_asia, voratoon)"
         ),
     ),
     limit: int = Query(4, ge=1, le=12),
@@ -646,7 +646,7 @@ async def get_source_top_ranking_comics(
         ...,
         description=(
             "Filter by source name "
-            "(e.g. komiku, shinigami, komicast, komiku_asia)"
+            "(e.g. komiku, shinigami, komicast, komiku_asia, voratoon)"
         ),
     ),
     limit: int = Query(10, ge=1, le=10),

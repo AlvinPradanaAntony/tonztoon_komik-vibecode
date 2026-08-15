@@ -75,6 +75,12 @@ IMAGE_PROXY_DEFAULT_ALLOWED_HOST_SUFFIXES = (
     "blogger.googleusercontent.com",
     "googleusercontent.com",
     "yuucdn.com",
+    "voratoon.com",
+    "voratoon.id",
+    "cvr.voratoon.id",
+    "cdn.voratoon.com",
+    "api.voratoon.com",
+    "v1.voratoon.com",
 )
 
 # Mapping host suffix -> Referer header yang benar untuk source non-Komikcast.
@@ -84,6 +90,8 @@ REFERER_BY_HOST_SUFFIX = {
     "cdnkomiku.xyz": "https://01.komiku.asia/",
     "shinigami.asia": "https://e.shinigami.asia/",
     "shngm.id": "https://e.shinigami.asia/",
+    "voratoon.com": "https://v1.voratoon.com/",
+    "voratoon.id": "https://v1.voratoon.com/",
 }
 
 
@@ -405,6 +413,45 @@ def get_proxy_headers(image_url: str) -> dict[str, str]:
     }
 
 
+VORATOON_COVER_PATH_RE = re.compile(r"^/prod/series/([^/]+)/cover/")
+
+
+def _extract_voratoon_cover_slug(url_str: str) -> str | None:
+    try:
+        parsed = urlparse(url_str)
+        if any(h in parsed.netloc for h in ("voratoon", "imgkc", "komikcast")):
+            match = VORATOON_COVER_PATH_RE.search(parsed.path)
+            if match:
+                return match.group(1)
+    except Exception:
+        pass
+    return None
+
+
+async def _fetch_fresh_voratoon_cover_url(
+    client: httpx.AsyncClient,
+    slug: str,
+) -> str | None:
+    try:
+        api_url = f"https://api.voratoon.com/series/{slug}?includeMeta=true"
+        headers = {
+            "User-Agent": DEFAULT_USER_AGENT,
+            "Accept": "application/json",
+            "Referer": f"https://v1.voratoon.com/series/{slug}",
+        }
+        res = await client.get(api_url, headers=headers, timeout=10.0)
+        if res.status_code == 200:
+            payload = res.json()
+            item = payload.get("data") or {}
+            item_data = item.get("data") or {}
+            fresh = item_data.get("coverImage") or item_data.get("cover")
+            if fresh and isinstance(fresh, str):
+                return fresh.strip()
+    except Exception:
+        logger.debug("Failed on-demand refresh of cover for slug %s", slug, exc_info=True)
+    return None
+
+
 async def open_validated_image_proxy_response(
     image_url: str,
     *,
@@ -412,10 +459,12 @@ async def open_validated_image_proxy_response(
 ) -> ImageProxyFetchResult:
     """
     Open an upstream image stream after validating URL, DNS, redirects, and headers.
+    Auto-refreshes expired presigned S3 cover URLs if upstream returns 403/502.
     """
     active_client = client or get_image_proxy_http_client()
     current_url = validate_proxy_image_url(image_url)
     response: httpx.Response | None = None
+    refreshed_on_demand = False
 
     for redirect_count in range(settings.IMAGE_PROXY_MAX_REDIRECTS + 1):
         await validate_proxy_image_dns(current_url)
@@ -438,6 +487,27 @@ async def open_validated_image_proxy_response(
                 raise ImageProxyValidationError("Image source redirect limit exceeded.")
             current_url = validate_proxy_image_url(urljoin(current_url, location))
             continue
+
+        if response.status_code in {403, 502, 503} and not refreshed_on_demand:
+            slug = _extract_voratoon_cover_slug(current_url)
+            if slug:
+                fresh_url = await _fetch_fresh_voratoon_cover_url(active_client, slug)
+                if fresh_url and fresh_url != current_url:
+                    logger.info(
+                        "On-demand refresh expired cover URL for slug '%s' (status %s)",
+                        slug,
+                        response.status_code,
+                    )
+                    await response.aclose()
+                    refreshed_on_demand = True
+                    current_url = validate_proxy_image_url(fresh_url)
+                    await validate_proxy_image_dns(current_url)
+                    retry_request = active_client.build_request(
+                        "GET",
+                        current_url,
+                        headers=get_proxy_headers(current_url),
+                    )
+                    response = await active_client.send(retry_request, stream=True)
 
         if response.status_code == 200:
             try:

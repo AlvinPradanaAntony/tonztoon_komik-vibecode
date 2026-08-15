@@ -161,6 +161,7 @@ class _SourceTagPalette {
       'komiku_asia' => const Color(0xFF3A86FF),
       'komikcast' => const Color(0xFF10B981),
       'shinigami' => const Color(0xFF8B5CF6),
+      'voratoon' => const Color(0xFF06B6D4),
       _ => null,
     };
   }
