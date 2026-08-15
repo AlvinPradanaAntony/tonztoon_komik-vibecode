@@ -24,7 +24,7 @@ on:
         required: false
         default: "manual"
       source:
-        description: "Source filter (optional: komiku, komiku_asia, komikcast, shinigami)"
+        description: "Source filter (optional: komiku, komiku_asia, voratoon, shinigami)"
         required: false
         default: ""
       selection:
@@ -159,7 +159,7 @@ jobs:
             xvfb-run -a -s "-screen 0 1366x768x24" bash -lc "${CMD}"
           elif [ -z "${SOURCE_FILTER}" ] || [ "${SOURCE_FILTER}" = "all" ]; then
             echo "Running non-komiku_asia sources without xvfb."
-            for source in komiku komikcast shinigami; do
+            for source in komiku voratoon shinigami; do
               bash -lc "${CMD} --source ${source}"
             done
             echo "Running komiku_asia through xvfb."

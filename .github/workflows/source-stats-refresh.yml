@@ -75,7 +75,7 @@ jobs:
               xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.refresh_source_stats "${args[@]}"
             elif [ -z "${SOURCE_FILTER}" ] || [ "${SOURCE_FILTER}" = "all" ]; then
               echo "Running non-komiku_asia sources without xvfb."
-              python -m scraper.refresh_source_stats --source komiku,komikcast,shinigami
+              python -m scraper.refresh_source_stats --source komiku,voratoon,shinigami
               echo "Running komiku_asia through xvfb."
               xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.refresh_source_stats --source komiku_asia
             else

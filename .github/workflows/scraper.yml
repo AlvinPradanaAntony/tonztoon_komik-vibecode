@@ -145,7 +145,7 @@ jobs:
 
             if [ -n "${SCRAPER_SOURCE}" ] && [ "${SCRAPER_SOURCE}" != "all" ]; then
               args+=(--source "${SCRAPER_SOURCE}")
-              if [[ "${SCRAPER_SOURCE}" == "komiku" || "${SCRAPER_SOURCE}" == "komikcast" || "${SCRAPER_SOURCE}" == "shinigami" ]]; then
+              if [[ "${SCRAPER_SOURCE}" == "komiku" || "${SCRAPER_SOURCE}" == "voratoon" || "${SCRAPER_SOURCE}" == "shinigami" ]]; then
                 args+=(--no-anti-blocking)
               fi
             fi
@@ -175,7 +175,7 @@ jobs:
               xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.main "${args[@]}"
             elif [ -z "${SCRAPER_SOURCE}" ] || [ "${SCRAPER_SOURCE}" = "all" ]; then
               echo "Running non-komiku_asia sources without xvfb."
-              for source in komiku komikcast shinigami; do
+              for source in komiku voratoon shinigami; do
                 python -m scraper.main --source "${source}" --no-anti-blocking "${args[@]}"
               done
               echo "Running komiku_asia through xvfb."

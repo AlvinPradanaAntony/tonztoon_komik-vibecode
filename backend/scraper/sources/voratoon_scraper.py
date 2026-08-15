@@ -121,6 +121,7 @@ class VoratoonScraper(ScraperCommonMixin, BaseComicScraper):
 
         return {
             "title": title,
+            "slug": slug,
             "source_url": f"{self.BASE_URL}/series/{slug}",
             "cover_image_url": cover,
             "type": comic_type,
