@@ -52,6 +52,7 @@ IMAGE_PROXY_ALLOWED_SCHEMES = {"http", "https"}
 IMAGE_PROXY_ALLOWED_PORTS = {80, 443}
 IMAGE_PROXY_DEFAULT_ALLOWED_HOST_SUFFIXES = (
     "komiku.org",
+    "komiku.to",
     "komiku.asia",
     "cdnkomiku.xyz",
     "shinigami.asia",
@@ -86,6 +87,7 @@ IMAGE_PROXY_DEFAULT_ALLOWED_HOST_SUFFIXES = (
 # Mapping host suffix -> Referer header yang benar untuk source non-Komikcast.
 REFERER_BY_HOST_SUFFIX = {
     "komiku.org": "https://komiku.org/",
+    "komiku.to": "https://komiku.org/",
     "komiku.asia": "https://01.komiku.asia/",
     "cdnkomiku.xyz": "https://01.komiku.asia/",
     "shinigami.asia": "https://e.shinigami.asia/",
