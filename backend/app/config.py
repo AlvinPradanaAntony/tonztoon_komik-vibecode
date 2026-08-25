@@ -145,30 +145,29 @@ class Settings(BaseSettings):
     KOMIKU_ASIA_LIVE_SCRAPE_PROVIDER: str = Field(
         default="auto",
         description=(
-            "Provider for Komiku Asia lazy chapter image fetching. "
-            "Use 'auto', 'zenrows', or 'scrapling'. In auto mode ZenRows is "
-            "used when ZENROWS_API_KEY is configured."
+            "Deprecated compatibility setting for Komiku Asia lazy chapter "
+            "image fetching. Runtime always uses the first-party API scraper."
         ),
     )
     KOMIKU_ASIA_ZENROWS_WAIT_MS: int = Field(
         default=6000,
         ge=0,
-        description="ZenRows post-render wait time in milliseconds for Komiku Asia chapter pages.",
+        description="Legacy ZenRows wait time; inactive for the API-first Komiku scraper.",
     )
 
     # --- ZenRows Scraping API ---
     ZENROWS_API_KEY: str = Field(
         default="",
-        description="ZenRows API key used for Komiku Asia live/lazy chapter scraping.",
+        description="Legacy ZenRows API key; inactive for the API-first Komiku scraper.",
     )
     ZENROWS_API_BASE_URL: str = Field(
         default="https://api.zenrows.com/v1/",
-        description="ZenRows Universal Scraper API endpoint.",
+        description="Legacy ZenRows endpoint; inactive for the API-first Komiku scraper.",
     )
     ZENROWS_TIMEOUT_SECONDS: float = Field(
         default=120.0,
         ge=10.0,
-        description="Timeout for ZenRows API requests.",
+        description="Legacy ZenRows timeout; inactive for the API-first Komiku scraper.",
     )
 
 

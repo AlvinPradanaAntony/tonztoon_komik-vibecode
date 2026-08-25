@@ -39,7 +39,7 @@ class KomikuAsiaZenRowsChapterImageScraper:
 
     SOURCE_NAME = "komiku_asia"
     BASE_URL = "https://01.komiku.asia"
-    WAIT_SELECTOR = ".ts-main-image"
+    WAIT_SELECTOR = ".rd-page-image"
 
     def __init__(
         self,
@@ -115,7 +115,16 @@ def parse_komiku_asia_chapter_images(
     soup = BeautifulSoup(html, "html.parser")
     images: list[dict[str, Any]] = []
 
-    for img in soup.select(".ts-main-image"):
+    image_nodes = soup.select(".rd-page-image, .ts-main-image")
+    if not image_nodes:
+        image_nodes = [
+            img
+            for img in soup.select("img[src], img[data-src], img[data-lazy-src], img[data-original]")
+            if img.get("src") != "/loading.gif"
+            and not img.get("src", "").endswith("/loading.gif")
+        ]
+
+    for img in image_nodes:
         img_url = _extract_image_url(img)
         if not img_url:
             continue

@@ -172,6 +172,17 @@ class RealtimeConsoleHandler(logging.StreamHandler):
         if self._should_skip_console_record(record):
             return
         progress = _active_live_progress
+        # Scrapling/Fetcher dapat menulis log dari ``asyncio.to_thread``.
+        # Worker thread tidak memiliki running event loop, sehingga memanggil
+        # progress.clear_line()/render() dari sini dapat melempar
+        # ``RuntimeError: no running event loop`` setelah response HTTP sudah
+        # berhasil diterima (mis. status 200). Log tetap ditulis, tetapi live
+        # progress hanya disentuh dari thread event loop utama.
+        if progress is not None:
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                progress = None
         if progress is not None:
             progress.clear_line()
         super().emit(record)

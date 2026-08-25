@@ -9,6 +9,7 @@ from app.services.komiku_asia_zenrows_live_scraper import (
     KomikuAsiaZenRowsError,
     parse_komiku_asia_chapter_images,
 )
+from scraper.sources.komiku_asia_scraper import KomikuAsiaScraper
 
 
 class FakeZenRowsClient:
@@ -35,9 +36,9 @@ class KomikuAsiaZenRowsLiveScraperTests(unittest.IsolatedAsyncioTestCase):
     def test_parse_chapter_images_uses_data_index_and_srcset(self):
         html = """
         <main>
-          <img class="ts-main-image" data-index="0" data-src="/img/page-1.webp">
-          <img class="ts-main-image" data-index="bad" srcset="https://cdnkomiku.xyz/p2.webp 800w, https://cdnkomiku.xyz/p2-small.webp 400w">
-          <img class="ts-main-image" src="https://cdnkomiku.xyz/p3.webp">
+          <img class="rd-page-image" data-index="0" data-src="/img/page-1.webp">
+          <img class="rd-page-image" data-index="bad" srcset="https://cdnkomiku.xyz/p2.webp 800w, https://cdnkomiku.xyz/p2-small.webp 400w">
+          <img class="rd-page-image" src="https://cdnkomiku.xyz/p3.webp">
         </main>
         """
 
@@ -52,11 +53,19 @@ class KomikuAsiaZenRowsLiveScraperTests(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
+    def test_parse_chapter_images_supports_legacy_selector(self):
+        html = '<img class="ts-main-image" src="https://cdnkomiku.xyz/legacy.webp">'
+
+        self.assertEqual(
+            parse_komiku_asia_chapter_images(html),
+            [{"page": 1, "url": "https://cdnkomiku.xyz/legacy.webp"}],
+        )
+
     async def test_fetch_chapter_html_calls_zenrows_with_cloudflare_params(self):
         client = FakeZenRowsClient(
             httpx.Response(
                 200,
-                text='<img class="ts-main-image" data-index="0" src="https://cdnkomiku.xyz/p1.webp">',
+                text='<img class="rd-page-image" data-index="0" src="https://cdnkomiku.xyz/p1.webp">',
             )
         )
         scraper = KomikuAsiaZenRowsChapterImageScraper(
@@ -77,7 +86,7 @@ class KomikuAsiaZenRowsLiveScraperTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(kwargs["params"]["apikey"], "secret")
         self.assertEqual(kwargs["params"]["js_render"], "true")
         self.assertEqual(kwargs["params"]["premium_proxy"], "true")
-        self.assertEqual(kwargs["params"]["wait_for"], ".ts-main-image")
+        self.assertEqual(kwargs["params"]["wait_for"], ".rd-page-image")
         self.assertEqual(kwargs["params"]["wait"], "2500")
 
     async def test_missing_api_key_raises_clear_error(self):
@@ -86,13 +95,13 @@ class KomikuAsiaZenRowsLiveScraperTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(KomikuAsiaZenRowsError):
             await scraper.fetch_chapter_html("https://01.komiku.asia/sample/")
 
-    def test_auto_provider_uses_zenrows_when_key_exists(self):
+    def test_auto_provider_uses_api_first_scraper_even_when_legacy_key_exists(self):
         settings.KOMIKU_ASIA_LIVE_SCRAPE_PROVIDER = "auto"
         settings.ZENROWS_API_KEY = "secret"
 
         scraper = chapter_service._get_scraper_for_source("komiku_asia")
 
-        self.assertIsInstance(scraper, KomikuAsiaZenRowsChapterImageScraper)
+        self.assertIsInstance(scraper, KomikuAsiaScraper)
 
 
 if __name__ == "__main__":

@@ -285,7 +285,11 @@ async def fetch_latest_comics_with_retry(scraper: BaseComicScraper, page: int = 
                 f"(attempt {attempt + 1}): {e}"
             )
             if scraper.SOURCE_NAME == "komiku_asia":
-                logger.error("  ⛔ Deteksi kegagalan Cloudflare/Timeout pada komiku_asia. Menghentikan retry.")
+                logger.error(
+                    "  ⛔ Fetch listing komiku_asia dihentikan; "
+                    "retry tidak dilanjutkan karena error aktual: %s",
+                    e,
+                )
                 raise e
             if attempt < 2:
                 await _backoff_delay(attempt, f"retry listing {scraper.SOURCE_NAME}")
@@ -325,7 +329,11 @@ async def fetch_popular_comics_with_retry(scraper: BaseComicScraper, page: int =
                 f"(attempt {attempt + 1}): {e}"
             )
             if scraper.SOURCE_NAME == "komiku_asia":
-                logger.error("  ⛔ Deteksi kegagalan Cloudflare/Timeout pada komiku_asia. Menghentikan retry.")
+                logger.error(
+                    "  ⛔ Fetch popular komiku_asia dihentikan; "
+                    "retry tidak dilanjutkan karena error aktual: %s",
+                    e,
+                )
                 raise e
             if attempt < 2:
                 await _backoff_delay(attempt, f"retry popular {scraper.SOURCE_NAME}")
@@ -1174,8 +1182,14 @@ async def process_latest_pages(
                 await session.rollback()
 
                 if scraper.SOURCE_NAME == "komiku_asia":
-                    logger.error("  ⛔ Deteksi error pada komiku_asia. Menghentikan scraper komiku_asia untuk menghemat waktu.")
-                    raise RuntimeError("Deteksi kegagalan Cloudflare/Timeout pada komiku_asia.")
+                    logger.error(
+                        "  ⛔ Pemrosesan komik komiku_asia dihentikan; "
+                        "error aktual: %s",
+                        e,
+                    )
+                    raise RuntimeError(
+                        f"Pemrosesan komik komiku_asia gagal: {e}"
+                    ) from e
 
                 if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
                     logger.error(
@@ -1315,8 +1329,14 @@ async def process_popular_pages(
                 await session.rollback()
 
                 if scraper.SOURCE_NAME == "komiku_asia":
-                    logger.error("  ⛔ Deteksi error pada komiku_asia. Menghentikan scraper komiku_asia untuk menghemat waktu.")
-                    raise RuntimeError("Deteksi kegagalan Cloudflare/Timeout pada komiku_asia.")
+                    logger.error(
+                        "  ⛔ Pemrosesan popular komiku_asia dihentikan; "
+                        "error aktual: %s",
+                        e,
+                    )
+                    raise RuntimeError(
+                        f"Pemrosesan popular komiku_asia gagal: {e}"
+                    ) from e
 
                 if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
                     logger.error(

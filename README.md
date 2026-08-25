@@ -106,8 +106,8 @@ Environment penting:
 | `ALLOW_DEV_USER_HEADER` | Fallback `X-User-Id` untuk dev lokal, wajib `false` di shared/prod |
 | `GITHUB_PAT` dan teman-temannya | Trigger workflow scraper via GitHub API |
 | `KOMIKU_ASIA_ACCESS_TOKEN` | Token export akun Komiku Asia untuk helper scraper tertentu |
-| `KOMIKU_ASIA_LIVE_SCRAPE_PROVIDER` | Provider lazy/backfill image Komiku Asia: `auto`, `zenrows`, atau `scrapling` |
-| `ZENROWS_API_KEY` | API key ZenRows untuk lazy/backfill image Komiku Asia tanpa browser/Xvfb di backend |
+| `KOMIKU_ASIA_LIVE_SCRAPE_PROVIDER` | Pengaturan kompatibilitas lama; scraper Komiku Asia kini selalu memakai API resmi |
+| `ZENROWS_API_KEY` | Legacy saja; tidak dipakai oleh jalur scraper Komiku Asia API-first |
 
 ## Menjalankan Frontend
 
@@ -139,7 +139,7 @@ python -m scraper.check_pending_chapter_images --json-only
 
 Chapter reader memakai lazy loading: jika `chapters.images` kosong, backend mencoba mengambil gambar dari source saat endpoint chapter dibuka, menyimpan hasil ke DB, lalu menjadwalkan nearby prefetch di background.
 
-Untuk deploy Hugging Face, lazy/backfill image Komiku Asia dapat dialihkan ke ZenRows dengan `KOMIKU_ASIA_LIVE_SCRAPE_PROVIDER=zenrows` dan `ZENROWS_API_KEY=...`. Mode `auto` juga memakai ZenRows jika API key tersedia, lalu fallback ke Scrapling untuk development lokal.
+Untuk deploy Hugging Face, lazy/backfill image Komiku Asia kini memakai endpoint API resmi melalui Scrapling `Fetcher` HTTP terlebih dahulu. Browser solver Cloudflare hanya menjadi fallback saat API mengembalikan challenge atau error transport. Konfigurasi ZenRows lama tetap diterima agar environment lama tidak gagal saat startup, tetapi tidak lagi dipilih oleh runtime.
 
 ### Import Environment ke Hugging Face Space
 

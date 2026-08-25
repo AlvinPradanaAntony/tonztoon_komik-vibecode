@@ -204,42 +204,27 @@ def _get_scraper_for_source(source_name: str):
 
 def _get_komiku_asia_live_scraper():
     """
-    Pilih provider khusus lazy/backfill images Komiku Asia.
+    Return the API-first Komiku Asia scraper for lazy/backfill images.
 
-    Mode `auto` memakai ZenRows jika API key tersedia, lalu fallback ke scraper
-    legacy. Ini menjaga local/dev tetap bisa berjalan tanpa memaksa secret baru,
-    sementara HF dapat disetel ke `zenrows` untuk menghindari Xvfb/headless
-    browser di container.
+    The provider setting is retained for backwards-compatible configuration
+    parsing, but ZenRows is no longer selected: the first-party `/api/v2`
+    chapter endpoint exposes the page URLs directly and does not require DOM
+    rendering.
     """
     provider = settings.KOMIKU_ASIA_LIVE_SCRAPE_PROVIDER.strip().lower()
-    if provider in {"auto", ""}:
-        if settings.ZENROWS_API_KEY.strip():
-            from app.services.komiku_asia_zenrows_live_scraper import (
-                KomikuAsiaZenRowsChapterImageScraper,
-            )
-
-            return KomikuAsiaZenRowsChapterImageScraper()
-
-        from scraper.sources.registry import create_scraper
-
-        return create_scraper("komiku_asia")
-
+    if provider not in {"auto", "", "zenrows", "scrapling", "legacy", "stealth"}:
+        raise ValueError(
+            "KOMIKU_ASIA_LIVE_SCRAPE_PROVIDER harus salah satu dari: "
+            "auto, scrapling"
+        )
     if provider == "zenrows":
-        from app.services.komiku_asia_zenrows_live_scraper import (
-            KomikuAsiaZenRowsChapterImageScraper,
+        logger.warning(
+            "Provider ZenRows Komiku Asia sudah deprecated; gunakan API-first scraper."
         )
 
-        return KomikuAsiaZenRowsChapterImageScraper()
+    from scraper.sources.registry import create_scraper
 
-    if provider in {"scrapling", "legacy", "stealth"}:
-        from scraper.sources.registry import create_scraper
-
-        return create_scraper("komiku_asia")
-
-    raise ValueError(
-        "KOMIKU_ASIA_LIVE_SCRAPE_PROVIDER harus salah satu dari: "
-        "auto, zenrows, scrapling"
-    )
+    return create_scraper("komiku_asia")
 
 
 # ── Core Helper: Fetch & Save Images untuk 1 Chapter ────────────────────────
