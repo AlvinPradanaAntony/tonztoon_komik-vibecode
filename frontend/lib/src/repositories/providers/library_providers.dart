@@ -5,6 +5,18 @@ final bookmarkBrowseOptionsProvider =
       BookmarkBrowseOptionsController.new,
     );
 
+final bookmarkSearchQueryProvider =
+    NotifierProvider<BookmarkSearchQueryController, String>(
+      BookmarkSearchQueryController.new,
+    );
+
+class BookmarkSearchQueryController extends Notifier<String> {
+  @override
+  String build() => '';
+
+  void setQuery(String value) => state = value;
+}
+
 class BookmarkBrowseOptionsController extends Notifier<ComicFilterSortState> {
   @override
   ComicFilterSortState build() =>
@@ -68,6 +80,7 @@ class BookmarksPaginationController
   void watchDependencies() {
     ref.watch(authControllerProvider.select((auth) => auth.user?.id));
     ref.watch(bookmarkBrowseOptionsProvider);
+    ref.watch(bookmarkSearchQueryProvider);
   }
 
   @override
@@ -76,6 +89,7 @@ class BookmarksPaginationController
     required int pageSize,
   }) {
     final options = ref.read(bookmarkBrowseOptionsProvider);
+    final search = ref.read(bookmarkSearchQueryProvider).trim();
     return ref
         .read(libraryRepositoryProvider)
         .getBookmarksPage(
@@ -84,6 +98,7 @@ class BookmarksPaginationController
           type: options.bookmarkTypeQuery,
           status: options.bookmarkStatusQuery,
           sort: options.bookmarkSortQuery,
+          search: search.isEmpty ? null : search,
         );
   }
 

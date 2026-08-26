@@ -1,9 +1,17 @@
 part of '../comic_detail_screen.dart';
 
 class _TitleBlock extends StatelessWidget {
-  const _TitleBlock({required this.detail});
+  const _TitleBlock({
+    required this.detail,
+    required this.status,
+    this.onStatusTap,
+    this.isStatusLoading = false,
+  });
 
   final _ComicDetailUi detail;
+  final String status;
+  final VoidCallback? onStatusTap;
+  final bool isStatusLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +41,11 @@ class _TitleBlock extends StatelessWidget {
             runSpacing: 8,
             children: [
               _TypeInfoPill(type: detail.type),
-              _StatusInfoPill(status: detail.status),
+              _StatusInfoPill(
+                status: status,
+                onTap: isStatusLoading ? null : onStatusTap,
+                isLoading: isStatusLoading,
+              ),
               _InfoPill(
                 icon: TonztoonIcons.starFilled,
                 label: detail.rating,

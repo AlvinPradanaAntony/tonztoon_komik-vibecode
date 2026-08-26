@@ -246,6 +246,7 @@ async def get_bookmarks(
     page_size: int = Query(20, ge=1, le=100),
     comic_type: str | None = Query(default=None, alias="type"),
     comic_status: str | None = Query(default=None, alias="status"),
+    search: str | None = Query(default=None),
     sort: Literal["latest", "az", "za"] | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
@@ -258,6 +259,7 @@ async def get_bookmarks(
         offset=(page - 1) * page_size,
         comic_type=comic_type,
         comic_status=comic_status,
+        search=search,
         sort=sort,
     )
     base_url = _get_request_base_url(request)

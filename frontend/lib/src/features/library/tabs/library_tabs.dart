@@ -1,19 +1,5 @@
 part of '../library_screen.dart';
 
-String _bookmarkStatusLabel(String status) => switch (status) {
-  'ongoing' => 'Ongoing',
-  'completed' => 'Selesai',
-  'hiatus' => 'Hiatus',
-  _ => status,
-};
-
-IconData _bookmarkStatusIcon(String status) => switch (status) {
-  'ongoing' => TonztoonIcons.clock,
-  'completed' => TonztoonIcons.badgeCheck,
-  'hiatus' => TonztoonIcons.circleDotDashed,
-  _ => TonztoonIcons.bookmark,
-};
-
 class _BookmarksTab extends ConsumerStatefulWidget {
   const _BookmarksTab({required this.isGrid});
 
@@ -26,12 +12,18 @@ class _BookmarksTab extends ConsumerStatefulWidget {
 class _BookmarksTabState extends ConsumerState<_BookmarksTab>
     with AutomaticKeepAliveClientMixin<_BookmarksTab> {
   late final ScrollController _scrollController;
+  late final TextEditingController _bookmarkSearchController;
+  late final FocusNode _bookmarkSearchFocusNode;
+  Timer? _bookmarkSearchDebounce;
+  bool _isBookmarkSearchOpen = false;
   bool _isBookmarkActionLoading = false;
 
   @override
   void initState() {
     super.initState();
     _scrollController = ScrollController()..addListener(_onScroll);
+    _bookmarkSearchController = TextEditingController();
+    _bookmarkSearchFocusNode = FocusNode();
   }
 
   @override
@@ -39,6 +31,9 @@ class _BookmarksTabState extends ConsumerState<_BookmarksTab>
     _scrollController
       ..removeListener(_onScroll)
       ..dispose();
+    _bookmarkSearchDebounce?.cancel();
+    _bookmarkSearchController.dispose();
+    _bookmarkSearchFocusNode.dispose();
     super.dispose();
   }
 
@@ -50,12 +45,16 @@ class _BookmarksTabState extends ConsumerState<_BookmarksTab>
     final bookmarkPage = bookmarksAsync.asData?.value;
     final bookmarks = bookmarkPage?.items ?? const <LibraryComicRef>[];
     final bookmarkOptions = ref.watch(bookmarkBrowseOptionsProvider);
+    final bookmarkSearchQuery = ref.watch(bookmarkSearchQueryProvider);
     final summaryAsync = ref.watch(librarySummaryProvider);
     final downloadsCount =
         ref.watch(downloadsProvider).asData?.value.length ?? 0;
 
     final totalBookmarks =
         summaryAsync.asData?.value.counts.bookmarks ?? bookmarks.length;
+    final hasActiveBookmarkControls =
+        bookmarkOptions.hasActiveBookmarkControls ||
+        bookmarkSearchQuery.trim().isNotEmpty;
     final bookmarkStatusCounts =
         summaryAsync.asData?.value.counts.bookmarkStatusCounts;
     final trailing = bookmarkOptions.hasActiveBookmarkControls
@@ -103,18 +102,103 @@ class _BookmarksTabState extends ConsumerState<_BookmarksTab>
                               totalBookmarks: totalBookmarks,
                             ),
                             const SizedBox(height: 16),
-                            SizedBox(
-                              width: double.infinity,
-                              child: FilledButton.tonalIcon(
-                                onPressed:
-                                    bookmarks.isEmpty ||
-                                        _isBookmarkActionLoading
-                                    ? null
-                                    : _linkOtherSources,
-                                icon: const Icon(TonztoonIcons.link, size: 18),
-                                label: const Text(
-                                  'Cari komik yang sama di source lain',
-                                ),
+                            AnimatedSize(
+                              duration: const Duration(milliseconds: 220),
+                              curve: Curves.easeOutCubic,
+                              alignment: Alignment.centerLeft,
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 180),
+                                switchInCurve: Curves.easeOutCubic,
+                                switchOutCurve: Curves.easeInCubic,
+                                transitionBuilder: (child, animation) {
+                                  return FadeTransition(
+                                    opacity: animation,
+                                    child: SizeTransition(
+                                      sizeFactor: animation,
+                                      axis: Axis.horizontal,
+                                      axisAlignment: -1,
+                                      child: child,
+                                    ),
+                                  );
+                                },
+                                child: _isBookmarkSearchOpen
+                                    ? TextField(
+                                        key: const ValueKey(
+                                          'bookmark-search-field',
+                                        ),
+                                        controller: _bookmarkSearchController,
+                                        focusNode: _bookmarkSearchFocusNode,
+                                        onChanged: _onBookmarkSearchChanged,
+                                        textInputAction: TextInputAction.search,
+                                        decoration: InputDecoration(
+                                          hintText: 'Cari judul bookmark...',
+                                          prefixIcon: const Icon(
+                                            TonztoonIcons.search,
+                                          ),
+                                          suffixIcon: IconButton(
+                                            tooltip: 'Tutup pencarian',
+                                            onPressed: _closeBookmarkSearch,
+                                            icon: const Icon(
+                                              TonztoonIcons.close,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                    : Row(
+                                        key: const ValueKey(
+                                          'bookmark-action-buttons',
+                                        ),
+                                        children: [
+                                          Expanded(
+                                            child: FilledButton.tonalIcon(
+                                              onPressed:
+                                                  bookmarks.isEmpty ||
+                                                      _isBookmarkActionLoading
+                                                  ? null
+                                                  : _linkOtherSources,
+                                              style: FilledButton.styleFrom(
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                              ),
+                                              icon: const Icon(
+                                                TonztoonIcons.link,
+                                                size: 18,
+                                              ),
+                                              label: const Text(
+                                                'Sync Bookmark Multisource',
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          IconButton.filledTonal(
+                                            tooltip: 'Cari bookmark',
+                                            onPressed:
+                                                totalBookmarks == 0 ||
+                                                    _isBookmarkActionLoading
+                                                ? null
+                                                : _openBookmarkSearch,
+                                            style: IconButton.styleFrom(
+                                              backgroundColor: theme
+                                                  .colorScheme
+                                                  .primaryContainer,
+                                              foregroundColor: theme
+                                                  .colorScheme
+                                                  .onPrimaryContainer,
+                                              fixedSize: const Size(48, 48),
+                                              padding: EdgeInsets.zero,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                            ),
+                                            icon: const Icon(
+                                              TonztoonIcons.search,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                               ),
                             ),
                             const SizedBox(height: 16),
@@ -132,10 +216,10 @@ class _BookmarksTabState extends ConsumerState<_BookmarksTab>
                           hasScrollBody: false,
                           child: _EmptyState(
                             icon: TonztoonIcons.bookmark,
-                            title: bookmarkOptions.hasActiveBookmarkControls
+                            title: hasActiveBookmarkControls
                                 ? 'Tidak ada bookmark yang cocok'
                                 : 'Belum ada bookmark',
-                            message: bookmarkOptions.hasActiveBookmarkControls
+                            message: hasActiveBookmarkControls
                                 ? 'Coba ubah atau reset filter bookmark.'
                                 : 'Simpan komik dari halaman detail untuk menaruhnya di sini.',
                           ),
@@ -197,6 +281,29 @@ class _BookmarksTabState extends ConsumerState<_BookmarksTab>
     );
   }
 
+  void _openBookmarkSearch() {
+    if (_isBookmarkSearchOpen) return;
+    setState(() => _isBookmarkSearchOpen = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _bookmarkSearchFocusNode.requestFocus();
+    });
+  }
+
+  void _closeBookmarkSearch() {
+    _bookmarkSearchDebounce?.cancel();
+    _bookmarkSearchController.clear();
+    ref.read(bookmarkSearchQueryProvider.notifier).setQuery('');
+    if (mounted) setState(() => _isBookmarkSearchOpen = false);
+  }
+
+  void _onBookmarkSearchChanged(String value) {
+    _bookmarkSearchDebounce?.cancel();
+    _bookmarkSearchDebounce = Timer(const Duration(milliseconds: 280), () {
+      if (!mounted) return;
+      ref.read(bookmarkSearchQueryProvider.notifier).setQuery(value.trim());
+    });
+  }
+
   Future<void> _refreshBookmarks() async {
     try {
       ref.invalidate(librarySummaryProvider);
@@ -242,51 +349,7 @@ class _BookmarksTabState extends ConsumerState<_BookmarksTab>
   }
 
   Future<void> _showBookmarkStatusPicker(ComicSummary comic) async {
-    final selectedStatus = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Ubah status komik',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  comic.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 12),
-                for (final status in const ['ongoing', 'completed', 'hiatus'])
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(_bookmarkStatusIcon(status)),
-                    title: Text(_bookmarkStatusLabel(status)),
-                    trailing: comic.status?.trim().toLowerCase() == status
-                        ? const Icon(TonztoonIcons.check)
-                        : null,
-                    onTap: () => Navigator.of(context).pop(status),
-                  ),
-                const SizedBox(height: 4),
-                Text(
-                  'Saat source menemukan chapter baru, status otomatis kembali ke Ongoing.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+    final selectedStatus = await showBookmarkStatusPicker(context, comic);
     if (selectedStatus == null ||
         comic.status?.trim().toLowerCase() == selectedStatus) {
       return;
@@ -322,7 +385,7 @@ class _BookmarksTabState extends ConsumerState<_BookmarksTab>
       if (mounted) {
         _showMessage(
           context,
-          'Status ${comic.title} diubah menjadi ${_bookmarkStatusLabel(status)}.',
+          'Status ${comic.title} diubah menjadi ${bookmarkStatusLabel(status)}.',
         );
       }
     } catch (error, stackTrace) {

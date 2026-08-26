@@ -977,6 +977,89 @@ void main() {
     expect(unlinkedState.bookmarkRelation, BookmarkRelation.none);
   });
 
+  test('guest bookmark search is applied before pagination', () async {
+    final repository = LibraryRepository(
+      _failingApi(),
+      MemoryTokenStore(),
+      store,
+    );
+
+    await repository.toggleBookmark(
+      const ComicSummary(title: 'One Piece', slug: 'one-piece'),
+      false,
+    );
+    await repository.toggleBookmark(
+      const ComicSummary(title: 'Solo Leveling', slug: 'solo-leveling'),
+      false,
+    );
+
+    final firstPage = await repository.getBookmarksPage(
+      page: 1,
+      pageSize: 1,
+      search: 'solo',
+    );
+    final secondPage = await repository.getBookmarksPage(
+      page: 2,
+      pageSize: 1,
+      search: 'solo',
+    );
+
+    expect(firstPage.map((bookmark) => bookmark.title), ['Solo Leveling']);
+    expect(secondPage, isEmpty);
+  });
+
+  test('authenticated bookmark search is sent with page parameters', () async {
+    final tokenStore = MemoryTokenStore();
+    await tokenStore.save(const TokenPair(accessToken: 'access-token'));
+    late RequestOptions capturedRequest;
+    final dio = Dio(BaseOptions(baseUrl: 'https://api.test'));
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          capturedRequest = options;
+          handler.resolve(
+            Response<List<Map<String, dynamic>>>(
+              requestOptions: options,
+              statusCode: 200,
+              data: [
+                {
+                  'comic': {
+                    'source_name': 'komiku',
+                    'slug': 'solo-leveling',
+                    'title': 'Solo Leveling',
+                  },
+                },
+              ],
+            ),
+          );
+        },
+      ),
+    );
+    final repository = LibraryRepository(
+      TonztoonApi(
+        config: const AppConfig(apiBaseUrl: 'https://api.test'),
+        tokenStore: tokenStore,
+        dio: dio,
+      ),
+      tokenStore,
+      store,
+    );
+
+    final bookmarks = await repository.getBookmarksPage(
+      page: 2,
+      pageSize: 20,
+      search: 'solo',
+    );
+
+    expect(capturedRequest.path, '/library/bookmarks');
+    expect(capturedRequest.queryParameters, {
+      'page': 2,
+      'page_size': 20,
+      'search': 'solo',
+    });
+    expect(bookmarks.single.title, 'Solo Leveling');
+  });
+
   test('guest bookmark candidate scan skips already linked sources', () async {
     final api = _apiWithResponses({
       'GET /search': {

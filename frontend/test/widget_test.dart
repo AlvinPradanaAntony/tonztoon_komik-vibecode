@@ -575,6 +575,28 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.byTooltip('Cari bookmark'), findsOneWidget);
+    expect(find.text('Sync Bookmark Multisource'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Cari bookmark'));
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(find.byKey(const ValueKey('bookmark-search-field')), findsOneWidget);
+
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Cari bookmark'), findsNothing);
+    expect(find.text('Sync Bookmark Multisource'), findsNothing);
+
+    await tester.enterText(
+      find.byKey(const ValueKey('bookmark-search-field')),
+      'bookmark',
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Bookmark Card'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Tutup pencarian'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Cari bookmark'), findsOneWidget);
+
     final sourceStrip = tester.widget<ListView>(
       find.descendant(
         of: find.byKey(

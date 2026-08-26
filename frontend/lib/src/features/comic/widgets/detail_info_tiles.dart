@@ -109,8 +109,9 @@ class _AlternativeTitleTileState extends State<_AlternativeTitleTile> {
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
-            crossAxisAlignment:
-                _isExpanded ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+            crossAxisAlignment: _isExpanded
+                ? CrossAxisAlignment.start
+                : CrossAxisAlignment.center,
             children: [
               Padding(
                 padding: EdgeInsets.only(top: _isExpanded ? 2.0 : 0.0),
@@ -195,18 +196,26 @@ class _StatTile extends StatelessWidget {
 }
 
 class _InfoPill extends StatelessWidget {
-  const _InfoPill({required this.icon, required this.label, this.accent});
+  const _InfoPill({
+    required this.icon,
+    required this.label,
+    this.accent,
+    this.onTap,
+    this.isLoading = false,
+  });
 
   final IconData icon;
   final String label;
   final Color? accent;
+  final VoidCallback? onTap;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final color = accent ?? colorScheme.secondary;
 
-    return DecoratedBox(
+    final pill = DecoratedBox(
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(20),
@@ -228,18 +237,44 @@ class _InfoPill extends StatelessWidget {
         ),
       ),
     );
+
+    if (onTap == null && !isLoading) return pill;
+
+    return Tooltip(
+      message: isLoading ? 'Menyimpan status' : 'Ubah status bookmark',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isLoading ? null : onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: pill,
+        ),
+      ),
+    );
   }
 }
 
 class _StatusInfoPill extends StatelessWidget {
-  const _StatusInfoPill({required this.status});
+  const _StatusInfoPill({
+    required this.status,
+    this.onTap,
+    this.isLoading = false,
+  });
 
   final String status;
+  final VoidCallback? onTap;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
     final style = comicStatusStyle(Theme.of(context).colorScheme, status);
-    return _InfoPill(icon: style.icon, label: status, accent: style.color);
+    return _InfoPill(
+      icon: style.icon,
+      label: status,
+      accent: style.color,
+      onTap: onTap,
+      isLoading: isLoading,
+    );
   }
 }
 

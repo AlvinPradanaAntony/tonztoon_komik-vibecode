@@ -329,6 +329,18 @@ class LibraryServiceBehaviorTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(["manhwa"], statement.compile().params.values())
         self.assertIn(["hiatus"], statement.compile().params.values())
 
+    async def test_list_bookmarks_searches_title_with_user_scope(self):
+        db = FakeSession([FakeResult(rows=[])])
+        user_id = uuid4()
+
+        await list_bookmarks(db, user_id, search="  Solo Leveling  ")
+
+        statement = db.statements[0]
+        sql = str(statement.compile(dialect=postgresql.dialect()))
+        self.assertIn("lower(comics.title) LIKE", sql)
+        self.assertIn("user_bookmarks.user_id =", sql)
+        self.assertIn("solo leveling", statement.compile().params.values())
+
     async def test_list_bookmarks_latest_prioritizes_has_new_chapter(self):
         db = FakeSession([FakeResult(rows=[])])
 

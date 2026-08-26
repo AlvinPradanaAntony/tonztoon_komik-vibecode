@@ -22,6 +22,7 @@ import '../../widgets/app_async_view.dart';
 import '../../widgets/app_edge_fade.dart';
 import '../../widgets/app_error_state.dart';
 import '../../widgets/app_loading_placeholder.dart';
+import '../../widgets/bookmark_status_picker.dart';
 import '../../widgets/comic_card.dart';
 import '../../widgets/comic_cover.dart';
 import '../../widgets/source_tag.dart';
@@ -70,6 +71,7 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
   double _collapseProgress = 0;
   ValueNotifier<double>? _collapseProgressNotifier;
   bool _bookmarkBusy = false;
+  bool _bookmarkStatusBusy = false;
   bool? _bookmarkOverride;
   bool _collectionBusy = false;
   bool _downloadBusy = false;
@@ -151,6 +153,11 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
         ref.watch(authControllerProvider).status == AuthStatus.guest;
     final effectiveBookmarked =
         _bookmarkOverride ?? (libraryState?.bookmarked == true);
+    final bookmarkStatus = libraryState?.bookmarkOrigin?.status?.trim();
+    final displayedStatus = bookmarkStatus?.isNotEmpty == true
+        ? bookmarkStatus!
+        : detail.status;
+    final statusComic = libraryState?.bookmarkOrigin?.toSummary();
     if (_bookmarkOverride != null &&
         libraryState?.bookmarked == _bookmarkOverride) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -331,7 +338,16 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _TitleBlock(detail: detail),
+                              _TitleBlock(
+                                detail: detail,
+                                status: displayedStatus,
+                                onStatusTap: statusComic == null
+                                    ? null
+                                    : () => _showBookmarkStatusPicker(
+                                        statusComic,
+                                      ),
+                                isStatusLoading: _bookmarkStatusBusy,
+                              ),
                               if (libraryState != null &&
                                   (effectiveBookmarked ||
                                       libraryState.bookmarkRelation ==
@@ -584,6 +600,38 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
         await _waitForMinimumBookmarkLoading(loadingStopwatch);
       }
       if (mounted) setState(() => _bookmarkBusy = false);
+    }
+  }
+
+  Future<void> _showBookmarkStatusPicker(ComicSummary comic) async {
+    if (_bookmarkStatusBusy || _bookmarkBusy) return;
+
+    final selectedStatus = await showBookmarkStatusPicker(context, comic);
+    if (!mounted ||
+        selectedStatus == null ||
+        comic.status?.trim().toLowerCase() == selectedStatus) {
+      return;
+    }
+
+    setState(() => _bookmarkStatusBusy = true);
+    try {
+      await ref
+          .read(libraryRepositoryProvider)
+          .updateBookmarkStatus(comic, selectedStatus);
+      ref.invalidate(libraryComicStateProvider(comic));
+      ref.invalidate(bookmarksProvider);
+      ref.invalidate(paginatedBookmarksProvider);
+      ref.invalidate(librarySummaryProvider);
+      if (mounted) {
+        _showSnack(
+          'Status ${comic.title} diubah menjadi ${bookmarkStatusLabel(selectedStatus)}.',
+          type: AppSnackBarType.success,
+        );
+      }
+    } catch (error, stackTrace) {
+      _showErrorSnack(error, stackTrace, 'Update bookmark status failed');
+    } finally {
+      if (mounted) setState(() => _bookmarkStatusBusy = false);
     }
   }
 

@@ -473,6 +473,7 @@ async def list_bookmarks(
     offset: int = 0,
     comic_type: str | None = None,
     comic_status: str | None = None,
+    search: str | None = None,
     sort: str | None = None,
 ) -> list[tuple[UserBookmark, bool]]:
     """List bookmark user dengan filter tipe/status dan urutan terpilih."""
@@ -542,6 +543,9 @@ async def list_bookmarks(
         statement = statement.where(func.lower(func.trim(Comic.type)).in_(comic_types))
     if comic_statuses:
         statement = statement.where(effective_status.in_(comic_statuses))
+    search_term = (search or "").strip().lower()
+    if search_term:
+        statement = statement.where(func.lower(Comic.title).contains(search_term))
 
     if sort == "az":
         order_by = (func.lower(Comic.title).asc(), UserBookmark.id.desc())

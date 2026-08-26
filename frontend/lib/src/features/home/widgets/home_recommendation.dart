@@ -248,148 +248,170 @@ class _RecommendationBanner extends StatelessWidget {
                         horizontal: metrics.paddingX,
                         vertical: metrics.paddingY,
                       ),
-                      child: MediaQuery.withClampedTextScaling(
-                        maxScaleFactor: _bannerMaxTextScale,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Wrap(
-                              spacing: metrics.pillSpacing,
-                              runSpacing: metrics.pillSpacing,
-                              crossAxisAlignment: WrapCrossAlignment.center,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.topLeft,
+                        child: SizedBox(
+                          width: math.max(
+                            0.0,
+                            constraints.maxWidth - (metrics.paddingX * 2),
+                          ),
+                          child: MediaQuery.withClampedTextScaling(
+                            maxScaleFactor: _bannerMaxTextScale,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                ComicSourceBadge(
-                                  label: source,
-                                  scale: metrics.scale,
-                                ),
-                                if (comic.type != null)
-                                  ComicTypeFlagBadge(
-                                    type: comic.type!,
-                                    scale: metrics.scale,
-                                  ),
-                              ],
-                            ),
-                            SizedBox(height: metrics.badgeContentGap),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      LayoutBuilder(
-                                        builder: (context, constraints) {
-                                          final useLargeTitle =
-                                              _bannerTitleLooksSingleLine(
-                                                context,
-                                                comic.title,
-                                                titleStyle,
-                                                constraints.maxWidth,
-                                                _clampedBannerTextScale(
-                                                  context,
-                                                ),
-                                              );
-                                          return Text(
-                                            comic.title,
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: useLargeTitle
-                                                ? singleLineTitleStyle
-                                                : titleStyle,
-                                          );
-                                        },
+                                Wrap(
+                                  spacing: metrics.pillSpacing,
+                                  runSpacing: metrics.pillSpacing,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    ComicSourceBadge(
+                                      label: source,
+                                      scale: metrics.scale,
+                                    ),
+                                    if (comic.type != null)
+                                      ComicTypeFlagBadge(
+                                        type: comic.type!,
+                                        scale: metrics.scale,
                                       ),
-                                      if (hasPills) ...[
-                                        SizedBox(height: metrics.titlePillGap),
-                                        Wrap(
-                                          spacing: metrics.pillSpacing,
-                                          runSpacing: metrics.pillSpacing,
-                                          children: [
-                                            if (chapter != null)
-                                              _BannerPill(
-                                                label:
-                                                    'Ch ${formatChapterNumber(chapter)}',
-                                                color: accent,
-                                                scale: metrics.scale,
-                                                solidSoftBackground: true,
+                                  ],
+                                ),
+                                SizedBox(height: metrics.badgeContentGap),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          LayoutBuilder(
+                                            builder: (context, constraints) {
+                                              final useLargeTitle =
+                                                  _bannerTitleLooksSingleLine(
+                                                    context,
+                                                    comic.title,
+                                                    titleStyle,
+                                                    constraints.maxWidth,
+                                                    _clampedBannerTextScale(
+                                                      context,
+                                                    ),
+                                                  );
+                                              return Text(
+                                                comic.title,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: useLargeTitle
+                                                    ? singleLineTitleStyle
+                                                    : titleStyle,
+                                              );
+                                            },
+                                          ),
+                                          if (hasPills) ...[
+                                            SizedBox(
+                                              height: metrics.titlePillGap,
+                                            ),
+                                            Wrap(
+                                              spacing: metrics.pillSpacing,
+                                              runSpacing: metrics.pillSpacing,
+                                              children: [
+                                                if (chapter != null)
+                                                  _BannerPill(
+                                                    label:
+                                                        'Ch ${formatChapterNumber(chapter)}',
+                                                    color: accent,
+                                                    scale: metrics.scale,
+                                                    solidSoftBackground: true,
+                                                  ),
+                                                if (ratingLabel != null)
+                                                  _BannerPill(
+                                                    label: ratingLabel,
+                                                    color: Colors.amber,
+                                                    foregroundColor:
+                                                        Colors.amber,
+                                                    icon: TonztoonIcons
+                                                        .starFilled,
+                                                    scale: metrics.scale,
+                                                  ),
+                                                if (statusLabel != null)
+                                                  _BannerPill(
+                                                    label: statusLabel,
+                                                    color: Colors.white,
+                                                    foregroundColor:
+                                                        Colors.white,
+                                                    scale: metrics.scale,
+                                                  ),
+                                              ],
+                                            ),
+                                          ],
+                                          SizedBox(
+                                            height: metrics.pillButtonGap,
+                                          ),
+                                          FilledButton.icon(
+                                            onPressed: onTap,
+                                            icon: Icon(
+                                              TonztoonIcons.play,
+                                              size: 17 * metrics.scale,
+                                            ),
+                                            label: const Text('Baca sekarang'),
+                                            style: FilledButton.styleFrom(
+                                              backgroundColor: accent,
+                                              foregroundColor: Colors.white,
+                                              textStyle: buttonTextStyle,
+                                              minimumSize: Size(
+                                                0,
+                                                metrics.buttonMinHeight,
                                               ),
-                                            if (ratingLabel != null)
-                                              _BannerPill(
-                                                label: ratingLabel,
-                                                color: Colors.amber,
-                                                foregroundColor: Colors.amber,
-                                                icon: TonztoonIcons.starFilled,
-                                                scale: metrics.scale,
+                                              padding: EdgeInsets.symmetric(
+                                                horizontal:
+                                                    metrics.buttonPaddingX,
                                               ),
-                                            if (statusLabel != null)
-                                              _BannerPill(
-                                                label: statusLabel,
-                                                color: Colors.white,
-                                                foregroundColor: Colors.white,
-                                                scale: metrics.scale,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    SizedBox(width: metrics.mainContentGap),
+                                    SizedBox(
+                                      width: metrics.coverWidth,
+                                      height: metrics.coverHeight,
+                                      child: DecoratedBox(
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(
+                                            metrics.coverRadius,
+                                          ),
+                                          border: Border.all(
+                                            color: Colors.white.withValues(
+                                              alpha: 0.34,
+                                            ),
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withValues(
+                                                alpha: 0.28,
                                               ),
+                                              blurRadius: 14 * metrics.scale,
+                                              offset: Offset(
+                                                0,
+                                                8 * metrics.scale,
+                                              ),
+                                            ),
                                           ],
                                         ),
-                                      ],
-                                      SizedBox(height: metrics.pillButtonGap),
-                                      FilledButton.icon(
-                                        onPressed: onTap,
-                                        icon: Icon(
-                                          TonztoonIcons.play,
-                                          size: 17 * metrics.scale,
-                                        ),
-                                        label: const Text('Baca sekarang'),
-                                        style: FilledButton.styleFrom(
-                                          backgroundColor: accent,
-                                          foregroundColor: Colors.white,
-                                          textStyle: buttonTextStyle,
-                                          minimumSize: Size(
-                                            0,
-                                            metrics.buttonMinHeight,
-                                          ),
-                                          padding: EdgeInsets.symmetric(
-                                            horizontal: metrics.buttonPaddingX,
-                                          ),
+                                        child: ComicCover(
+                                          imageUrl: comic.coverImageUrl,
+                                          borderRadius: metrics.coverRadius,
                                         ),
                                       ),
-                                    ],
-                                  ),
-                                ),
-                                SizedBox(width: metrics.mainContentGap),
-                                SizedBox(
-                                  width: metrics.coverWidth,
-                                  height: metrics.coverHeight,
-                                  child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(
-                                        metrics.coverRadius,
-                                      ),
-                                      border: Border.all(
-                                        color: Colors.white.withValues(
-                                          alpha: 0.34,
-                                        ),
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withValues(
-                                            alpha: 0.28,
-                                          ),
-                                          blurRadius: 14 * metrics.scale,
-                                          offset: Offset(0, 8 * metrics.scale),
-                                        ),
-                                      ],
                                     ),
-                                    child: ComicCover(
-                                      imageUrl: comic.coverImageUrl,
-                                      borderRadius: metrics.coverRadius,
-                                    ),
-                                  ),
+                                  ],
                                 ),
                               ],
                             ),
-                          ],
+                          ),
                         ),
                       ),
                     ),

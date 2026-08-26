@@ -76,13 +76,25 @@ class ContinueReadingProgressCard extends StatelessWidget {
                           metrics.contentRightPadding,
                           metrics.contentBottomPadding,
                         ),
-                        child: _ProgressCardContent(
-                          progress: progress,
-                          chapterText: chapterText,
-                          pageText: pageText,
-                          progressValue: progressValue,
-                          progressHeight: metrics.progressHeight,
-                          showTrailingArrow: showTrailingArrow,
+                        child: LayoutBuilder(
+                          builder: (context, constraints) => FittedBox(
+                            key: const ValueKey(
+                              'continue-reading-content-scale',
+                            ),
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: SizedBox(
+                              width: constraints.maxWidth,
+                              child: _ProgressCardContent(
+                                progress: progress,
+                                chapterText: chapterText,
+                                pageText: pageText,
+                                progressValue: progressValue,
+                                progressHeight: metrics.progressHeight,
+                                showTrailingArrow: showTrailingArrow,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),

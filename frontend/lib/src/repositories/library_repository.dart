@@ -177,6 +177,7 @@ class LibraryRepository {
     String? type,
     String? status,
     String? sort,
+    String? search,
   }) async {
     if (await _isLoggedIn) {
       final queryParameters = <String, dynamic>{
@@ -185,6 +186,7 @@ class LibraryRepository {
         ...?sort == null ? null : {'sort': sort},
         ...?type == null ? null : {'type': type},
         ...?status == null ? null : {'status': status},
+        ...?search == null ? null : {'search': search},
       };
       final response = await _api.get<List<dynamic>>(
         '/library/bookmarks',
@@ -203,15 +205,23 @@ class LibraryRepository {
     }
     final start = (page - 1) * pageSize;
     final links = _localBookmarkLinks();
+    final searchTerm = search?.trim().toLowerCase();
 
     final localBookmarks = _localBookmarks().values
         .where((bookmark) {
+          final searchMatches =
+              searchTerm == null ||
+              searchTerm.isEmpty ||
+              bookmark.title.toLowerCase().contains(searchTerm);
           final typeMatches =
               type == null || bookmark.type?.toLowerCase() == type;
           final statusMatches =
               status == null || bookmark.status?.toLowerCase() == status;
           final newChapterMatches = sort != 'latest' || bookmark.hasNewChapter;
-          return typeMatches && statusMatches && newChapterMatches;
+          return searchMatches &&
+              typeMatches &&
+              statusMatches &&
+              newChapterMatches;
         })
         .toList()
         .reversed
