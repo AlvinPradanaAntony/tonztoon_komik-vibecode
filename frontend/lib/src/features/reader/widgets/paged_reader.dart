@@ -71,15 +71,6 @@ class _ReaderPage extends StatefulWidget {
 class _ReaderPageState extends State<_ReaderPage> {
   var _retrySerial = 0;
   bool _retrying = false;
-  String? _aspectRatioResolveUrl;
-  ImageStream? _aspectRatioStream;
-  ImageStreamListener? _aspectRatioListener;
-
-  @override
-  void dispose() {
-    _removeAspectRatioListener();
-    super.dispose();
-  }
 
   Future<void> _retryImage(String url) async {
     if (_retrying) return;
@@ -96,41 +87,6 @@ class _ReaderPageState extends State<_ReaderPage> {
         });
       }
     }
-  }
-
-  void _rememberImageAspectRatio(ImageProvider<Object> provider, String url) {
-    if (_knownReaderImageAspectRatios.containsKey(url) ||
-        _aspectRatioResolveUrl == url) {
-      return;
-    }
-
-    _removeAspectRatioListener();
-    _aspectRatioResolveUrl = url;
-    final stream = provider.resolve(createLocalImageConfiguration(context));
-    late final ImageStreamListener listener;
-    listener = ImageStreamListener((info, _) {
-      _rememberReaderImageAspectRatio(url, info);
-      if (mounted && widget.page.imageUrl == url) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) setState(() {});
-        });
-      }
-      _removeAspectRatioListener();
-    }, onError: (_, _) => _removeAspectRatioListener());
-    _aspectRatioStream = stream;
-    _aspectRatioListener = listener;
-    stream.addListener(listener);
-  }
-
-  void _removeAspectRatioListener() {
-    final stream = _aspectRatioStream;
-    final listener = _aspectRatioListener;
-    if (stream != null && listener != null) {
-      stream.removeListener(listener);
-    }
-    _aspectRatioStream = null;
-    _aspectRatioListener = null;
-    _aspectRatioResolveUrl = null;
   }
 
   @override
@@ -164,17 +120,13 @@ class _ReaderPageState extends State<_ReaderPage> {
             width: double.infinity,
             height: double.infinity,
             fit: fit,
-            memCacheHeight: _maxReaderDecodedImageHeight,
             imageBuilder: (context, imageProvider) {
-              final decodedProvider = _readerDecodedImageProvider(
-                imageProvider,
-              );
-              _rememberImageAspectRatio(decodedProvider, imageUrl);
               return Image(
-                image: decodedProvider,
+                image: imageProvider,
                 width: double.infinity,
                 height: double.infinity,
                 fit: fit,
+                filterQuality: FilterQuality.high,
               );
             },
             placeholder: (context, url) =>
@@ -198,7 +150,7 @@ class _ReaderPageState extends State<_ReaderPage> {
       return DecoratedBox(
         decoration: decoration,
         child: AspectRatio(
-          aspectRatio: widget.page.aspectRatio,
+          aspectRatio: aspectRatio,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: _ReaderPageStack(
@@ -232,14 +184,14 @@ class _ReaderPageState extends State<_ReaderPage> {
     required BoxFit fit,
     required double reservedHeight,
   }) {
-    final provider = _readerDecodedImageProvider(FileImage(File(filePath)));
-    _rememberImageAspectRatio(provider, imageUrl);
+    final provider = FileImage(File(filePath));
     return Image(
       image: provider,
       key: ValueKey('$filePath|$_retrySerial'),
       width: double.infinity,
       height: double.infinity,
       fit: fit,
+      filterQuality: FilterQuality.high,
       errorBuilder: (context, error, stackTrace) => _ReaderPageError(
         pageNumber: widget.page.number,
         paged: widget.paged,

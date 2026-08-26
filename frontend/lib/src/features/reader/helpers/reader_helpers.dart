@@ -11,71 +11,16 @@ double _dynamicReaderCacheExtent(BuildContext context) {
 }
 
 const _standardWebtoonAspectRatio = 0.68;
-const _maxReaderDecodedImageHeight = 4096;
 const _readerVerticalPageBleed = 1.0;
-const _minFallbackSampleAspectRatio = 0.25;
-const _maxFallbackSampleAspectRatio = 2.5;
-const _minFallbackWebtoonAspectRatio = 0.45;
-const _maxFallbackWebtoonAspectRatio = 0.9;
-
-final Map<String, double> _knownReaderImageAspectRatios = <String, double>{};
-
-ImageProvider<Object> _readerDecodedImageProvider(
-  ImageProvider<Object> provider,
-) {
-  // Some sources publish a full webtoon page as a very tall strip. Keeping the
-  // decoded texture below older Android GPU limits avoids distorted rendering.
-  return ResizeImage(provider, height: _maxReaderDecodedImageHeight);
-}
-
-void _rememberReaderImageAspectRatio(String url, ImageInfo info) {
-  final width = info.image.width.toDouble();
-  final height = info.image.height.toDouble();
-  if (width <= 0 || height <= 0) return;
-  final aspectRatio = width / height;
-  if (!aspectRatio.isFinite || aspectRatio <= 0) return;
-  _knownReaderImageAspectRatios[url] = aspectRatio;
-}
 
 double _readerPageAspectRatio(_ReaderPageUi page) {
-  final known = _knownReaderImageAspectRatios[page.imageUrl];
-  if (known != null && known > 0) return known;
   final intrinsic = page.intrinsicAspectRatio;
   if (intrinsic != null && intrinsic > 0 && intrinsic.isFinite) {
     return intrinsic;
   }
-  return _dynamicReaderFallbackAspectRatio(page.aspectRatio);
-}
-
-double _dynamicReaderFallbackAspectRatio(double seedAspectRatio) {
-  final knownRatios =
-      _knownReaderImageAspectRatios.values
-          .where(
-            (ratio) =>
-                ratio.isFinite &&
-                ratio >= _minFallbackSampleAspectRatio &&
-                ratio <= _maxFallbackSampleAspectRatio,
-          )
-          .toList()
-        ..sort();
-  if (knownRatios.isEmpty) {
-    final seed = seedAspectRatio > 0
-        ? seedAspectRatio
-        : _standardWebtoonAspectRatio;
-    return seed.clamp(
-      _minFallbackWebtoonAspectRatio,
-      _maxFallbackWebtoonAspectRatio,
-    );
-  }
-
-  final middle = knownRatios.length ~/ 2;
-  final median = knownRatios.length.isOdd
-      ? knownRatios[middle]
-      : (knownRatios[middle - 1] + knownRatios[middle]) / 2;
-  return median.clamp(
-    _minFallbackWebtoonAspectRatio,
-    _maxFallbackWebtoonAspectRatio,
-  );
+  return page.aspectRatio > 0 && page.aspectRatio.isFinite
+      ? page.aspectRatio
+      : _standardWebtoonAspectRatio;
 }
 
 double _readerPageHeightForWidth(BuildContext context, double aspectRatio) {

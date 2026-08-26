@@ -404,8 +404,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       context: context,
       useSafeArea: true,
       showDragHandle: true,
-      backgroundColor:
-          isDark ? Theme.of(context).colorScheme.surfaceContainerLowest : null,
+      backgroundColor: isDark
+          ? Theme.of(context).colorScheme.surfaceContainerLowest
+          : null,
       builder: (context) {
         final theme = Theme.of(context);
         final colorScheme = theme.colorScheme;
@@ -1555,15 +1556,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       }
       _recentPrefetchRequests[imageUrl] = now;
       final filePath = _localFilePath(imageUrl);
-      final ImageProvider<Object> provider = _readerDecodedImageProvider(
-        filePath == null
-            ? CachedNetworkImageProvider(
-                imageUrl,
-                cacheManager: ReaderImageCacheManager.instance,
-              )
-            : FileImage(File(filePath)),
-      );
-      futures.add(_precacheReaderImageProvider(provider, imageUrl));
+      final ImageProvider<Object> provider = filePath == null
+          ? CachedNetworkImageProvider(
+              imageUrl,
+              cacheManager: ReaderImageCacheManager.instance,
+            )
+          : FileImage(File(filePath));
+      futures.add(_precacheReaderImageProvider(provider));
     }
     if (futures.isEmpty) return;
 
@@ -1584,45 +1583,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     _initialPreloadTimeoutTimer = null;
   }
 
-  Future<void> _precacheReaderImageProvider(
-    ImageProvider provider,
-    String imageUrl,
-  ) async {
+  Future<void> _precacheReaderImageProvider(ImageProvider provider) async {
     if (!mounted) return;
-
-    final imageConfig = createLocalImageConfiguration(context);
-    final stream = provider.resolve(imageConfig);
-    final ratioCompleter = Completer<void>();
-    late final ImageStreamListener listener;
-    listener = ImageStreamListener(
-      (info, _) {
-        _rememberReaderImageAspectRatio(imageUrl, info);
-        if (!ratioCompleter.isCompleted) {
-          ratioCompleter.complete();
-        }
-      },
-      onError: (_, _) {
-        if (!ratioCompleter.isCompleted) {
-          ratioCompleter.complete();
-        }
-      },
-    );
-    stream.addListener(listener);
-
-    try {
-      await Future.wait<void>([
-        precacheImage(
-          provider,
-          context,
-        ).timeout(const Duration(seconds: 10)).catchError((_) {}),
-        ratioCompleter.future.timeout(
-          const Duration(seconds: 10),
-          onTimeout: () {},
-        ),
-      ]);
-    } finally {
-      stream.removeListener(listener);
-    }
+    await precacheImage(
+      provider,
+      context,
+    ).timeout(const Duration(seconds: 10)).catchError((_) {});
   }
 
   void _ensureNearbyReadinessWatcher(List<ChapterListItem>? chapters) {
