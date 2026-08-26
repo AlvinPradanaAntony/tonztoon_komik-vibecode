@@ -37,7 +37,6 @@ from app.schemas import (
     SourceInfoResponse,
 )
 from app.services.chapter_service import (
-    ChapterImagesPendingError,
     ImageFetchError,
     get_chapter_with_images_by_identity,
     get_comic_by_source_and_slug,
@@ -45,7 +44,6 @@ from app.services.chapter_service import (
 )
 from app.services.image_service import build_proxy_image_url, wrap_chapter_image_urls
 from app.services.source_service import get_source_stats_map
-from app.services.chapter_image_job_service import RETRY_AFTER_SECONDS
 from app.services.comic_search import comic_search_filter, comic_search_order
 from scraper.sources.registry import get_all_source_metadata, get_source_metadata
 
@@ -835,16 +833,6 @@ async def get_source_chapter_detail(
         )
     except LookupError:
         raise HTTPException(status_code=404, detail="Chapter tidak ditemukan")
-    except ChapterImagesPendingError as exc:
-        raise HTTPException(
-            status_code=202,
-            detail={
-                "message": str(exc),
-                "code": "chapter_images_preparing",
-                "retry_after_seconds": RETRY_AFTER_SECONDS,
-            },
-            headers={"Retry-After": str(RETRY_AFTER_SECONDS)},
-        ) from exc
     except ImageFetchError as exc:
         raise HTTPException(
             status_code=503,

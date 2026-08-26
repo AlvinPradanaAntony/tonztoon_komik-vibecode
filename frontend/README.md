@@ -82,6 +82,42 @@ Gunakan `10.0.2.2` untuk Android emulator, `127.0.0.1` untuk iOS simulator, dan 
 - Migrasi guest ke cloud memakai `/library/sync/import`, lalu cache guest dibersihkan setelah sukses.
 - Status download di cloud adalah intent/status sinkronisasi. File offline tetap milik device lokal.
 
+### Sync Status Read pada Listing Chapter
+
+Tombol Sync pada panel daftar chapter hanya muncul untuk komik yang mempunyai
+bookmark multi-source atau source terhubung.
+
+Saat authenticated, `LibraryRepository` menggabungkan completed chapter dari
+local cache, progress terakhir, origin, dan linked source. Data dikirim secara
+batch ke `POST /library/completed-chapters/batch` (maksimal 5.000 item per
+request). Backend melakukan bulk upsert dan propagation linked source dalam satu
+operasi set-based, sehingga tidak ada satu request atau commit per chapter.
+
+Saat guest, data tidak dikirim ke server library. Status ditulis ke Hive/local
+storage. Jika ada linked source, frontend mengambil daftar chapter tiap komik
+satu kali untuk mencocokkan nomor chapter, kemudian menyimpan hasil propagation
+secara batch.
+
+Setelah sinkronisasi berhasil, detail screen meng-invalidate progress dan
+`libraryComicStateProvider` untuk komik saat ini, origin, dan linked source.
+Badge/status read pada row chapter akan diperbarui. Tombol ini tidak me-refresh
+daftar chapter, URL chapter, metadata source, bookmark, history, atau posisi
+continue reading.
+
+### Reader dan Komiku Asia
+
+Frontend selalu meminta payload reader melalui API backend. Untuk Komiku Asia,
+backend memakai scraper API-first berbasis endpoint resmi `/api/v2`; frontend
+tidak berinteraksi langsung dengan DOM atau Cloudflare solver.
+
+Jika chapter lama memiliki URL yang tidak valid, backend dapat memperbarui
+listing chapter Komiku Asia berdasarkan detail API. Saat slug lokal sudah lama,
+scraper memprioritaskan title komik lokal untuk Search API dan memakai slug lama
+sebagai fallback. Backend kemudian menyimpan metadata dan URL terbaru tanpa
+pages/images, lalu mengulang permintaan image chapter yang sedang dibuka.
+Fallback ini khusus Komiku Asia dan terjadi on-demand, bukan saat tombol Sync
+status read ditekan.
+
 ## Menjalankan dan Menguji
 
 ```bash

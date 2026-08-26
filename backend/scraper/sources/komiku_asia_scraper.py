@@ -516,9 +516,7 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
             if isinstance(value, list)
         }
 
-    async def get_comic_detail(self, url: str) -> dict[str, Any]:
-        slug = extract_komiku_asia_slug(url)
-
+    async def _get_comic_detail_for_slug(self, slug: str) -> dict[str, Any]:
         detail_payload = await self._fetch_api_json(
             build_komiku_asia_comic_detail_url(slug)
         )
@@ -536,7 +534,122 @@ class KomikuAsiaScraper(ScraperCommonMixin, BaseComicScraper):
         )
         if parsed:
             return parsed
-        raise RuntimeError(f"Payload detail API Komiku Asia tidak valid: {url}")
+        raise RuntimeError(
+            f"Payload detail API Komiku Asia tidak valid untuk slug: {slug}"
+        )
+
+    @staticmethod
+    def _search_identity(value: Any) -> str:
+        return re.sub(r"[^a-z0-9]+", "", clean_text(value).lower())
+
+    async def _resolve_slug_from_search(
+        self,
+        slug: str,
+        *,
+        title: str | None = None,
+    ) -> str | None:
+        """Resolve slug lama melalui official search API dengan title sebagai prioritas."""
+        query_slug = re.sub(r"^\d{6,8}[-_]", "", clean_text(slug))
+        slug_query = re.sub(r"[-_]+", " ", query_slug).strip()
+        title_query = clean_text(title)
+        queries = list(
+            dict.fromkeys(
+                query for query in (title_query, slug_query) if query
+            )
+        )
+        if not queries:
+            return None
+
+        best_slug: str | None = None
+        best_score = 0
+        best_query: str | None = None
+
+        for query in queries:
+            results = await self.search_comics(query)
+            target_identity = self._search_identity(
+                title_query if query == title_query and title_query else query_slug
+            )
+
+            for result in results:
+                if not isinstance(result, dict):
+                    continue
+                result_slug = ""
+                result_title = clean_text(result.get("title"))
+                try:
+                    # `_parse_api_comic` normalizes its public `slug` from title,
+                    # therefore source_url is the authoritative API slug here.
+                    result_slug = extract_komiku_asia_slug(
+                        result.get("source_url", "")
+                    )
+                except ValueError:
+                    result_slug = clean_text(result.get("slug"))
+                if not result_slug:
+                    continue
+
+                slug_identity = self._search_identity(result_slug)
+                result_title_identity = self._search_identity(result_title)
+                if result_title_identity == target_identity:
+                    score = 100
+                elif slug_identity == target_identity:
+                    score = 95
+                elif target_identity and target_identity in result_title_identity:
+                    score = 80
+                elif target_identity and target_identity in slug_identity:
+                    score = 60
+                else:
+                    continue
+
+                if score > best_score:
+                    best_slug = result_slug
+                    best_score = score
+                    best_query = query
+
+            # Exact title/slug identity cukup kuat; hindari request fallback
+            # tambahan bila hasil title sudah pasti.
+            if best_score >= 95:
+                break
+
+        if best_slug:
+            logger.info(
+                "Slug Komiku Asia lokal %s di-resolve menjadi slug aktual %s "
+                "melalui API search query %r.",
+                slug,
+                best_slug,
+                best_query,
+            )
+
+        return best_slug
+
+    async def get_comic_detail(
+        self,
+        url: str,
+        *,
+        search_title: str | None = None,
+    ) -> dict[str, Any]:
+        """Fetch detail API, resolving legacy slug via title-first search."""
+        slug = extract_komiku_asia_slug(url)
+
+        try:
+            return await self._get_comic_detail_for_slug(slug)
+        except RuntimeError as exc:
+            # URL katalog lama dapat menyimpan slug buatan/local tanpa prefix
+            # tanggal yang sekarang diwajibkan oleh API Komiku Asia.
+            if "(status=404)" not in str(exc):
+                raise
+
+            actual_slug = await self._resolve_slug_from_search(
+                slug,
+                title=search_title,
+            )
+            if not actual_slug or actual_slug == slug:
+                raise
+
+            logger.warning(
+                "Detail Komiku Asia 404 untuk slug %s; memakai slug aktual %s.",
+                slug,
+                actual_slug,
+            )
+            return await self._get_comic_detail_for_slug(actual_slug)
 
     async def get_comic_metadata_patch(
         self,

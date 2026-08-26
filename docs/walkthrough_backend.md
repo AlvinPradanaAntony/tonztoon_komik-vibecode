@@ -136,8 +136,13 @@ Library API didesain untuk kebutuhan Flutter local-first.
 - Reader preferences: `GET/PUT /library/reader-preferences`
 - Reading time: `GET/POST /library/reading-time`
 - Guest import: `POST /library/sync/import`
+- Completed chapter batch: `POST /library/completed-chapters/batch`
 
 Detail payload ada di `backend/docs/library_api_contract.md`.
+
+Sinkronisasi completed chapter dari panel detail memakai satu payload batch,
+bulk upsert, dan propagation set-based. Endpoint lama satu chapter tetap ada
+untuk kompatibilitas, tetapi bukan jalur yang dipakai frontend chapter panel.
 
 ## 8. Chapter Image Lazy Loading
 
@@ -156,6 +161,19 @@ Alur:
 5. URL gambar dibungkus memakai `/api/v1/images/proxy`.
 6. Backend menjadwalkan nearby prefetch untuk chapter sekitar di background.
 7. Jika source gagal diakses, API mengembalikan `503`.
+
+Untuk `komiku_asia`, jika chapter tidak ditemukan atau URL tersimpan merupakan
+URL legacy, service me-refresh detail dan listing chapter melalui scraper
+API-first, meng-upsert metadata/URL saja, lalu mencoba ulang fetch images untuk
+chapter yang diminta. Resolver slug Komiku Asia memprioritaskan `Comic.title`
+lokal sebagai query official search API, lalu memakai slug lama sebagai
+fallback jika hasil title tidak cukup kuat. Source lain belum memakai repair
+metadata chapter otomatis ini.
+
+Queue `chapter_image_jobs` dan worker khusus Komiku Asia bukan lagi bagian dari
+runtime. Nearby prefetch dan reader on-demand berjalan langsung melalui
+`chapter_service` dan scraper source; migration penghapusan tabel harus
+diterapkan setelah proses worker versi lama dihentikan.
 
 ## 9. Scraper
 

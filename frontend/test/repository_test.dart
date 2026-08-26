@@ -145,39 +145,6 @@ void main() {
     expect(repository.hasCachedComicSection('other', popular: false), isFalse);
   });
 
-  test(
-    'catalog repository exposes pending chapter images as API 202',
-    () async {
-      final repository = CatalogRepository(
-        _apiWithStatusResponse(
-          'GET /sources/komiku_asia/comics/solo-leveling/chapters/179',
-          statusCode: 202,
-          data: {
-            'detail': {
-              'message': 'Chapter sedang disiapkan oleh browser worker.',
-              'code': 'chapter_images_preparing',
-              'retry_after_seconds': 5,
-            },
-          },
-        ),
-        store,
-      );
-
-      await expectLater(
-        repository.getChapter('komiku_asia', 'solo-leveling', 179),
-        throwsA(
-          isA<ApiException>()
-              .having((error) => error.statusCode, 'statusCode', 202)
-              .having(
-                (error) => error.message,
-                'message',
-                'Chapter sedang disiapkan oleh browser worker.',
-              ),
-        ),
-      );
-    },
-  );
-
   test('catalog repository refreshes genres and updates cache', () async {
     final cachedRepository = CatalogRepository(
       _apiWithResponses({
@@ -2474,7 +2441,6 @@ TonztoonApi _apiWithResponses(Map<String, Object?> responses) {
     dio: dio,
   );
 }
-
 TonztoonApi _failingApi() {
   final dio = Dio(BaseOptions(baseUrl: 'https://api.test'));
   dio.interceptors.add(
@@ -2484,36 +2450,6 @@ TonztoonApi _failingApi() {
           DioException(
             requestOptions: options,
             type: DioExceptionType.connectionError,
-          ),
-        );
-      },
-    ),
-  );
-  return TonztoonApi(
-    config: const AppConfig(apiBaseUrl: 'https://api.test'),
-    tokenStore: MemoryTokenStore(),
-    dio: dio,
-  );
-}
-
-TonztoonApi _apiWithStatusResponse(
-  String key, {
-  required int statusCode,
-  required Object? data,
-}) {
-  final dio = Dio(BaseOptions(baseUrl: 'https://api.test'));
-  dio.interceptors.add(
-    InterceptorsWrapper(
-      onRequest: (options, handler) {
-        if ('${options.method} ${options.path}' != key) {
-          handler.reject(DioException(requestOptions: options));
-          return;
-        }
-        handler.resolve(
-          Response<Object?>(
-            requestOptions: options,
-            statusCode: statusCode,
-            data: data,
           ),
         );
       },

@@ -325,6 +325,98 @@ class KomikuAsiaAsyncTests(unittest.IsolatedAsyncioTestCase):
             (build_komiku_asia_comic_chapters_url(483323),),
         )
 
+    async def test_detail_resolves_legacy_slug_via_official_search(self):
+        scraper = KomikuAsiaScraper()
+        scraper._fetch_api_json = AsyncMock(
+            side_effect=[
+                RuntimeError(
+                    "Gagal fetch halaman target: "
+                    "https://01.komiku.asia/api/v2/comics/solo-leveling "
+                    "(status=404)"
+                ),
+                [
+                    {
+                        "slug": "060624-solo-leveling",
+                        "title": "Solo Leveling",
+                    },
+                    {
+                        "slug": "solo-leveling-ragnarok",
+                        "title": "Solo Leveling: Ragnarok",
+                    },
+                ],
+                {
+                    "id": 131401,
+                    "slug": "060624-solo-leveling",
+                    "title": "Solo Leveling",
+                    "latestChapter": 179.6,
+                },
+                [{"n": 150, "id": 131550}],
+            ]
+        )
+
+        result = await scraper.get_comic_detail(
+            "https://01.komiku.asia/manga/solo-leveling"
+        )
+
+        self.assertEqual(result["source_url"], "https://01.komiku.asia/manga/060624-solo-leveling")
+        self.assertEqual(
+            result["chapters"][0]["source_url"],
+            "https://01.komiku.asia/read/id/060624-solo-leveling/ch150-131550",
+        )
+        self.assertEqual(
+            [call.args for call in scraper._fetch_api_json.await_args_list],
+            [
+                (build_komiku_asia_comic_detail_url("solo-leveling"),),
+                (build_komiku_asia_search_url("solo leveling"),),
+                (build_komiku_asia_comic_detail_url("060624-solo-leveling"),),
+                (build_komiku_asia_comic_chapters_url(131401),),
+            ],
+        )
+
+    async def test_detail_prefers_title_for_legacy_slug_search(self):
+        scraper = KomikuAsiaScraper()
+        scraper._fetch_api_json = AsyncMock(
+            side_effect=[
+                RuntimeError(
+                    "Gagal fetch halaman target: "
+                    "https://01.komiku.asia/api/v2/comics/solo-leveling "
+                    "(status=404)"
+                ),
+                [
+                    {
+                        "slug": "060624-solo-leveling",
+                        "title": "Solo Leveling",
+                    }
+                ],
+                {
+                    "id": 131401,
+                    "slug": "060624-solo-leveling",
+                    "title": "Solo Leveling",
+                    "latestChapter": 179.6,
+                },
+                [{"n": 150, "id": 131550}],
+            ]
+        )
+
+        result = await scraper.get_comic_detail(
+            "https://01.komiku.asia/manga/solo-leveling",
+            search_title="Solo Leveling",
+        )
+
+        self.assertEqual(
+            result["source_url"],
+            "https://01.komiku.asia/manga/060624-solo-leveling",
+        )
+        self.assertEqual(
+            [call.args for call in scraper._fetch_api_json.await_args_list],
+            [
+                (build_komiku_asia_comic_detail_url("solo-leveling"),),
+                (build_komiku_asia_search_url("Solo Leveling"),),
+                (build_komiku_asia_comic_detail_url("060624-solo-leveling"),),
+                (build_komiku_asia_comic_chapters_url(131401),),
+            ],
+        )
+
     async def test_chapter_images_use_first_party_pages_endpoint(self):
         scraper = KomikuAsiaScraper()
         scraper._fetch_api_json = AsyncMock(

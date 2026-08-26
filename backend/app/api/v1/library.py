@@ -30,6 +30,8 @@ from app.schemas import (
     CollectionResponse,
     CollectionSummaryResponse,
     CollectionUpdateRequest,
+    CompletedChapterBatchImportRequest,
+    CompletedChapterBatchResponse,
     CompletedChapterImportRequest,
     DownloadBatchRequest,
     DownloadBatchResponse,
@@ -81,6 +83,7 @@ from app.services.library_service import (
     list_download_entry_responses,
     list_favorite_scenes,
     list_history_responses,
+    mark_completed_chapter_batch,
     mark_chapter_completed,
     remove_comic_from_collection,
     rename_collection,
@@ -218,6 +221,22 @@ async def post_completed_chapter(
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"completed": True}
+
+
+@router.post(
+    "/completed-chapters/batch",
+    response_model=CompletedChapterBatchResponse,
+)
+async def post_completed_chapter_batch(
+    payload: CompletedChapterBatchImportRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Bulk upsert completed chapter dan propagate linked source sekali transaksi."""
+    try:
+        return await mark_completed_chapter_batch(db, user_id, payload)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/bookmarks", response_model=list[BookmarkResponse])

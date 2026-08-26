@@ -1,5 +1,6 @@
 import socket
 import unittest
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -131,6 +132,44 @@ class ImageProxySecurityTests(unittest.IsolatedAsyncioTestCase):
                         "https://cdnkomiku.xyz/page.jpg",
                         client=client,
                     )
+        finally:
+            await client.aclose()
+
+    async def test_cdnkomiku_403_retries_with_scrapling_fetcher(self):
+        async def handler(_: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                403,
+                headers={"content-type": "text/html"},
+                content=b"cloudflare challenge",
+            )
+
+        scrapling_page = SimpleNamespace(
+            status=200,
+            headers={"content-type": "image/jpeg"},
+            body=b"\xff\xd8\xff\xe0jpeg",
+        )
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        image_url = (
+            "https://cdnkomiku.xyz/wp-content/9/sample/chapter-00/page.JPEG"
+        )
+        try:
+            with (
+                patch(
+                    "app.services.image_service.validate_proxy_image_dns",
+                    new=AsyncMock(),
+                ),
+                patch(
+                    "scrapling.fetchers.Fetcher.get",
+                    return_value=scrapling_page,
+                ) as fetcher_get,
+            ):
+                result = await open_validated_image_proxy_response(
+                    image_url,
+                    client=client,
+                )
+                self.assertEqual(result.response.status_code, 200)
+                self.assertEqual(await result.response.aread(), b"\xff\xd8\xff\xe0jpeg")
+                fetcher_get.assert_called_once()
         finally:
             await client.aclose()
 

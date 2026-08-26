@@ -157,6 +157,57 @@ Request:
 
 `reading_mode` hanya menerima `"vertical"` atau `"paged"`.
 
+### Sinkronisasi Completed Chapter dari Chapter Panel
+
+Endpoint berikut dipakai tombol **Sync status read** pada panel listing chapter:
+
+```text
+POST /api/v1/library/completed-chapters/batch
+```
+
+Endpoint ini membutuhkan bearer token dan menerima maksimal `5.000` item per
+request. Request bersifat idempotent; item duplikat dalam payload diabaikan.
+
+Request:
+
+```json
+{
+  "chapters": [
+    {
+      "source_name": "komiku_asia",
+      "comic_slug": "solo-leveling",
+      "chapter_number": 150.0
+    },
+    {
+      "source_name": "komikcast",
+      "comic_slug": "solo-leveling",
+      "chapter_number": 150.0
+    }
+  ]
+}
+```
+
+Response:
+
+```json
+{
+  "completed_synced": 2,
+  "completed_propagated": 0
+}
+```
+
+`completed_synced` adalah jumlah chapter yang berhasil di-resolve dan
+di-upsert untuk user. `completed_propagated` adalah jumlah status tambahan
+yang ditandai pada komik lain dalam grup bookmark multi-source.
+
+Backend melakukan resolve, upsert, propagation, dan commit secara batch/set-
+based. Jumlah query dan transaksi tidak bertambah satu per chapter. Endpoint
+lama `POST /library/completed-chapters` tetap dipertahankan untuk kompatibilitas
+caller satu chapter, tetapi frontend chapter panel menggunakan endpoint batch.
+
+Endpoint ini hanya mengubah status completed. Progress posisi, scroll, history,
+dan continue reading tidak ikut diubah.
+
 ## Bookmarks
 
 | Method | Endpoint | Response |

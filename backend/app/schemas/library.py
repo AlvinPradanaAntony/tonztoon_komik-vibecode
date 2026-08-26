@@ -26,6 +26,7 @@ SYNC_IMPORT_CATEGORY_MAX_ITEMS = 2_000
 SYNC_IMPORT_MAX_COLLECTIONS = 200
 SYNC_IMPORT_MAX_COMICS_PER_COLLECTION = 1_000
 SYNC_IMPORT_MAX_TOTAL_ITEMS = 10_000
+COMPLETED_CHAPTER_BATCH_MAX_ITEMS = 5_000
 
 
 class ComicSelector(BaseModel):
@@ -116,6 +117,23 @@ class ProgressUpsertRequest(ChapterSelector):
 
 class CompletedChapterImportRequest(ChapterSelector):
     """Chapter yang pernah selesai dibaca saat import snapshot lokal."""
+
+
+class CompletedChapterBatchImportRequest(BaseModel):
+    """Batch chapter selesai yang dikirim dari tombol read-status sync."""
+
+    chapters: list[CompletedChapterImportRequest] = Field(
+        default_factory=list,
+        min_length=1,
+        max_length=COMPLETED_CHAPTER_BATCH_MAX_ITEMS,
+    )
+
+
+class CompletedChapterBatchResponse(BaseModel):
+    """Hasil bulk upsert dan propagation completed chapter."""
+
+    completed_synced: int = Field(default=0, ge=0)
+    completed_propagated: int = Field(default=0, ge=0)
 
 
 class ProgressResponse(BaseModel):

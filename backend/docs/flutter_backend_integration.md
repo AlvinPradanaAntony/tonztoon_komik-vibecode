@@ -229,6 +229,26 @@ Gunakan response untuk render:
 - jumlah favorite scene
 - status download chapter
 
+### Sync Status Read pada Panel Chapter
+
+Tombol **Sync status read** hanya tersedia jika komik mempunyai bookmark
+multi-source atau source terhubung. Perilakunya bergantung pada status auth:
+
+- Authenticated: Flutter membaca completed chapter dari cache lokal, lalu
+  mengirim batch ke `POST /library/completed-chapters/batch`. Backend melakukan
+  resolve, bulk upsert, propagation ke linked source, dan commit secara
+  set-based. Payload dibatasi maksimal `5.000` chapter per request.
+- Guest: tidak ada request ke endpoint library authenticated. Status hanya
+  disimpan di local storage. Untuk linked source, Flutter mengambil daftar
+  chapter satu kali per komik melalui endpoint source aplikasi, mencocokkan
+  nomor chapter, lalu menulis hasilnya secara batch ke local storage.
+
+Sync tidak mengubah posisi continue reading, scroll, history, bookmark, atau
+metadata chapter. Setelah sukses, Flutter meng-invalidate progress dan state
+library komik saat ini, origin, linked source, serta continue reading. Status
+read pada row listing chapter akan ikut diperbarui; daftar chapter, urutan, URL,
+dan metadata source tidak di-fetch ulang oleh tombol ini.
+
 ### Continue Reading
 
 Preview home:
@@ -365,6 +385,38 @@ POST /library/sync/import
 
 Kirim snapshot bookmark, collection, progress, history per chapter, completed chapters, favorite scenes, downloads, reader preferences, dan reading time. Setelah backend sukses, cache guest dapat dibersihkan/diberi label sebagai cache akun.
 
+## Reader, Lazy Loading, dan Komiku Asia
+
+Endpoint reader:
+
+```text
+GET /api/v1/sources/{source_name}/comics/{comic_slug}/chapters/{chapter_number}
+```
+
+Jika `chapters.images` sudah valid, backend mengembalikan cache database.
+Jika belum, backend mengambil daftar image secara on-demand dari scraper source,
+menyimpannya ke database, lalu menjadwalkan nearby prefetch di background.
+
+Komiku Asia menggunakan API resmi `/api/v2` melalui scraper API-first. Tidak ada
+parsing DOM untuk alur normal. Jika record chapter lama memiliki URL legacy,
+backend hanya untuk Komiku Asia akan mengambil ulang detail dan seluruh listing
+chapter, melakukan upsert metadata/URL tanpa pages/images, lalu mencoba ulang
+fetch image chapter yang diminta satu kali.
+
+Jika detail API Komiku Asia mengembalikan `404` karena slug lokal lama, scraper
+memprioritaskan `Comic.title` lokal sebagai query ke `/api/v2/comics/search`.
+Slug lama digunakan sebagai fallback jika hasil title kosong atau tidak cukup
+kuat. Setelah slug aktual ditemukan, scraper mengambil detail dan listing
+chapter dengan slug tersebut.
+
+`AsyncStealthySession` hanya menjadi fallback ketika direct API mendapatkan
+status `403`, `429`, `5xx`, timeout transport, atau body/header Cloudflare
+challenge. Response `200` JSON normal tidak membuka browser. Error non-timeout
+yang bukan indikasi proteksi tidak diklasifikasikan sebagai Cloudflare.
+
+Repair URL chapter ini khusus Komiku Asia. Source lain tetap memakai alur
+on-demand scraper masing-masing tanpa metadata repair lintas-source otomatis.
+
 ## Dart/Dio Notes
 
 `TonztoonApi` di frontend sudah menangani:
@@ -386,11 +438,10 @@ Endpoint auth yang tidak boleh memicu refresh ulang:
 
 | Status | Arti umum |
 |---|---|
-| `202` | Images chapter `komiku_asia` sedang disiapkan lazy browser worker; retry sesuai header `Retry-After` |
 | `400` | Payload/path tidak cocok atau request invalid |
 | `401` | Bearer token kosong/invalid/expired |
 | `403` | User tidak punya akses, terutama account manager |
 | `404` | Source, comic, chapter, atau item library tidak ditemukan |
 | `409` | Conflict, misalnya username atau nama collection sudah dipakai |
 | `422` | Validasi schema gagal |
-| `503` | Source komik sedang gagal diakses saat lazy-load chapter images |
+| `503` | Source komik gagal diakses saat API-first lazy-load chapter images; client dapat mencoba lagi dengan backoff |

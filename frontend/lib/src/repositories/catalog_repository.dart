@@ -448,19 +448,6 @@ class CatalogRepository {
     final response = await _api.get<Map<String, dynamic>>(
       '/sources/$sourceName/comics/$slug/chapters/${formatChapterNumber(chapterNumber)}',
     );
-    if (response.statusCode == 202) {
-      final data = response.data ?? const {};
-      final detail = data['detail'];
-      final detailData = detail is Map
-          ? Map<String, dynamic>.from(detail)
-          : const <String, dynamic>{};
-      throw ApiException(
-        detailData['message'] as String? ??
-            data['message'] as String? ??
-            'Chapter sedang disiapkan. Silakan tunggu beberapa saat.',
-        statusCode: 202,
-      );
-    }
     return ChapterPayload.fromJson(response.data ?? const {});
   }
 }

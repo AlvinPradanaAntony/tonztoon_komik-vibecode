@@ -11,9 +11,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   static const _progressSaveDelay = Duration(milliseconds: 500);
   static const _imagePrefetchCooldown = Duration(seconds: 20);
   static const _imagePrefetchHistoryLifetime = Duration(seconds: 60);
-  static const _chapterReadyRetryInterval = Duration(seconds: 5);
-  static const _komikuAsiaChapterReadyRetryBaseInterval = Duration(seconds: 8);
-  static const _komikuAsiaChapterReadyRetryMaxInterval = Duration(seconds: 30);
 
   ScrollController _scrollController = ScrollController();
   PageController _pageController = PageController();
@@ -35,10 +32,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   Timer? _progressSaveTimer;
   Timer? _autoNextTimer;
   Timer? _autoScrollTimer;
-  Timer? _chapterReadyRetryTimer;
   DateTime? _lastAutoScrollTick;
   int _nearbyReadyPolls = 0;
-  int _chapterReadyRetryAttempts = 0;
   String? _initialPreloadKey;
   Future<void>? _initialPreloadFuture;
   ReadingProgress? _pendingProgress;
@@ -103,7 +98,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     _progressSaveTimer?.cancel();
     _autoNextTimer?.cancel();
     _autoScrollTimer?.cancel();
-    _chapterReadyRetryTimer?.cancel();
     super.dispose();
   }
 
@@ -143,7 +137,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       _activeChapterNumber = widget.chapterNumber;
       _activeChapterTitle = widget.chapterTitle;
       _nearbyReadyPolls = 0;
-      _chapterReadyRetryAttempts = 0;
       _nearbyReadyNoticeMessage = null;
       _initialPreloadKey = null;
       _initialPreloadFuture = null;
@@ -160,7 +153,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       _progressSaveTimer?.cancel();
       _autoNextTimer?.cancel();
       _stopAutoScroll();
-      _chapterReadyRetryTimer?.cancel();
       if (_scrollController.hasClients) {
         _scrollController.jumpTo(0);
       }
@@ -1014,17 +1006,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       final error = chapterAsync.whenOrNull(
         error: (error, stackTrace) => error,
       );
-      if (error is ApiException && error.statusCode == 202) {
-        _scheduleChapterReadyRetry(request);
-        return _buildBackAwareRoute(
-          _PreparingReaderScaffold(
-            overlayStyle: preparingOverlayStyle,
-            backgroundColor: readerBackground,
-            comicSummary: _comicSummary,
-            chapterTitle: 'Menyiapkan ${widget.chapterTitle}...',
-          ),
-        );
-      }
       return _buildBackAwareRoute(
         Scaffold(
           backgroundColor: readerBackground,
@@ -1035,8 +1016,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
         ),
       );
     }
-    _chapterReadyRetryTimer?.cancel();
-    _chapterReadyRetryAttempts = 0;
     _ensureActivePages(payload);
     if (_activePages.isEmpty) {
       return _buildBackAwareRoute(
@@ -1154,29 +1133,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
             verticalPageKeyFor: _verticalPageKeyFor,
           );
         },
-      ),
-    );
-  }
-
-  void _scheduleChapterReadyRetry(ChapterRequest request) {
-    if (_chapterReadyRetryTimer?.isActive == true) return;
-    _chapterReadyRetryAttempts += 1;
-    _chapterReadyRetryTimer = Timer(_chapterReadyRetryDelay(), () {
-      if (!mounted) return;
-      ref.invalidate(chapterProvider(request));
-    });
-  }
-
-  Duration _chapterReadyRetryDelay() {
-    if (!_isKomikuAsiaSource) return _chapterReadyRetryInterval;
-
-    final multiplier = math.min(_chapterReadyRetryAttempts, 4);
-    final seconds =
-        _komikuAsiaChapterReadyRetryBaseInterval.inSeconds * multiplier;
-    return Duration(
-      seconds: math.min(
-        seconds,
-        _komikuAsiaChapterReadyRetryMaxInterval.inSeconds,
       ),
     );
   }

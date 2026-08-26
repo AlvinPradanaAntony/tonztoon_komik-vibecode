@@ -95,6 +95,7 @@ REFERER_BY_HOST_SUFFIX = {
     "voratoon.com": "https://v1.voratoon.com/",
     "voratoon.id": "https://v1.voratoon.com/",
 }
+SCRAPLING_IMAGE_FALLBACK_HOST_SUFFIXES = ("cdnkomiku.xyz",)
 
 
 class ImageProxyValidationError(ValueError):
@@ -415,6 +416,84 @@ def get_proxy_headers(image_url: str) -> dict[str, str]:
     }
 
 
+def _uses_scrapling_image_fallback(image_url: str) -> bool:
+    host = _normalize_hostname(urlparse(image_url).hostname)
+    return any(
+        _host_matches_suffix(host, suffix)
+        for suffix in SCRAPLING_IMAGE_FALLBACK_HOST_SUFFIXES
+    )
+
+
+async def _fetch_image_via_scrapling(
+    image_url: str,
+) -> ImageProxyFetchResult | None:
+    """
+    Retry protected CDN images through Scrapling's browser-like HTTP headers.
+
+    httpx receives a Cloudflare 403 from ``cdnkomiku.xyz`` while Scrapling's
+    Fetcher receives the same JPEG with status 200. The fallback is scoped to
+    that CDN and only used after the normal proxy request is forbidden.
+    """
+    try:
+        from scrapling.fetchers import Fetcher
+
+        page = await asyncio.to_thread(
+            Fetcher.get,
+            image_url,
+            stealthy_headers=True,
+            headers={
+                **get_proxy_headers(image_url),
+                "Accept": "image/avif,image/webp,image/apng,image/svg+xml,"
+                "image/*,*/*;q=0.8",
+            },
+            timeout=30_000,
+        )
+    except Exception as exc:
+        logger.warning("Scrapling image fallback gagal untuk %s: %s", image_url, exc)
+        return None
+
+    status = getattr(page, "status", None)
+    if status != 200:
+        logger.warning(
+            "Scrapling image fallback mendapat status %s untuk %s",
+            status,
+            image_url,
+        )
+        return None
+
+    body = getattr(page, "body", b"")
+    if not isinstance(body, bytes) or not body:
+        logger.warning("Scrapling image fallback mengembalikan body kosong untuk %s", image_url)
+        return None
+    if len(body) > settings.IMAGE_PROXY_MAX_BYTES:
+        raise ImageProxyPayloadTooLargeError(
+            "Image source exceeds the configured size limit."
+        )
+
+    source_headers = {
+        str(key).lower(): str(value)
+        for key, value in (getattr(page, "headers", {}) or {}).items()
+    }
+    content_type = source_headers.get("content-type", "")
+    response_headers = {
+        "content-type": content_type,
+        "content-length": str(len(body)),
+    }
+    validate_image_response_headers(response_headers)
+    response = httpx.Response(
+        status_code=200,
+        headers=response_headers,
+        content=body,
+        request=httpx.Request("GET", image_url),
+    )
+    logger.info("Scrapling image fallback berhasil untuk %s", image_url)
+    return ImageProxyFetchResult(
+        response=response,
+        url=image_url,
+        content_type=content_type,
+    )
+
+
 VORATOON_COVER_PATH_RE = re.compile(r"^/prod/series/([^/]+)/cover/")
 
 
@@ -476,6 +555,12 @@ async def open_validated_image_proxy_response(
             headers=get_proxy_headers(current_url),
         )
         response = await active_client.send(request, stream=True)
+
+        if response.status_code == 403 and _uses_scrapling_image_fallback(current_url):
+            scrapling_result = await _fetch_image_via_scrapling(current_url)
+            if scrapling_result is not None:
+                await response.aclose()
+                return scrapling_result
 
         if response.status_code in {301, 302, 303, 307, 308}:
             location = response.headers.get("location")

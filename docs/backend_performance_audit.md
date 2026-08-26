@@ -4,6 +4,10 @@ Tanggal audit: 2 Juni 2026
 Ruang lingkup: `backend/app`, `backend/scraper`, `backend/scripts`, model SQLAlchemy, migration Alembic, dan database Supabase terhubung.
 Metode: audit statis codebase ditambah inspeksi read-only Supabase MCP: advisor, schema, extension, ukuran tabel, `pg_stat_statements`, statistik scan, policy RLS, log PostgreSQL, dan `EXPLAIN` estimasi. Audit ini tidak mengubah schema atau data dan belum menjalankan `EXPLAIN (ANALYZE, BUFFERS)` maupun load test terhadap database produksi.
 
+Catatan status: snapshot `chapter_image_jobs` di bawah adalah historis. Queue
+browser worker Komiku Asia sudah dihapus dari runtime dan tabelnya dihapus oleh
+migration Alembic `d3f8a1c9e6b2` pada 25 Agustus 2026.
+
 ## Ringkasan Eksekutif
 
 Backend sudah memiliki beberapa keputusan yang baik: SQLAlchemy async digunakan secara konsisten, katalog utama memakai pagination, beberapa endpoint katalog memakai `noload(Comic.chapters)`, detail komik memakai correlated count agar tidak mengambil JSONB gambar, dan history list sudah memakai projection ringan.

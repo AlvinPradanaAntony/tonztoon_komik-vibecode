@@ -127,21 +127,6 @@ class Settings(BaseSettings):
     )
 
 
-    # --- Komiku Asia In-Process Background Worker ---
-    KOMIKU_ASIA_WORKER_ENABLED: bool = Field(
-        default=True,
-        description="Enable in-process background worker for Komiku Asia chapter images",
-    )
-    KOMIKU_ASIA_WORKER_POLL_SECONDS: float = Field(
-        default=3.0,
-        ge=1.0,
-        description="Polling interval in seconds when the worker queue is empty",
-    )
-    KOMIKU_ASIA_WORKER_IDLE_CLOSE_SECONDS: float = Field(
-        default=60.0,
-        ge=10.0,
-        description="Close browser session after this many idle seconds to save memory",
-    )
     KOMIKU_ASIA_LIVE_SCRAPE_PROVIDER: str = Field(
         default="auto",
         description=(

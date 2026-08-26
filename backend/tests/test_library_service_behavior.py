@@ -8,6 +8,7 @@ from sqlalchemy.dialects import postgresql
 
 from app.schemas.library import (
     BookmarkLinkBatchRequest,
+    CompletedChapterBatchImportRequest,
     DownloadBatchRequest,
     LibrarySyncImportRequest,
 )
@@ -22,6 +23,7 @@ from app.services.library_service import (
     import_library_snapshot,
     list_bookmarks,
     list_bookmark_link_candidates,
+    mark_completed_chapter_batch,
     set_comic_collections,
     set_bookmark_links,
     set_bookmark_status,
@@ -484,6 +486,57 @@ class LibraryServiceBehaviorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(db.commit_count, 1)
         params = db.statements[1].compile().params
         self.assertIn([4, 7], params.values())
+
+    async def test_completed_chapter_batch_uses_one_resolve_and_one_propagation(self):
+        user_id = uuid4()
+        payload = CompletedChapterBatchImportRequest.model_validate(
+            {
+                "chapters": [
+                    {
+                        "source_name": "source-a",
+                        "comic_slug": "comic-a",
+                        "chapter_number": 10,
+                    },
+                    {
+                        "source_name": "source-b",
+                        "comic_slug": "comic-b",
+                        "chapter_number": 10,
+                    },
+                ]
+            }
+        )
+        db = FakeSession([FakeResult(scalar_rows=[4, 7])])
+        resolve = AsyncMock(
+            return_value={
+                ("source-a", "comic-a", 10.0): (101, 11),
+                ("source-b", "comic-b", 10.0): (202, 22),
+            }
+        )
+        upsert = AsyncMock(return_value=2)
+        propagate = AsyncMock(return_value=3)
+
+        with (
+            patch("app.services.library_service._resolve_chapter_selector_ids", resolve),
+            patch("app.services.library_service._upsert_completed_chapter_rows", upsert),
+            patch(
+                "app.services.library_service._synchronize_existing_completed_for_links",
+                propagate,
+            ),
+        ):
+            response = await mark_completed_chapter_batch(db, user_id, payload)
+
+        self.assertEqual(response.completed_synced, 2)
+        self.assertEqual(response.completed_propagated, 3)
+        resolve.assert_awaited_once()
+        upsert.assert_awaited_once()
+        propagate.assert_awaited_once_with(
+            db,
+            user_id,
+            bookmark_ids=[4, 7],
+            commit=False,
+        )
+        self.assertEqual(len(db.statements), 1)
+        self.assertEqual(db.commit_count, 1)
 
     async def test_bookmark_links_use_bulk_lookup_delete_and_upsert(self):
         user_id = uuid4()

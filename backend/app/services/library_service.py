@@ -51,6 +51,8 @@ from app.schemas.library import (
     BookmarkLinkCandidateGroup,
     BookmarkLinkCandidatePage,
     BookmarkLinkCompletionSyncResponse,
+    CompletedChapterBatchImportRequest,
+    CompletedChapterBatchResponse,
     CompletedChapterImportRequest,
     CollectionResponse,
     CollectionSummaryResponse,
@@ -1825,6 +1827,65 @@ async def mark_chapter_completed(
         completed_at=now,
     )
     await db.commit()
+
+
+async def mark_completed_chapter_batch(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    payload: CompletedChapterBatchImportRequest,
+) -> CompletedChapterBatchResponse:
+    """Upsert completed chapter dan propagation linked source secara set-based."""
+    selector_keys = {
+        _chapter_selector_key(item)
+        for item in payload.chapters
+    }
+    if not selector_keys:
+        return CompletedChapterBatchResponse()
+
+    resolved_chapters = await _resolve_chapter_selector_ids(db, selector_keys)
+    completed_at = _utcnow()
+    chapter_rows = list(resolved_chapters.values())
+    completed_synced = await _upsert_completed_chapter_rows(
+        db,
+        user_id,
+        chapter_rows,
+        completed_at=completed_at,
+    )
+
+    comic_ids = {comic_id for _, comic_id in chapter_rows}
+    bookmark_result = await db.execute(
+        select(UserBookmark.id)
+        .outerjoin(
+            UserBookmarkLink,
+            and_(
+                UserBookmarkLink.bookmark_id == UserBookmark.id,
+                UserBookmarkLink.user_id == user_id,
+            ),
+        )
+        .where(
+            UserBookmark.user_id == user_id,
+            or_(
+                UserBookmark.comic_id.in_(comic_ids),
+                UserBookmarkLink.comic_id.in_(comic_ids),
+            ),
+        )
+        .distinct()
+    )
+    bookmark_ids = sorted(set(bookmark_result.scalars().all()))
+    completed_propagated = 0
+    if bookmark_ids:
+        completed_propagated = await _synchronize_existing_completed_for_links(
+            db,
+            user_id,
+            bookmark_ids=bookmark_ids,
+            commit=False,
+        )
+
+    await db.commit()
+    return CompletedChapterBatchResponse(
+        completed_synced=completed_synced,
+        completed_propagated=completed_propagated,
+    )
 
 
 def _progress_projection_statement(user_id: uuid.UUID):

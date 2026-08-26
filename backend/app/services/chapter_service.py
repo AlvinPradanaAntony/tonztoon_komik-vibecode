@@ -6,7 +6,9 @@ Flow lengkap saat user membuka chapter:
        → Ya  : langsung return (cache hit)
        → Tidak: on-demand scrape dengan timeout ON_DEMAND_TIMEOUT
                 → Berhasil : simpan ke DB → return
-                → Timeout/gagal : raise ImageFetchError
+                → Komiku Asia URL legacy/gagal: refresh listing metadata dari slug,
+                  upsert URL chapter tanpa images, lalu retry sekali
+                → Timeout/gagal setelah repair: raise ImageFetchError
                   sehingga API mengembalikan HTTP 503 ke user,
                   bukan mengembalikan data kosong tanpa pesan error.
 
@@ -50,7 +52,8 @@ Prefetch Window:
     PREFETCH_WINDOW = 5
     Contoh: user buka Ch 10 → prefetch Ch 5–9 dan Ch 11–15 (yang images invalid)
     KOMIKU_ASIA_PREFETCH_WINDOW = 2
-    Komiku Asia lebih konservatif karena lazy/backfill memakai provider eksternal.
+    Komiku Asia tetap memakai radius lebih konservatif, tetapi fetch dilakukan
+    langsung oleh API-first scraper seperti source lainnya.
 
 Prefetch Cooldown:
     PREFETCH_COOLDOWN_SECONDS = 60
@@ -62,6 +65,7 @@ import logging
 import random
 import time
 from collections import OrderedDict
+from urllib.parse import quote
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -78,10 +82,11 @@ from app.services.image_service import (
 logger = logging.getLogger("service.chapter")
 
 # ── Konfigurasi ──────────────────────────────────────────────────────────────
-ON_DEMAND_TIMEOUT        = 10   # detik — batas waktu lazy load realtime
-PREFETCH_TIMEOUT         = 20   # detik — batas waktu per chapter saat background prefetch
-PREFETCH_WINDOW          = 5    # radius chapter kiri & kanan yang di-prefetch
-KOMIKU_ASIA_PREFETCH_WINDOW = 2 # radius khusus Komiku Asia agar biaya/traffic lazy tetap terkendali
+ON_DEMAND_TIMEOUT = 10   # detik — batas waktu lazy load realtime
+KOMIKU_ASIA_METADATA_REFRESH_TIMEOUT = 10
+PREFETCH_TIMEOUT = 20   # detik — batas waktu per chapter saat background prefetch
+PREFETCH_WINDOW = 5    # radius chapter kiri & kanan yang di-prefetch
+KOMIKU_ASIA_PREFETCH_WINDOW = 2  # radius khusus Komiku Asia agar biaya/traffic lazy tetap terkendali
 PREFETCH_COOLDOWN_SECONDS = 60  # detik — jeda minimum antar-trigger prefetch per komik
 PREFETCH_COOLDOWN_MAX_ENTRIES = 2_048  # batas entry cooldown per worker process
 CHAPTER_NUMBER_TOLERANCE = 0.0001
@@ -96,6 +101,11 @@ PREFETCH_DELAY_MAX = 3.0
 # OrderedDict menjaga eviction deterministik agar map tidak tumbuh monoton.
 _prefetch_cooldowns: OrderedDict[int, float] = OrderedDict()
 
+# Komiku Asia dapat memiliki banyak chapter lama dengan URL page legacy.
+# Satu lock per komik mencegah beberapa reader melakukan refresh listing yang
+# sama secara bersamaan ketika katalog lokal belum sempat diperbarui.
+_komiku_asia_metadata_refresh_locks: dict[int, asyncio.Lock] = {}
+
 
 # ── Custom Exception ─────────────────────────────────────────────────────────
 
@@ -104,12 +114,6 @@ class ImageFetchError(Exception):
     Dilempar ketika on-demand image fetching gagal (timeout / scraper error).
     Ditangkap di layer router untuk dikembalikan sebagai HTTP 503.
     """
-    pass
-
-
-class ChapterImagesPendingError(Exception):
-    """Dilempar saat browser worker masih menyiapkan cache images chapter."""
-
     pass
 
 
@@ -338,11 +342,115 @@ async def get_chapter_by_source_slug_and_number(
     return result.scalars().first()
 
 
+async def _refresh_komiku_asia_chapter_metadata(
+    db: AsyncSession,
+    *,
+    comic_id: int,
+    comic_slug: str,
+    comic_title: str | None = None,
+    chapter: Chapter | None = None,
+) -> bool:
+    """
+    Refresh listing chapter Komiku Asia secara lazy dan metadata-only.
+
+    Ini dipakai sebagai repair path untuk record lama yang masih menyimpan URL
+    chapter legacy. ``get_comic_detail`` mengambil detail dan seluruh listing
+    chapter dari API resmi, sedangkan upsert metadata tidak menyentuh kolom
+    ``images``. Setelah commit, caller dapat mengulang fetch images hanya untuk
+    chapter yang sedang diminta.
+    """
+    from scraper.db_ops import upsert_chapter_metadata_many
+    from scraper.sources.komiku_asia_api import KOMIKU_ASIA_BASE_URL
+
+    refresh_lock = _komiku_asia_metadata_refresh_locks.setdefault(
+        comic_id,
+        asyncio.Lock(),
+    )
+
+    async with refresh_lock:
+        # Jika request lain dalam process yang sama sudah memperbaiki row ini,
+        # tidak perlu mengulang request detail/listing ke source.
+        if chapter is not None:
+            try:
+                await db.refresh(chapter)
+            except Exception as exc:
+                await db.rollback()
+                logger.warning(
+                    "Komiku Asia: gagal membaca ulang row chapter %s: %s",
+                    chapter.id,
+                    exc,
+                )
+                return False
+            if "/read/id/" in (chapter.source_url or "").lower():
+                return True
+
+        detail_url = (
+            f"{KOMIKU_ASIA_BASE_URL}/manga/{quote(comic_slug, safe='')}"
+        )
+        logger.warning(
+            "Komiku Asia: refresh listing chapter metadata dari slug %s "
+            "(tanpa pages/images).",
+            comic_slug,
+        )
+
+        try:
+            scraper = _get_komiku_asia_live_scraper()
+            comic_detail = await asyncio.wait_for(
+                scraper.get_comic_detail(
+                    detail_url,
+                    search_title=comic_title,
+                ),
+                timeout=KOMIKU_ASIA_METADATA_REFRESH_TIMEOUT,
+            )
+            chapters = comic_detail.get("chapters") if isinstance(comic_detail, dict) else None
+            valid_chapters = [
+                {
+                    "chapter_number": chapter_data["chapter_number"],
+                    "title": chapter_data.get("title"),
+                    "source_url": chapter_data["source_url"],
+                    "release_date": chapter_data.get("release_date"),
+                }
+                for chapter_data in chapters or []
+                if isinstance(chapter_data, dict)
+                and chapter_data.get("chapter_number") is not None
+                and chapter_data.get("source_url")
+            ]
+            if not valid_chapters:
+                logger.warning(
+                    "Komiku Asia: listing chapter kosong/tidak valid untuk slug %s.",
+                    comic_slug,
+                )
+                await db.rollback()
+                return False
+
+            saved_count = await upsert_chapter_metadata_many(
+                db,
+                comic_id,
+                valid_chapters,
+            )
+            await db.commit()
+            logger.info(
+                "Komiku Asia: %s metadata chapter diperbarui untuk %s.",
+                saved_count,
+                comic_slug,
+            )
+            return saved_count > 0
+        except Exception as exc:
+            await db.rollback()
+            logger.warning(
+                "Komiku Asia: refresh listing chapter gagal untuk %s: %s",
+                comic_slug,
+                exc,
+            )
+            return False
+
+
 async def _ensure_chapter_images_loaded(
     db: AsyncSession,
     chapter: Chapter,
     *,
     source_name: str | None = None,
+    comic_slug: str | None = None,
 ) -> Chapter:
     """Pastikan chapter memiliki daftar gambar, fetch on-demand bila perlu."""
     if chapter_images_are_ready(chapter.images):
@@ -353,11 +461,24 @@ async def _ensure_chapter_images_loaded(
         return chapter
 
     resolved_source_name = source_name
-    if not resolved_source_name:
+    resolved_comic_slug = comic_slug
+    resolved_comic_id = chapter.comic_id
+    resolved_comic_title: str | None = None
+    if (
+        not resolved_source_name
+        or not resolved_comic_slug
+        or resolved_source_name == "komiku_asia"
+    ):
         comic_result = await db.execute(
-            select(Comic.source_name).where(Comic.id == chapter.comic_id)
+            select(Comic.source_name, Comic.slug, Comic.title).where(
+                Comic.id == resolved_comic_id
+            )
         )
-        resolved_source_name = comic_result.scalar()
+        comic_row = comic_result.one_or_none()
+        if comic_row:
+            resolved_source_name = resolved_source_name or comic_row.source_name
+            resolved_comic_slug = resolved_comic_slug or comic_row.slug
+            resolved_comic_title = comic_row.title
 
     if not resolved_source_name:
         raise ImageFetchError(
@@ -365,39 +486,69 @@ async def _ensure_chapter_images_loaded(
             f"tidak bisa menentukan scraper."
         )
 
-    if resolved_source_name == "komiku_asia":
-        from app.services.chapter_image_job_service import (
-            REQUESTED_CHAPTER_PRIORITY,
-            enqueue_komiku_asia_chapter_image_jobs,
-        )
-
-        await enqueue_komiku_asia_chapter_image_jobs(
-            db,
-            [chapter.id],
-            priority=REQUESTED_CHAPTER_PRIORITY,
-        )
-        await db.commit()
-        # Job akan diproses oleh in-process background worker
-        # (komiku_asia_worker.py) yang berjalan di container Hugging Face
-        raise ChapterImagesPendingError(
-            "Chapter sedang disiapkan oleh browser worker. Silakan tunggu beberapa saat."
-        )
+    # fetch_and_save_chapter_images melakukan rollback saat fetch gagal.
+    # Rollback dapat expire atribut ORM, sehingga identitas ini harus dicache
+    # sebelum fallback mengakses session/database kembali.
+    resolved_chapter_id = chapter.id
+    resolved_chapter_number = chapter.chapter_number
 
     logger.info(
-        f"Lazy loading: Chapter {chapter.id} (Ch {chapter.chapter_number}) "
+        f"Lazy loading: Chapter {resolved_chapter_id} (Ch {resolved_chapter_number}) "
         f"belum punya images — on-demand scraping (timeout={ON_DEMAND_TIMEOUT}s)..."
     )
 
-    ok = await fetch_and_save_chapter_images(
-        chapter=chapter,
-        source_name=resolved_source_name,
-        timeout_seconds=ON_DEMAND_TIMEOUT,
-        db=db,
+    metadata_repair_available = (
+        resolved_source_name == "komiku_asia" and bool(resolved_comic_slug)
     )
+    metadata_repair_attempted = False
+    while True:
+        try:
+            ok = await fetch_and_save_chapter_images(
+                chapter=chapter,
+                source_name=resolved_source_name,
+                timeout_seconds=ON_DEMAND_TIMEOUT,
+                db=db,
+            )
+        except ImageFetchError:
+            if not metadata_repair_available or metadata_repair_attempted:
+                raise
+            metadata_repair_attempted = True
+            repaired = await _refresh_komiku_asia_chapter_metadata(
+                db,
+                comic_id=resolved_comic_id,
+                comic_slug=resolved_comic_slug,
+                comic_title=resolved_comic_title,
+                chapter=chapter,
+            )
+            if repaired:
+                await db.refresh(chapter)
+                continue
+            raise
+
+        if ok:
+            break
+
+        # Timeout/empty payload dikembalikan sebagai False oleh helper fetch.
+        # Untuk Komiku Asia, lakukan satu kali repair metadata sebelum
+        # mengembalikan 503 agar URL legacy tidak memblokir reader selamanya.
+        if metadata_repair_available and not metadata_repair_attempted:
+            metadata_repair_attempted = True
+            repaired = await _refresh_komiku_asia_chapter_metadata(
+                db,
+                comic_id=resolved_comic_id,
+                comic_slug=resolved_comic_slug,
+                comic_title=resolved_comic_title,
+                chapter=chapter,
+            )
+            if repaired:
+                await db.refresh(chapter)
+                continue
+        break
 
     if not ok:
         raise ImageFetchError(
-            f"Sumber komik tidak merespons dalam {ON_DEMAND_TIMEOUT} detik. "
+            f"Sumber {resolved_source_name} tidak mengembalikan images untuk "
+            f"chapter {resolved_chapter_number} setelah fetch on-demand. "
             f"Silakan coba lagi beberapa saat."
         )
 
@@ -477,11 +628,32 @@ async def get_chapter_with_images_by_identity(
         comic_slug,
         chapter_number,
     )
+    if not chapter and source_name == "komiku_asia":
+        comic = await get_comic_by_source_and_slug(db, source_name, comic_slug)
+        if comic:
+            repaired = await _refresh_komiku_asia_chapter_metadata(
+                db,
+                comic_id=comic.id,
+                comic_slug=comic_slug,
+                comic_title=comic.title,
+            )
+            if repaired:
+                chapter = await get_chapter_by_source_slug_and_number(
+                    db,
+                    source_name,
+                    comic_slug,
+                    chapter_number,
+                )
     if not chapter:
         raise LookupError(
             f"Chapter {chapter_number} untuk {source_name}/{comic_slug} tidak ditemukan"
         )
-    chapter = await _ensure_chapter_images_loaded(db, chapter, source_name=source_name)
+    chapter = await _ensure_chapter_images_loaded(
+        db,
+        chapter,
+        source_name=source_name,
+        comic_slug=comic_slug,
+    )
     return await _ensure_chapter_image_dimensions(db, chapter)
 
 
@@ -574,7 +746,7 @@ async def prefetch_nearby_chapters(
 
     logger.info(
         f"[Prefetch] Mulai untuk Ch {current_chapter_number} "
-        f"(comic_id={comic_id}, window=±{PREFETCH_WINDOW})"
+        f"(comic_id={comic_id})"
     )
 
     async with async_session() as db:
@@ -588,27 +760,18 @@ async def prefetch_nearby_chapters(
                 logger.warning(f"[Prefetch] Comic {comic_id} tidak ditemukan, batal.")
                 return
 
-            if source_name == "komiku_asia":
-                from app.services.chapter_image_job_service import (
-                    enqueue_komiku_asia_nearby_chapters,
-                )
-
-                queued = await enqueue_komiku_asia_nearby_chapters(
-                    db,
-                    comic_id=comic_id,
-                    current_chapter_number=current_chapter_number,
-                    window=KOMIKU_ASIA_PREFETCH_WINDOW,
-                )
-                await db.commit()
-                # Job akan diproses oleh in-process background worker
-                logger.info(
-                    "[Prefetch] %s nearby chapter Komiku Asia masuk antrean browser worker.",
-                    queued,
-                )
-                return
-
-            lower = current_chapter_number - PREFETCH_WINDOW
-            upper = current_chapter_number + PREFETCH_WINDOW
+            prefetch_window = (
+                KOMIKU_ASIA_PREFETCH_WINDOW
+                if source_name == "komiku_asia"
+                else PREFETCH_WINDOW
+            )
+            logger.info(
+                "[Prefetch] Source %s memakai radius ±%s; fetch langsung via scraper.",
+                source_name,
+                prefetch_window,
+            )
+            lower = current_chapter_number - prefetch_window
+            upper = current_chapter_number + prefetch_window
 
             result = await db.execute(
                 select(Chapter)

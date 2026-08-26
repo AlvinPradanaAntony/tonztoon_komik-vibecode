@@ -2,6 +2,8 @@ part of '../library_repository.dart';
 
 /// Cross-source bookmark linking: scanning for candidate links, saving them,
 /// and propagating "completed chapter" status across linked comics.
+const _completedChapterBatchSize = 5000;
+
 extension LibraryBookmarkLinks on LibraryRepository {
   Future<List<BookmarkLinkCandidate>> scanBookmarkLinkCandidates({
     void Function(int scanned)? onProgress,
@@ -403,33 +405,71 @@ extension LibraryBookmarkLinks on LibraryRepository {
       }
     }
 
-    var completedSynced = 0;
     final loggedIn = await _isLoggedIn;
+    final remoteChapters = <Map<String, dynamic>>[];
+    final authenticatedCacheKeys = <String>{};
+    var completedSynced = 0;
     for (final item in groupComics.values) {
       final numbers = numbersByComic[item.key] ?? const <double>{};
-      for (final chapterNumber in numbers) {
-        await _addLocalCompletedChapter(
-          item.sourceName,
-          item.slug,
-          chapterNumber,
-        );
-        if (loggedIn) {
-          await _markCompletedChapterRemote(item, chapterNumber);
-          await LocalStateMetadata.markAuthenticatedCompletedChapterCache(
-            _store,
-            item.sourceName,
-            item.slug,
-            chapterNumber,
+      if (numbers.isEmpty) continue;
+
+      await _addLocalCompletedChapters(
+        item.sourceName,
+        item.slug,
+        numbers,
+      );
+      completedSynced += numbers.length;
+
+      if (loggedIn) {
+        for (final chapterNumber in numbers) {
+          remoteChapters.add({
+            'source_name': item.sourceName,
+            'comic_slug': item.slug,
+            'chapter_number': chapterNumber,
+          });
+          authenticatedCacheKeys.add(
+            LocalStateMetadata.completedChapterKey(
+              item.sourceName,
+              item.slug,
+              chapterNumber,
+            ),
           );
         }
-        completedSynced++;
       }
     }
 
-    final localPropagation = await _propagateExistingLocalCompletionsForLinks();
+    var completedPropagated = 0;
+    if (loggedIn && remoteChapters.isNotEmpty) {
+      completedSynced = 0;
+      for (
+        var start = 0;
+        start < remoteChapters.length;
+        start += _completedChapterBatchSize
+      ) {
+        final end = math.min(
+          start + _completedChapterBatchSize,
+          remoteChapters.length,
+        );
+        final data = await _postCompletedChapterBatch(
+          remoteChapters.sublist(start, end),
+        );
+        completedSynced +=
+            (data['completed_synced'] as num?)?.toInt() ?? end - start;
+        completedPropagated +=
+            (data['completed_propagated'] as num?)?.toInt() ?? 0;
+      }
+      await LocalStateMetadata.markAuthenticatedCompletedChapterCaches(
+        _store,
+        authenticatedCacheKeys,
+      );
+    } else if (!loggedIn) {
+      final localPropagation = await _propagateExistingLocalCompletionsForLinks();
+      completedPropagated = localPropagation.completedPropagated;
+    }
+
     return ReadStatusSyncResult(
       completedSynced: completedSynced,
-      completedPropagated: localPropagation.completedPropagated,
+      completedPropagated: completedPropagated,
     );
   }
 
@@ -452,18 +492,25 @@ extension LibraryBookmarkLinks on LibraryRepository {
     return (left - right).abs() <= 0.0001;
   }
 
-  Future<void> _markCompletedChapterRemote(
-    LibraryComicRef comic,
-    double chapterNumber,
+  Future<Map<String, dynamic>> _postCompletedChapterBatch(
+    List<Map<String, dynamic>> chapters,
   ) async {
-    await _api.post<Map<String, dynamic>>(
-      '/library/completed-chapters',
-      data: {
-        'source_name': comic.sourceName,
-        'comic_slug': comic.slug,
-        'chapter_number': chapterNumber,
-      },
-    );
+    for (var attempt = 1; attempt <= _bookmarkLinkMaxAttempts; attempt++) {
+      try {
+        final response = await _api.post<Map<String, dynamic>>(
+          '/library/completed-chapters/batch',
+          data: {'chapters': chapters},
+        );
+        return response.data ?? const {};
+      } on ApiException catch (error) {
+        if (!_isRetryableBatchError(error) ||
+            attempt == _bookmarkLinkMaxAttempts) {
+          rethrow;
+        }
+        await Future<void>.delayed(Duration(milliseconds: 500 * attempt));
+      }
+    }
+    throw StateError('Completed chapter batch retry loop ended unexpectedly.');
   }
 
   Future<BookmarkLinkSaveResult> _saveBookmarkLinkBatch(
@@ -616,6 +663,7 @@ extension LibraryBookmarkLinks on LibraryRepository {
       final completedNumbers = completedByComic.values
           .expand((numbers) => numbers)
           .toSet();
+      final pendingLocalByComic = <String, Set<double>>{};
 
       for (final completedNumber in completedNumbers) {
         for (final comic in comics.values) {
@@ -633,14 +681,22 @@ extension LibraryBookmarkLinks on LibraryRepository {
             }
           }
           if (matchingChapter == null) continue;
-          await _addLocalCompletedChapter(
-            comic.sourceName,
-            comic.slug,
-            matchingChapter.chapterNumber,
-          );
+          pendingLocalByComic
+              .putIfAbsent(comic.key, () => <double>{})
+              .add(matchingChapter.chapterNumber);
           completed.add(matchingChapter.chapterNumber);
           propagated++;
         }
+      }
+
+      for (final comic in comics.values) {
+        final pending = pendingLocalByComic[comic.key];
+        if (pending == null || pending.isEmpty) continue;
+        await _addLocalCompletedChapters(
+          comic.sourceName,
+          comic.slug,
+          pending,
+        );
       }
     }
     return BookmarkLinkSaveResult(completedPropagated: propagated);
@@ -658,14 +714,14 @@ extension LibraryBookmarkLinks on LibraryRepository {
         .toList();
   }
 
-  Future<void> _addLocalCompletedChapter(
+  Future<void> _addLocalCompletedChapters(
     String sourceName,
     String slug,
-    double chapterNumber,
+    Iterable<double> chapterNumbers,
   ) async {
     final key = ReadingProgress.completedChaptersKey(sourceName, slug);
     final numbers = _localCompletedChapterNumbers(sourceName, slug).toSet()
-      ..add(chapterNumber);
+      ..addAll(chapterNumbers);
     await _store.progress.put(key, numbers.toList()..sort());
   }
 }

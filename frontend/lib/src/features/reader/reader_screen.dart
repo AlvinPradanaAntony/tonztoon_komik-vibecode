@@ -12,7 +12,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../helpers/app_icons.dart';
-import '../../core/api_client.dart';
 import '../../helpers/app_snackbar.dart';
 import '../../helpers/navigation_helpers.dart';
 import '../../core/reader_image_cache.dart';

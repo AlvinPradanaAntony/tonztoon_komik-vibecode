@@ -27,20 +27,17 @@ from app.api.router import api_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup & shutdown lifecycle events."""
-    # Startup — mulai background worker Komiku Asia
+    # Startup — siapkan shared HTTP clients.
     from app.services.http_client_service import (
         shutdown_http_clients,
         startup_http_clients,
     )
-    from app.services.komiku_asia_worker import start_worker, stop_worker
 
     await startup_http_clients()
     try:
-        await start_worker()
         yield
     finally:
-        # Shutdown — hentikan worker secara graceful dan tutup pooled HTTP clients
-        await stop_worker()
+        # Shutdown — tutup pooled HTTP clients.
         await shutdown_http_clients()
 
 

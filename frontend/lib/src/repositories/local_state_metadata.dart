@@ -83,6 +83,19 @@ class LocalStateMetadata {
     );
   }
 
+  static Future<void> markAuthenticatedCompletedChapterCaches(
+    LocalStore store,
+    Iterable<String> keys,
+  ) async {
+    final values = _readStringSet(store, _authCompletedChapterCacheKeysKey)
+      ..addAll(keys);
+    if (values.isEmpty) return;
+    await store.settings.put(
+      _authCompletedChapterCacheKeysKey,
+      values.toList()..sort(),
+    );
+  }
+
   static String completedChapterKey(
     String sourceName,
     String comicSlug,
