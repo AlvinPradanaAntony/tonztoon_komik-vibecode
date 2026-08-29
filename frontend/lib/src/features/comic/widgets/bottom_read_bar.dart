@@ -37,7 +37,12 @@ class _BottomReadBar extends StatelessWidget {
       progress,
       completedChapterNumbers,
     );
-    final downloadTooltip = downloadState.label ?? 'Unduh';
+    final downloadTooltip = downloadBusy
+        ? 'Memuat status download'
+        : downloadState.label ?? 'Unduh';
+    final collectionTooltip = collectionBusy
+        ? 'Memuat status koleksi'
+        : 'Tambah ke koleksi';
 
     final isReRead =
         continueChapter != null &&
@@ -129,7 +134,7 @@ class _BottomReadBar extends StatelessWidget {
                       ),
                       const SizedBox(width: 10),
                       IconButton.filledTonal(
-                        tooltip: 'Tambah ke koleksi',
+                        tooltip: collectionTooltip,
                         onPressed: collectionBusy ? null : onManageCollections,
                         icon: collectionBusy
                             ? const SizedBox.square(

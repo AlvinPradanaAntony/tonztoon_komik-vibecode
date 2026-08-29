@@ -144,17 +144,17 @@ class LibrarySchemaLimitTests(unittest.TestCase):
         payload = ReaderPreferenceUpdateRequest.model_validate(
             {
                 "auto_scroll_enabled": True,
-                "auto_scroll_speed": 1.5,
+                "auto_scroll_speed": 2.25,
             }
         )
 
         self.assertTrue(payload.auto_scroll_enabled)
-        self.assertEqual(payload.auto_scroll_speed, 1.5)
+        self.assertEqual(payload.auto_scroll_speed, 2.25)
 
     def test_reader_preferences_reject_autoscroll_speed_out_of_range(self):
         with self.assertRaises(ValidationError):
             ReaderPreferenceUpdateRequest.model_validate(
-                {"auto_scroll_speed": 1.75}
+                {"auto_scroll_speed": 2.26}
             )
 
 

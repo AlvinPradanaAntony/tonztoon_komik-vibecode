@@ -18,6 +18,7 @@ class CatalogState {
   const CatalogState({
     this.comics = const [],
     this.activeSource,
+    this.sourceQuery,
     this.page = 0,
     this.total = 0,
     this.totalPages = 1,
@@ -26,6 +27,13 @@ class CatalogState {
 
   final List<ComicSummary> comics;
   final SourceInfo? activeSource;
+
+  /// Resolved source filter reused by pagination.
+  ///
+  /// The source filter is stored as IDs because the filter UI exposes source
+  /// labels while the API accepts source IDs. Keeping the resolved value here
+  /// avoids requesting `/sources` again for every next page.
+  final String? sourceQuery;
   final int page;
   final int total;
   final int totalPages;
@@ -37,6 +45,7 @@ class CatalogState {
     List<ComicSummary>? comics,
     SourceInfo? activeSource,
     bool clearActiveSource = false,
+    String? sourceQuery,
     int? page,
     int? total,
     int? totalPages,
@@ -47,6 +56,7 @@ class CatalogState {
       activeSource: clearActiveSource
           ? null
           : (activeSource ?? this.activeSource),
+      sourceQuery: sourceQuery ?? this.sourceQuery,
       page: page ?? this.page,
       total: total ?? this.total,
       totalPages: totalPages ?? this.totalPages,
@@ -117,6 +127,7 @@ class CatalogController extends AsyncNotifier<CatalogState> {
     return CatalogState(
       comics: page.items,
       activeSource: source,
+      sourceQuery: sourceQuery,
       page: page.page,
       total: page.total,
       totalPages: page.totalPages < 1 ? 1 : page.totalPages,
@@ -169,10 +180,7 @@ class CatalogController extends AsyncNotifier<CatalogState> {
             sourceName: current.activeSource?.id,
             page: current.page + 1,
             pageSize: _catalogPageSize,
-            source: _sourceQuery(
-              await ref.read(catalogRepositoryProvider).getSources(),
-              filters,
-            ),
+            source: current.sourceQuery,
             type: _queryFor(filters.type),
             status: _queryFor(filters.status),
             genre: _queryFor(filters.genre),

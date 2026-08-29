@@ -9,7 +9,7 @@ tanpa memuat seluruh gambar di RAM server.
 """
 
 from fastapi import APIRouter, Query, HTTPException, Depends
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 import httpx
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +19,7 @@ from app.services.image_service import (
     ImageProxyPayloadTooLargeError,
     ImageProxyValidationError,
     extract_komikcast_series_slug_from_cover_url,
+    optimize_image_response,
     open_validated_image_proxy_response,
     refresh_komikcast_cover_url,
     stream_image_response_with_limit,
@@ -33,6 +34,18 @@ logger = logging.getLogger(__name__)
 @router.get("/proxy")
 async def proxy_image(
     url: str = Query(..., description="URL gambar asli dari server komik"),
+    width: int | None = Query(
+        None,
+        ge=160,
+        le=1440,
+        description="Lebar maksimum varian cover hasil resize.",
+    ),
+    quality: int = Query(
+        82,
+        ge=60,
+        le=95,
+        description="Kualitas WebP varian cover.",
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -89,6 +102,21 @@ async def proxy_image(
             raise HTTPException(
                 status_code=response.status_code,
                 detail="Failed to fetch image from source",
+            )
+
+        if width is not None:
+            optimized = await optimize_image_response(
+                response,
+                content_type=proxy_result.content_type,
+                max_width=width,
+                quality=quality,
+            )
+            return Response(
+                content=optimized.body,
+                media_type=optimized.content_type,
+                headers={
+                    "Cache-Control": "public, max-age=86400",
+                },
             )
 
         return StreamingResponse(

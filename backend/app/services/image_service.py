@@ -6,6 +6,7 @@ Digunakan oleh route /api/v1/images/proxy.
 """
 
 import asyncio
+from io import BytesIO
 import ipaddress
 import logging
 import re
@@ -16,7 +17,7 @@ from typing import Any
 from urllib.parse import urlencode, urljoin, urlparse
 
 import httpx
-from PIL import ImageFile
+from PIL import Image, ImageFile, ImageOps
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -46,7 +47,9 @@ KOMIKCAST_IMAGE_HOSTS = (
     "imgkc.my.id",
 )
 KOMIKCAST_COVER_PATH_RE = re.compile(r"^/prod/series/([^/]+)/cover/")
-IMAGE_DIMENSION_PROBE_MAX_BYTES = 256 * 1024
+# Some Komiku Asia JPEGs contain large EXIF blocks before the SOF marker.
+# Keep the probe bounded, but allow enough of the partial response to reach it.
+IMAGE_DIMENSION_PROBE_MAX_BYTES = 512 * 1024
 IMAGE_DIMENSION_PROBE_CONCURRENCY = 8
 IMAGE_PROXY_ALLOWED_SCHEMES = {"http", "https"}
 IMAGE_PROXY_ALLOWED_PORTS = {80, 443}
@@ -95,7 +98,13 @@ REFERER_BY_HOST_SUFFIX = {
     "voratoon.com": "https://v1.voratoon.com/",
     "voratoon.id": "https://v1.voratoon.com/",
 }
-SCRAPLING_IMAGE_FALLBACK_HOST_SUFFIXES = ("cdnkomiku.xyz",)
+SCRAPLING_IMAGE_FALLBACK_STATUSES = {
+    # Komiku's CDN challenge is commonly returned as 403.
+    "cdnkomiku.xyz": frozenset({403}),
+    # Voratoon has legacy image paths that can return 404 to httpx while a
+    # browser-like request may still resolve the asset.
+    "cdn.voratoon.com": frozenset({403, 404}),
+}
 
 
 class ImageProxyValidationError(ValueError):
@@ -112,6 +121,14 @@ class ImageProxyFetchResult:
 
     response: httpx.Response
     url: str
+    content_type: str
+
+
+@dataclass(slots=True)
+class OptimizedImagePayload:
+    """Bytes cover yang sudah diperkecil untuk dikirim ke client."""
+
+    body: bytes
     content_type: str
 
 
@@ -416,11 +433,11 @@ def get_proxy_headers(image_url: str) -> dict[str, str]:
     }
 
 
-def _uses_scrapling_image_fallback(image_url: str) -> bool:
+def _should_try_scrapling_image_fallback(image_url: str, status_code: int) -> bool:
     host = _normalize_hostname(urlparse(image_url).hostname)
     return any(
-        _host_matches_suffix(host, suffix)
-        for suffix in SCRAPLING_IMAGE_FALLBACK_HOST_SUFFIXES
+        status_code in statuses and _host_matches_suffix(host, suffix)
+        for suffix, statuses in SCRAPLING_IMAGE_FALLBACK_STATUSES.items()
     )
 
 
@@ -428,11 +445,10 @@ async def _fetch_image_via_scrapling(
     image_url: str,
 ) -> ImageProxyFetchResult | None:
     """
-    Retry protected CDN images through Scrapling's browser-like HTTP headers.
+    Retry protected/legacy CDN images through Scrapling's browser-like headers.
 
-    httpx receives a Cloudflare 403 from ``cdnkomiku.xyz`` while Scrapling's
-    Fetcher receives the same JPEG with status 200. The fallback is scoped to
-    that CDN and only used after the normal proxy request is forbidden.
+    The fallback is scoped to known source CDNs and only used for their
+    configured HTTP statuses.
     """
     try:
         from scrapling.fetchers import Fetcher
@@ -556,7 +572,7 @@ async def open_validated_image_proxy_response(
         )
         response = await active_client.send(request, stream=True)
 
-        if response.status_code == 403 and _uses_scrapling_image_fallback(current_url):
+        if _should_try_scrapling_image_fallback(current_url, response.status_code):
             scrapling_result = await _fetch_image_via_scrapling(current_url)
             if scrapling_result is not None:
                 await response.aclose()
@@ -633,6 +649,58 @@ async def stream_image_response_with_limit(
         await response.aclose()
 
 
+def _resize_and_compress_cover(
+    body: bytes,
+    *,
+    max_width: int,
+    quality: int,
+) -> bytes | None:
+    """Resize cover tanpa upscale lalu encode WebP dengan kualitas terkontrol."""
+    try:
+        with Image.open(BytesIO(body)) as source:
+            image = ImageOps.exif_transpose(source)
+            if image.width > max_width:
+                target_height = max(1, round(image.height * max_width / image.width))
+                image = image.resize(
+                    (max_width, target_height),
+                    Image.Resampling.LANCZOS,
+                )
+
+            if image.mode not in {"RGB", "RGBA"}:
+                image = image.convert("RGBA" if "A" in image.getbands() else "RGB")
+
+            output = BytesIO()
+            image.save(output, format="WEBP", quality=quality, method=4)
+            optimized = output.getvalue()
+            # Jangan mengganti payload jika source sudah lebih kecil/efisien.
+            return optimized if len(optimized) < len(body) else None
+    except (OSError, ValueError, Image.DecompressionBombError) as exc:
+        logger.warning("Cover tidak dapat dioptimalkan, memakai source asli: %s", exc)
+        return None
+
+
+async def optimize_image_response(
+    response: httpx.Response,
+    *,
+    content_type: str,
+    max_width: int,
+    quality: int,
+) -> OptimizedImagePayload:
+    """Baca cover, optimalkan di worker thread, lalu tutup upstream response."""
+    chunks = [chunk async for chunk in stream_image_response_with_limit(response)]
+    body = b"".join(chunks)
+
+    optimized = await asyncio.to_thread(
+        _resize_and_compress_cover,
+        body,
+        max_width=max_width,
+        quality=quality,
+    )
+    if optimized is None:
+        return OptimizedImagePayload(body=body, content_type=content_type)
+    return OptimizedImagePayload(body=optimized, content_type="image/webp")
+
+
 def _positive_dimension(value: Any) -> int | None:
     """Normalisasi nilai dimensi tanpa menerima bool atau angka non-positif."""
     if isinstance(value, bool):
@@ -707,6 +775,127 @@ def _parse_webp_dimensions(data: bytes) -> tuple[int, int] | None:
     return None
 
 
+def _parse_jpeg_dimensions(data: bytes) -> tuple[int, int] | None:
+    """Baca dimensi JPEG dari marker SOF tanpa mendekode payload penuh."""
+    if len(data) < 4 or data[:2] != b"\xff\xd8":
+        return None
+
+    # SOF markers that carry JPEG frame dimensions. DHT/DAC and restart
+    # markers are intentionally excluded because they do not carry dimensions.
+    sof_markers = {
+        *range(0xC0, 0xC4),
+        *range(0xC5, 0xC8),
+        *range(0xC9, 0xCC),
+        *range(0xCD, 0xD0),
+    }
+    offset = 2
+    while offset + 1 < len(data):
+        if data[offset] != 0xFF:
+            return None
+
+        while offset < len(data) and data[offset] == 0xFF:
+            offset += 1
+        if offset >= len(data):
+            return None
+
+        marker = data[offset]
+        offset += 1
+        if marker in {0xD9, 0xDA}:
+            return None
+        if marker in {0x01, *range(0xD0, 0xD9)}:
+            continue
+        if offset + 2 > len(data):
+            return None
+
+        segment_length = int.from_bytes(data[offset : offset + 2], "big")
+        if segment_length < 2:
+            return None
+        if marker in sof_markers:
+            if offset + 7 > len(data):
+                return None
+            height = int.from_bytes(data[offset + 3 : offset + 5], "big")
+            width = int.from_bytes(data[offset + 5 : offset + 7], "big")
+            return (width, height) if width > 0 and height > 0 else None
+
+        offset += segment_length
+
+    return None
+
+
+def _parse_avif_dimensions(data: bytes) -> tuple[int, int] | None:
+    """Baca dimensi AVIF dari box ``ispe`` pada header ISO-BMFF.
+
+    CDN Komiku mengembalikan AVIF sebagai ``206 Partial Content``. Pillow pada
+    environment scraper belum tentu memiliki decoder AVIF, padahal metadata
+    ukuran intrinsik sudah berada di bagian awal file pada box ``ispe``.
+    ``ispe`` dapat berada di dalam beberapa container (misalnya ``meta`` /
+    ``iprp`` / ``ipco``), jadi cari box berdasarkan header ukurannya dan bukan
+    hanya berdasarkan offset tetap.
+    """
+    if len(data) < 16 or data[4:8] != b"ftyp":
+        return None
+
+    # AVIF/HEIF brands yang lazim menyimpan image spatial properties di ispe.
+    compatible_brands = data[8: min(len(data), 256)]
+    if not any(
+        brand in compatible_brands
+        for brand in (b"avif", b"avis", b"mif1", b"msf1")
+    ):
+        return None
+
+    search_from = 8
+    while True:
+        box_type_at = data.find(b"ispe", search_from)
+        if box_type_at < 4:
+            return None
+
+        box_start = box_type_at - 4
+        box_size = int.from_bytes(data[box_start:box_type_at], "big")
+        if box_size == 1:
+            # Extended-size boxes need 16 bytes before their payload. They are
+            # not expected for this small metadata box, but reject malformed
+            # candidates instead of reading arbitrary bytes as dimensions.
+            search_from = box_type_at + 4
+            continue
+
+        if box_size < 20 or box_start + box_size > len(data):
+            search_from = box_type_at + 4
+            continue
+
+        width = int.from_bytes(data[box_type_at + 8 : box_type_at + 12], "big")
+        height = int.from_bytes(data[box_type_at + 12 : box_type_at + 16], "big")
+        if width > 0 and height > 0:
+            return width, height
+
+        search_from = box_type_at + 4
+
+
+def _parse_image_dimensions_from_bytes(data: bytes) -> tuple[int, int] | None:
+    """Baca dimensi dari payload gambar yang sudah tersedia di memory."""
+    jpeg_dimensions = _parse_jpeg_dimensions(data)
+    if jpeg_dimensions is not None:
+        return jpeg_dimensions
+
+    webp_dimensions = _parse_webp_dimensions(data)
+    if webp_dimensions is not None:
+        return webp_dimensions
+
+    avif_dimensions = _parse_avif_dimensions(data)
+    if avif_dimensions is not None:
+        return avif_dimensions
+
+    parser = ImageFile.Parser()
+    try:
+        parser.feed(data[:IMAGE_DIMENSION_PROBE_MAX_BYTES])
+    except (OSError, ValueError):
+        return None
+
+    if parser.image is None:
+        return None
+    width, height = parser.image.size
+    return (width, height) if width > 0 and height > 0 else None
+
+
 async def probe_image_dimensions(
     client: httpx.AsyncClient,
     image_url: str,
@@ -728,6 +917,23 @@ async def probe_image_dimensions(
             follow_redirects=True,
             timeout=10.0,
         ) as response:
+            if _should_try_scrapling_image_fallback(image_url, response.status_code):
+                logger.info(
+                    "Probe dimensi mendapat HTTP %s untuk %s; mencoba fallback Scrapling.",
+                    response.status_code,
+                    image_url,
+                )
+                await response.aclose()
+                scrapling_result = await _fetch_image_via_scrapling(image_url)
+                if scrapling_result is None:
+                    return None
+                try:
+                    return _parse_image_dimensions_from_bytes(
+                        scrapling_result.response.content
+                    )
+                finally:
+                    await scrapling_result.response.aclose()
+
             if response.status_code not in (200, 206):
                 return None
 
@@ -736,12 +942,20 @@ async def probe_image_dimensions(
                 if remaining <= 0:
                     break
                 sample = chunk[:remaining]
-                parser.feed(sample)
-                if len(header_sample) < 4096:
-                    header_sample.extend(sample[: 4096 - len(header_sample)])
+                if len(header_sample) < IMAGE_DIMENSION_PROBE_MAX_BYTES:
+                    header_sample.extend(
+                        sample[: IMAGE_DIMENSION_PROBE_MAX_BYTES - len(header_sample)]
+                    )
+                    jpeg_dimensions = _parse_jpeg_dimensions(bytes(header_sample))
+                    if jpeg_dimensions is not None:
+                        return jpeg_dimensions
                     webp_dimensions = _parse_webp_dimensions(bytes(header_sample))
                     if webp_dimensions is not None:
                         return webp_dimensions
+                    avif_dimensions = _parse_avif_dimensions(bytes(header_sample))
+                    if avif_dimensions is not None:
+                        return avif_dimensions
+                parser.feed(sample)
                 received += min(len(chunk), remaining)
                 if parser.image is not None:
                     width, height = parser.image.size

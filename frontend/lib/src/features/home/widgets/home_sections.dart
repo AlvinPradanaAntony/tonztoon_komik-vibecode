@@ -288,6 +288,9 @@ class _ComicRail extends StatelessWidget {
   final VoidCallback? onAction;
   final bool showNewBadges;
 
+  static const double _cardWidth = 122;
+  static const double _railHeight = 265;
+
   @override
   Widget build(BuildContext context) {
     if (comics.isEmpty) {
@@ -303,7 +306,7 @@ class _ComicRail extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         SizedBox(
-          height: 288,
+          height: _railHeight,
           child: ListView.separated(
             clipBehavior: Clip.none,
             scrollDirection: Axis.horizontal,
@@ -311,6 +314,7 @@ class _ComicRail extends StatelessWidget {
               final comic = comics[index];
               return ComicCard(
                 comic: comic,
+                width: _cardWidth,
                 showNewBadge: showNewBadges,
                 onTap: () => _openComicDetail(context, comic),
               );

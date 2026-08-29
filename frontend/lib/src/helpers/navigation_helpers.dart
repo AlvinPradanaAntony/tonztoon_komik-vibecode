@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
@@ -45,6 +48,29 @@ void openReaderForProgress(
     coverImageUrl: progress.coverImageUrl,
     latestChapterNumber: includeLatestChapter ? progress.chapterNumber : null,
   );
+  unawaited(_openReaderForProgress(context, progress, comic));
+}
+
+Future<void> _openReaderForProgress(
+  BuildContext context,
+  ReadingProgress progress,
+  ComicSummary comic,
+) async {
+  final coverUrl = progress.coverImageUrl?.trim();
+  if (coverUrl != null && coverUrl.isNotEmpty) {
+    try {
+      // Decode the same source URL used by the reader before pushing the
+      // route, so its loading cover can reuse Flutter's image cache.
+      await precacheImage(
+        CachedNetworkImageProvider(coverUrl),
+        context,
+      ).timeout(const Duration(seconds: 3));
+    } catch (_) {
+      // Navigation must still continue; ComicCover handles the fallback.
+    }
+  }
+
+  if (!context.mounted) return;
   context.push(
     '/reader/${Uri.encodeComponent(progress.sourceName)}/${Uri.encodeComponent(progress.comicSlug)}/${formatChapterNumber(progress.chapterNumber)}',
     extra: comic,

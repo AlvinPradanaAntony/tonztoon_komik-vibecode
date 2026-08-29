@@ -571,7 +571,7 @@ class ReaderPreferences {
       defaultBingeMode: defaultBingeMode is bool ? defaultBingeMode : false,
       autoScrollEnabled: autoScrollEnabled is bool ? autoScrollEnabled : false,
       autoScrollSpeed: autoScrollSpeed is num
-          ? autoScrollSpeed.toDouble().clamp(0.5, 1.5).toDouble()
+          ? autoScrollSpeed.toDouble().clamp(0.5, 2.25).toDouble()
           : 1.0,
     );
   }

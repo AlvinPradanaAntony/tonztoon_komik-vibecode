@@ -133,6 +133,8 @@ cd backend
 python -m scraper.main --source komiku_asia --max-pages 5
 python -m scraper.sync_full_library --source komiku_asia --mode validate --start 1 --max 20
 python -m scraper.sync_chapter_images --selection random --batch-size 10 --limit 20
+python -m scraper.sync_chapter_images --mode dimensions --dry-run
+python -m scraper.sync_chapter_images --mode dimensions --dry-run --source komiku
 python -m scraper.sync_cover_images --limit 500
 python -m scraper.check_pending_chapter_images --json-only
 ```

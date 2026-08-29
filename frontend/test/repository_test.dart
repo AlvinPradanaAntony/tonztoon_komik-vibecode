@@ -2219,7 +2219,7 @@ void main() {
         markReadOnComplete: false,
         defaultBingeMode: true,
         autoScrollEnabled: true,
-        autoScrollSpeed: 1.25,
+        autoScrollSpeed: 2.25,
       );
 
       await repository.saveReaderPreferences(prefs);
@@ -2232,7 +2232,7 @@ void main() {
         'mark_read_on_complete': false,
         'default_binge_mode': true,
         'auto_scroll_enabled': true,
-        'auto_scroll_speed': 1.25,
+        'auto_scroll_speed': 2.25,
       });
       expect(stored, isNot(contains('auto_next')));
     },

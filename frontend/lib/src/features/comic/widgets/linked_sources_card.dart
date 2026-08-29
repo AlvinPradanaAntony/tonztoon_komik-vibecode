@@ -1,5 +1,45 @@
 part of '../comic_detail_screen.dart';
 
+class _LinkedSourcesCardSkeleton extends StatelessWidget {
+  const _LinkedSourcesCardSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    return AppShimmer(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colors.surfaceContainer,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: colors.outlineVariant),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              const AppShimmerBlock(width: 36, height: 36, borderRadius: 14),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AppShimmerBlock(width: double.infinity, height: 14),
+                    SizedBox(height: 7),
+                    AppShimmerBlock(width: double.infinity, height: 11),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              const AppShimmerBlock(width: 46, height: 24, borderRadius: 999),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _LinkedSourcesCard extends StatefulWidget {
   const _LinkedSourcesCard({
     required this.state,
@@ -174,10 +214,18 @@ class _LinkedSourcesCardState extends State<_LinkedSourcesCard>
                                 comic.sourceName ==
                                     widget.currentComic.sourceName &&
                                 comic.slug == widget.currentComic.slug;
-                            final isPrimary = (widget.state.bookmarkRelation == BookmarkRelation.direct && isCurrent) ||
+                            final isPrimary =
+                                (widget.state.bookmarkRelation ==
+                                        BookmarkRelation.direct &&
+                                    isCurrent) ||
                                 (widget.state.bookmarkOrigin != null &&
-                                    comic.sourceName == widget.state.bookmarkOrigin!.sourceName &&
-                                    comic.slug == widget.state.bookmarkOrigin!.slug);
+                                    comic.sourceName ==
+                                        widget
+                                            .state
+                                            .bookmarkOrigin!
+                                            .sourceName &&
+                                    comic.slug ==
+                                        widget.state.bookmarkOrigin!.slug);
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 8),
                               child: _LinkedSourceTile(
@@ -350,7 +398,6 @@ class _DashedRoundedBorderPainter extends CustomPainter {
   }
 }
 
-
 class _LinkedSourceTile extends StatelessWidget {
   const _LinkedSourceTile({
     required this.comic,
@@ -493,11 +540,7 @@ class _PrimarySourceBadge extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              TonztoonIcons.bookmarkFilled,
-              size: 10,
-              color: colors.primary,
-            ),
+            Icon(TonztoonIcons.bookmarkFilled, size: 10, color: colors.primary),
             const SizedBox(width: 4),
             Text(
               'Utama',

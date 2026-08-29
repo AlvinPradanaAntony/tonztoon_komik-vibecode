@@ -240,15 +240,17 @@ class _BookmarksTabState extends ConsumerState<_BookmarksTab>
                                 ),
                         ),
                       if (bookmarkPage?.isLoadingMore == true)
-                        const SliverPadding(
+                        SliverPadding(
                           padding: EdgeInsets.fromLTRB(16, 14, 16, 0),
-                          sliver: SliverList(
-                            delegate: SliverChildListDelegate.fixed([
-                              _BookmarkTileShimmer(),
-                              SizedBox(height: 12),
-                              _BookmarkTileShimmer(),
-                            ]),
-                          ),
+                          sliver: widget.isGrid
+                              ? const _BookmarkGridLoadingMore()
+                              : SliverList(
+                                  delegate: SliverChildListDelegate.fixed([
+                                    _BookmarkTileShimmer(),
+                                    SizedBox(height: 12),
+                                    _BookmarkTileShimmer(),
+                                  ]),
+                                ),
                         ),
                       SliverPadding(
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 132),

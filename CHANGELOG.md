@@ -6,6 +6,29 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
+## [1.24.0] - 2026-08-30
+
+### Added
+- Dukungan source Voratoon melalui integrasi API resmi dan helper scraper khusus.
+- Integrasi API-first Komiku Asia, termasuk pencarian fallback untuk me-resolve slug lama.
+- Sinkronisasi chapter selesai secara batch beserta propagasi progres ke source terkait.
+- Pencarian bookmark dan pengelolaan status bookmark dari Library maupun Detail Komik.
+- Optimasi image proxy untuk resize dan kompresi cover, serta pembacaan dimensi JPEG, WebP, dan AVIF.
+- Migrasi primary source bookmark dan perlindungan image proxy dengan validasi host, DNS, dan referer.
+
+### Changed
+- Pipeline pengambilan gambar chapter disederhanakan dengan menghapus antrean worker lama dan mempersingkat transaksi database saat external I/O.
+- Reader diperbarui untuk menghitung rasio gambar dari metadata chapter, menyederhanakan precaching, dan mendukung kecepatan auto-scroll hingga `2.25`.
+- Tampilan cover, Detail Komik, Home, Library, dan filter katalog dipoles agar lebih responsif serta efisien menggunakan varian gambar sesuai ukuran tampilan.
+- Workflow scraping, statistik source, dan backfill gambar disesuaikan dengan pipeline API baru.
+
+### Notes
+- Respons `GET /api/v1/library/summary` diringkas menjadi counter library dan waktu baca; data detail tetap tersedia melalui endpoint khusus masing-masing.
+- Pengambilan gambar chapter kini memakai pipeline langsung tanpa worker antrean lama, sehingga client menggunakan alur pemuatan chapter terbaru.
+- Model dan tabel database `chapter_image_jobs` serta konfigurasi worker Komiku Asia dibersihkan melalui migrasi database.
+
+---
+
 ## [1.23.0] - 2026-08-05
 
 ### Added

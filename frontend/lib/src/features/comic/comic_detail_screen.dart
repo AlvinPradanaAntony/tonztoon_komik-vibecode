@@ -72,6 +72,7 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
   ValueNotifier<double>? _collapseProgressNotifier;
   bool _bookmarkBusy = false;
   bool _bookmarkStatusBusy = false;
+  String? _bookmarkStatusOverride;
   bool? _bookmarkOverride;
   bool _collectionBusy = false;
   bool _downloadBusy = false;
@@ -114,6 +115,16 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
     final detailAsync = ref.watch(comicDetailProvider(request));
     final chaptersAsync = ref.watch(chaptersProvider(request));
     final progressAsync = ref.watch(progressProvider(request));
+    // A comic summary passed by catalog/home already contains the identity
+    // needed by the library endpoint. Warm that state alongside detail and
+    // chapters instead of waiting for the detail response to create it.
+    final initialComic = widget.initialComic;
+    final warmedLibraryStateAsync =
+        initialComic != null &&
+            initialComic.sourceName == request.sourceName &&
+            initialComic.slug == request.slug
+        ? ref.watch(libraryComicStateProvider(initialComic))
+        : null;
     final detailPayload = detailAsync.asData?.value;
     if (detailPayload == null) {
       return Scaffold(
@@ -137,27 +148,35 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
       chapters: chapterItems?.map(_ChapterUi.fromChapterItem).toList(),
     );
     final comic = detailPayload.toSummary();
-    final libraryStateAsync = ref.watch(libraryComicStateProvider(comic));
-    if (!libraryStateAsync.hasValue) {
-      return Scaffold(
-        body: AppAsyncView<LibraryComicState>(
-          value: libraryStateAsync,
-          loadingBuilder: (context) => const _ComicDetailLoadingPlaceholder(),
-          onRetry: () => ref.invalidate(libraryComicStateProvider(comic)),
-          builder: (_) => const SizedBox.shrink(),
-        ),
-      );
-    }
+    // ComicSummary equality is source + slug, so this reuses the warmed
+    // provider when [initialComic] was available. Deep links without an
+    // initial summary start the provider here as before.
+    final libraryStateAsync = switch (warmedLibraryStateAsync) {
+      final warmedState? => warmedState,
+      null => ref.watch(libraryComicStateProvider(comic)),
+    };
     final libraryState = libraryStateAsync.asData?.value;
-    final isGuest =
-        ref.watch(authControllerProvider).status == AuthStatus.guest;
+    final isLibraryStateLoading =
+        !libraryStateAsync.hasValue && libraryStateAsync.isLoading;
     final effectiveBookmarked =
         _bookmarkOverride ?? (libraryState?.bookmarked == true);
     final bookmarkStatus = libraryState?.bookmarkOrigin?.status?.trim();
-    final displayedStatus = bookmarkStatus?.isNotEmpty == true
+    final displayedStatusFromLibrary = bookmarkStatus?.isNotEmpty == true
         ? bookmarkStatus!
         : detail.status;
+    final displayedStatus =
+        _bookmarkStatusOverride ?? displayedStatusFromLibrary;
     final statusComic = libraryState?.bookmarkOrigin?.toSummary();
+    if (_bookmarkStatusOverride != null &&
+        bookmarkStatus?.toLowerCase() == _bookmarkStatusOverride) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted &&
+            libraryState?.bookmarkOrigin?.status?.trim().toLowerCase() ==
+                _bookmarkStatusOverride) {
+          setState(() => _bookmarkStatusOverride = null);
+        }
+      });
+    }
     if (_bookmarkOverride != null &&
         libraryState?.bookmarked == _bookmarkOverride) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -282,7 +301,9 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
                         Padding(
                           padding: const EdgeInsets.only(right: 12),
                           child: _GlassIconButton(
-                            tooltip: _bookmarkBusy
+                            tooltip: isLibraryStateLoading
+                                ? 'Memuat status bookmark'
+                                : _bookmarkBusy
                                 ? 'Menyimpan bookmark'
                                 : libraryState?.bookmarkRelation ==
                                       BookmarkRelation.linked
@@ -293,7 +314,7 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
                             icon: effectiveBookmarked
                                 ? TonztoonIcons.bookmarkFilled
                                 : TonztoonIcons.bookmark,
-                            isLoading: isGuest ? false : _bookmarkBusy,
+                            isLoading: _bookmarkBusy || isLibraryStateLoading,
                             progress: _toolbarProgress,
                             onPressed: () =>
                                 _toggleBookmark(comic, libraryState),
@@ -345,10 +366,16 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
                                     ? null
                                     : () => _showBookmarkStatusPicker(
                                         statusComic,
+                                        detailComic: comic,
                                       ),
-                                isStatusLoading: _bookmarkStatusBusy,
+                                isStatusLoading:
+                                    _bookmarkStatusBusy ||
+                                    isLibraryStateLoading,
                               ),
-                              if (libraryState != null &&
+                              if (isLibraryStateLoading) ...[
+                                const SizedBox(height: 12),
+                                const _LinkedSourcesCardSkeleton(),
+                              ] else if (libraryState != null &&
                                   (effectiveBookmarked ||
                                       libraryState.bookmarkRelation ==
                                           BookmarkRelation.linked ||
@@ -453,8 +480,8 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
           completedChapterNumbers: completedChapterNumbers,
           downloadState: downloadState,
           hasCollections: libraryState?.collections.isNotEmpty == true,
-          downloadBusy: _downloadBusy,
-          collectionBusy: _collectionBusy,
+          downloadBusy: _downloadBusy || isLibraryStateLoading,
+          collectionBusy: _collectionBusy || isLibraryStateLoading,
           onDownload: chapterItems == null || chapterItems.isEmpty
               ? null
               : () => _showDownloadSheet(comic, chapterItems, downloadState),
@@ -603,7 +630,10 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
     }
   }
 
-  Future<void> _showBookmarkStatusPicker(ComicSummary comic) async {
+  Future<void> _showBookmarkStatusPicker(
+    ComicSummary comic, {
+    required ComicSummary detailComic,
+  }) async {
     if (_bookmarkStatusBusy || _bookmarkBusy) return;
 
     final selectedStatus = await showBookmarkStatusPicker(context, comic);
@@ -613,12 +643,20 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
       return;
     }
 
-    setState(() => _bookmarkStatusBusy = true);
+    setState(() {
+      _bookmarkStatusBusy = true;
+      _bookmarkStatusOverride = selectedStatus;
+    });
+    _showSnack('Menyimpan status ${bookmarkStatusLabel(selectedStatus)}...');
     try {
       await ref
           .read(libraryRepositoryProvider)
           .updateBookmarkStatus(comic, selectedStatus);
+      // The mutation targets the primary bookmark, while this detail page can
+      // be opened from any linked source. Refresh both provider keys so the
+      // visible detail state is updated in either case.
       ref.invalidate(libraryComicStateProvider(comic));
+      ref.invalidate(libraryComicStateProvider(detailComic));
       ref.invalidate(bookmarksProvider);
       ref.invalidate(paginatedBookmarksProvider);
       ref.invalidate(librarySummaryProvider);
@@ -629,6 +667,7 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
         );
       }
     } catch (error, stackTrace) {
+      if (mounted) setState(() => _bookmarkStatusOverride = null);
       _showErrorSnack(error, stackTrace, 'Update bookmark status failed');
     } finally {
       if (mounted) setState(() => _bookmarkStatusBusy = false);

@@ -454,7 +454,7 @@ Nilai valid:
 |---|---|
 | `default_reading_mode` | `vertical`, `paged` |
 | `reading_direction` | `ltr`, `rtl` |
-| `auto_scroll_speed` | `0.5` sampai `1.5` |
+| `auto_scroll_speed` | `0.5` sampai `2.25` |
 
 ## Reading Time
 

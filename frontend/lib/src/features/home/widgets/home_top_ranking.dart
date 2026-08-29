@@ -17,8 +17,8 @@ class _TopRankingRail extends ConsumerStatefulWidget {
 
 class _TopRankingRailState extends ConsumerState<_TopRankingRail> {
   String? _selectedType;
-  static const double _cardWidth = 138;
-  static const double _railHeight = 224;
+  static const double _cardWidth = 122;
+  static const double _railHeight = 200;
 
   @override
   Widget build(BuildContext context) {
@@ -146,16 +146,17 @@ class _TypeFilterToggle extends StatelessWidget {
               curve: Curves.easeOutCubic,
               decoration: BoxDecoration(
                 color: isSelected
-                    ? (isDark
-                          ? colorScheme.secondary
-                          : colorScheme.primary)
+                    ? (isDark ? colorScheme.secondary : colorScheme.primary)
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: (isDark ? colorScheme.secondary : colorScheme.primary)
-                              .withValues(alpha: isDark ? 0.24 : 0.15),
+                          color:
+                              (isDark
+                                      ? colorScheme.secondary
+                                      : colorScheme.primary)
+                                  .withValues(alpha: isDark ? 0.24 : 0.15),
                           blurRadius: 4,
                           offset: const Offset(0, 1.5),
                         ),

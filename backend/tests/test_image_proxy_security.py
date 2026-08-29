@@ -1,14 +1,17 @@
 import socket
 import unittest
+from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import httpx
+from PIL import Image
 
 from app.config import settings
 from app.services.image_service import (
     ImageProxyPayloadTooLargeError,
     ImageProxyValidationError,
+    _resize_and_compress_cover,
     get_proxy_headers,
     is_allowed_image_content_type,
     open_validated_image_proxy_response,
@@ -134,6 +137,25 @@ class ImageProxySecurityTests(unittest.IsolatedAsyncioTestCase):
                     )
         finally:
             await client.aclose()
+
+    def test_cover_optimizer_resizes_and_returns_webp_bytes(self):
+        source = BytesIO()
+        Image.new("RGB", (1200, 1800), color=(120, 80, 180)).save(
+            source,
+            format="JPEG",
+            quality=92,
+        )
+
+        optimized = _resize_and_compress_cover(
+            source.getvalue(),
+            max_width=320,
+            quality=78,
+        )
+
+        self.assertIsNotNone(optimized)
+        with Image.open(BytesIO(optimized)) as image:
+            self.assertEqual(image.format, "WEBP")
+            self.assertEqual(image.size, (320, 480))
 
     async def test_cdnkomiku_403_retries_with_scrapling_fetcher(self):
         async def handler(_: httpx.Request) -> httpx.Response:

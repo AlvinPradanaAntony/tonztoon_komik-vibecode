@@ -107,12 +107,11 @@ def _get_request_base_url(request: Request) -> str:
 
 @router.get("/summary", response_model=LibrarySummaryResponse)
 async def get_user_library_summary(
-    request: Request,
     db: AsyncSession = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
 ):
-    """Ringkasan counts + continue reading + history terbaru."""
-    return await get_library_summary(db, user_id, base_url=_get_request_base_url(request))
+    """Ringkasan counter library untuk badge dan statistik."""
+    return await get_library_summary(db, user_id)
 
 
 @router.get(

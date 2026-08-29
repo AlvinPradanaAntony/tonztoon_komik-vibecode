@@ -27,6 +27,21 @@ class _BookmarkGrid extends StatelessWidget {
   }
 }
 
+class _BookmarkGridLoadingMore extends StatelessWidget {
+  const _BookmarkGridLoadingMore();
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSliverColumnGrid<int>(
+      key: const ValueKey('bookmark-grid-loading-more'),
+      items: const [0, 1, 2, 3, 4, 5],
+      minColumnWidth: 98,
+      maxColumnCount: 6,
+      itemBuilder: (context, index) => const ComicGridCardShimmer(),
+    );
+  }
+}
+
 class _BookmarkList extends StatelessWidget {
   const _BookmarkList({
     required this.bookmarks,

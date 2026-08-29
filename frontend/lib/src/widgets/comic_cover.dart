@@ -3,6 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import '../helpers/app_icons.dart';
 
+/// Ukuran network image sesuai konteks pemakaian cover.
+/// Nilai ini diterjemahkan menjadi resize/compress pada image proxy.
+enum ComicCoverSize { small, large }
+
 /// [ComicCover] adalah komponen UI khusus untuk merender gambar sampul komik.
 /// Ini menangani:
 /// 1. Shimmer effect (animasi loading) saat gambar sedang diunduh.
@@ -16,6 +20,7 @@ class ComicCover extends StatelessWidget {
     this.borderRadius = 16,
     this.fit = BoxFit.cover,
     this.fallbackIconSize,
+    this.size = ComicCoverSize.small,
   });
 
   final String? imageUrl;
@@ -24,6 +29,8 @@ class ComicCover extends StatelessWidget {
   final double borderRadius;
   final BoxFit fit;
   final double? fallbackIconSize;
+
+  final ComicCoverSize size;
 
   @override
   Widget build(BuildContext context) {
@@ -60,16 +67,62 @@ class ComicCover extends StatelessWidget {
         height: height,
         child: imageUrl == null || imageUrl!.isEmpty
             ? fallback
-            : CachedNetworkImage(
-                imageUrl: imageUrl!,
-                fit: fit,
-                placeholder: (context, url) =>
-                    shimmer, // Ditampilkan saat loading
-                errorWidget: (context, url, error) =>
-                    fallback, // Ditampilkan saat error
+            : LayoutBuilder(
+                builder: (context, constraints) {
+                  final devicePixelRatio = MediaQuery.devicePixelRatioOf(
+                    context,
+                  );
+                  final optimizedImageUrl = _optimizedImageUrl(
+                    imageUrl!,
+                    constraints.maxWidth,
+                    devicePixelRatio,
+                  );
+
+                  return CachedNetworkImage(
+                    imageUrl: optimizedImageUrl,
+                    fit: fit,
+                    placeholder: (context, url) =>
+                        shimmer, // Ditampilkan saat loading
+                    errorWidget: (context, url, error) =>
+                        fallback, // Ditampilkan saat error
+                  );
+                },
               ),
       ),
     );
+  }
+
+  String _optimizedImageUrl(
+    String sourceUrl,
+    double logicalPixels,
+    double devicePixelRatio,
+  ) {
+    final uri = Uri.tryParse(sourceUrl);
+    if (uri == null || !uri.path.endsWith('/api/v1/images/proxy')) {
+      return sourceUrl;
+    }
+
+    final safeDpr = devicePixelRatio.isFinite
+        ? devicePixelRatio.clamp(1.0, 3.0)
+        : 1.0;
+    final safeWidth = logicalPixels.isFinite && logicalPixels > 0
+        ? logicalPixels
+        : (size == ComicCoverSize.small ? 240.0 : 720.0);
+    final rawWidth = (safeWidth * safeDpr).round();
+    final width = size == ComicCoverSize.small
+        ? rawWidth.clamp(160, 320)
+        : rawWidth.clamp(640, 1440);
+    final quality = size == ComicCoverSize.small ? 78 : 88;
+
+    return uri
+        .replace(
+          queryParameters: {
+            ...uri.queryParameters,
+            'width': '$width',
+            'quality': '$quality',
+          },
+        )
+        .toString();
   }
 }
 

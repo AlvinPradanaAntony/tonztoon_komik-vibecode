@@ -259,16 +259,26 @@ async def fetch_and_save_chapter_images(
     if not scraper:
         raise ImageFetchError(f"Tidak ada scraper untuk source: {source_name}")
 
+    # Keep the database transaction short.  Callers normally queried the
+    # chapter immediately before entering this helper, which implicitly
+    # starts a transaction in SQLAlchemy.  The scraper and image-dimension
+    # enrichment are external I/O and can take seconds, so do not keep that
+    # transaction/connection checked out while waiting for them.
+    chapter_id = chapter.id
+    chapter_number = chapter.chapter_number
+    chapter_source_url = chapter.source_url
+    await db.rollback()
+
     try:
         images = await asyncio.wait_for(
-            scraper.get_chapter_images(chapter.source_url),
+            scraper.get_chapter_images(chapter_source_url),
             timeout=timeout_seconds,
         )
 
         if not images:
             logger.warning(
-                f"Fetch Ch {chapter.chapter_number}: "
-                f"tidak ada gambar di {chapter.source_url}"
+                f"Fetch Ch {chapter_number}: "
+                f"tidak ada gambar di {chapter_source_url}"
             )
             return False
 
@@ -276,26 +286,26 @@ async def fetch_and_save_chapter_images(
 
         await db.execute(
             update(Chapter)
-            .where(Chapter.id == chapter.id)
+            .where(Chapter.id == chapter_id)
             .values(images=images_json)
         )
         await db.commit()
 
         logger.info(
-            f"✅ Images tersimpan: Ch {chapter.chapter_number} "
+            f"✅ Images tersimpan: Ch {chapter_number} "
             f"➡️  {len(images_json)} gambar"
         )
         return True
 
     except asyncio.TimeoutError:
         logger.warning(
-            f"⏳ Timeout ({timeout_seconds}s) saat fetch Ch {chapter.chapter_number}"
+            f"⏳ Timeout ({timeout_seconds}s) saat fetch Ch {chapter_number}"
         )
         await db.rollback()
         return False
 
     except Exception as e:
-        logger.error(f"❌ Error fetch Ch {chapter.chapter_number}: {e}")
+        logger.error(f"❌ Error fetch Ch {chapter_number}: {e}")
         await db.rollback()
         raise ImageFetchError(str(e)) from e
 
@@ -394,6 +404,9 @@ async def _refresh_komiku_asia_chapter_metadata(
         )
 
         try:
+            # Metadata refresh is also external I/O.  End the read transaction
+            # created by the caller before waiting for Komiku Asia.
+            await db.rollback()
             scraper = _get_komiku_asia_live_scraper()
             comic_detail = await asyncio.wait_for(
                 scraper.get_comic_detail(
@@ -565,13 +578,21 @@ async def _ensure_chapter_image_dimensions(
     if not images or all(chapter_image_has_dimensions(image) for image in images):
         return chapter
 
+    # Preserve the payload and primary key before ending the ORM transaction;
+    # rollback may expire attributes on the attached Chapter instance.
+    chapter_id = chapter.id
+    images = list(images)
+    await db.rollback()
     enriched_images = await enrich_chapter_image_dimensions(images)
     if enriched_images == images:
+        # The rollback above may expire the ORM attribute.  Keep the original
+        # payload available for the response when probing was unsuccessful.
+        chapter.images = images
         return chapter
 
     await db.execute(
         update(Chapter)
-        .where(Chapter.id == chapter.id)
+        .where(Chapter.id == chapter_id)
         .values(images=enriched_images)
     )
     await db.commit()

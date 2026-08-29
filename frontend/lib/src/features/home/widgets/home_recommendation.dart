@@ -222,7 +222,11 @@ class _RecommendationBanner extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    ComicCover(imageUrl: comic.coverImageUrl, borderRadius: 18),
+                    ComicCover(
+                      imageUrl: comic.coverImageUrl,
+                      borderRadius: 18,
+                      fit: BoxFit.cover,
+                    ),
                     Positioned.fill(
                       child: BackdropFilter(
                         filter: ImageFilter.blur(sigmaX: 2, sigmaY: 2),

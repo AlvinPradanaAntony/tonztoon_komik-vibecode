@@ -225,7 +225,13 @@ class _InfoPill extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: color),
+            if (isLoading)
+              SizedBox.square(
+                dimension: 16,
+                child: CircularProgressIndicator(strokeWidth: 2, color: color),
+              )
+            else
+              Icon(icon, size: 16, color: color),
             const SizedBox(width: 6),
             Text(
               comicBadgeLabel(label),

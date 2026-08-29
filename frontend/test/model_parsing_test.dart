@@ -171,7 +171,7 @@ void main() {
       'mark_read_on_complete': false,
       'default_binge_mode': true,
       'auto_scroll_enabled': true,
-      'auto_scroll_speed': 1.25,
+      'auto_scroll_speed': 2.25,
     });
 
     expect(prefs.defaultReadingMode, 'paged');
@@ -179,14 +179,14 @@ void main() {
     expect(prefs.markReadOnComplete, isFalse);
     expect(prefs.defaultBingeMode, isTrue);
     expect(prefs.autoScrollEnabled, isTrue);
-    expect(prefs.autoScrollSpeed, 1.25);
+    expect(prefs.autoScrollSpeed, 2.25);
     expect(prefs.toJson(), {
       'default_reading_mode': 'paged',
       'reading_direction': 'rtl',
       'mark_read_on_complete': false,
       'default_binge_mode': true,
       'auto_scroll_enabled': true,
-      'auto_scroll_speed': 1.25,
+      'auto_scroll_speed': 2.25,
     });
     expect(prefs.toJson(), isNot(contains('auto_next')));
   });

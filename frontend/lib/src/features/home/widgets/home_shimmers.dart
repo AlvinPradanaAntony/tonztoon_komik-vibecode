@@ -142,14 +142,14 @@ class _HomeRailShimmer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 245,
+      height: 265,
       child: ListView.separated(
         clipBehavior: Clip.none,
         scrollDirection: Axis.horizontal,
         itemCount: 3,
         separatorBuilder: (context, index) => const SizedBox(width: 12),
         itemBuilder: (context, index) => const SizedBox(
-          width: 138,
+          width: 122,
           child: AppShimmer(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -179,14 +179,14 @@ class _HomeTopRankingRailShimmer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 224,
+      height: 200,
       child: ListView.separated(
         clipBehavior: Clip.none,
         scrollDirection: Axis.horizontal,
         itemCount: 3,
         separatorBuilder: (context, index) => const SizedBox(width: 12),
         itemBuilder: (context, index) => const SizedBox(
-          width: 138,
+          width: 122,
           child: AppShimmer(
             child: AppShimmerBlock(
               width: double.infinity,

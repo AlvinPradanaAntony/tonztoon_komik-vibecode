@@ -376,7 +376,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
   }
 
   double _autoScrollSpeed(ReaderPreferences? prefs) {
-    return (prefs?.autoScrollSpeed ?? 1.0).clamp(0.5, 1.5).toDouble();
+    return (prefs?.autoScrollSpeed ?? 1.0).clamp(0.5, 2.25).toDouble();
   }
 
   bool _shouldWaitForContinuousAutoScrollChapter() {
@@ -431,8 +431,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
                   const SizedBox(height: 20),
                   Slider(
                     min: 0.5,
-                    max: 1.5,
-                    divisions: 20,
+                    max: 2.25,
+                    divisions: 35,
                     value: selectedSpeed,
                     label: selectedSpeed.toStringAsFixed(2),
                     onChanged: (value) {
@@ -447,6 +447,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
                       Text('1.0'),
                       Text('1.25'),
                       Text('1.5'),
+                      Text('1.75'),
+                      Text('2.0'),
+                      Text('2.25'),
                     ],
                   ),
                   const SizedBox(height: 24),

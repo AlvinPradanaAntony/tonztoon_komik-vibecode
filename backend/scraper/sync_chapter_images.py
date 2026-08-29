@@ -55,6 +55,8 @@ Usage:
     cd backend
     python -m scraper.sync_chapter_images
     python -m scraper.sync_chapter_images --mode dimensions --source komiku --limit 100
+    python -m scraper.sync_chapter_images --mode dimensions --dry-run
+    python -m scraper.sync_chapter_images --mode dimensions --dry-run --source komiku
     python -m scraper.sync_chapter_images --source komiku_asia
     python -m scraper.sync_chapter_images --source komikcast --limit 50
     python -m scraper.sync_chapter_images --source shinigami --selection random --limit 20
@@ -66,6 +68,12 @@ Argumen CLI utama:
   - `dimensions`: backfill `width`/`height` untuk chapter yang sudah punya
     item `{page, url}` tetapi belum lengkap dimensi intrinsiknya.
   - Default: `images`.
+- `--dry-run`
+  - Hanya valid bersama `--mode dimensions`.
+  - Audit kelengkapan dimensi chapter secara read-only untuk semua source atau
+    source yang dipilih dengan `--source`.
+  - Tidak melakukan probe jaringan, update database, checkpoint, atau perubahan
+    data apa pun.
 - `--source <source_name>`
   - Filter source tertentu saja.
   - Nilai valid mengikuti registry backend: `komiku`, `komiku_asia`,
@@ -137,7 +145,9 @@ from app.services.image_service import (
 from scraper.sources.registry import get_supported_source_names
 from scraper.time_utils import now_wib
 from scraper.utils import (
+    CliLiveProgress,
     GracefulShutdown,
+    RealtimeConsoleHandler,
     backoff_delay,
     configure_external_loggers as _configure_external_loggers_base,
     configure_logging as _configure_logging_base,
@@ -152,6 +162,39 @@ CHECKPOINT_DIR = Path(__file__).resolve().parent.parent / "checkpoints"
 SUPPORTED_SOURCES = tuple(get_supported_source_names())
 SUPPORTED_MODES = {"images", "dimensions"}
 SUPPORTED_SELECTIONS = {"ordered", "random"}
+
+DIMENSION_AUDIT_SQL = text(
+    """
+    SELECT
+        c.source_name,
+        COUNT(ch.id)::bigint AS total_chapters,
+        COUNT(ch.id) FILTER (
+            WHERE ch.images_are_invalid IS TRUE
+        )::bigint AS chapters_without_valid_images,
+        COUNT(ch.id) FILTER (
+            WHERE ch.images_are_invalid IS FALSE
+              AND NOT jsonb_path_exists(
+                  ch.images,
+                  '$[*] ? (!exists(@.width) || !exists(@.height))'::jsonpath
+              )
+        )::bigint AS chapters_with_complete_dimensions,
+        COUNT(ch.id) FILTER (
+            WHERE ch.images_are_invalid IS FALSE
+              AND jsonb_path_exists(
+                  ch.images,
+                  '$[*] ? (!exists(@.width) || !exists(@.height))'::jsonpath
+              )
+        )::bigint AS chapters_with_missing_dimensions
+    FROM comics AS c
+    LEFT JOIN chapters AS ch ON ch.comic_id = c.id
+    WHERE (
+        CAST(:source_name AS VARCHAR) IS NULL
+        OR c.source_name = CAST(:source_name AS VARCHAR)
+    )
+    GROUP BY c.source_name
+    ORDER BY c.source_name
+    """
+)
 
 DELAY_CHAPTER_MIN = 2.0
 DELAY_CHAPTER_MAX = 5.0
@@ -187,7 +230,11 @@ def configure_logging(
     source_name: str | None = None,
 ) -> None:
     filename = log_file or str(_build_default_log_filename(source_name=source_name))
-    _configure_logging_base(filename, default_filename=str(DEFAULT_LOG_FILE))
+    _configure_logging_base(
+        filename,
+        default_filename=str(DEFAULT_LOG_FILE),
+        stdout_handler=RealtimeConsoleHandler(sys.stdout),
+    )
     _configure_external_loggers_base()
 
 logger = logging.getLogger("sync-chapter-images")
@@ -521,6 +568,146 @@ async def _count_pending_dimensions(*, source_name: str | None) -> int:
         return int(result.scalar_one() or 0)
 
 
+async def audit_dimension_completeness(
+    *,
+    source_name: str | None,
+) -> list[dict[str, int | str]]:
+    """Audit kelengkapan dimensi chapter tanpa network atau perubahan data.
+
+    Audit dilakukan langsung di PostgreSQL agar seluruh backlog dapat diperiksa
+    tanpa memuat payload JSONB image ke memory Python dan tanpa memanggil probe
+    dimensi eksternal. Hasil dibagi per source:
+    - total chapter;
+    - chapter tanpa images valid;
+    - chapter dengan semua dimensi lengkap;
+    - chapter yang masih memiliki image tanpa dimensi.
+    """
+    async with async_session() as session:
+        result = await session.execute(
+            DIMENSION_AUDIT_SQL,
+            {"source_name": source_name},
+        )
+        rows = [dict(row._mapping) for row in result]
+
+    by_source = {str(row["source_name"]): row for row in rows}
+    source_names = list(SUPPORTED_SOURCES) if source_name is None else [source_name]
+    source_names.extend(
+        name for name in sorted(by_source) if name not in source_names
+    )
+
+    default_row = {
+        "total_chapters": 0,
+        "chapters_without_valid_images": 0,
+        "chapters_with_complete_dimensions": 0,
+        "chapters_with_missing_dimensions": 0,
+    }
+    return [
+        {
+            "source_name": name,
+            **default_row,
+            **by_source.get(name, {}),
+        }
+        for name in source_names
+    ]
+
+
+def log_dimension_audit_summary(
+    rows: list[dict[str, int | str]],
+    *,
+    source_name: str | None,
+) -> None:
+    """Tampilkan ringkasan hasil audit dimensi dalam format CLI yang ringkas."""
+    logger.info(
+        "Audit kelengkapan dimensi chapter (dry-run): %s",
+        source_name or "semua source",
+    )
+    logger.info(
+        "%-16s %12s %20s %17s %21s",
+        "Source",
+        "Total chapter",
+        "Chapter tanpa image valid",
+        "Dimensi lengkap",
+        "Dimensi belum lengkap",
+    )
+
+    totals = {
+        "total_chapters": 0,
+        "chapters_without_valid_images": 0,
+        "chapters_with_complete_dimensions": 0,
+        "chapters_with_missing_dimensions": 0,
+    }
+    for row in rows:
+        logger.info(
+            "%-16s %12d %20d %17d %21d",
+            row["source_name"],
+            row["total_chapters"],
+            row["chapters_without_valid_images"],
+            row["chapters_with_complete_dimensions"],
+            row["chapters_with_missing_dimensions"],
+        )
+        for key in totals:
+            totals[key] += int(row[key])
+
+    if len(rows) > 1:
+        logger.info(
+            "%-16s %12d %20d %17d %21d",
+            "TOTAL",
+            totals["total_chapters"],
+            totals["chapters_without_valid_images"],
+            totals["chapters_with_complete_dimensions"],
+            totals["chapters_with_missing_dimensions"],
+        )
+    logger.info(
+        "Audit selesai; tidak ada probe jaringan, update database, atau checkpoint."
+    )
+
+
+async def run_dimension_audit(*, source_name: str | None) -> None:
+    """Jalankan audit read-only kelengkapan dimensi per source."""
+    start_time = time.time()
+    started_at = now_wib()
+    scope = source_name or "semua source aktif"
+
+    logger.info("═" * 60)
+    logger.info(
+        "🚀 Sync Chapter Image Dimensions dimulai — %s",
+        started_at.isoformat(),
+    )
+    logger.info("   Mode         : dimensions (dry-run audit)")
+    logger.info("   Source       : %s", scope)
+    logger.info("   Operasi      : audit kelengkapan width/height chapter")
+    logger.info("   Database     : read-only")
+    logger.info("   Network      : tidak digunakan")
+    logger.info("   Perubahan    : tidak ada update/checkpoint")
+    logger.info("═" * 60)
+
+    progress = CliLiveProgress(
+        label="audit dimensi chapter",
+        total_steps=1,
+    )
+    progress.start()
+    progress.set_detail("menjalankan query agregasi read-only")
+    try:
+        rows = await audit_dimension_completeness(source_name=source_name)
+        progress.advance("query selesai; menyiapkan summary")
+    except Exception:
+        progress.set_detail("audit gagal")
+        raise
+    finally:
+        await progress.stop()
+
+    log_dimension_audit_summary(rows, source_name=source_name)
+    finished_at = now_wib()
+    elapsed = time.time() - start_time
+    logger.info("═" * 60)
+    logger.info("🏁 Audit kelengkapan dimensi selesai!")
+    logger.info("   Mulai       : %s", started_at.strftime("%Y-%m-%d %H:%M:%S"))
+    logger.info("   Selesai     : %s", finished_at.strftime("%Y-%m-%d %H:%M:%S"))
+    logger.info("   Waktu       : %s", format_elapsed_duration(elapsed))
+    logger.info("   Status      : read-only selesai")
+    logger.info("═" * 60)
+
+
 async def _try_claim_chapter(session, chapter_id: int) -> bool:
     result = await session.execute(
         select(func.pg_try_advisory_lock(CHAPTER_IMAGES_ADVISORY_LOCK_NAMESPACE, chapter_id))
@@ -795,6 +982,7 @@ async def process_pending_dimensions_batch(
     stats: ImageSyncStats,
     anti_blocking_enabled: bool,
 ) -> int:
+    """Proses satu batch chapter yang masih memiliki dimensi pending."""
     rows = await _load_pending_dimension_batch(
         source_name=source_name,
         selection=selection,
@@ -885,7 +1073,8 @@ async def process_pending_dimensions_batch(
                     )
                     continue
 
-                images = chapter_in_session.images or []
+                chapter_id = chapter_in_session.id
+                images = list(chapter_in_session.images or [])
                 if not chapter_images_are_ready(images):
                     stats.total_skipped += 1
                     skipped_in_batch += 1
@@ -908,6 +1097,9 @@ async def process_pending_dimensions_batch(
                     )
                     continue
 
+                # Dimension probing is external I/O; release the read transaction
+                # before waiting so the worker does not hold a DB connection.
+                await session.rollback()
                 enriched_images = await enrich_chapter_image_dimensions(images)
                 if enriched_images == images:
                     stats.total_skipped += 1
@@ -922,7 +1114,7 @@ async def process_pending_dimensions_batch(
 
                 await session.execute(
                     update(Chapter)
-                    .where(Chapter.id == chapter.id)
+                    .where(Chapter.id == chapter_id)
                     .values(images=enriched_images)
                 )
                 await session.commit()
@@ -1164,6 +1356,7 @@ async def run_dimension_backfill(
     reset: bool,
     anti_blocking_enabled: bool,
 ) -> None:
+    """Jalankan backfill dimensi chapter secara bertahap dan resumable."""
     start_time = time.time()
     started_at = now_wib()
     checkpoint_file = get_checkpoint_file(source_name, mode="dimensions")
@@ -1305,6 +1498,7 @@ def parse_args(argv: list[str]) -> dict:
         "batch_size": 10,
         "limit": 0,
         "reset": False,
+        "dry_run": False,
         "log_file": None,
         "anti_blocking_enabled": True,
     }
@@ -1331,6 +1525,9 @@ def parse_args(argv: list[str]) -> dict:
         elif argv[i] == "--reset":
             args["reset"] = True
             i += 1
+        elif argv[i] == "--dry-run":
+            args["dry_run"] = True
+            i += 1
         elif argv[i] == "--no-anti-blocking":
             args["anti_blocking_enabled"] = False
             i += 1
@@ -1344,6 +1541,8 @@ def parse_args(argv: list[str]) -> dict:
         raise ValueError(
             f"--mode tidak valid. Gunakan salah satu dari: {', '.join(sorted(SUPPORTED_MODES))}"
         )
+    if args["dry_run"] and args["mode"] != "dimensions":
+        raise ValueError("--dry-run hanya dapat digunakan bersama --mode dimensions")
     if args["source"] and args["source"] not in SUPPORTED_SOURCES:
         raise ValueError(
             f"--source tidak valid. Gunakan salah satu dari: {', '.join(SUPPORTED_SOURCES)}"
@@ -1364,6 +1563,9 @@ async def main(argv: list[str] | None = None) -> None:
     argv = list(sys.argv[1:] if argv is None else argv)
     args = parse_args(argv)
     configure_logging(args["log_file"], source_name=args["source"])
+    if args["dry_run"]:
+        await run_dimension_audit(source_name=args["source"])
+        return
     if args["mode"] == "dimensions":
         await run_dimension_backfill(
             source_name=args["source"],

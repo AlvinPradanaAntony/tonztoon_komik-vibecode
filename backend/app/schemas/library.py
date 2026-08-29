@@ -82,7 +82,7 @@ class ReaderPreferenceUpdateRequest(BaseModel):
     mark_read_on_complete: bool = True
     default_binge_mode: bool = False
     auto_scroll_enabled: bool = False
-    auto_scroll_speed: float = Field(default=1.0, ge=0.5, le=1.5)
+    auto_scroll_speed: float = Field(default=1.0, ge=0.5, le=2.25)
 
 
 class ReaderPreferenceResponse(ReaderPreferenceUpdateRequest):
@@ -390,14 +390,10 @@ class LibrarySummaryCounts(BaseModel):
 
 
 class LibrarySummaryResponse(BaseModel):
-    """Summary user-library untuk home/library screen."""
+    """Counter ringkas user-library untuk badge dan statistik ringan."""
 
     counts: LibrarySummaryCounts
     reading_time_seconds: int = Field(default=0, ge=0)
-    continue_reading: list[ProgressResponse] = Field(default_factory=list)
-    recent_history: list[HistoryItemResponse] = Field(default_factory=list)
-    collections: list[CollectionSummaryResponse] = Field(default_factory=list)
-    reader_preferences: ReaderPreferenceResponse | None = None
 
 
 class LibraryComicStateResponse(BaseModel):

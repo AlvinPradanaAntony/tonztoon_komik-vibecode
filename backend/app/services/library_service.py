@@ -2392,38 +2392,15 @@ async def _get_library_summary_counts(
 async def get_library_summary(
     db: AsyncSession,
     user_id: uuid.UUID,
-    base_url: str | None = None,
 ) -> LibrarySummaryResponse:
-    """Ringkasan utama library untuk home/library screen."""
+    """Ambil counter library tanpa memuat dataset detail layar lain."""
     counts = await _get_library_summary_counts(db, user_id)
-    continue_reading = await list_continue_reading_responses(
-        db,
-        user_id,
-        page_size=10,
-        base_url=base_url,
-    )
-    history = await list_history_responses(
-        db,
-        user_id,
-        page_size=10,
-        base_url=base_url,
-    )
-    collections = await list_collection_summaries(db, user_id)
-    preferences = await db.get(ReaderPreference, user_id)
     reading_stat = await db.get(UserReadingStat, user_id)
 
     return LibrarySummaryResponse(
         counts=counts,
         reading_time_seconds=(
             reading_stat.total_reading_seconds if reading_stat is not None else 0
-        ),
-        continue_reading=continue_reading,
-        recent_history=history,
-        collections=[build_collection_summary_response(item) for item in collections],
-        reader_preferences=(
-            build_reader_preferences_response(preferences)
-            if preferences is not None
-            else None
         ),
     )
 
