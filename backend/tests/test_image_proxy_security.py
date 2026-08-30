@@ -29,6 +29,14 @@ class ImageProxySecurityTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(
             validate_proxy_image_url(
+                "https://content.komiku.me/wp-content/uploads/2026/07/"
+                "1783849931-2011-i531424.jpg"
+            ),
+            "https://content.komiku.me/wp-content/uploads/2026/07/"
+            "1783849931-2011-i531424.jpg",
+        )
+        self.assertEqual(
+            validate_proxy_image_url(
                 "https://thumbnail.komiku.to/uploads/manga/absolute-sword-sense/"
                 "manga_thumbnail-Manhwa-Absolute-Sword-Sense.jpg?w=500"
             ),
@@ -53,6 +61,12 @@ class ImageProxySecurityTests(unittest.IsolatedAsyncioTestCase):
             "https://thumbnail.komiku.to/uploads/manga/absolute-sword-sense/cover.jpg"
         )
         self.assertEqual(headers.get("Referer"), "https://komiku.org/")
+
+    def test_komiku_asia_content_referer_header(self):
+        headers = get_proxy_headers(
+            "https://content.komiku.me/wp-content/uploads/2026/07/cover.jpg"
+        )
+        self.assertEqual(headers.get("Referer"), "https://01.komiku.asia/")
 
     def test_private_ip_literal_is_rejected(self):
         with self.assertRaises(ImageProxyValidationError):

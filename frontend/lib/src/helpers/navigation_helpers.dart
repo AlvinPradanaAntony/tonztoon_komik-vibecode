@@ -23,9 +23,11 @@ Future<void> openReaderForComic(
   BuildContext context,
   ComicSummary comic,
   double chapterNumber,
-) {
-  return context.push<void>(
-    '/reader/${Uri.encodeComponent(comicRouteSource(comic))}/${Uri.encodeComponent(comicRouteSlug(comic))}/${formatChapterNumber(chapterNumber)}',
+) async {
+  await _precacheReaderCover(context, comic.coverImageUrl);
+  if (!context.mounted) return;
+  await context.push<void>(
+    _readerRoute(comicRouteSource(comic), comicRouteSlug(comic), chapterNumber),
     extra: comic,
   );
 }
@@ -48,15 +50,14 @@ void openReaderForProgress(
     coverImageUrl: progress.coverImageUrl,
     latestChapterNumber: includeLatestChapter ? progress.chapterNumber : null,
   );
-  unawaited(_openReaderForProgress(context, progress, comic));
+  unawaited(openReaderForComic(context, comic, progress.chapterNumber));
 }
 
-Future<void> _openReaderForProgress(
+Future<void> _precacheReaderCover(
   BuildContext context,
-  ReadingProgress progress,
-  ComicSummary comic,
+  String? imageUrl,
 ) async {
-  final coverUrl = progress.coverImageUrl?.trim();
+  final coverUrl = imageUrl?.trim();
   if (coverUrl != null && coverUrl.isNotEmpty) {
     try {
       // Decode the same source URL used by the reader before pushing the
@@ -69,10 +70,8 @@ Future<void> _openReaderForProgress(
       // Navigation must still continue; ComicCover handles the fallback.
     }
   }
+}
 
-  if (!context.mounted) return;
-  context.push(
-    '/reader/${Uri.encodeComponent(progress.sourceName)}/${Uri.encodeComponent(progress.comicSlug)}/${formatChapterNumber(progress.chapterNumber)}',
-    extra: comic,
-  );
+String _readerRoute(String sourceName, String slug, double chapterNumber) {
+  return '/reader/${Uri.encodeComponent(sourceName)}/${Uri.encodeComponent(slug)}/${formatChapterNumber(chapterNumber)}';
 }
