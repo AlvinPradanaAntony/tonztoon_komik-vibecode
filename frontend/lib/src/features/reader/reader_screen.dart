@@ -20,6 +20,7 @@ import '../../models/library.dart';
 import '../../models/progress.dart';
 import '../../repositories/providers.dart';
 import '../../widgets/app_error_state.dart';
+import '../../widgets/comic_cover.dart';
 
 part 'state/reader_screen_state.dart';
 part 'models/reader_models.dart';

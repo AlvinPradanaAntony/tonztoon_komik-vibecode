@@ -115,16 +115,6 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
     final detailAsync = ref.watch(comicDetailProvider(request));
     final chaptersAsync = ref.watch(chaptersProvider(request));
     final progressAsync = ref.watch(progressProvider(request));
-    // A comic summary passed by catalog/home already contains the identity
-    // needed by the library endpoint. Warm that state alongside detail and
-    // chapters instead of waiting for the detail response to create it.
-    final initialComic = widget.initialComic;
-    final warmedLibraryStateAsync =
-        initialComic != null &&
-            initialComic.sourceName == request.sourceName &&
-            initialComic.slug == request.slug
-        ? ref.watch(libraryComicStateProvider(initialComic))
-        : null;
     final detailPayload = detailAsync.asData?.value;
     if (detailPayload == null) {
       return Scaffold(
@@ -148,13 +138,7 @@ class _ComicDetailScreenState extends ConsumerState<ComicDetailScreen> {
       chapters: chapterItems?.map(_ChapterUi.fromChapterItem).toList(),
     );
     final comic = detailPayload.toSummary();
-    // ComicSummary equality is source + slug, so this reuses the warmed
-    // provider when [initialComic] was available. Deep links without an
-    // initial summary start the provider here as before.
-    final libraryStateAsync = switch (warmedLibraryStateAsync) {
-      final warmedState? => warmedState,
-      null => ref.watch(libraryComicStateProvider(comic)),
-    };
+    final libraryStateAsync = ref.watch(libraryComicStateProvider(comic));
     final libraryState = libraryStateAsync.asData?.value;
     final isLibraryStateLoading =
         !libraryStateAsync.hasValue && libraryStateAsync.isLoading;

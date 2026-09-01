@@ -1,6 +1,3 @@
-import 'dart:async';
-
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
@@ -23,11 +20,9 @@ Future<void> openReaderForComic(
   BuildContext context,
   ComicSummary comic,
   double chapterNumber,
-) async {
-  await _precacheReaderCover(context, comic.coverImageUrl);
-  if (!context.mounted) return;
-  await context.push<void>(
-    _readerRoute(comicRouteSource(comic), comicRouteSlug(comic), chapterNumber),
+) {
+  return context.push<void>(
+    '/reader/${Uri.encodeComponent(comicRouteSource(comic))}/${Uri.encodeComponent(comicRouteSlug(comic))}/${formatChapterNumber(chapterNumber)}',
     extra: comic,
   );
 }
@@ -50,28 +45,8 @@ void openReaderForProgress(
     coverImageUrl: progress.coverImageUrl,
     latestChapterNumber: includeLatestChapter ? progress.chapterNumber : null,
   );
-  unawaited(openReaderForComic(context, comic, progress.chapterNumber));
-}
-
-Future<void> _precacheReaderCover(
-  BuildContext context,
-  String? imageUrl,
-) async {
-  final coverUrl = imageUrl?.trim();
-  if (coverUrl != null && coverUrl.isNotEmpty) {
-    try {
-      // Decode the same source URL used by the reader before pushing the
-      // route, so its loading cover can reuse Flutter's image cache.
-      await precacheImage(
-        CachedNetworkImageProvider(coverUrl),
-        context,
-      ).timeout(const Duration(seconds: 3));
-    } catch (_) {
-      // Navigation must still continue; ComicCover handles the fallback.
-    }
-  }
-}
-
-String _readerRoute(String sourceName, String slug, double chapterNumber) {
-  return '/reader/${Uri.encodeComponent(sourceName)}/${Uri.encodeComponent(slug)}/${formatChapterNumber(chapterNumber)}';
+  context.push(
+    '/reader/${Uri.encodeComponent(progress.sourceName)}/${Uri.encodeComponent(progress.comicSlug)}/${formatChapterNumber(progress.chapterNumber)}',
+    extra: comic,
+  );
 }

@@ -57,7 +57,7 @@ void main() {
     );
     final query = Uri.parse(image.imageUrl).queryParameters;
     expect(query['width'], '294');
-    expect(query['quality'], '78');
+    expect(query['quality'], '80');
     expect(image.memCacheWidth, isNull);
   });
 

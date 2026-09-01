@@ -44,7 +44,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Tonztoon Komik API",
     description="REST API untuk aplikasi pembaca komik (manga/manhwa/manhua)",
-    version="1.24.0",
+    version="1.24.1",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -121,7 +121,7 @@ async def root():
     """Health check endpoint."""
     return {
         "app": "Tonztoon Komik API",
-        "version": "1.24.0",
+        "version": "1.24.1",
         "status": "running",
         "environment": settings.APP_ENV,
     }

@@ -5,7 +5,11 @@ import '../helpers/app_icons.dart';
 
 /// Ukuran network image sesuai konteks pemakaian cover.
 /// Nilai ini diterjemahkan menjadi resize/compress pada image proxy.
-enum ComicCoverSize { small, large }
+enum ComicCoverSize { small, large, reader }
+
+String comicCoverHeroTag(String sourceName, String slug) {
+  return 'comic-cover:${sourceName.trim().toLowerCase()}:${slug.trim().toLowerCase()}';
+}
 
 /// [ComicCover] adalah komponen UI khusus untuk merender gambar sampul komik.
 /// Ini menangani:
@@ -20,6 +24,7 @@ class ComicCover extends StatelessWidget {
     this.borderRadius = 16,
     this.fit = BoxFit.cover,
     this.fallbackIconSize,
+    this.showShimmer = true,
     this.size = ComicCoverSize.small,
   });
 
@@ -29,6 +34,7 @@ class ComicCover extends StatelessWidget {
   final double borderRadius;
   final BoxFit fit;
   final double? fallbackIconSize;
+  final bool showShimmer;
 
   final ComicCoverSize size;
 
@@ -81,8 +87,9 @@ class ComicCover extends StatelessWidget {
                   return CachedNetworkImage(
                     imageUrl: optimizedImageUrl,
                     fit: fit,
-                    placeholder: (context, url) =>
-                        shimmer, // Ditampilkan saat loading
+                    placeholder: (context, url) => showShimmer
+                        ? shimmer
+                        : fallback, // Fallback stabil saat shimmer dimatikan
                     errorWidget: (context, url, error) =>
                         fallback, // Ditampilkan saat error
                   );
@@ -109,10 +116,16 @@ class ComicCover extends StatelessWidget {
         ? logicalPixels
         : (size == ComicCoverSize.small ? 240.0 : 720.0);
     final rawWidth = (safeWidth * safeDpr).round();
-    final width = size == ComicCoverSize.small
-        ? rawWidth.clamp(160, 320)
-        : rawWidth.clamp(640, 1440);
-    final quality = size == ComicCoverSize.small ? 78 : 88;
+    final width = switch (size) {
+      ComicCoverSize.small => rawWidth.clamp(160, 320),
+      ComicCoverSize.large => rawWidth.clamp(640, 1440),
+      // Keep the reader Hero source and destination on one stable cache key.
+      ComicCoverSize.reader => 320,
+    };
+    final quality = switch (size) {
+      ComicCoverSize.large => 88,
+      ComicCoverSize.small || ComicCoverSize.reader => 80,
+    };
 
     return uri
         .replace(

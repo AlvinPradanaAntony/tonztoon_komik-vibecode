@@ -122,10 +122,17 @@ class ContinueReadingProgressCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  child: ComicCover(
-                    imageUrl: progress.coverImageUrl,
-                    width: metrics.coverWidth,
-                    height: metrics.coverHeight,
+                  child: Hero(
+                    tag: comicCoverHeroTag(
+                      progress.sourceName,
+                      progress.comicSlug,
+                    ),
+                    child: ComicCover(
+                      imageUrl: progress.coverImageUrl,
+                      width: metrics.coverWidth,
+                      height: metrics.coverHeight,
+                      size: ComicCoverSize.reader,
+                    ),
                   ),
                 ),
               ),

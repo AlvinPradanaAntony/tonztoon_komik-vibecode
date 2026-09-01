@@ -67,7 +67,7 @@ class _DetailHero extends StatelessWidget {
                       ),
                       const SizedBox(height: 12),
                       Hero(
-                        tag: 'detail-cover-${detail.title}',
+                        tag: comicCoverHeroTag(detail.sourceName, detail.slug),
                         child: RepaintBoundary(
                           child: DecoratedBox(
                             decoration: BoxDecoration(
@@ -85,7 +85,7 @@ class _DetailHero extends StatelessWidget {
                               width: coverSize.width,
                               height: coverSize.height,
                               borderRadius: 12,
-                              size: ComicCoverSize.large,
+                              size: ComicCoverSize.reader,
                               fallbackIconSize: 36,
                             ),
                           ),

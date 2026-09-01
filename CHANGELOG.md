@@ -6,6 +6,20 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
+## [1.24.1] - 2026-09-01
+
+### Fixed
+- Navigasi menuju Reader tidak lagi tertahan oleh precaching cover sebelum route dibuka.
+- Tag Hero cover kini memakai identitas source dan slug agar tidak bentrok pada komik dengan judul sama.
+- Tampilan cover pada Detail Komik, kartu lanjut baca, dan layar persiapan chapter diselaraskan dengan varian ukuran reader.
+- State Library pada Detail Komik dimuat setelah data detail tersedia untuk menghindari pemuatan provider ganda dan state yang tidak perlu.
+
+### Changed
+- Layar persiapan chapter menggunakan komponen `ComicCover` bersama dengan fallback yang konsisten saat cover belum tersedia.
+- Pemrosesan cover reader dibuat lebih stabil dengan cache key yang sama antara sumber dan tujuan transisi.
+
+---
+
 ## [1.24.0] - 2026-08-30
 
 ### Added

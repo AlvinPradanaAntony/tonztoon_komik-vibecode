@@ -35,31 +35,23 @@ class _PreparingChapterViewState extends State<_PreparingChapterView> {
   @override
   Widget build(BuildContext context) {
     final coverUrl = widget.comicSummary.coverImageUrl;
-    final hasCover = coverUrl != null && coverUrl.isNotEmpty;
-
     return Stack(
       children: [
         // Blurred Cover Background
         Positioned.fill(
-          child: hasCover
-              ? ImageFiltered(
-                  imageFilter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
-                  child: CachedNetworkImage(
-                    imageUrl: coverUrl,
-                    fit: BoxFit.cover,
-                    errorWidget: (context, url, error) =>
-                        const SizedBox.shrink(),
-                  ),
-                )
-              : Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFF0F172A), Color(0xFF020617)],
-                    ),
-                  ),
-                ),
+          child: ImageFiltered(
+            imageFilter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+            child: ComicCover(
+              imageUrl: coverUrl,
+              width: double.infinity,
+              height: double.infinity,
+              borderRadius: 0,
+              fit: BoxFit.cover,
+              fallbackIconSize: 72,
+              showShimmer: false,
+              size: ComicCoverSize.reader,
+            ),
+          ),
         ),
 
         // Dark Premium Overlay
@@ -99,43 +91,41 @@ class _PreparingChapterViewState extends State<_PreparingChapterView> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (hasCover)
-                      Container(
-                        width: 130,
-                        height: 185,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.12),
-                            width: 1.5,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.6),
-                              blurRadius: 24,
-                              spreadRadius: 2,
-                              offset: const Offset(0, 12),
-                            ),
-                          ],
+                    Container(
+                      width: 130,
+                      height: 185,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          width: 1.5,
                         ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(14),
-                          child: CachedNetworkImage(
-                            imageUrl: coverUrl,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) => Container(
-                              color: Colors.white.withValues(alpha: 0.05),
-                              child: const Center(
-                                child: Icon(
-                                  Icons.book_outlined,
-                                  color: Colors.white54,
-                                  size: 32,
-                                ),
-                              ),
-                            ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.6),
+                            blurRadius: 24,
+                            spreadRadius: 2,
+                            offset: const Offset(0, 12),
                           ),
+                        ],
+                      ),
+                      child: Hero(
+                        tag: comicCoverHeroTag(
+                          widget.comicSummary.sourceName,
+                          widget.comicSummary.slug,
+                        ),
+                        child: ComicCover(
+                          imageUrl: coverUrl,
+                          width: 130,
+                          height: 185,
+                          borderRadius: 14,
+                          fit: BoxFit.cover,
+                          fallbackIconSize: 32,
+                          showShimmer: false,
+                          size: ComicCoverSize.reader,
                         ),
                       ),
+                    ),
                     const SizedBox(height: 28),
                     Text(
                       widget.comicSummary.title,
