@@ -116,7 +116,7 @@ class _BookmarksTabState extends ConsumerState<_BookmarksTab>
                                     child: SizeTransition(
                                       sizeFactor: animation,
                                       axis: Axis.horizontal,
-                                      axisAlignment: -1,
+                                      alignment: Alignment.centerLeft,
                                       child: child,
                                     ),
                                   );

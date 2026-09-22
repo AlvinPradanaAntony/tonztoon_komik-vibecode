@@ -86,6 +86,7 @@ IMAGE_PROXY_DEFAULT_ALLOWED_HOST_SUFFIXES = (
     "cdn.voratoon.com",
     "api.voratoon.com",
     "v1.voratoon.com",
+    "v2.voratoon.com",
 )
 
 # Mapping host suffix -> Referer header yang benar untuk source non-Komikcast.
@@ -97,8 +98,10 @@ REFERER_BY_HOST_SUFFIX = {
     "cdnkomiku.xyz": "https://01.komiku.asia/",
     "shinigami.asia": "https://e.shinigami.asia/",
     "shngm.id": "https://e.shinigami.asia/",
-    "voratoon.com": "https://v1.voratoon.com/",
-    "voratoon.id": "https://v1.voratoon.com/",
+    "voratoon.com": "https://v2.voratoon.com/",
+    "voratoon.id": "https://v2.voratoon.com/",
+    "cdn.voratoon.com": "https://v2.voratoon.com/",
+    "cvr.voratoon.id": "https://v2.voratoon.com/",
 }
 SCRAPLING_IMAGE_FALLBACK_STATUSES = {
     # Komiku's CDN challenge is commonly returned as 403.
@@ -515,10 +518,10 @@ async def _fetch_image_via_scrapling(
 VORATOON_COVER_PATH_RE = re.compile(r"^/prod/series/([^/]+)/cover/")
 
 
-def _extract_voratoon_cover_slug(url_str: str) -> str | None:
+def extract_voratoon_series_slug_from_cover_url(url_str: str) -> str | None:
     try:
         parsed = urlparse(url_str)
-        if any(h in parsed.netloc for h in ("voratoon", "imgkc", "komikcast")):
+        if any(h in parsed.netloc.lower() for h in ("voratoon", "imgkc", "komikcast")):
             match = VORATOON_COVER_PATH_RE.search(parsed.path)
             if match:
                 return match.group(1)
@@ -527,16 +530,21 @@ def _extract_voratoon_cover_slug(url_str: str) -> str | None:
     return None
 
 
-async def _fetch_fresh_voratoon_cover_url(
+
+async def fetch_voratoon_cover_url_for_slug(
     client: httpx.AsyncClient,
     slug: str,
 ) -> str | None:
+    slug = slug.strip()
+    if not slug:
+        return None
     try:
         api_url = f"https://api.voratoon.com/series/{slug}?includeMeta=true"
         headers = {
             "User-Agent": DEFAULT_USER_AGENT,
-            "Accept": "application/json",
-            "Referer": f"https://v1.voratoon.com/series/{slug}",
+            "Accept": "application/json, text/plain, */*",
+            "Referer": f"https://v2.voratoon.com/series/{slug}",
+            "Origin": "https://v2.voratoon.com",
         }
         res = await client.get(api_url, headers=headers, timeout=10.0)
         if res.status_code == 200:
@@ -551,6 +559,21 @@ async def _fetch_fresh_voratoon_cover_url(
     return None
 
 
+
+async def refresh_voratoon_cover_url(
+    client: httpx.AsyncClient,
+    image_url: str,
+) -> str | None:
+    """Resolve ulang signed URL cover Voratoon yang sudah kedaluwarsa."""
+    slug = extract_voratoon_series_slug_from_cover_url(image_url)
+    if not slug:
+        return None
+    cover_url = await fetch_voratoon_cover_url_for_slug(client, slug)
+    if not cover_url or cover_url == image_url:
+        return None
+    return cover_url
+
+
 async def open_validated_image_proxy_response(
     image_url: str,
     *,
@@ -558,7 +581,7 @@ async def open_validated_image_proxy_response(
 ) -> ImageProxyFetchResult:
     """
     Open an upstream image stream after validating URL, DNS, redirects, and headers.
-    Auto-refreshes expired presigned S3 cover URLs if upstream returns 403/502.
+    Auto-refreshes expired presigned S3 cover URLs if upstream returns 403/502 or DNS fails.
     """
     active_client = client or get_image_proxy_http_client()
     current_url = validate_proxy_image_url(image_url)
@@ -566,13 +589,62 @@ async def open_validated_image_proxy_response(
     refreshed_on_demand = False
 
     for redirect_count in range(settings.IMAGE_PROXY_MAX_REDIRECTS + 1):
-        await validate_proxy_image_dns(current_url)
+        try:
+            await validate_proxy_image_dns(current_url)
+        except ImageProxyValidationError as exc:
+            if not refreshed_on_demand:
+                slug = extract_voratoon_series_slug_from_cover_url(current_url)
+                if slug:
+                    fresh_url = await fetch_voratoon_cover_url_for_slug(active_client, slug)
+                    if fresh_url and fresh_url != current_url:
+                        logger.info(
+                            "On-demand refresh expired cover URL for slug '%s' after DNS validation failure: %s",
+                            slug,
+                            exc,
+                        )
+                        refreshed_on_demand = True
+                        current_url = validate_proxy_image_url(fresh_url)
+                        await validate_proxy_image_dns(current_url)
+                    else:
+                        raise
+                else:
+                    raise
+            else:
+                raise
+
         request = active_client.build_request(
             "GET",
             current_url,
             headers=get_proxy_headers(current_url),
         )
-        response = await active_client.send(request, stream=True)
+        try:
+            response = await active_client.send(request, stream=True)
+        except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+            if not refreshed_on_demand:
+                slug = extract_voratoon_series_slug_from_cover_url(current_url)
+                if slug:
+                    fresh_url = await fetch_voratoon_cover_url_for_slug(active_client, slug)
+                    if fresh_url and fresh_url != current_url:
+                        logger.info(
+                            "On-demand refresh expired cover URL for slug '%s' after connection failure: %s",
+                            slug,
+                            exc,
+                        )
+                        refreshed_on_demand = True
+                        current_url = validate_proxy_image_url(fresh_url)
+                        await validate_proxy_image_dns(current_url)
+                        retry_request = active_client.build_request(
+                            "GET",
+                            current_url,
+                            headers=get_proxy_headers(current_url),
+                        )
+                        response = await active_client.send(retry_request, stream=True)
+                    else:
+                        raise
+                else:
+                    raise
+            else:
+                raise
 
         if _should_try_scrapling_image_fallback(current_url, response.status_code):
             scrapling_result = await _fetch_image_via_scrapling(current_url)
@@ -594,9 +666,9 @@ async def open_validated_image_proxy_response(
             continue
 
         if response.status_code in {403, 502, 503} and not refreshed_on_demand:
-            slug = _extract_voratoon_cover_slug(current_url)
+            slug = extract_voratoon_series_slug_from_cover_url(current_url)
             if slug:
-                fresh_url = await _fetch_fresh_voratoon_cover_url(active_client, slug)
+                fresh_url = await fetch_voratoon_cover_url_for_slug(active_client, slug)
                 if fresh_url and fresh_url != current_url:
                     logger.info(
                         "On-demand refresh expired cover URL for slug '%s' (status %s)",
@@ -1095,6 +1167,32 @@ async def update_komikcast_cover_url_for_slug(
     result = await db.execute(
         update(Comic)
         .where(Comic.source_name == "komikcast", Comic.slug == slug)
+        .where(
+            or_(
+                Comic.cover_image_url.is_(None),
+                Comic.cover_image_url != cover_url,
+            )
+        )
+        .values(cover_image_url=cover_url, updated_at=func.now())
+    )
+    await db.commit()
+    return bool(result.rowcount)
+
+
+async def update_voratoon_cover_url_for_slug(
+    db: AsyncSession,
+    *,
+    slug: str,
+    cover_url: str,
+) -> bool:
+    """Simpan signed cover URL Voratoon terbaru untuk satu comic slug."""
+    cover_url = cover_url.strip()
+    if not slug or not cover_url:
+        return False
+
+    result = await db.execute(
+        update(Comic)
+        .where(Comic.source_name == "voratoon", Comic.slug == slug)
         .where(
             or_(
                 Comic.cover_image_url.is_(None),

@@ -15,7 +15,7 @@ from urllib.request import Request, urlopen
 
 from scraper.utils import clean_text
 
-VORATOON_BASE_URL = "https://v1.voratoon.com"
+VORATOON_BASE_URL = "https://v2.voratoon.com"
 VORATOON_API_BASE_URL = "https://api.voratoon.com"
 DEFAULT_SERIES_INDEX_TAKE = 24
 DEFAULT_POPULAR_TAKE = 20

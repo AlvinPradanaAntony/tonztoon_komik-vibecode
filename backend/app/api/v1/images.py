@@ -19,11 +19,14 @@ from app.services.image_service import (
     ImageProxyPayloadTooLargeError,
     ImageProxyValidationError,
     extract_komikcast_series_slug_from_cover_url,
+    extract_voratoon_series_slug_from_cover_url,
     optimize_image_response,
     open_validated_image_proxy_response,
     refresh_komikcast_cover_url,
+    refresh_voratoon_cover_url,
     stream_image_response_with_limit,
     update_komikcast_cover_url_for_slug,
+    update_voratoon_cover_url_for_slug,
 )
 from app.services.http_client_service import get_image_proxy_http_client
 
@@ -62,9 +65,31 @@ async def proxy_image(
         proxy_result = await open_validated_image_proxy_response(url, client=client)
         response = proxy_result.response
 
+        if response.status_code == 200 and proxy_result.url != url:
+            # On-demand refresh occurred within open_validated_image_proxy_response
+            v_slug = extract_voratoon_series_slug_from_cover_url(url)
+            if v_slug:
+                try:
+                    await update_voratoon_cover_url_for_slug(
+                        db,
+                        slug=v_slug,
+                        cover_url=proxy_result.url,
+                    )
+                except Exception:
+                    await db.rollback()
+                    logger.exception(
+                        "Failed to persist refreshed Voratoon cover URL for slug=%s",
+                        v_slug,
+                    )
+
         if response.status_code != 200:
             await response.aclose()
             fresh_url = await refresh_komikcast_cover_url(client, url)
+            is_voratoon = False
+            if not fresh_url:
+                fresh_url = await refresh_voratoon_cover_url(client, url)
+                is_voratoon = bool(fresh_url)
+
             if fresh_url:
                 proxy_result = await open_validated_image_proxy_response(
                     fresh_url,
@@ -72,20 +97,36 @@ async def proxy_image(
                 )
                 response = proxy_result.response
                 if response.status_code == 200:
-                    slug = extract_komikcast_series_slug_from_cover_url(url)
-                    if slug:
-                        try:
-                            await update_komikcast_cover_url_for_slug(
-                                db,
-                                slug=slug,
-                                cover_url=fresh_url,
-                            )
-                        except Exception:
-                            await db.rollback()
-                            logger.exception(
-                                "Failed to persist refreshed Komikcast cover URL for slug=%s",
-                                slug,
-                            )
+                    if is_voratoon:
+                        slug = extract_voratoon_series_slug_from_cover_url(url)
+                        if slug:
+                            try:
+                                await update_voratoon_cover_url_for_slug(
+                                    db,
+                                    slug=slug,
+                                    cover_url=fresh_url,
+                                )
+                            except Exception:
+                                await db.rollback()
+                                logger.exception(
+                                    "Failed to persist refreshed Voratoon cover URL for slug=%s",
+                                    slug,
+                                )
+                    else:
+                        slug = extract_komikcast_series_slug_from_cover_url(url)
+                        if slug:
+                            try:
+                                await update_komikcast_cover_url_for_slug(
+                                    db,
+                                    slug=slug,
+                                    cover_url=fresh_url,
+                                )
+                            except Exception:
+                                await db.rollback()
+                                logger.exception(
+                                    "Failed to persist refreshed Komikcast cover URL for slug=%s",
+                                    slug,
+                                )
                 else:
                     await response.aclose()
                     raise HTTPException(

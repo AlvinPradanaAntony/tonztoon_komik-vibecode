@@ -4,7 +4,7 @@ Tonztoon Komik — Voratoon Scraper
 Implementasi source Voratoon yang sepenuhnya memakai backend API resmi
 `https://api.voratoon.com`.
 
-Frontend `https://v1.voratoon.com` bertindak sebagai SPA/Next.js consumer dari
+Frontend `https://v2.voratoon.com` bertindak sebagai SPA/Next.js consumer dari
 API tersebut. Scraper ini mengambil data langsung dari endpoint JSON resmi source
 dengan integrasi Scrapling dan HTTP client asynchronous.
 """

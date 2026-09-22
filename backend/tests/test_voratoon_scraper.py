@@ -102,9 +102,12 @@ class VoratoonImageProxySecurityTests(unittest.TestCase):
         cdn_url = "https://cdn.voratoon.com/wp-content/img/sample/001/01.jpg"
         self.assertEqual(validate_proxy_image_url(cdn_url), cdn_url)
 
+        v2_url = "https://v2.voratoon.com/logo.png"
+        self.assertEqual(validate_proxy_image_url(v2_url), v2_url)
+
     def test_voratoon_referer_header(self):
         headers = get_proxy_headers("https://cdn.voratoon.com/wp-content/img/sample/001/01.jpg")
-        self.assertEqual(headers.get("Referer"), "https://v1.voratoon.com/")
+        self.assertEqual(headers.get("Referer"), "https://v2.voratoon.com/")
 
 
 class VoratoonScraperFlowTests(unittest.IsolatedAsyncioTestCase):

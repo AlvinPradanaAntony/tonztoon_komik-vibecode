@@ -118,7 +118,9 @@ class _VerticalReader extends StatelessWidget {
     return ListView.builder(
       controller: controller,
       padding: EdgeInsets.zero,
-      cacheExtent: _dynamicReaderCacheExtent(context),
+      scrollCacheExtent: ScrollCacheExtent.pixels(
+        _dynamicReaderCacheExtent(context),
+      ),
       itemBuilder: (context, index) {
         if (index >= pages.length) {
           return const _InlineChapterLoading();
