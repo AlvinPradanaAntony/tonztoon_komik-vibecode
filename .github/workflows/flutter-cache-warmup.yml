@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 env:
-  FLUTTER_VERSION: '3.41.9'
+  FLUTTER_VERSION: '3.47.5'
   FLUTTER_CHANNEL: stable
   FLUTTER_PUB_CACHE_PATH: ~/.pub-cache
 
