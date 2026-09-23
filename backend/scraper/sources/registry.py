@@ -9,7 +9,6 @@ dan dipakai backfill live-scrape, tetapi tidak muncul di pipeline ingest.
 from typing import Any
 
 from scraper.base_scraper import BaseComicScraper
-from scraper.sources.komikcast_scraper import KomikcastScraper
 from scraper.sources.kiryuu_scraper import KiryuuScraper
 from scraper.sources.komiku_asia_scraper import KomikuAsiaScraper
 from scraper.sources.komiku_scraper import KomikuScraper
@@ -19,7 +18,6 @@ from scraper.sources.voratoon_scraper import VoratoonScraper
 SCRAPER_FACTORIES: dict[str, type[BaseComicScraper]] = {
     "komiku": KomikuScraper,
     "komiku_asia": KomikuAsiaScraper,
-    "komikcast": KomikcastScraper,
     "shinigami": ShinigamiScraper,
     "voratoon": VoratoonScraper,
     "kiryuu": KiryuuScraper,
@@ -30,14 +28,12 @@ SOURCE_ENABLED: dict[str, bool] = {
     "komiku_asia": True,
     "shinigami": True,
     "voratoon": True,
-    "komikcast": False,
     "kiryuu": False,
 }
 
 SOURCE_LABELS: dict[str, str] = {
     "komiku": "Komiku",
     "komiku_asia": "Komiku Asia",
-    "komikcast": "Komikcast",
     "shinigami": "Shinigami",
     "voratoon": "Voratoon",
     "kiryuu": "Kiryuu",

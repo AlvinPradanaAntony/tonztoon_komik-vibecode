@@ -6,10 +6,15 @@ const double _catalogGridHorizontalSpacing = 12;
 const double _catalogGridVerticalSpacing = 10;
 
 class _CatalogGrid extends StatelessWidget {
-  const _CatalogGrid({required this.entries, required this.onTap});
+  const _CatalogGrid({
+    required this.entries,
+    required this.onTap,
+    this.isLoadingMore = false,
+  });
 
   final List<_CatalogEntry> entries;
   final ValueChanged<_CatalogEntry> onTap;
+  final bool isLoadingMore;
 
   @override
   Widget build(BuildContext context) {
@@ -20,6 +25,8 @@ class _CatalogGrid extends StatelessWidget {
       maxColumnCount: _catalogGridMaxColumnCount,
       horizontalSpacing: _catalogGridHorizontalSpacing,
       verticalSpacing: _catalogGridVerticalSpacing,
+      isLoadingMore: isLoadingMore,
+      loadingBuilder: (context, index) => const ComicGridCardShimmer(),
       itemBuilder: (context, entry) {
         return ComicCard(
           comic: entry.comic,

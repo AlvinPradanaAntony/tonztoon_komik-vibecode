@@ -48,3 +48,8 @@ class SettingsScreen extends ConsumerStatefulWidget {
   @override
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
+
+/// Opens the same downloads screen exposed from the Profile page.
+void openMyDownloads(BuildContext context) {
+  _openAccountFlow(context, const _MyDownloadsScreen());
+}

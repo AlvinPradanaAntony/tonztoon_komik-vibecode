@@ -8,11 +8,11 @@ class CatalogRepository {
 
   final TonztoonApi _api;
   final LocalStore _store;
+  static const _sourcesCacheKey = 'sources';
   static const _genresCacheKey = 'genres';
   final Map<String, List<ComicSummary>> _comicSectionCache = {};
 
   Future<List<SourceInfo>> getSources() async {
-    const cacheKey = 'sources';
     try {
       final response = await _api.get<List<dynamic>>('/sources');
       final items = (response.data ?? const [])
@@ -21,7 +21,7 @@ class CatalogRepository {
           .where((source) => source.enabled)
           .toList();
       await _store.cache.put(
-        cacheKey,
+        _sourcesCacheKey,
         items
             .map(
               (source) => {
@@ -36,15 +36,26 @@ class CatalogRepository {
       );
       return items;
     } catch (_) {
-      final cached = _store.cache.get(cacheKey);
-      if (cached is List) {
-        return cached
-            .whereType<Map<dynamic, dynamic>>()
-            .map((item) => SourceInfo.fromJson(Map<String, dynamic>.from(item)))
-            .toList();
+      final cached = getCachedSources();
+      if (cached.isNotEmpty) {
+        return cached;
       }
       rethrow;
     }
+  }
+
+  List<SourceInfo> getCachedSources() {
+    final cached = _store.cache.get(_sourcesCacheKey);
+    if (cached is! List) return const [];
+    return cached
+        .whereType<Map<dynamic, dynamic>>()
+        .map((item) => SourceInfo.fromJson(Map<String, dynamic>.from(item)))
+        .where((source) => source.enabled)
+        .toList();
+  }
+
+  Future<List<SourceInfo>> refreshSources() async {
+    return getSources();
   }
 
   Future<List<Genre>> getGenres() async {

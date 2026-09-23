@@ -34,19 +34,7 @@ DEFAULT_USER_AGENT = (
 )
 
 PROXY_IMAGE_PATH = "/api/v1/images/proxy"
-KOMIKCAST_API_BASE_URL = "https://be.komikcast.cc"
-KOMIKCAST_WEB_BASE_URL = "https://v1.komikcast.fit"
-KOMIKCAST_WEB_REFERER = f"{KOMIKCAST_WEB_BASE_URL}/"
-KOMIKCAST_IMAGE_HOSTS = (
-    "komikcast.fit",
-    "komikcast.cc",
-    "komikcast.to",
-    "imgkc1.my.id",
-    "imgkc2.my.id",
-    "imgkc3.my.id",
-    "imgkc.my.id",
-)
-KOMIKCAST_COVER_PATH_RE = re.compile(r"^/prod/series/([^/]+)/cover/")
+
 # Some Komiku Asia JPEGs contain large EXIF blocks before the SOF marker.
 # Keep the probe bounded, but allow enough of the partial response to reach it.
 IMAGE_DIMENSION_PROBE_MAX_BYTES = 512 * 1024
@@ -62,17 +50,10 @@ IMAGE_PROXY_DEFAULT_ALLOWED_HOST_SUFFIXES = (
     "shinigami.asia",
     "shngm.id",
     "api.shngm.io",
-    "komikcast.fit",
-    "komikcast.cc",
-    "komikcast.to",
-    "komikcast.cz",
-    "komikcast.site",
     "imgkc1.my.id",
     "imgkc2.my.id",
     "imgkc3.my.id",
     "imgkc.my.id",
-    "be.komikcast.cc",
-    "v1.komikcast.fit",
     "kiryuu.to",
     "kiryuu.id",
     "kiryuu.org",
@@ -89,7 +70,7 @@ IMAGE_PROXY_DEFAULT_ALLOWED_HOST_SUFFIXES = (
     "v2.voratoon.com",
 )
 
-# Mapping host suffix -> Referer header yang benar untuk source non-Komikcast.
+# Mapping host suffix -> Referer header yang benar untuk masing-masing source.
 REFERER_BY_HOST_SUFFIX = {
     "komiku.org": "https://komiku.org/",
     "komiku.to": "https://komiku.org/",
@@ -394,31 +375,12 @@ def validate_image_response_headers(headers: Mapping[str, str]) -> str:
     return content_type or "image/jpeg"
 
 
-def _is_komikcast_image_host(host: str) -> bool:
-    return any(
-        _host_matches_suffix(host, suffix)
-        for suffix in KOMIKCAST_IMAGE_HOSTS
-    )
-
-
-def _extract_komikcast_cover_slug_from_path(path: str) -> str | None:
-    match = KOMIKCAST_COVER_PATH_RE.search(path)
-    return match.group(1) if match else None
-
-
-def _looks_like_komikcast_cover_url(parsed_url) -> bool:
-    return _extract_komikcast_cover_slug_from_path(parsed_url.path) is not None
-
-
 def _referer_for_image_url(image_url: str) -> str:
     parsed = urlparse(image_url)
     try:
         host = _normalize_hostname(parsed.hostname)
     except ImageProxyValidationError:
         host = parsed.netloc.lower()
-
-    if _is_komikcast_image_host(host) or _looks_like_komikcast_cover_url(parsed):
-        return KOMIKCAST_WEB_REFERER
 
     for suffix, referer in REFERER_BY_HOST_SUFFIX.items():
         if _host_matches_suffix(host, suffix):
@@ -546,7 +508,7 @@ async def fetch_voratoon_cover_url_for_slug(
             "Referer": f"https://v2.voratoon.com/series/{slug}",
             "Origin": "https://v2.voratoon.com",
         }
-        res = await client.get(api_url, headers=headers, timeout=10.0)
+        res = await client.get(api_url, headers=headers, timeout=15.0, follow_redirects=True)
         if res.status_code == 200:
             payload = res.json()
             item = payload.get("data") or {}
@@ -1072,111 +1034,7 @@ async def enrich_chapter_image_dimensions(
     return normalized_images
 
 
-def get_komikcast_api_headers() -> dict[str, str]:
-    """Headers API Komikcast untuk refresh signed asset URL."""
-    return {
-        "User-Agent": DEFAULT_USER_AGENT,
-        "Accept": "application/json, text/plain, */*",
-        "Referer": KOMIKCAST_WEB_REFERER,
-        "Origin": KOMIKCAST_WEB_BASE_URL,
-    }
 
-
-def extract_komikcast_series_slug_from_cover_url(image_url: str) -> str | None:
-    """
-    Ambil slug series dari URL cover MinIO Komikcast.
-
-    Cover Komikcast dari API berbentuk signed URL MinIO yang expired harian,
-    contohnya `/prod/series/{slug}/cover/{file}.webp?...`.
-    """
-    parsed = urlparse(image_url)
-    slug = _extract_komikcast_cover_slug_from_path(parsed.path)
-    if slug and (
-        _is_komikcast_image_host(parsed.netloc)
-        or parsed.scheme in {"http", "https"}
-    ):
-        return slug
-    return None
-
-
-async def refresh_komikcast_cover_url(
-    client: httpx.AsyncClient,
-    image_url: str,
-) -> str | None:
-    """
-    Resolve ulang signed URL cover Komikcast yang sudah kedaluwarsa.
-
-    Database bisa menyimpan `coverImage` lama dari API Komikcast. Ketika URL itu
-    expired, proxy mengambil payload series terbaru untuk mendapatkan signed URL
-    baru tanpa menunggu job scraper berjalan lagi.
-    """
-    slug = extract_komikcast_series_slug_from_cover_url(image_url)
-    if not slug:
-        return None
-
-    cover_url = await fetch_komikcast_cover_url_for_slug(client, slug)
-    if not cover_url or cover_url == image_url:
-        return None
-    return cover_url
-
-
-async def fetch_komikcast_cover_url_for_slug(
-    client: httpx.AsyncClient,
-    slug: str,
-) -> str | None:
-    """Ambil signed cover URL terbaru dari API Komikcast untuk satu slug."""
-    slug = slug.strip()
-    if not slug:
-        return None
-
-    response = await client.get(
-        f"{KOMIKCAST_API_BASE_URL}/series/{slug}",
-        params={"includeMeta": "true"},
-        headers=get_komikcast_api_headers(),
-        follow_redirects=True,
-        timeout=15.0,
-    )
-    if response.status_code != 200:
-        return None
-
-    try:
-        payload = response.json()
-    except ValueError:
-        return None
-    cover_url = ((payload.get("data") or {}).get("data") or {}).get("coverImage")
-    if not isinstance(cover_url, str):
-        return None
-
-    cover_url = cover_url.strip()
-    if not cover_url:
-        return None
-    return cover_url
-
-
-async def update_komikcast_cover_url_for_slug(
-    db: AsyncSession,
-    *,
-    slug: str,
-    cover_url: str,
-) -> bool:
-    """Simpan signed cover URL Komikcast terbaru untuk satu comic slug."""
-    cover_url = cover_url.strip()
-    if not slug or not cover_url:
-        return False
-
-    result = await db.execute(
-        update(Comic)
-        .where(Comic.source_name == "komikcast", Comic.slug == slug)
-        .where(
-            or_(
-                Comic.cover_image_url.is_(None),
-                Comic.cover_image_url != cover_url,
-            )
-        )
-        .values(cover_image_url=cover_url, updated_at=func.now())
-    )
-    await db.commit()
-    return bool(result.rowcount)
 
 
 async def update_voratoon_cover_url_for_slug(
@@ -1205,16 +1063,19 @@ async def update_voratoon_cover_url_for_slug(
     return bool(result.rowcount)
 
 
-async def get_komikcast_cover_refresh_candidates(
+
+
+
+async def get_voratoon_cover_refresh_candidates(
     db: AsyncSession,
     *,
     limit: int,
     after_id: int = 0,
 ) -> list[tuple[int, str, str, str | None]]:
-    """Ambil comic Komikcast yang cover URL-nya bisa direfresh dari API source."""
+    """Ambil comic Voratoon yang cover URL-nya bisa direfresh dari API source."""
     stmt = (
         select(Comic.id, Comic.slug, Comic.title, Comic.cover_image_url)
-        .where(Comic.source_name == "komikcast")
+        .where(Comic.source_name == "voratoon")
         .where(Comic.slug.is_not(None), Comic.slug != "")
         .where(Comic.id > max(after_id, 0))
         .order_by(Comic.id.asc())

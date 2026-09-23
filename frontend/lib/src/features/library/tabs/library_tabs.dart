@@ -100,6 +100,9 @@ class _BookmarksTabState extends ConsumerState<_BookmarksTab>
                                   bookmarkStatusCounts ?? const <String, int>{},
                               downloadsCount: downloadsCount,
                               totalBookmarks: totalBookmarks,
+                              activeStatus: bookmarkOptions.status,
+                              onFilterByStatus: _applyStatusFilter,
+                              onOpenDownloads: () => openMyDownloads(context),
                             ),
                             const SizedBox(height: 16),
                             AnimatedSize(
@@ -232,6 +235,8 @@ class _BookmarksTabState extends ConsumerState<_BookmarksTab>
                                   bookmarks: bookmarks,
                                   onRemove: _removeBookmark,
                                   onChangeStatus: _showBookmarkStatusPicker,
+                                  isLoadingMore:
+                                      bookmarkPage?.isLoadingMore == true,
                                 )
                               : _BookmarkList(
                                   bookmarks: bookmarks,
@@ -239,18 +244,16 @@ class _BookmarksTabState extends ConsumerState<_BookmarksTab>
                                   onChangeStatus: _showBookmarkStatusPicker,
                                 ),
                         ),
-                      if (bookmarkPage?.isLoadingMore == true)
+                      if (bookmarkPage?.isLoadingMore == true && !widget.isGrid)
                         SliverPadding(
-                          padding: EdgeInsets.fromLTRB(16, 14, 16, 0),
-                          sliver: widget.isGrid
-                              ? const _BookmarkGridLoadingMore()
-                              : SliverList(
-                                  delegate: SliverChildListDelegate.fixed([
-                                    _BookmarkTileShimmer(),
-                                    SizedBox(height: 12),
-                                    _BookmarkTileShimmer(),
-                                  ]),
-                                ),
+                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                          sliver: SliverList(
+                            delegate: SliverChildListDelegate.fixed([
+                              _BookmarkTileShimmer(),
+                              const SizedBox(height: 12),
+                              _BookmarkTileShimmer(),
+                            ]),
+                          ),
                         ),
                       SliverPadding(
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 132),
@@ -281,6 +284,50 @@ class _BookmarksTabState extends ConsumerState<_BookmarksTab>
         ),
       ],
     );
+  }
+
+  void _applyStatusFilter(String status) {
+    final current = ref.read(bookmarkBrowseOptionsProvider);
+    final activeValues = selectedFilterValues(current.status);
+    final target = status.trim().toLowerCase();
+    final isAlreadyActive = activeValues.any((val) {
+      final v = val.trim().toLowerCase();
+      if (target == 'selesai' || target == 'completed') {
+        return v == 'selesai' || v == 'completed';
+      }
+      return v == target;
+    });
+
+    final String nextStatus;
+    if (isAlreadyActive) {
+      if (activeValues.length > 1) {
+        final remaining = activeValues.where((val) {
+          final v = val.trim().toLowerCase();
+          if (target == 'selesai' || target == 'completed') {
+            return v != 'selesai' && v != 'completed';
+          }
+          return v != target;
+        }).toList();
+        nextStatus =
+            remaining.isEmpty ? ComicFilterOption.all : remaining.join(',');
+      } else {
+        nextStatus = ComicFilterOption.all;
+      }
+    } else {
+      nextStatus = status;
+    }
+
+    ref
+        .read(bookmarkBrowseOptionsProvider.notifier)
+        .apply(
+          ComicFilterSortState(
+            source: current.source,
+            type: current.type,
+            status: nextStatus,
+            genre: current.genre,
+            sort: current.sort,
+          ),
+        );
   }
 
   void _openBookmarkSearch() {

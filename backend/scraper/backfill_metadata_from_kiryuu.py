@@ -7,9 +7,9 @@ berdasarkan slug/judul, lalu mengisi metadata yang masih kosong.
 
 Usage:
     python -m scraper.backfill_metadata_from_kiryuu --overview --fields rating
-    python -m scraper.backfill_metadata_from_kiryuu --compare-values --source komikcast --fields total_view --limit 20
+    python -m scraper.backfill_metadata_from_kiryuu --compare-values --source voratoon --fields total_view --limit 20
     python -m scraper.backfill_metadata_from_kiryuu --dry-run --limit 50
-    python -m scraper.backfill_metadata_from_kiryuu --source komikcast,shinigami
+    python -m scraper.backfill_metadata_from_kiryuu --source voratoon,shinigami
     python -m scraper.backfill_metadata_from_kiryuu --fields status,type,rating,author,artist
     python -m scraper.backfill_metadata_from_kiryuu --with-genres
     python -m scraper.backfill_metadata_from_kiryuu --overwrite --limit 25

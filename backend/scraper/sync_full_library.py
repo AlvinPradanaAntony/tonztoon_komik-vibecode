@@ -34,7 +34,7 @@ Usage:
     python -m scraper.sync_full_library --mode refresh
     python -m scraper.sync_full_library --mode validate --refresh-fields total_view
     python -m scraper.sync_full_library --mode validate --refresh-fields total_view,rating --refresh-missing-only --limit 100
-    python -m scraper.sync_full_library --source komikcast --refresh-missing-chapters --limit 50
+    python -m scraper.sync_full_library --source voratoon --refresh-missing-chapters --limit 50
     python -m scraper.sync_full_library --log-file validate.log
     python -m scraper.sync_full_library --mode validate --reset   # Hapus checkpoint validate
     python -m scraper.sync_full_library --mode refresh --reset    # Hapus checkpoint refresh
@@ -48,7 +48,7 @@ Argumen CLI utama:
   - Source yang akan diproses.
   - Default saat ini mengikuti `komiku`.
   - Nilai valid mengikuti registry backend: `komiku`, `komiku_asia`,
-    `komikcast`, `shinigami`.
+    `voratoon`, `shinigami`.
 - `--mode <validate|refresh>`
   - `validate`:
     - skip comic yang slug-nya sudah ada di DB
@@ -93,15 +93,15 @@ Contoh use case:
 - Seed katalog baru source tertentu:
   `python -m scraper.sync_full_library --source komiku_asia --mode validate --start 1 --max 20`
 - Refresh range kecil secara penuh:
-  `python -m scraper.sync_full_library --source komikcast --mode refresh --start 10 --end 12`
+  `python -m scraper.sync_full_library --source voratoon --mode refresh --start 10 --end 12`
 - Patch kolom `total_view` tanpa full chapter sync:
   `python -m scraper.sync_full_library --source shinigami --mode validate --refresh-fields total_view`
 - Patch beberapa metadata comic existing:
-  `python -m scraper.sync_full_library --source komikcast --mode validate --refresh-fields total_view,rating,status`
+  `python -m scraper.sync_full_library --source voratoon --mode validate --refresh-fields total_view,rating,status`
 - Backfill hanya metadata yang masih kosong:
-  `python -m scraper.sync_full_library --source komikcast --mode validate --refresh-fields total_view,rating --refresh-missing-only --limit 100 --reset`
-- Patch/backfill chapter yang masih kosong untuk source komikcast (maksimal 50 komik):
-  `python -m scraper.sync_full_library --source komikcast --refresh-missing-chapters --limit 50`
+  `python -m scraper.sync_full_library --source voratoon --mode validate --refresh-fields total_view,rating --refresh-missing-only --limit 100 --reset`
+- Patch/backfill chapter yang masih kosong untuk source voratoon (maksimal 50 komik):
+  `python -m scraper.sync_full_library --source voratoon --refresh-missing-chapters --limit 50`
 - Ulang dari awal tanpa checkpoint lama:
   `python -m scraper.sync_full_library --source komiku --mode validate --reset`
 

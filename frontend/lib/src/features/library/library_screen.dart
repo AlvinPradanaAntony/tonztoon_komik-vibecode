@@ -28,6 +28,7 @@ import '../../widgets/metadata_separator.dart';
 import '../../widgets/source_tag.dart';
 import '../../widgets/scroll_to_top_fab.dart';
 import '../../widgets/tonztoon_modal_dialog.dart';
+import '../settings/settings_screen.dart' show openMyDownloads;
 import 'library_error.dart';
 import 'library_shared_panes.dart';
 import 'widgets/library_async_pane.dart';

@@ -98,17 +98,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           builder: (context) {
                             final isDark = Theme.of(context).brightness == Brightness.dark;
                             final warningColor = isDark ? Colors.amberAccent : (Colors.amber[900] ?? Colors.amber);
-                            final warningBgColor = isDark ? Colors.amber.withValues(alpha: 0.08) : Colors.amber.withValues(alpha: 0.12);
-                            final warningBorderColor = isDark ? Colors.amberAccent.withValues(alpha: 0.2) : Colors.amber.withValues(alpha: 0.35);
+                            final otherHealthySources = home.sources
+                                .where((s) => s.id != home.selectedSource.id && !s.isUnstable)
+                                .map((s) => s.label)
+                                .take(2)
+                                .toList();
+                            final recommendationSuffix = otherHealthySources.isNotEmpty
+                                ? ' (seperti ${otherHealthySources.join(' atau ')})'
+                                : '';
                             return Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
+                              padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: warningBgColor,
+                                color: warningColor.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: warningBorderColor),
+                                border: Border.all(
+                                  color: warningColor.withValues(alpha: 0.4),
+                                ),
                               ),
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -116,15 +121,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   Icon(
                                     Icons.warning_amber_rounded,
                                     color: warningColor,
-                                    size: 22,
+                                    size: 20,
                                   ),
-                                  const SizedBox(width: 12),
+                                  const SizedBox(width: 10),
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          'Sumber Kurang Stabil',
+                                          'Koneksi Sumber Kurang Stabil',
                                           style: Theme.of(context)
                                               .textTheme
                                               .titleSmall
@@ -135,7 +140,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          'Sumber "${home.selectedSource.label}" sedang mengalami gangguan atau lambat diperbarui dari situs aslinya. Disarankan untuk beralih ke sumber lain (seperti Komikcast atau Shinigami) demi kenyamanan membaca.',
+                                          'Sumber "${home.selectedSource.label}" sedang mengalami gangguan atau lambat diperbarui dari situs aslinya. Disarankan untuk beralih ke sumber lain$recommendationSuffix demi kenyamanan membaca.',
                                           style: Theme.of(context)
                                               .textTheme
                                               .bodySmall

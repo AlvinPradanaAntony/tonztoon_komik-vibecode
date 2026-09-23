@@ -1,5 +1,7 @@
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import httpx
 
 from app.services.image_service import (
     get_proxy_headers,
@@ -23,12 +25,40 @@ from scraper.sources.voratoon_api import (
     coalesce_voratoon_total_view,
     extract_voratoon_chapter_identity,
     extract_voratoon_series_slug,
+    normalize_voratoon_web_url,
     parse_voratoon_iso_datetime,
 )
 from scraper.sources.voratoon_scraper import VoratoonScraper
 
 
 class VoratoonApiHelperTests(unittest.TestCase):
+    def test_normalize_voratoon_web_url(self):
+        self.assertEqual(
+            normalize_voratoon_web_url("https://v1.voratoon.com/series/comic-a"),
+            "https://v2.voratoon.com/series/comic-a",
+        )
+        self.assertEqual(
+            normalize_voratoon_web_url("https://voratoon.com/series/comic-b/chapter/10"),
+            "https://v2.voratoon.com/series/comic-b/chapter/10",
+        )
+        self.assertEqual(
+            normalize_voratoon_web_url("https://voratoon.id/series/comic-c"),
+            "https://v2.voratoon.com/series/comic-c",
+        )
+        self.assertEqual(
+            normalize_voratoon_web_url("https://v2.voratoon.com/series/comic-d"),
+            "https://v2.voratoon.com/series/comic-d",
+        )
+        self.assertEqual(normalize_voratoon_web_url(None), "https://v2.voratoon.com/")
+
+    def test_build_voratoon_api_headers_normalizes_referer(self):
+        headers = build_voratoon_api_headers("https://v1.voratoon.com/series/sample/chapter/65")
+        self.assertEqual(
+            headers["Referer"],
+            "https://v2.voratoon.com/series/sample/chapter/65",
+        )
+        self.assertEqual(headers["Origin"], "https://v2.voratoon.com")
+
     def test_extract_series_slug(self):
         url = "https://v1.voratoon.com/series/gomi-ika-da-to-tsuihou-sareta-shiyounin"
         self.assertEqual(
@@ -41,6 +71,11 @@ class VoratoonApiHelperTests(unittest.TestCase):
         slug, chapter_number = extract_voratoon_chapter_identity(url)
         self.assertEqual(slug, "demon-x-angel")
         self.assertEqual(chapter_number, "135.1")
+
+        # Test with trailing slash and .0 suffix
+        slug2, ch2 = extract_voratoon_chapter_identity("https://v1.voratoon.com/series/demo/chapter/65.0/")
+        self.assertEqual(slug2, "demo")
+        self.assertEqual(ch2, "65")
 
     def test_parse_iso_datetime(self):
         dt = parse_voratoon_iso_datetime("2026-08-15T03:22:32.352+00:00")
@@ -216,6 +251,16 @@ class VoratoonScraperFlowTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(images), 2)
             self.assertEqual(images[0], {"page": 1, "url": "https://cdn.voratoon.com/001.jpg"})
             self.assertEqual(images[1], {"page": 2, "url": "https://cdn.voratoon.com/002.jpg"})
+
+    async def test_get_chapter_images_returns_empty_on_404(self):
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+        error = httpx.HTTPStatusError("Not Found", request=MagicMock(), response=mock_response)
+        with patch.object(self.scraper, "_fetch_api_json", new=AsyncMock(side_effect=error)):
+            images = await self.scraper.get_chapter_images(
+                "https://v1.voratoon.com/series/sample-comic/chapter/999"
+            )
+            self.assertEqual(images, [])
 
     async def test_get_comic_metadata_patch(self):
         mock_payload = {

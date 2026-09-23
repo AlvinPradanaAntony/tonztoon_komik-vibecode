@@ -5,11 +5,13 @@ class _BookmarkGrid extends StatelessWidget {
     required this.bookmarks,
     required this.onRemove,
     required this.onChangeStatus,
+    this.isLoadingMore = false,
   });
 
   final List<LibraryComicRef> bookmarks;
   final Future<void> Function(ComicSummary comic) onRemove;
   final Future<void> Function(ComicSummary comic) onChangeStatus;
+  final bool isLoadingMore;
 
   @override
   Widget build(BuildContext context) {
@@ -18,26 +20,13 @@ class _BookmarkGrid extends StatelessWidget {
       items: bookmarks,
       minColumnWidth: 98,
       maxColumnCount: 6,
+      isLoadingMore: isLoadingMore,
+      loadingBuilder: (context, index) => const ComicGridCardShimmer(),
       itemBuilder: (context, bookmark) => _BookmarkGridCard(
         comic: bookmark,
         onRemove: onRemove,
         onChangeStatus: onChangeStatus,
       ),
-    );
-  }
-}
-
-class _BookmarkGridLoadingMore extends StatelessWidget {
-  const _BookmarkGridLoadingMore();
-
-  @override
-  Widget build(BuildContext context) {
-    return AppSliverColumnGrid<int>(
-      key: const ValueKey('bookmark-grid-loading-more'),
-      items: const [0, 1, 2, 3, 4, 5],
-      minColumnWidth: 98,
-      maxColumnCount: 6,
-      itemBuilder: (context, index) => const ComicGridCardShimmer(),
     );
   }
 }

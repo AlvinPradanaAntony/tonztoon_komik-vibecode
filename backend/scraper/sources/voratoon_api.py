@@ -26,8 +26,26 @@ DEFAULT_USER_AGENT = (
 )
 
 
+def normalize_voratoon_web_url(url: str | None) -> str:
+    """Normalisasi URL web/referer Voratoon ke canonical base URL (https://v2.voratoon.com)."""
+    if not url:
+        return f"{VORATOON_BASE_URL}/"
+    cleaned = clean_text(url)
+    if not cleaned:
+        return f"{VORATOON_BASE_URL}/"
+    normalized = re.sub(
+        r"^https?://(?:v1|v2|cvr|cdn)?\.?voratoon\.(?:com|id)",
+        VORATOON_BASE_URL,
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    if not normalized.startswith("http"):
+        normalized = f"{VORATOON_BASE_URL}/{normalized.lstrip('/')}"
+    return normalized
+
+
 def build_voratoon_api_headers(referer_url: str | None = None) -> dict[str, str]:
-    referer = referer_url or f"{VORATOON_BASE_URL}/"
+    referer = normalize_voratoon_web_url(referer_url)
     return {
         "User-Agent": DEFAULT_USER_AGENT,
         "Accept": "application/json, text/plain, */*",
@@ -72,7 +90,11 @@ def extract_voratoon_chapter_identity(chapter_url: str) -> tuple[str, str]:
     match = re.search(r"/series/([^/?#]+)/chapter/([^/?#]+)", chapter_url)
     if not match:
         raise ValueError(f"Tidak dapat mengekstrak chapter identity dari URL: {chapter_url}")
-    return match.group(1), match.group(2)
+    slug = match.group(1).strip()
+    chapter_num = match.group(2).strip().rstrip("/")
+    if chapter_num.endswith(".0"):
+        chapter_num = chapter_num[:-2]
+    return slug, chapter_num
 
 
 def parse_voratoon_iso_datetime(value: str | None) -> datetime | None:
@@ -184,5 +206,8 @@ def build_voratoon_series_chapters_url(series_slug: str) -> str:
     return f"{VORATOON_API_BASE_URL}/series/{series_slug}/chapters"
 
 
-def build_voratoon_chapter_detail_url(series_slug: str, chapter_number: str) -> str:
-    return f"{VORATOON_API_BASE_URL}/series/{series_slug}/chapters/{chapter_number}"
+def build_voratoon_chapter_detail_url(series_slug: str, chapter_number: str | float | int) -> str:
+    ch_str = str(chapter_number).strip().rstrip("/")
+    if ch_str.endswith(".0"):
+        ch_str = ch_str[:-2]
+    return f"{VORATOON_API_BASE_URL}/series/{series_slug}/chapters/{ch_str}"

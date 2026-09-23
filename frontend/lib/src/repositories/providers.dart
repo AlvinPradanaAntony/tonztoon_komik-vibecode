@@ -57,6 +57,12 @@ final configProvider = Provider<AppConfig>(
   (ref) => AppConfig.fromEnvironment(),
 );
 
+final effectiveApiBaseUrlProvider = Provider<String>((ref) {
+  final configuredUrl = ref.watch(configProvider).apiBaseUrl;
+  final developerSettings = ref.watch(developerSettingsProvider);
+  return developerSettings.apiBaseUrlOverride ?? configuredUrl;
+});
+
 final localStoreProvider = Provider<LocalStore>((ref) => LocalStore());
 
 final appUpdateServiceProvider = Provider<AppUpdateService>((ref) {
@@ -70,7 +76,9 @@ final tokenStoreProvider = Provider<TokenStore>((ref) => SecureTokenStore());
 
 final apiProvider = Provider<TonztoonApi>((ref) {
   return TonztoonApi(
-    config: ref.watch(configProvider),
+    config: ref
+        .watch(configProvider)
+        .copyWith(apiBaseUrl: ref.watch(effectiveApiBaseUrlProvider)),
     tokenStore: ref.watch(tokenStoreProvider),
   );
 });

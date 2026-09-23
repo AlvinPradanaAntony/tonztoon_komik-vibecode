@@ -146,7 +146,7 @@ class Comic(Base):
     rating: Mapped[float | None] = mapped_column(Float, nullable=True)
     total_view: Mapped[int | None] = mapped_column(Integer, nullable=True)
     source_url: Mapped[str] = mapped_column(String(1000), nullable=False)
-    source_name: Mapped[str] = mapped_column(String(100), nullable=False)  # komiku / komikcast / shinigami
+    source_name: Mapped[str] = mapped_column(String(100), nullable=False)  # komiku / voratoon / shinigami / komiku_asia
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 typedef ColumnGridItemBuilder<T> =
     Widget Function(BuildContext context, T item);
 
+typedef ColumnGridLoadingBuilder =
+    Widget Function(BuildContext context, int loadingIndex);
+
 int resolveColumnGridColumnCount({
   required double maxWidth,
   int? columnCount,
@@ -34,6 +37,9 @@ class AppColumnGrid<T> extends StatelessWidget {
     this.maxColumnCount = 6,
     this.horizontalSpacing = 12,
     this.verticalSpacing = 10,
+    this.isLoadingMore = false,
+    this.loadingBuilder,
+    this.loadingRowCount = 1,
   });
 
   final List<T> items;
@@ -43,24 +49,47 @@ class AppColumnGrid<T> extends StatelessWidget {
   final int maxColumnCount;
   final double horizontalSpacing;
   final double verticalSpacing;
+  final bool isLoadingMore;
+  final ColumnGridLoadingBuilder? loadingBuilder;
+  final int loadingRowCount;
 
   @override
   Widget build(BuildContext context) {
-    if (items.isEmpty) return const SizedBox.shrink();
+    final showLoading = isLoadingMore && loadingBuilder != null;
+    if (items.isEmpty && !showLoading) return const SizedBox.shrink();
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final safeColumnCount = _resolveColumnCount(constraints.maxWidth);
-        final rowCount = (items.length / safeColumnCount).ceil();
+
+        final int totalLoadingItems;
+        if (showLoading) {
+          final remainder = items.length % safeColumnCount;
+          final slotsToFillRow =
+              remainder == 0 ? 0 : safeColumnCount - remainder;
+          totalLoadingItems =
+              slotsToFillRow + (loadingRowCount * safeColumnCount);
+        } else {
+          totalLoadingItems = 0;
+        }
+
+        final totalItemCount = items.length + totalLoadingItems;
+        if (totalItemCount == 0) return const SizedBox.shrink();
+
+        final rowCount = (totalItemCount / safeColumnCount).ceil();
 
         return Column(
           children: [
             for (var rowIndex = 0; rowIndex < rowCount; rowIndex++) ...[
               _ColumnGridRow<T>(
-                items: _rowItems(rowIndex, safeColumnCount),
+                rowIndex: rowIndex,
+                items: items,
                 columnCount: safeColumnCount,
                 itemBuilder: itemBuilder,
                 horizontalSpacing: horizontalSpacing,
+                showLoading: showLoading,
+                totalLoadingItems: totalLoadingItems,
+                loadingBuilder: loadingBuilder,
               ),
               if (rowIndex != rowCount - 1) SizedBox(height: verticalSpacing),
             ],
@@ -68,12 +97,6 @@ class AppColumnGrid<T> extends StatelessWidget {
         );
       },
     );
-  }
-
-  List<T> _rowItems(int rowIndex, int safeColumnCount) {
-    final start = rowIndex * safeColumnCount;
-    final end = (start + safeColumnCount).clamp(0, items.length);
-    return items.sublist(start, end);
   }
 
   int _resolveColumnCount(double maxWidth) {
@@ -97,6 +120,9 @@ class AppSliverColumnGrid<T> extends StatelessWidget {
     this.maxColumnCount = 6,
     this.horizontalSpacing = 12,
     this.verticalSpacing = 10,
+    this.isLoadingMore = false,
+    this.loadingBuilder,
+    this.loadingRowCount = 1,
   });
 
   final List<T> items;
@@ -106,10 +132,14 @@ class AppSliverColumnGrid<T> extends StatelessWidget {
   final int maxColumnCount;
   final double horizontalSpacing;
   final double verticalSpacing;
+  final bool isLoadingMore;
+  final ColumnGridLoadingBuilder? loadingBuilder;
+  final int loadingRowCount;
 
   @override
   Widget build(BuildContext context) {
-    if (items.isEmpty) {
+    final showLoading = isLoadingMore && loadingBuilder != null;
+    if (items.isEmpty && !showLoading) {
       return const SliverToBoxAdapter(child: SizedBox.shrink());
     }
 
@@ -118,7 +148,24 @@ class AppSliverColumnGrid<T> extends StatelessWidget {
         final safeColumnCount = _resolveColumnCount(
           constraints.crossAxisExtent,
         );
-        final rowCount = (items.length / safeColumnCount).ceil();
+
+        final int totalLoadingItems;
+        if (showLoading) {
+          final remainder = items.length % safeColumnCount;
+          final slotsToFillRow =
+              remainder == 0 ? 0 : safeColumnCount - remainder;
+          totalLoadingItems =
+              slotsToFillRow + (loadingRowCount * safeColumnCount);
+        } else {
+          totalLoadingItems = 0;
+        }
+
+        final totalItemCount = items.length + totalLoadingItems;
+        if (totalItemCount == 0) {
+          return const SliverToBoxAdapter(child: SizedBox.shrink());
+        }
+
+        final rowCount = (totalItemCount / safeColumnCount).ceil();
         final childCount = rowCount * 2 - 1;
 
         return SliverList(
@@ -127,21 +174,19 @@ class AppSliverColumnGrid<T> extends StatelessWidget {
 
             final rowIndex = index ~/ 2;
             return _ColumnGridRow<T>(
-              items: _rowItems(rowIndex, safeColumnCount),
+              rowIndex: rowIndex,
+              items: items,
               columnCount: safeColumnCount,
               itemBuilder: itemBuilder,
               horizontalSpacing: horizontalSpacing,
+              showLoading: showLoading,
+              totalLoadingItems: totalLoadingItems,
+              loadingBuilder: loadingBuilder,
             );
           }, childCount: childCount),
         );
       },
     );
-  }
-
-  List<T> _rowItems(int rowIndex, int safeColumnCount) {
-    final start = rowIndex * safeColumnCount;
-    final end = (start + safeColumnCount).clamp(0, items.length);
-    return items.sublist(start, end);
   }
 
   int _resolveColumnCount(double maxWidth) {
@@ -157,16 +202,24 @@ class AppSliverColumnGrid<T> extends StatelessWidget {
 
 class _ColumnGridRow<T> extends StatelessWidget {
   const _ColumnGridRow({
-    required this.itemBuilder,
+    required this.rowIndex,
     required this.items,
     required this.columnCount,
     required this.horizontalSpacing,
+    required this.itemBuilder,
+    required this.showLoading,
+    required this.totalLoadingItems,
+    required this.loadingBuilder,
   });
 
+  final int rowIndex;
   final List<T> items;
   final int columnCount;
-  final ColumnGridItemBuilder<T> itemBuilder;
   final double horizontalSpacing;
+  final ColumnGridItemBuilder<T> itemBuilder;
+  final bool showLoading;
+  final int totalLoadingItems;
+  final ColumnGridLoadingBuilder? loadingBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -176,12 +229,23 @@ class _ColumnGridRow<T> extends StatelessWidget {
         for (var columnIndex = 0; columnIndex < columnCount; columnIndex++) ...[
           if (columnIndex > 0) SizedBox(width: horizontalSpacing),
           Expanded(
-            child: columnIndex < items.length
-                ? itemBuilder(context, items[columnIndex])
-                : const SizedBox.shrink(),
+            child: _buildCell(context, columnIndex),
           ),
         ],
       ],
     );
+  }
+
+  Widget _buildCell(BuildContext context, int columnIndex) {
+    final globalIndex = rowIndex * columnCount + columnIndex;
+    if (globalIndex < items.length) {
+      return itemBuilder(context, items[globalIndex]);
+    }
+    if (showLoading &&
+        loadingBuilder != null &&
+        globalIndex < items.length + totalLoadingItems) {
+      return loadingBuilder!(context, globalIndex - items.length);
+    }
+    return const SizedBox.shrink();
   }
 }

@@ -39,7 +39,7 @@ Strategi anti-blocking:
 Checkpoint:
 - File checkpoint dipisahkan per `source`.
 - Contoh:
-  - `checkpoints/sync_chapter_images_komikcast.json`
+  - `checkpoints/sync_chapter_images_voratoon.json`
   - `checkpoints/sync_chapter_images_all.json`
 - `--reset` akan menghapus checkpoint aktif agar proses dimulai dari awal.
 
@@ -58,9 +58,9 @@ Usage:
     python -m scraper.sync_chapter_images --mode dimensions --dry-run
     python -m scraper.sync_chapter_images --mode dimensions --dry-run --source komiku
     python -m scraper.sync_chapter_images --source komiku_asia
-    python -m scraper.sync_chapter_images --source komikcast --limit 50
+    python -m scraper.sync_chapter_images --source voratoon --limit 50
     python -m scraper.sync_chapter_images --source shinigami --selection random --limit 20
-    python -m scraper.sync_chapter_images --source komikcast --limit 50 --no-anti-blocking
+    python -m scraper.sync_chapter_images --source voratoon --limit 50 --no-anti-blocking
 
 Argumen CLI utama:
 - `--mode <images|dimensions>`
@@ -77,7 +77,7 @@ Argumen CLI utama:
 - `--source <source_name>`
   - Filter source tertentu saja.
   - Nilai valid mengikuti registry backend: `komiku`, `komiku_asia`,
-    `komikcast`, `shinigami`.
+    `voratoon`, `shinigami`.
   - Jika tidak diisi, script akan mengambil backlog dari semua source aktif.
 - `--selection <ordered|random>`
   - `ordered`: proses backlog berdasarkan `Chapter.id` naik.
@@ -101,7 +101,7 @@ Argumen CLI utama:
     error. Checkpoint/resume dan graceful shutdown tetap aktif.
 Contoh use case:
 - Batch lokal fokus source tertentu:
-  `python -m scraper.sync_chapter_images --source komikcast --limit 30`
+  `python -m scraper.sync_chapter_images --source voratoon --limit 30`
 - Batch lokal deterministik dari semua source:
   `python -m scraper.sync_chapter_images --selection ordered --batch-size 20 --limit 100`
 - Cron GitHub Actions sekali jalan:

@@ -51,13 +51,8 @@ class ComicFilterSortState {
 abstract final class ComicFilterOption {
   static const all = 'Semua';
 
-  static const sources = [
-    all,
-    'Komiku',
-    'Komiku Asia',
-    'Komikcast',
-    'Shinigami',
-  ];
+  /// Default fallback when dynamic sources are not yet resolved.
+  static const sources = [all];
 
   static const types = [all, 'Manga', 'Manhwa', 'Manhua'];
 
@@ -223,6 +218,9 @@ Future<ComicFilterSortState?> showComicFilterSortSheet({
   String description =
       'Atur komik berdasarkan sumber, tipe, status, genre, dan urutan.',
   String resetSort = ComicSortOption.relevance,
+  List<String>? sourceOptions,
+  Future<List<String>>? sourceOptionsFuture,
+  Future<List<String>>? sourceOptionsRefreshFuture,
   List<String>? genreOptions,
   Future<List<String>>? genreOptionsFuture,
   Future<List<String>>? genreOptionsRefreshFuture,
@@ -254,6 +252,9 @@ Future<ComicFilterSortState?> showComicFilterSortSheet({
       title: title,
       description: description,
       resetSort: ComicSortOption.normalize(resetSort),
+      sourceOptions: sourceOptions,
+      sourceOptionsFuture: sourceOptionsFuture,
+      sourceOptionsRefreshFuture: sourceOptionsRefreshFuture,
       genreOptions: genreOptions,
       genreOptionsFuture: genreOptionsFuture,
       genreOptionsRefreshFuture: genreOptionsRefreshFuture,
@@ -275,6 +276,9 @@ class ComicFilterSortSheet extends StatefulWidget {
     required this.title,
     required this.description,
     required this.resetSort,
+    this.sourceOptions,
+    this.sourceOptionsFuture,
+    this.sourceOptionsRefreshFuture,
     this.genreOptions,
     this.genreOptionsFuture,
     this.genreOptionsRefreshFuture,
@@ -291,6 +295,9 @@ class ComicFilterSortSheet extends StatefulWidget {
   final String title;
   final String description;
   final String resetSort;
+  final List<String>? sourceOptions;
+  final Future<List<String>>? sourceOptionsFuture;
+  final Future<List<String>>? sourceOptionsRefreshFuture;
   final List<String>? genreOptions;
   final Future<List<String>>? genreOptionsFuture;
   final Future<List<String>>? genreOptionsRefreshFuture;
@@ -315,9 +322,16 @@ class _ComicFilterSortSheetState extends State<ComicFilterSortSheet> {
   late String _status = widget.initialState.status;
   late String _genre = widget.initialState.genre;
   late String _sort = widget.initialState.sort;
+  late List<String>? _sourceOptions = widget.sourceOptions;
+  bool _sourceOptionsLoading = false;
   late List<String>? _genreOptions = widget.genreOptions;
   int _visibleGenreCount = _initialGenreVisibleCount;
   bool _genreOptionsLoading = false;
+
+  List<String> get _sourceValues {
+    final options = _sourceOptions ?? const <String>[];
+    return _filterOptionsWithAll(options, selectedValue: _source);
+  }
 
   List<String> get _genreValues {
     final options = _genreOptions ?? const <String>[];
@@ -343,7 +357,60 @@ class _ComicFilterSortSheetState extends State<ComicFilterSortSheet> {
   @override
   void initState() {
     super.initState();
+    if (widget.showSource) _resolveSourceOptions();
     if (widget.showGenre) _resolveGenreOptions();
+  }
+
+  Future<void> _resolveSourceOptions() async {
+    final future = widget.sourceOptionsFuture;
+    final refreshFuture = widget.sourceOptionsRefreshFuture;
+    if (future == null && refreshFuture == null) return;
+
+    if (future != null) {
+      _sourceOptionsLoading = true;
+      try {
+        final options = await future;
+        if (!mounted) return;
+        final cleanOptions = options
+            .map((option) => option.trim())
+            .where((option) => option.isNotEmpty)
+            .toList(growable: false);
+        setState(() {
+          if (cleanOptions.isNotEmpty) _sourceOptions = cleanOptions;
+          _sourceOptionsLoading = false;
+        });
+      } catch (_) {
+        if (!mounted) return;
+        setState(() => _sourceOptionsLoading = false);
+      }
+    }
+
+    if (refreshFuture != null) {
+      await _resolveRefreshedSourceOptions(refreshFuture);
+    }
+  }
+
+  Future<void> _resolveRefreshedSourceOptions(
+    Future<List<String>> future,
+  ) async {
+    if (!_sourceOptionsLoading && mounted) {
+      setState(() => _sourceOptionsLoading = true);
+    }
+    try {
+      final options = await future;
+      if (!mounted) return;
+      final cleanOptions = options
+          .map((option) => option.trim())
+          .where((option) => option.isNotEmpty)
+          .toList(growable: false);
+      setState(() {
+        if (cleanOptions.isNotEmpty) _sourceOptions = cleanOptions;
+        _sourceOptionsLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _sourceOptionsLoading = false);
+    }
   }
 
   Future<void> _resolveGenreOptions() async {
@@ -460,7 +527,7 @@ class _ComicFilterSortSheetState extends State<ComicFilterSortSheet> {
                     if (widget.showSource) ...[
                       ChoiceChipGroup(
                         label: 'Sumber',
-                        values: ComicFilterOption.sources,
+                        values: _sourceValues,
                         selectedValue: _source,
                         selectedValues: selectedFilterValues(_source).toSet(),
                         multiSelect: true,
@@ -470,6 +537,10 @@ class _ComicFilterSortSheetState extends State<ComicFilterSortSheet> {
                         scrollable: false,
                         labelStyle: theme.textTheme.titleSmall,
                       ),
+                      if (_sourceOptionsLoading) ...[
+                        const SizedBox(height: 10),
+                        const _GenreOptionsLoading(),
+                      ],
                       const SizedBox(height: 16),
                     ],
                     if (widget.showType) ...[

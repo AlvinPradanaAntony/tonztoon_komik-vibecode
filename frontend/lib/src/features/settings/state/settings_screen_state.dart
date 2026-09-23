@@ -5,6 +5,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _loggingOut = false;
   bool _checkingForUpdate = false;
   bool _profileSetupPromptInFlight = false;
+  Timer? _developerUnlockTimer;
+  int _developerUnlockSecondsRemaining = 0;
+  bool _updatingDeveloperMode = false;
   String? _passwordSetupCheckedUserId;
   String? _usernameSetupCheckedUserId;
   String? _profileAvatarUrl;
@@ -17,11 +20,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   @override
+  void dispose() {
+    _developerUnlockTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final prefs = ref.watch(readerPreferencesProvider);
     final themeMode = ref.watch(appThemeModeProvider);
     final showHomeHelpdeskButton = ref.watch(homeHelpdeskButtonVisibleProvider);
+    final developerSettings = ref.watch(developerSettingsProvider);
+    final configuredApiBaseUrl = ref.watch(configProvider).apiBaseUrl;
     final auth = ref.watch(authControllerProvider);
     final librarySummary = widget.isSignedIn
         ? ref.watch(librarySummaryProvider)
@@ -164,6 +175,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                 ),
               ],
+              if (developerSettings.enabled) ...[
+                const SizedBox(height: 24),
+                _DeveloperModeSection(
+                  settings: developerSettings,
+                  defaultApiBaseUrl: configuredApiBaseUrl,
+                  saving: _updatingDeveloperMode,
+                  onEnabledChanged: _setDeveloperMode,
+                  onEditApiBaseUrl: _editDeveloperApiBaseUrl,
+                ),
+              ],
               const SizedBox(height: 24),
               const _SectionLabel(text: 'About'),
               const SizedBox(height: 8),
@@ -183,6 +204,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 checkingForUpdate: _checkingForUpdate,
                 onCheckForUpdate: _checkForUpdates,
                 onShowAppInfo: _showAppInfo,
+                developerModeEnabled: developerSettings.enabled,
+                onDeveloperUnlockStart: _startDeveloperUnlock,
+                onDeveloperUnlockCanceled: _cancelDeveloperUnlock,
               ),
             ],
           );
@@ -312,6 +336,107 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _showAppInfo() async {
     final service = ref.read(appUpdateServiceProvider);
     await showAppInfoDialog(context, service: service);
+  }
+
+  void _startDeveloperUnlock() {
+    if (ref.read(developerSettingsProvider).enabled ||
+        _developerUnlockTimer != null) {
+      return;
+    }
+
+    _developerUnlockSecondsRemaining = 5;
+    _showDeveloperCountdownToast();
+    _developerUnlockTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      _developerUnlockSecondsRemaining -= 1;
+      if (_developerUnlockSecondsRemaining <= 0) {
+        timer.cancel();
+        _developerUnlockTimer = null;
+        unawaited(_setDeveloperMode(true));
+        return;
+      }
+      _showDeveloperCountdownToast();
+    });
+  }
+
+  void _cancelDeveloperUnlock() {
+    final timer = _developerUnlockTimer;
+    if (timer == null) return;
+    timer.cancel();
+    _developerUnlockTimer = null;
+    _developerUnlockSecondsRemaining = 0;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+  }
+
+  void _showDeveloperCountdownToast() {
+    if (!mounted) return;
+    final seconds = _developerUnlockSecondsRemaining;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          width: 260,
+          duration: const Duration(milliseconds: 1100),
+          content: Text(
+            'Tahan $seconds detik untuk membuka Mode Pengembang',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+  }
+
+  Future<void> _setDeveloperMode(bool enabled) async {
+    if (_updatingDeveloperMode) return;
+    setState(() => _updatingDeveloperMode = true);
+    try {
+      await ref.read(developerSettingsProvider.notifier).setEnabled(enabled);
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        message: enabled
+            ? 'Mode Pengembang aktif. Base API URL dapat diubah.'
+            : 'Mode Pengembang dinonaktifkan. Base API URL kembali ke bawaan.',
+        type: AppSnackBarType.success,
+      );
+    } catch (error, stackTrace) {
+      if (!mounted) return;
+      showAppErrorSnackBar(
+        context,
+        error: error,
+        stackTrace: stackTrace,
+        logContext: 'Update developer mode failed',
+        fallbackMessage: 'Mode Pengembang belum dapat diperbarui.',
+      );
+    } finally {
+      if (mounted) setState(() => _updatingDeveloperMode = false);
+    }
+  }
+
+  Future<void> _editDeveloperApiBaseUrl() async {
+    final developerSettings = ref.read(developerSettingsProvider);
+    final defaultUrl = ref.read(configProvider).apiBaseUrl;
+    final saved = await _showProfileTextDialog(
+      context,
+      title: 'Base API URL',
+      label: 'URL API',
+      initialValue: developerSettings.apiBaseUrlOverride ?? defaultUrl,
+      helperText:
+          'Gunakan URL HTTP atau HTTPS lengkap, termasuk path API bila diperlukan.',
+      keyboardType: TextInputType.url,
+      maxLength: 500,
+      validator: (value) => normalizeDeveloperApiBaseUrl(value ?? '') == null
+          ? 'Masukkan URL HTTP atau HTTPS yang valid.'
+          : null,
+      onSubmit: (value) =>
+          ref.read(developerSettingsProvider.notifier).setApiBaseUrl(value),
+    );
+    if (!mounted || saved == null) return;
+    showAppSnackBar(
+      context,
+      message: 'Base API URL diterapkan untuk request berikutnya.',
+      type: AppSnackBarType.success,
+    );
   }
 
   Future<void> _checkForUpdates() async {

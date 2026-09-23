@@ -45,16 +45,16 @@ class ImageProxySecurityTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(
             validate_proxy_image_url(
-                "https://cdn.komikcast.fit/wp-content/img/C/Chronicles_of_the_Reincarnated_Demon_God/001/00.jpg"
+                "https://cdn.voratoon.com/wp-content/img/I/Infinite_Mage/001/001.png"
             ),
-            "https://cdn.komikcast.fit/wp-content/img/C/Chronicles_of_the_Reincarnated_Demon_God/001/00.jpg",
+            "https://cdn.voratoon.com/wp-content/img/I/Infinite_Mage/001/001.png",
         )
 
-    def test_komikcast_cdn_referer_header(self):
+    def test_voratoon_cdn_referer_header(self):
         headers = get_proxy_headers(
-            "https://cdn.komikcast.fit/wp-content/img/C/Chronicles_of_the_Reincarnated_Demon_God/001/00.jpg"
+            "https://cdn.voratoon.com/wp-content/img/I/Infinite_Mage/001/001.png"
         )
-        self.assertEqual(headers.get("Referer"), "https://v1.komikcast.fit/")
+        self.assertEqual(headers.get("Referer"), "https://v2.voratoon.com/")
 
     def test_komiku_thumbnail_referer_header(self):
         headers = get_proxy_headers(

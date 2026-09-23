@@ -6,6 +6,24 @@ Semua perubahan penting pada proyek **TonzToon Komik** akan didokumentasikan di 
 
 ---
 
+## [1.25.0] - 2026-09-23
+
+### Added
+- Mode Pengembang di Pengaturan untuk membantu pengujian alamat server aplikasi.
+- Pilihan sumber komik yang lebih fleksibel pada beranda, katalog, pencarian, dan filter.
+- Filter cepat status bookmark dari ringkasan Library, termasuk akses langsung ke My Downloads.
+- Tampilan pemuatan bertahap yang lebih halus saat daftar komik sedang mengambil data tambahan.
+
+### Changed
+- Tampilan Library, katalog, pencarian, dan peringatan koneksi sumber diperbarui agar lebih mudah dipahami dan digunakan.
+- Daftar sumber komik dirapikan agar pilihan yang tersedia lebih sesuai dengan sumber yang aktif.
+
+### Fixed
+- Memperbaiki cover komik yang gagal tampil atau ditolak oleh server asal, termasuk kasus error 403, dengan mencoba memperbarui alamat cover secara otomatis.
+- Memperbaiki cover Voratoon lama agar dapat tampil kembali setelah alamat gambarnya kedaluwarsa.
+
+---
+
 ## [1.24.1] - 2026-09-01
 
 ### Fixed

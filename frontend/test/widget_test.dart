@@ -24,6 +24,7 @@ import 'package:tonztoon/src/repositories/catalog_repository.dart';
 import 'package:tonztoon/src/repositories/providers.dart';
 import 'package:tonztoon/src/routing/app_router.dart';
 import 'package:tonztoon/src/widgets/app_edge_fade.dart';
+import 'package:tonztoon/src/widgets/comic_filter_sort_sheet.dart';
 import 'package:tonztoon/src/widgets/tonztoon_modal_dialog.dart';
 
 void main() {
@@ -677,6 +678,99 @@ void main() {
     expect(find.text('Ongoing'), findsWidgets);
   });
 
+  testWidgets('library summary stats filter bookmarks and open My Downloads', (
+    tester,
+  ) async {
+    const bookmark = LibraryComicRef(
+      sourceName: 'komiku_asia',
+      slug: 'summary-action',
+      title: 'Summary Action Bookmark',
+      status: 'Ongoing',
+    );
+    final container = ProviderContainer(
+      overrides: [
+        paginatedBookmarksProvider.overrideWith(
+          () => _FakeBookmarksPaginationController([bookmark]),
+        ),
+        librarySummaryProvider.overrideWith(
+          (ref) async => const LibrarySummary(
+            counts: LibrarySummaryCounts(
+              bookmarks: 3,
+              bookmarkStatusCounts: {'ongoing': 1, 'completed': 1, 'hiatus': 1},
+              collections: 0,
+              favoriteScenes: 0,
+              history: 0,
+              downloads: 1,
+              continueReading: 0,
+            ),
+            readingTimeSeconds: 0,
+          ),
+        ),
+        downloadsProvider.overrideWith((ref) async => const []),
+        offlineChaptersProvider.overrideWith((ref) async => const []),
+        offlineQueueProvider.overrideWith(() => _FakeOfflineQueueController()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: LibraryScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.bySemanticsLabel('Filter bookmark Selesai'));
+    await tester.pumpAndSettle();
+    expect(container.read(bookmarkBrowseOptionsProvider).status, 'Selesai');
+    expect(
+      find.bySemanticsLabel('Filter bookmark Selesai (aktif)'),
+      findsOneWidget,
+    );
+
+    // Tapping the active stat card toggles it off back to 'Semua'
+    await tester.tap(find.bySemanticsLabel('Filter bookmark Selesai (aktif)'));
+    await tester.pumpAndSettle();
+    expect(
+      container.read(bookmarkBrowseOptionsProvider).status,
+      ComicFilterOption.all,
+    );
+    expect(find.bySemanticsLabel('Filter bookmark Selesai'), findsOneWidget);
+
+    // Tapping Ongoing activates it
+    await tester.tap(find.bySemanticsLabel('Filter bookmark Ongoing'));
+    await tester.pumpAndSettle();
+    expect(container.read(bookmarkBrowseOptionsProvider).status, 'Ongoing');
+    expect(
+      find.bySemanticsLabel('Filter bookmark Ongoing (aktif)'),
+      findsOneWidget,
+    );
+
+    // Switching directly to Hiatus deactivates Ongoing and activates Hiatus
+    await tester.tap(find.bySemanticsLabel('Filter bookmark Hiatus'));
+    await tester.pumpAndSettle();
+    expect(container.read(bookmarkBrowseOptionsProvider).status, 'Hiatus');
+    expect(find.bySemanticsLabel('Filter bookmark Ongoing'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel('Filter bookmark Hiatus (aktif)'),
+      findsOneWidget,
+    );
+
+    // Tapping active Hiatus resets filter
+    await tester.tap(find.bySemanticsLabel('Filter bookmark Hiatus (aktif)'));
+    await tester.pumpAndSettle();
+    expect(
+      container.read(bookmarkBrowseOptionsProvider).status,
+      ComicFilterOption.all,
+    );
+    expect(find.bySemanticsLabel('Filter bookmark Hiatus'), findsOneWidget);
+
+    await tester.tap(find.bySemanticsLabel('Buka My Downloads'));
+    await tester.pumpAndSettle();
+    expect(find.text('My Downloads'), findsOneWidget);
+  });
+
   testWidgets('wishlist download shows active chapter progress', (
     tester,
   ) async {
@@ -1029,6 +1123,23 @@ class _FakeCatalogRepository implements CatalogRepository {
       ),
     ];
   }
+
+  @override
+  List<SourceInfo> getCachedSources() {
+    return const [
+      SourceInfo(
+        id: 'komiku',
+        label: 'Komiku',
+        baseUrl: 'https://example.test',
+        enabled: true,
+        dbComicCount: 1,
+        isUnstable: false,
+      ),
+    ];
+  }
+
+  @override
+  Future<List<SourceInfo>> refreshSources() => getSources();
 
   @override
   Future<List<ComicSummary>> getLatest(

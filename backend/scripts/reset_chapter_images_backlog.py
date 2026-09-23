@@ -11,7 +11,7 @@ Usage (dari folder backend/):
     python -m scripts.reset_chapter_images_backlog --apply
     python -m scripts.reset_chapter_images_backlog --apply --target null
     python -m scripts.reset_chapter_images_backlog --apply --target empty
-    python -m scripts.reset_chapter_images_backlog --source komikcast --limit 500 --apply
+    python -m scripts.reset_chapter_images_backlog --source voratoon --limit 500 --apply
     python -m scripts.reset_chapter_images_backlog --apply --batch-size 1000
     python -m scripts.reset_chapter_images_backlog --source komiku --mode random --limit 1000 --apply
     python -m scripts.reset_chapter_images_backlog --source komiku --mode random --limit 1000 --random-seed komiku-cleanup
@@ -66,7 +66,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--source",
-        help="Opsional: batasi ke comics.source_name tertentu, misalnya komikcast.",
+        help="Opsional: batasi ke comics.source_name tertentu, misalnya voratoon.",
     )
     parser.add_argument(
         "--limit",

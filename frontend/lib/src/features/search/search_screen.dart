@@ -8,6 +8,7 @@ import '../../utils/app_error.dart';
 import '../../helpers/app_icons.dart';
 import '../../helpers/app_snackbar.dart';
 import '../../helpers/genre_options.dart';
+import '../../helpers/source_options.dart';
 import '../../helpers/navigation_helpers.dart';
 import '../../models/comic.dart';
 import '../../repositories/providers.dart';
@@ -56,6 +57,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void initState() {
     super.initState();
     _scrollController = ScrollController()..addListener(_onScroll);
+    unawaited(warmSourceOptionCache(ref));
     unawaited(warmGenreOptionCache(ref));
   }
 
@@ -224,10 +226,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               sliver: _gridView
-                  ? _ResultGrid(comics: results)
+                  ? _ResultGrid(
+                      comics: results,
+                      isLoadingMore: state.isLoadingMore,
+                    )
                   : _ResultList(comics: results),
             ),
-            if (state.isLoadingMore)
+            if (state.isLoadingMore && !_gridView)
               const SliverPadding(
                 padding: EdgeInsets.symmetric(horizontal: 16),
                 sliver: SliverToBoxAdapter(
@@ -406,12 +411,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (!mounted) return;
 
     setState(() => _filterButtonActive = true);
+    final cachedSourceOptions = cachedSourceOptionNames(ref);
     final cachedGenreOptions = cachedGenreOptionNames(ref);
 
     final result = await showComicFilterSortSheet(
       context: context,
       initialState: ref.read(searchFilterProvider),
       resetSort: ComicSortOption.relevance,
+      sourceOptions: cachedSourceOptions.isEmpty ? null : cachedSourceOptions,
+      sourceOptionsFuture: cachedSourceOptions.isEmpty
+          ? warmSourceOptionCache(ref)
+          : null,
       genreOptions: cachedGenreOptions.isEmpty ? null : cachedGenreOptions,
       genreOptionsFuture: cachedGenreOptions.isEmpty
           ? warmGenreOptionCache(ref)

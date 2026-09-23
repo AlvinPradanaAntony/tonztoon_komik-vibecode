@@ -6,23 +6,55 @@ class _LibraryHero extends StatelessWidget {
     required this.bookmarkStatusCounts,
     required this.downloadsCount,
     required this.totalBookmarks,
+    required this.onFilterByStatus,
+    required this.onOpenDownloads,
+    this.activeStatus,
   });
 
   final List<LibraryComicRef> bookmarks;
   final Map<String, int> bookmarkStatusCounts;
   final int downloadsCount;
   final int totalBookmarks;
+  final ValueChanged<String> onFilterByStatus;
+  final VoidCallback onOpenDownloads;
+  final String? activeStatus;
 
   int get _ongoingCount => _statusCount('ongoing');
   int get _completedCount => _statusCount('completed');
   int get _hiatusCount => _statusCount('hiatus');
 
+  bool _isStatusActive(String targetStatus) {
+    if (activeStatus == null) return false;
+    final values = selectedFilterValues(activeStatus!);
+    if (values.isEmpty) return false;
+    final target = targetStatus.trim().toLowerCase();
+    return values.any((val) {
+      final v = val.trim().toLowerCase();
+      if (target == 'selesai' || target == 'completed') {
+        return v == 'selesai' || v == 'completed';
+      }
+      return v == target;
+    });
+  }
+
   int _statusCount(String status) {
     if (bookmarkStatusCounts.isNotEmpty) {
-      return bookmarkStatusCounts[status] ?? 0;
+      final direct = bookmarkStatusCounts[status];
+      if (direct != null) return direct;
+      if (status == 'completed') {
+        return bookmarkStatusCounts['selesai'] ?? 0;
+      }
+      return 0;
     }
     return bookmarks
-        .where((item) => item.status?.trim().toLowerCase() == status)
+        .where((item) {
+          final s = item.status?.trim().toLowerCase();
+          if (s == null) return false;
+          if (status == 'completed') {
+            return s == 'completed' || s == 'selesai';
+          }
+          return s == status;
+        })
         .length;
   }
 
@@ -35,6 +67,10 @@ class _LibraryHero extends StatelessWidget {
     final gradientColors = isDark
         ? const [Color(0xFF1A1F2E), Color(0xFF0F1620), Color(0xFF1A1220)]
         : const [Color(0xFFFFF8EC), Color(0xFFF0F7FF), Color(0xFFFFF0F7)];
+
+    final isOngoingActive = _isStatusActive('Ongoing');
+    final isCompletedActive = _isStatusActive('Selesai');
+    final isHiatusActive = _isStatusActive('Hiatus');
 
     return Container(
       decoration: BoxDecoration(
@@ -146,6 +182,9 @@ class _LibraryHero extends StatelessWidget {
                         label: 'Ongoing',
                         color: accentBlue,
                         isDark: isDark,
+                        isActive: isOngoingActive,
+                        semanticLabel: 'Filter bookmark Ongoing',
+                        onTap: () => onFilterByStatus('Ongoing'),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -156,6 +195,9 @@ class _LibraryHero extends StatelessWidget {
                         label: 'Selesai',
                         color: const Color(0xFF16A34A),
                         isDark: isDark,
+                        isActive: isCompletedActive,
+                        semanticLabel: 'Filter bookmark Selesai',
+                        onTap: () => onFilterByStatus('Selesai'),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -166,6 +208,8 @@ class _LibraryHero extends StatelessWidget {
                         label: 'Offline',
                         color: primaryOrange,
                         isDark: isDark,
+                        semanticLabel: 'Buka My Downloads',
+                        onTap: onOpenDownloads,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -176,6 +220,9 @@ class _LibraryHero extends StatelessWidget {
                         label: 'Hiatus',
                         color: const Color(0xFFF59E0B),
                         isDark: isDark,
+                        isActive: isHiatusActive,
+                        semanticLabel: 'Filter bookmark Hiatus',
+                        onTap: () => onFilterByStatus('Hiatus'),
                       ),
                     ),
                   ],
@@ -196,6 +243,9 @@ class _HeroStatTile extends StatelessWidget {
     required this.label,
     required this.color,
     required this.isDark,
+    required this.semanticLabel,
+    required this.onTap,
+    this.isActive = false,
   });
 
   final IconData icon;
@@ -203,45 +253,147 @@ class _HeroStatTile extends StatelessWidget {
   final String label;
   final Color color;
   final bool isDark;
+  final String semanticLabel;
+  final VoidCallback onTap;
+  final bool isActive;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.07)
-            : Colors.white.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: color),
-            const SizedBox(height: 5),
-            Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: color,
-                fontWeight: FontWeight.w900,
-                height: 1,
-              ),
+    final borderRadius = BorderRadius.circular(12);
+
+    return Semantics(
+      button: true,
+      container: true,
+      excludeSemantics: true,
+      selected: isActive,
+      label: isActive ? '$semanticLabel (aktif)' : semanticLabel,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: borderRadius,
+        clipBehavior: Clip.antiAlias,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          decoration: BoxDecoration(
+            color: isActive
+                ? (isDark
+                    ? color.withValues(alpha: 0.22)
+                    : color.withValues(alpha: 0.16))
+                : (isDark
+                    ? Colors.white.withValues(alpha: 0.07)
+                    : Colors.white.withValues(alpha: 0.72)),
+            gradient: isActive
+                ? LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: isDark
+                        ? [
+                            color.withValues(alpha: 0.28),
+                            color.withValues(alpha: 0.14),
+                          ]
+                        : [
+                            color.withValues(alpha: 0.22),
+                            color.withValues(alpha: 0.10),
+                          ],
+                  )
+                : null,
+            borderRadius: borderRadius,
+            border: Border.all(
+              color: isActive ? color : color.withValues(alpha: 0.18),
+              width: isActive ? 1.6 : 1.0,
             ),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: color.withValues(alpha: 0.78),
-                height: 1,
-              ),
+            boxShadow: isActive
+                ? [
+                    BoxShadow(
+                      color: color.withValues(alpha: isDark ? 0.35 : 0.22),
+                      blurRadius: 10,
+                      spreadRadius: 1,
+                      offset: const Offset(0, 3),
+                    ),
+                  ]
+                : const [],
+          ),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: borderRadius,
+            child: Stack(
+              children: [
+                if (isActive)
+                  Positioned(
+                    top: 5,
+                    right: 5,
+                    child: Container(
+                      width: 5,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: color.withValues(alpha: 0.6),
+                            blurRadius: 4,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 8,
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(icon, size: 16, color: color),
+                        const SizedBox(height: 4),
+                        Text(
+                          value,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    color: color,
+                                    fontWeight: FontWeight.w900,
+                                    height: 1,
+                                  ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    color: isActive
+                                        ? color
+                                        : color.withValues(alpha: 0.78),
+                                    fontWeight: isActive
+                                        ? FontWeight.w800
+                                        : FontWeight.w600,
+                                    height: 1,
+                                  ),
+                        ),
+                        const SizedBox(height: 4),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeOutCubic,
+                          height: 2.5,
+                          width: isActive ? 16 : 0,
+                          decoration: BoxDecoration(
+                            color: isActive ? color : Colors.transparent,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

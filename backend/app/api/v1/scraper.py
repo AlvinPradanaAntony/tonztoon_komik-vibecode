@@ -36,7 +36,7 @@ class ScraperSyncRequest(BaseModel):
         if not normalized or normalized == "all":
             return None
 
-        allowed_sources = {"komiku", "komiku_asia", "komikcast", "shinigami"}
+        allowed_sources = {"komiku", "komiku_asia", "shinigami", "voratoon"}
         if normalized not in allowed_sources:
             allowed = ", ".join(sorted(allowed_sources))
             raise ValueError(f"source must be empty, all, or one of: {allowed}")

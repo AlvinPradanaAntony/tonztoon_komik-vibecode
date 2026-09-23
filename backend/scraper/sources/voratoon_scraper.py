@@ -2,11 +2,7 @@
 Tonztoon Komik — Voratoon Scraper
 
 Implementasi source Voratoon yang sepenuhnya memakai backend API resmi
-`https://api.voratoon.com`.
-
-Frontend `https://v2.voratoon.com` bertindak sebagai SPA/Next.js consumer dari
-API tersebut. Scraper ini mengambil data langsung dari endpoint JSON resmi source
-dengan integrasi Scrapling dan HTTP client asynchronous.
+`https://api.voratoon.com` via HTTP client asynchronous (httpx).
 """
 
 from __future__ import annotations
@@ -34,6 +30,7 @@ from scraper.sources.voratoon_api import (
     coalesce_voratoon_total_view,
     extract_voratoon_chapter_identity,
     extract_voratoon_series_slug,
+    normalize_voratoon_web_url,
     parse_voratoon_iso_datetime,
 )
 
@@ -50,9 +47,15 @@ class VoratoonScraper(ScraperCommonMixin, BaseComicScraper):
     def _build_api_headers(self, referer_url: str | None = None) -> dict[str, str]:
         return build_voratoon_api_headers(referer_url)
 
-    async def _fetch_api_json(self, api_url: str, *, referer_url: str | None = None) -> dict[str, Any]:
+    async def _fetch_api_json(
+        self,
+        api_url: str,
+        *,
+        referer_url: str | None = None,
+        timeout: float = 20.0,
+    ) -> dict[str, Any]:
         headers = self._build_api_headers(referer_url)
-        async with httpx.AsyncClient(timeout=35.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
             response = await client.get(api_url, headers=headers)
             response.raise_for_status()
             payload = response.json()
@@ -276,13 +279,14 @@ class VoratoonScraper(ScraperCommonMixin, BaseComicScraper):
 
     async def get_comic_detail(self, url: str) -> dict[str, Any]:
         """Ambil detail komik dan daftar lengkap chapternya."""
-        slug = self._extract_series_slug(url)
+        normalized_url = normalize_voratoon_web_url(url)
+        slug = self._extract_series_slug(normalized_url)
         detail_endpoint = build_voratoon_series_detail_url(slug, include_meta=True)
         chapters_endpoint = build_voratoon_series_chapters_url(slug)
 
         detail_payload, chapters_payload = await asyncio.gather(
-            self._fetch_api_json(detail_endpoint, referer_url=url),
-            self._fetch_api_json(chapters_endpoint, referer_url=url),
+            self._fetch_api_json(detail_endpoint, referer_url=normalized_url),
+            self._fetch_api_json(chapters_endpoint, referer_url=normalized_url),
         )
 
         item = detail_payload.get("data") or {}
@@ -300,10 +304,18 @@ class VoratoonScraper(ScraperCommonMixin, BaseComicScraper):
         }
 
     async def get_chapter_images(self, chapter_url: str) -> list[dict[str, Any]]:
-        """Ambil semua URL gambar dari satu chapter."""
-        slug, chapter_number = self._extract_chapter_identity(chapter_url)
+        """Ambil semua URL gambar dari satu chapter melalui backend API resmi Voratoon."""
+        normalized_url = normalize_voratoon_web_url(chapter_url)
+        slug, chapter_number = self._extract_chapter_identity(normalized_url)
         endpoint = build_voratoon_chapter_detail_url(slug, chapter_number)
-        payload = await self._fetch_api_json(endpoint, referer_url=chapter_url)
+
+        try:
+            payload = await self._fetch_api_json(endpoint, referer_url=normalized_url, timeout=10.0)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 404:
+                logger.warning("Chapter Voratoon %s/%s tidak ditemukan (404)", slug, chapter_number)
+                return []
+            raise
 
         data = payload.get("data") or {}
         inner_data = data.get("data") or {}

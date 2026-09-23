@@ -9,7 +9,7 @@ jika backlog sudah habis.
 Usage:
     cd backend
     python -m scraper.check_pending_chapter_images
-    python -m scraper.check_pending_chapter_images --source komikcast
+    python -m scraper.check_pending_chapter_images --source voratoon
 """
 
 import asyncio

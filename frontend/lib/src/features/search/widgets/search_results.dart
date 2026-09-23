@@ -49,9 +49,13 @@ class _ResultList extends StatelessWidget {
 }
 
 class _ResultGrid extends StatelessWidget {
-  const _ResultGrid({required this.comics});
+  const _ResultGrid({
+    required this.comics,
+    this.isLoadingMore = false,
+  });
 
   final List<_SearchComicUi> comics;
+  final bool isLoadingMore;
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +63,8 @@ class _ResultGrid extends StatelessWidget {
       items: comics,
       minColumnWidth: 98,
       maxColumnCount: 6,
+      isLoadingMore: isLoadingMore,
+      loadingBuilder: (context, index) => const ComicGridCardShimmer(),
       itemBuilder: (context, comic) {
         return ComicCard(
           comic: comic.summary,

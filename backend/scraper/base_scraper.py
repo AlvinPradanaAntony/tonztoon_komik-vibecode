@@ -16,7 +16,7 @@ class BaseComicScraper(ABC):
     """
     Abstract Base Class untuk semua comic scraper.
 
-    Setiap source (komiku, komikcast, shinigami) harus mengimplementasikan
+    Setiap source (komiku, komiku_asia, voratoon, shinigami) harus mengimplementasikan
     semua method abstract di bawah ini.
     """
 

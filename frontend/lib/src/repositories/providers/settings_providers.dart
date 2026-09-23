@@ -1,5 +1,101 @@
 part of '../providers.dart';
 
+@immutable
+class DeveloperSettings {
+  const DeveloperSettings({this.enabled = false, this.apiBaseUrlOverride});
+
+  final bool enabled;
+  final String? apiBaseUrlOverride;
+
+  DeveloperSettings copyWith({bool? enabled, String? apiBaseUrlOverride}) {
+    return DeveloperSettings(
+      enabled: enabled ?? this.enabled,
+      apiBaseUrlOverride: apiBaseUrlOverride ?? this.apiBaseUrlOverride,
+    );
+  }
+}
+
+final developerSettingsProvider =
+    NotifierProvider<DeveloperSettingsController, DeveloperSettings>(
+      DeveloperSettingsController.new,
+    );
+
+class DeveloperSettingsController extends Notifier<DeveloperSettings> {
+  static const _enabledStorageKey = 'developer_mode_enabled';
+  static const _apiBaseUrlStorageKey = 'developer_api_base_url';
+
+  @override
+  DeveloperSettings build() {
+    final settings = ref.watch(localStoreProvider).settings;
+    final enabled = settings.get(_enabledStorageKey) == true;
+    final override = settings.get(_apiBaseUrlStorageKey);
+    return DeveloperSettings(
+      enabled: enabled,
+      apiBaseUrlOverride: enabled && override is String && override.isNotEmpty
+          ? override
+          : null,
+    );
+  }
+
+  Future<void> setEnabled(bool enabled) async {
+    final previous = state;
+    final next = enabled
+        ? previous.copyWith(enabled: true)
+        : const DeveloperSettings();
+    state = next;
+
+    try {
+      final settings = ref.read(localStoreProvider).settings;
+      await settings.put(_enabledStorageKey, enabled);
+      if (!enabled) await settings.delete(_apiBaseUrlStorageKey);
+    } catch (_) {
+      state = previous;
+      rethrow;
+    }
+  }
+
+  Future<void> setApiBaseUrl(String value) async {
+    if (!state.enabled) {
+      throw StateError('Mode Pengembang belum aktif.');
+    }
+
+    final normalizedUrl = normalizeDeveloperApiBaseUrl(value);
+    if (normalizedUrl == null) {
+      throw const FormatException('Masukkan URL HTTP atau HTTPS yang valid.');
+    }
+
+    final previous = state;
+    state = previous.copyWith(apiBaseUrlOverride: normalizedUrl);
+    try {
+      await ref
+          .read(localStoreProvider)
+          .settings
+          .put(_apiBaseUrlStorageKey, normalizedUrl);
+    } catch (_) {
+      state = previous;
+      rethrow;
+    }
+  }
+}
+
+String? normalizeDeveloperApiBaseUrl(String value) {
+  final uri = Uri.tryParse(value.trim());
+  if (uri == null ||
+      !uri.hasScheme ||
+      uri.host.isEmpty ||
+      (uri.scheme != 'http' && uri.scheme != 'https') ||
+      uri.userInfo.isNotEmpty ||
+      uri.hasQuery ||
+      uri.hasFragment) {
+    return null;
+  }
+
+  final path = uri.path.endsWith('/') && uri.path.length > 1
+      ? uri.path.substring(0, uri.path.length - 1)
+      : uri.path;
+  return uri.replace(path: path).toString();
+}
+
 final appThemeModeProvider =
     NotifierProvider<AppThemeModeController, ThemeMode>(
       AppThemeModeController.new,

@@ -94,15 +94,15 @@ class PushNotificationContractTests(unittest.TestCase):
 
     def test_chapter_event_request_trims_route_parts(self):
         payload = ChapterUpdateEventRequest(
-            source_name=" komikcast ",
+            source_name=" voratoon ",
             comic_slug=" example-slug ",
             comic_title=" Example Comic ",
             latest_chapter_number=12,
-            event_id=" chapter:komikcast:example-slug:12 ",
+            event_id=" chapter:voratoon:example-slug:12 ",
         )
-        self.assertEqual(payload.source_name, "komikcast")
+        self.assertEqual(payload.source_name, "voratoon")
         self.assertEqual(payload.comic_slug, "example-slug")
-        self.assertEqual(payload.event_id, "chapter:komikcast:example-slug:12")
+        self.assertEqual(payload.event_id, "chapter:voratoon:example-slug:12")
 
     def test_admin_announcement_request_trims_payload(self):
         payload = AdminAnnouncementRequest(
@@ -120,7 +120,7 @@ class PushNotificationContractTests(unittest.TestCase):
         comic = ComicCreate(
             title="Example Comic",
             slug="example-slug",
-            source_name="komikcast",
+            source_name="voratoon",
             source_url="https://example.test/comic/example-slug",
         )
         event = build_chapter_update_event(
@@ -135,8 +135,8 @@ class PushNotificationContractTests(unittest.TestCase):
 
         self.assertIsNotNone(event)
         self.assertEqual(event.comic_id, 123)
-        self.assertEqual(event.event_id, "chapter:komikcast:example-slug:12")
-        self.assertEqual(event.source_name, "komikcast")
+        self.assertEqual(event.event_id, "chapter:voratoon:example-slug:12")
+        self.assertEqual(event.source_name, "voratoon")
         self.assertEqual(event.comic_slug, "example-slug")
         self.assertEqual(event.latest_chapter_number, 12)
 

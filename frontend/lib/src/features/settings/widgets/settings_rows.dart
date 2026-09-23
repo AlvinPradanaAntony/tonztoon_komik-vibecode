@@ -55,7 +55,7 @@ class _MyDownloadsSettingsRow extends ConsumerWidget {
       subtitle: count == null
           ? 'Synced download wishlist'
           : '$count chapter tersimpan di wishlist download',
-      onTap: () => _openAccountFlow(context, const _MyDownloadsScreen()),
+      onTap: () => openMyDownloads(context),
     );
   }
 }
@@ -251,6 +251,8 @@ class _SettingsRow extends StatelessWidget {
     this.subtitle,
     this.trailing,
     this.onTap,
+    this.onLongPress,
+    this.onLongPressRelease,
   });
 
   final IconData icon;
@@ -258,58 +260,65 @@ class _SettingsRow extends StatelessWidget {
   final String? subtitle;
   final Widget? trailing;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+  final VoidCallback? onLongPressRelease;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
+    return Listener(
+      onPointerUp: (_) => onLongPressRelease?.call(),
+      onPointerCancel: (_) => onLongPressRelease?.call(),
+      child: Material(
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(12),
-        splashColor: colorScheme.primary.withValues(alpha: 0.12),
-        highlightColor: colorScheme.primary.withValues(alpha: 0.06),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 9),
-          child: Row(
-            children: [
-              _IconBubble(icon: icon),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 3),
+        child: InkWell(
+          onTap: onTap,
+          onLongPress: onLongPress,
+          borderRadius: BorderRadius.circular(12),
+          splashColor: colorScheme.primary.withValues(alpha: 0.12),
+          highlightColor: colorScheme.primary.withValues(alpha: 0.06),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 9),
+            child: Row(
+              children: [
+                _IconBubble(icon: icon),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        subtitle!,
+                        title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          subtitle!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ],
                     ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              trailing ??
-                  Icon(
-                    TonztoonIcons.chevronRight,
-                    size: 18,
-                    color: colorScheme.onSurfaceVariant,
                   ),
-            ],
+                ),
+                const SizedBox(width: 10),
+                trailing ??
+                    Icon(
+                      TonztoonIcons.chevronRight,
+                      size: 18,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+              ],
+            ),
           ),
         ),
       ),

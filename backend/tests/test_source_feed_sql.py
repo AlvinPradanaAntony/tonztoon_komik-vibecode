@@ -21,7 +21,7 @@ class SourceFeedSqlTests(unittest.TestCase):
     def test_latest_feed_order_matches_source_scoped_index(self):
         sql = compile_sql(
             select(Comic.id)
-            .where(Comic.source_name == "komikcast")
+            .where(Comic.source_name == "voratoon")
             .order_by(*_latest_feed_order())
             .limit(20)
         )
@@ -37,7 +37,7 @@ class SourceFeedSqlTests(unittest.TestCase):
     def test_popular_feed_order_matches_source_scoped_index(self):
         sql = compile_sql(
             select(Comic.id)
-            .where(Comic.source_name == "komikcast")
+            .where(Comic.source_name == "voratoon")
             .order_by(*_popular_feed_order())
             .limit(20)
         )
@@ -61,7 +61,7 @@ class SourceFeedSqlTests(unittest.TestCase):
     def test_top_ranking_order_matches_source_scoped_index(self):
         sql = compile_sql(
             select(Comic.id)
-            .where(Comic.source_name == "komikcast")
+            .where(Comic.source_name == "voratoon")
             .order_by(*_top_ranking_order())
             .limit(10)
         )
@@ -75,7 +75,7 @@ class SourceFeedSqlTests(unittest.TestCase):
     def test_total_view_sort_orders_catalog_by_highest_views(self):
         sql = compile_sql(
             _apply_source_comic_sort(
-                select(Comic.id).where(Comic.source_name == "komikcast"),
+                select(Comic.id).where(Comic.source_name == "voratoon"),
                 "total_view",
             ).limit(20)
         )
@@ -90,7 +90,7 @@ class SourceFeedSqlTests(unittest.TestCase):
     def test_source_comic_filters_apply_type_status_and_genre(self):
         sql = compile_sql(
             _apply_source_comic_filters(
-                select(Comic.id).where(Comic.source_name == "komikcast"),
+                select(Comic.id).where(Comic.source_name == "voratoon"),
                 type="Manhwa",
                 status="Ongoing",
                 genre="Action",

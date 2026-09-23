@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../helpers/app_icons.dart';
 import '../../helpers/app_snackbar.dart';
 import '../../helpers/genre_options.dart';
+import '../../helpers/source_options.dart';
 import '../../helpers/navigation_helpers.dart';
 import '../../models/comic.dart';
 import '../../widgets/app_error_state.dart';
@@ -40,6 +41,7 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
   void initState() {
     super.initState();
     _scrollController = ScrollController()..addListener(_onScroll);
+    unawaited(warmSourceOptionCache(ref));
     unawaited(warmGenreOptionCache(ref));
   }
 
@@ -164,13 +166,15 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
                                 ? _CatalogGrid(
                                     entries: comics,
                                     onTap: _openComicDetail,
+                                    isLoadingMore:
+                                        catalog?.isLoadingMore ?? false,
                                   )
                                 : _CatalogList(
                                     entries: comics,
                                     onTap: _openComicDetail,
                                   ),
                           ),
-                        if (catalog?.isLoadingMore ?? false)
+                        if ((catalog?.isLoadingMore ?? false) && !_isGrid)
                           const SliverPadding(
                             padding: EdgeInsets.fromLTRB(16, 14, 16, 0),
                             sliver: SliverToBoxAdapter(
@@ -264,12 +268,17 @@ class _FullCatalogScreenState extends ConsumerState<FullCatalogScreen> {
 
   Future<void> _showFilterSheet() async {
     FocusManager.instance.primaryFocus?.unfocus();
+    final cachedSourceOptions = cachedSourceOptionNames(ref);
     final cachedGenreOptions = cachedGenreOptionNames(ref);
 
     final result = await showComicFilterSortSheet(
       context: context,
       initialState: ref.read(catalogFilterProvider),
       resetSort: ComicSortOption.relevance,
+      sourceOptions: cachedSourceOptions.isEmpty ? null : cachedSourceOptions,
+      sourceOptionsFuture: cachedSourceOptions.isEmpty
+          ? warmSourceOptionCache(ref)
+          : null,
       genreOptions: cachedGenreOptions.isEmpty ? null : cachedGenreOptions,
       genreOptionsFuture: cachedGenreOptions.isEmpty
           ? warmGenreOptionCache(ref)

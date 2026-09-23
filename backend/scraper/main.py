@@ -19,7 +19,7 @@ Argumen CLI utama:
 - `--source <source_name>`
   - Filter satu source saja.
   - Nilai valid mengikuti registry backend: `komiku`, `komiku_asia`,
-    `komikcast`, `shinigami`.
+    `voratoon`, `shinigami`.
   - Jika tidak diisi, script memproses semua source aktif.
 - `--max-pages <N>`
   - Jumlah halaman latest yang dipindai untuk incremental sync.
@@ -47,7 +47,7 @@ Contoh use case:
 - Refresh popular lintas source:
   `python -m scraper.main --max-pages 0 --popular-pages 5`
 - Sweep popular lebih dalam tanpa early-stop:
-  `python -m scraper.main --source komikcast --popular-pages 8 --popular-no-early-stop`
+  `python -m scraper.main --source voratoon --popular-pages 8 --popular-no-early-stop`
 - Run semua source aktif dengan log terpisah:
   `python -m scraper.main --log-file latest_sync.log`
 

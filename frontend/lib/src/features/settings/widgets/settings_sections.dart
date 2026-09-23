@@ -238,12 +238,18 @@ class _AppVersionSection extends StatelessWidget {
     required this.checkingForUpdate,
     required this.onCheckForUpdate,
     required this.onShowAppInfo,
+    required this.developerModeEnabled,
+    required this.onDeveloperUnlockStart,
+    required this.onDeveloperUnlockCanceled,
   });
 
   final Future<PackageInfo> packageInfoFuture;
   final bool checkingForUpdate;
   final VoidCallback onCheckForUpdate;
   final VoidCallback onShowAppInfo;
+  final bool developerModeEnabled;
+  final VoidCallback onDeveloperUnlockStart;
+  final VoidCallback onDeveloperUnlockCanceled;
 
   @override
   Widget build(BuildContext context) {
@@ -264,6 +270,10 @@ class _AppVersionSection extends StatelessWidget {
               title: 'App Version',
               subtitle: 'Mengikuti metadata build terbaru',
               onTap: onShowAppInfo,
+              onLongPress: developerModeEnabled ? null : onDeveloperUnlockStart,
+              onLongPressRelease: developerModeEnabled
+                  ? null
+                  : onDeveloperUnlockCanceled,
               trailing: Text(
                 versionLabel,
                 maxLines: 1,
@@ -300,5 +310,55 @@ class _AppVersionSection extends StatelessWidget {
     if (buildNumber.isEmpty) return 'v$version';
     if (version.isEmpty) return 'Build $buildNumber';
     return 'v$version ($buildNumber)';
+  }
+}
+
+class _DeveloperModeSection extends StatelessWidget {
+  const _DeveloperModeSection({
+    required this.settings,
+    required this.defaultApiBaseUrl,
+    required this.saving,
+    required this.onEnabledChanged,
+    required this.onEditApiBaseUrl,
+  });
+
+  final DeveloperSettings settings;
+  final String defaultApiBaseUrl;
+  final bool saving;
+  final ValueChanged<bool> onEnabledChanged;
+  final VoidCallback onEditApiBaseUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final apiBaseUrl = settings.apiBaseUrlOverride ?? defaultApiBaseUrl;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionLabel(text: 'Developer'),
+        const SizedBox(height: 8),
+        _SettingsSection(
+          children: [
+            _SettingsRow(
+              icon: Icons.developer_mode_rounded,
+              title: 'Mode Pengembang',
+              subtitle: 'Kontrol pengembangan aktif',
+              onTap: saving ? null : () => onEnabledChanged(!settings.enabled),
+              trailing: Switch.adaptive(
+                value: settings.enabled,
+                onChanged: saving ? null : onEnabledChanged,
+              ),
+            ),
+            const _SettingsDivider(),
+            _SettingsRow(
+              icon: Icons.link_rounded,
+              title: 'Base API URL',
+              subtitle: apiBaseUrl,
+              onTap: saving ? null : onEditApiBaseUrl,
+            ),
+          ],
+        ),
+      ],
+    );
   }
 }

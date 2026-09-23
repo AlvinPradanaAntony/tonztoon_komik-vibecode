@@ -33,6 +33,15 @@ class AppConfig {
   final String? googleWebClientId;
   final String? googleIosClientId;
 
+  AppConfig copyWith({String? apiBaseUrl}) {
+    return AppConfig(
+      apiBaseUrl: apiBaseUrl ?? this.apiBaseUrl,
+      githubRepository: githubRepository,
+      googleWebClientId: googleWebClientId,
+      googleIosClientId: googleIosClientId,
+    );
+  }
+
   bool get hasGoogleAuthConfig => _hasValue(googleWebClientId);
 
   static bool _hasValue(String? value) =>

@@ -256,6 +256,7 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
                                     comics: _comics,
                                     showNewBadges: !_isPopularSection,
                                     onTap: _openComicDetail,
+                                    isLoadingMore: _isLoadingMore,
                                   )
                                 : _SectionList(
                                     comics: _comics,
@@ -263,12 +264,10 @@ class _ComicSectionScreenState extends ConsumerState<ComicSectionScreen> {
                                     onTap: _openComicDetail,
                                   ),
                           ),
-                        if (_isLoadingMore)
-                          SliverPadding(
-                            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-                            sliver: _isGrid
-                                ? const _SectionLoadingMoreGrid()
-                                : const _SectionLoadingMoreList(),
+                        if (_isLoadingMore && !_isGrid)
+                          const SliverPadding(
+                            padding: EdgeInsets.fromLTRB(16, 14, 16, 0),
+                            sliver: _SectionLoadingMoreList(),
                           ),
                         SliverPadding(
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 104),
@@ -990,11 +989,13 @@ class _SectionGrid extends StatelessWidget {
     required this.comics,
     required this.showNewBadges,
     required this.onTap,
+    this.isLoadingMore = false,
   });
 
   final List<ComicSummary> comics;
   final bool showNewBadges;
   final ValueChanged<ComicSummary> onTap;
+  final bool isLoadingMore;
 
   @override
   Widget build(BuildContext context) {
@@ -1002,6 +1003,8 @@ class _SectionGrid extends StatelessWidget {
       items: comics,
       minColumnWidth: 98,
       maxColumnCount: 6,
+      isLoadingMore: isLoadingMore,
+      loadingBuilder: (context, index) => const ComicGridCardShimmer(),
       itemBuilder: (context, comic) {
         return ComicCard(
           comic: comic,
