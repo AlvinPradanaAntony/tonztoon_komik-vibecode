@@ -65,6 +65,7 @@ import logging
 import random
 import time
 from collections import OrderedDict
+from types import SimpleNamespace
 from urllib.parse import quote
 
 from sqlalchemy import func, select, update
@@ -819,14 +820,23 @@ async def prefetch_nearby_chapters(
                 )
                 return
 
+            nearby_items = [
+                SimpleNamespace(
+                    id=ch.id,
+                    chapter_number=ch.chapter_number,
+                    source_url=ch.source_url,
+                )
+                for ch in nearby
+            ]
+
             logger.info(
-                f"[Prefetch] {len(nearby)} chapter tanpa images "
+                f"[Prefetch] {len(nearby_items)} chapter tanpa images "
                 f"di window Ch {lower:.0f}–{upper:.0f}: "
-                f"{[ch.chapter_number for ch in nearby]}"
+                f"{[ch.chapter_number for ch in nearby_items]}"
             )
 
             success = 0
-            for ch in nearby:
+            for ch in nearby_items:
                 logger.info(f"[Prefetch] Fetching Ch {ch.chapter_number} (id={ch.id})...")
                 try:
                     ok = await fetch_and_save_chapter_images(

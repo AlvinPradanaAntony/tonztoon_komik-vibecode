@@ -15,7 +15,7 @@ from urllib.request import Request, urlopen
 
 from scraper.utils import clean_text
 
-VORATOON_BASE_URL = "https://v2.voratoon.com"
+VORATOON_BASE_URL = "https://v4.voratoon.com"
 VORATOON_API_BASE_URL = "https://api.voratoon.com"
 DEFAULT_SERIES_INDEX_TAKE = 24
 DEFAULT_POPULAR_TAKE = 20
@@ -27,14 +27,14 @@ DEFAULT_USER_AGENT = (
 
 
 def normalize_voratoon_web_url(url: str | None) -> str:
-    """Normalisasi URL web/referer Voratoon ke canonical base URL (https://v2.voratoon.com)."""
+    """Normalisasi URL web/referer Voratoon ke canonical base URL (https://v4.voratoon.com)."""
     if not url:
         return f"{VORATOON_BASE_URL}/"
     cleaned = clean_text(url)
     if not cleaned:
         return f"{VORATOON_BASE_URL}/"
     normalized = re.sub(
-        r"^https?://(?:v1|v2|cvr|cdn)?\.?voratoon\.(?:com|id)",
+        r"^https?://(?:v1|v2|v3|v4|cvr|cdn)?\.?voratoon\.(?:com|id)",
         VORATOON_BASE_URL,
         cleaned,
         flags=re.IGNORECASE,
@@ -60,20 +60,32 @@ def build_voratoon_api_headers(referer_url: str | None = None) -> dict[str, str]
     }
 
 
-async def fetch_voratoon_api_json(api_url: str, *, referer_url: str | None = None) -> dict[str, Any]:
-    def do_request() -> dict[str, Any]:
-        request = Request(api_url, headers=build_voratoon_api_headers(referer_url))
-        try:
-            with urlopen(request, timeout=45) as response:
-                payload = response.read().decode("utf-8", errors="ignore")
-        except HTTPError as exc:
-            body = exc.read().decode("utf-8", errors="ignore")[:500]
-            raise RuntimeError(
-                f"Voratoon API HTTP {exc.code} untuk {api_url}: {body}"
-            ) from exc
-        return json.loads(payload)
+async def fetch_voratoon_api_json(
+    api_url: str,
+    *,
+    referer_url: str | None = None,
+    timeout: float = 30.0,
+) -> dict[str, Any]:
+    from scrapling.fetchers import Fetcher
 
-    data = await asyncio.to_thread(do_request)
+    headers = build_voratoon_api_headers(referer_url)
+
+    def do_request():
+        return Fetcher.get(
+            api_url,
+            headers=headers,
+            stealthy_headers=True,
+            timeout=timeout,
+        )
+
+    res = await asyncio.to_thread(do_request)
+    status = getattr(res, "status", 0)
+    if status != 200:
+        body = getattr(res, "body", b"")[:500]
+        raise RuntimeError(
+            f"Voratoon API HTTP {status} untuk {api_url}: {body!r}"
+        )
+    data = res.json()
     if data.get("status") not in (200, None):
         raise RuntimeError(f"Gagal mengambil data API Voratoon: {api_url}")
     return data

@@ -55,10 +55,31 @@ class VoratoonScraper(ScraperCommonMixin, BaseComicScraper):
         timeout: float = 20.0,
     ) -> dict[str, Any]:
         headers = self._build_api_headers(referer_url)
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-            response = await client.get(api_url, headers=headers)
-            response.raise_for_status()
-            payload = response.json()
+        from scrapling.fetchers import Fetcher
+
+        def _do_fetch():
+            return Fetcher.get(
+                api_url,
+                headers=headers,
+                stealthy_headers=True,
+                timeout=timeout,
+            )
+
+        res = await asyncio.to_thread(_do_fetch)
+        status = getattr(res, "status", 0)
+        if status != 200:
+            req = httpx.Request("GET", api_url, headers=headers)
+            resp = httpx.Response(status, request=req, content=getattr(res, "body", b""))
+            raise httpx.HTTPStatusError(
+                f"API Voratoon HTTP {status} untuk {api_url}",
+                request=req,
+                response=resp,
+            )
+
+        try:
+            payload = res.json()
+        except Exception as exc:
+            raise RuntimeError(f"Gagal parse JSON dari API Voratoon: {api_url}") from exc
 
         if payload.get("status") not in (200, None):
             raise RuntimeError(

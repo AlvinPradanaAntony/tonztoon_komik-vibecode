@@ -68,6 +68,7 @@ IMAGE_PROXY_DEFAULT_ALLOWED_HOST_SUFFIXES = (
     "api.voratoon.com",
     "v1.voratoon.com",
     "v2.voratoon.com",
+    "v4.voratoon.com",
 )
 
 # Mapping host suffix -> Referer header yang benar untuk masing-masing source.
@@ -79,10 +80,10 @@ REFERER_BY_HOST_SUFFIX = {
     "cdnkomiku.xyz": "https://01.komiku.asia/",
     "shinigami.asia": "https://e.shinigami.asia/",
     "shngm.id": "https://e.shinigami.asia/",
-    "voratoon.com": "https://v2.voratoon.com/",
-    "voratoon.id": "https://v2.voratoon.com/",
-    "cdn.voratoon.com": "https://v2.voratoon.com/",
-    "cvr.voratoon.id": "https://v2.voratoon.com/",
+    "voratoon.com": "https://v4.voratoon.com/",
+    "voratoon.id": "https://v4.voratoon.com/",
+    "cdn.voratoon.com": "https://v4.voratoon.com/",
+    "cvr.voratoon.id": "https://v4.voratoon.com/",
 }
 SCRAPLING_IMAGE_FALLBACK_STATUSES = {
     # Komiku's CDN challenge is commonly returned as 403.
@@ -500,14 +501,17 @@ async def fetch_voratoon_cover_url_for_slug(
     slug = slug.strip()
     if not slug:
         return None
+    api_url = f"https://api.voratoon.com/series/{slug}?includeMeta=true"
+    headers = {
+        "User-Agent": DEFAULT_USER_AGENT,
+        "Accept": "application/json, text/plain, */*",
+        "Referer": f"https://v4.voratoon.com/series/{slug}",
+        "Origin": "https://v4.voratoon.com",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "cross-site",
+    }
     try:
-        api_url = f"https://api.voratoon.com/series/{slug}?includeMeta=true"
-        headers = {
-            "User-Agent": DEFAULT_USER_AGENT,
-            "Accept": "application/json, text/plain, */*",
-            "Referer": f"https://v2.voratoon.com/series/{slug}",
-            "Origin": "https://v2.voratoon.com",
-        }
         res = await client.get(api_url, headers=headers, timeout=15.0, follow_redirects=True)
         if res.status_code == 200:
             payload = res.json()
@@ -517,7 +521,31 @@ async def fetch_voratoon_cover_url_for_slug(
             if fresh and isinstance(fresh, str):
                 return fresh.strip()
     except Exception:
+        logger.debug("Httpx failed for voratoon cover slug %s, trying scrapling", slug, exc_info=True)
+
+    # Fallback via Scrapling Fetcher
+    try:
+        from scrapling.fetchers import Fetcher
+
+        def _do_fetch():
+            return Fetcher.get(
+                api_url,
+                headers=headers,
+                stealthy_headers=True,
+                timeout=20,
+            )
+
+        page = await asyncio.to_thread(_do_fetch)
+        if getattr(page, "status", None) == 200:
+            payload = page.json()
+            item = payload.get("data") or {}
+            item_data = item.get("data") or {}
+            fresh = item_data.get("coverImage") or item_data.get("cover")
+            if fresh and isinstance(fresh, str):
+                return fresh.strip()
+    except Exception:
         logger.debug("Failed on-demand refresh of cover for slug %s", slug, exc_info=True)
+
     return None
 
 

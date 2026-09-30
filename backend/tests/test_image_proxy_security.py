@@ -54,7 +54,7 @@ class ImageProxySecurityTests(unittest.IsolatedAsyncioTestCase):
         headers = get_proxy_headers(
             "https://cdn.voratoon.com/wp-content/img/I/Infinite_Mage/001/001.png"
         )
-        self.assertEqual(headers.get("Referer"), "https://v2.voratoon.com/")
+        self.assertEqual(headers.get("Referer"), "https://v4.voratoon.com/")
 
     def test_komiku_thumbnail_referer_header(self):
         headers = get_proxy_headers(
