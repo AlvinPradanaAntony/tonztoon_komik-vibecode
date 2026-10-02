@@ -28,8 +28,10 @@ from scraper.sources.voratoon_api import (
     build_voratoon_series_detail_url,
     build_voratoon_series_index_url,
     coalesce_voratoon_total_view,
+    discover_voratoon_base_url,
     extract_voratoon_chapter_identity,
     extract_voratoon_series_slug,
+    get_voratoon_base_url,
     normalize_voratoon_web_url,
     parse_voratoon_iso_datetime,
 )
@@ -41,8 +43,11 @@ class VoratoonScraper(ScraperCommonMixin, BaseComicScraper):
     """Scraper implementation untuk Voratoon berbasis backend API resmi source."""
 
     SOURCE_NAME = "voratoon"
-    BASE_URL = VORATOON_BASE_URL
     API_BASE_URL = VORATOON_API_BASE_URL
+
+    @property
+    def BASE_URL(self) -> str:
+        return get_voratoon_base_url()
 
     def _build_api_headers(self, referer_url: str | None = None) -> dict[str, str]:
         return build_voratoon_api_headers(referer_url)
@@ -54,19 +59,39 @@ class VoratoonScraper(ScraperCommonMixin, BaseComicScraper):
         referer_url: str | None = None,
         timeout: float = 20.0,
     ) -> dict[str, Any]:
-        headers = self._build_api_headers(referer_url)
         from scrapling.fetchers import Fetcher
 
-        def _do_fetch():
+        current_base = get_voratoon_base_url()
+        headers = self._build_api_headers(referer_url)
+
+        def _do_fetch(req_headers: dict[str, str]):
             return Fetcher.get(
                 api_url,
-                headers=headers,
+                headers=req_headers,
                 stealthy_headers=True,
                 timeout=timeout,
             )
 
-        res = await asyncio.to_thread(_do_fetch)
+        res = await asyncio.to_thread(_do_fetch, headers)
         status = getattr(res, "status", 0)
+
+        # Auto-heal jika mendapatkan 403: cek apakah Voratoon baru saja merotasi mirror domain (misal v4 -> v5)
+        if status == 403:
+            logger.warning(
+                "Mendapat status 403 dari API Voratoon (%s). Memeriksa rotasi mirror domain di voratoon.id...",
+                api_url,
+            )
+            discovered = await asyncio.to_thread(discover_voratoon_base_url)
+            if discovered != current_base:
+                logger.info(
+                    "Voratoon mirror diperbarui: %s -> %s. Mencoba request ulang...",
+                    current_base,
+                    discovered,
+                )
+                headers = self._build_api_headers(referer_url)
+                res = await asyncio.to_thread(_do_fetch, headers)
+                status = getattr(res, "status", 0)
+
         if status != 200:
             req = httpx.Request("GET", api_url, headers=headers)
             resp = httpx.Response(status, request=req, content=getattr(res, "body", b""))

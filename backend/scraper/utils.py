@@ -141,6 +141,17 @@ def configure_logging(
         stdout_handler: Handler stdout kustom (misalnya RealtimeConsoleHandler
                         untuk live progress bar). Jika None, pakai StreamHandler biasa.
     """
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
+        except Exception:
+            pass
+    if hasattr(sys.stderr, "reconfigure"):
+        try:
+            sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace")
+        except Exception:
+            pass
+
     console_handler = stdout_handler or logging.StreamHandler(sys.stdout)
     handlers: list[logging.Handler] = [console_handler]
 
@@ -185,7 +196,15 @@ class RealtimeConsoleHandler(logging.StreamHandler):
                 progress = None
         if progress is not None:
             progress.clear_line()
-        super().emit(record)
+        try:
+            super().emit(record)
+        except UnicodeEncodeError:
+            try:
+                msg = self.format(record).encode("ascii", errors="backslashreplace").decode("ascii")
+                self.stream.write(msg + self.terminator)
+                self.flush()
+            except Exception:
+                self.handleError(record)
         if progress is not None:
             progress.render()
 

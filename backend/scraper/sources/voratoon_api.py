@@ -15,7 +15,13 @@ from urllib.request import Request, urlopen
 
 from scraper.utils import clean_text
 
-VORATOON_BASE_URL = "https://v4.voratoon.com"
+import logging
+import time
+
+logger = logging.getLogger("scraper.voratoon")
+
+DEFAULT_VORATOON_BASE_URL = "https://v5.voratoon.com"
+VORATOON_BASE_URL = DEFAULT_VORATOON_BASE_URL
 VORATOON_API_BASE_URL = "https://api.voratoon.com"
 DEFAULT_SERIES_INDEX_TAKE = 24
 DEFAULT_POPULAR_TAKE = 20
@@ -25,26 +31,69 @@ DEFAULT_USER_AGENT = (
     "Chrome/125.0.0.0 Safari/537.36"
 )
 
+_CURRENT_VORATOON_BASE_URL: str = DEFAULT_VORATOON_BASE_URL
+_LAST_DISCOVERED_TIME: float = 0.0
+
+
+def get_voratoon_base_url() -> str:
+    """Ambil base URL aktif saat ini untuk Voratoon."""
+    return _CURRENT_VORATOON_BASE_URL
+
+
+def set_voratoon_base_url(url: str) -> None:
+    """Set base URL Voratoon aktif."""
+    global _CURRENT_VORATOON_BASE_URL, VORATOON_BASE_URL
+    clean = url.strip().rstrip("/")
+    _CURRENT_VORATOON_BASE_URL = clean
+    VORATOON_BASE_URL = clean
+
+
+def discover_voratoon_base_url(timeout: float = 5.0) -> str:
+    """
+    Auto-discover mirror web Voratoon aktif dari landing page canonical (https://voratoon.id).
+    Voratoon secara berkala merotasi subdomain (v1 -> v2 -> v4 -> v5 -> dst) karena pemblokiran ISP.
+    """
+    global _CURRENT_VORATOON_BASE_URL, VORATOON_BASE_URL, _LAST_DISCOVERED_TIME
+    try:
+        from scrapling.fetchers import Fetcher
+
+        page = Fetcher.get("https://voratoon.id", stealthy_headers=True, timeout=timeout)
+        hrefs = page.css("a::attr(href)").getall()
+        for href in hrefs:
+            match = re.match(r"^https?://(v\d+\.voratoon\.com)", href.strip())
+            if match:
+                discovered = f"https://{match.group(1)}"
+                set_voratoon_base_url(discovered)
+                _LAST_DISCOVERED_TIME = time.time()
+                return discovered
+    except Exception as exc:
+        logger.warning(
+            "Gagal auto-discover Voratoon base URL dari voratoon.id: %s", exc
+        )
+    return _CURRENT_VORATOON_BASE_URL
+
 
 def normalize_voratoon_web_url(url: str | None) -> str:
-    """Normalisasi URL web/referer Voratoon ke canonical base URL (https://v4.voratoon.com)."""
+    """Normalisasi URL web/referer Voratoon ke canonical base URL (misal https://v5.voratoon.com)."""
+    base_url = get_voratoon_base_url()
     if not url:
-        return f"{VORATOON_BASE_URL}/"
+        return f"{base_url}/"
     cleaned = clean_text(url)
     if not cleaned:
-        return f"{VORATOON_BASE_URL}/"
+        return f"{base_url}/"
     normalized = re.sub(
-        r"^https?://(?:v1|v2|v3|v4|cvr|cdn)?\.?voratoon\.(?:com|id)",
-        VORATOON_BASE_URL,
+        r"^https?://(?:v\d+|cvr|cdn)?\.?voratoon\.(?:com|id)",
+        base_url,
         cleaned,
         flags=re.IGNORECASE,
     )
     if not normalized.startswith("http"):
-        normalized = f"{VORATOON_BASE_URL}/{normalized.lstrip('/')}"
+        normalized = f"{base_url}/{normalized.lstrip('/')}"
     return normalized
 
 
 def build_voratoon_api_headers(referer_url: str | None = None) -> dict[str, str]:
+    base_url = get_voratoon_base_url()
     referer = normalize_voratoon_web_url(referer_url)
     return {
         "User-Agent": DEFAULT_USER_AGENT,
@@ -53,7 +102,7 @@ def build_voratoon_api_headers(referer_url: str | None = None) -> dict[str, str]
         "Cache-Control": "no-cache",
         "Pragma": "no-cache",
         "Referer": referer,
-        "Origin": VORATOON_BASE_URL,
+        "Origin": base_url,
         "Sec-Fetch-Dest": "empty",
         "Sec-Fetch-Mode": "cors",
         "Sec-Fetch-Site": "cross-site",

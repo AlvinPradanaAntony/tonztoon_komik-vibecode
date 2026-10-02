@@ -35,29 +35,29 @@ class VoratoonApiHelperTests(unittest.TestCase):
     def test_normalize_voratoon_web_url(self):
         self.assertEqual(
             normalize_voratoon_web_url("https://v1.voratoon.com/series/comic-a"),
-            "https://v4.voratoon.com/series/comic-a",
+            "https://v5.voratoon.com/series/comic-a",
         )
         self.assertEqual(
             normalize_voratoon_web_url("https://voratoon.com/series/comic-b/chapter/10"),
-            "https://v4.voratoon.com/series/comic-b/chapter/10",
+            "https://v5.voratoon.com/series/comic-b/chapter/10",
         )
         self.assertEqual(
             normalize_voratoon_web_url("https://voratoon.id/series/comic-c"),
-            "https://v4.voratoon.com/series/comic-c",
+            "https://v5.voratoon.com/series/comic-c",
         )
         self.assertEqual(
-            normalize_voratoon_web_url("https://v2.voratoon.com/series/comic-d"),
-            "https://v4.voratoon.com/series/comic-d",
+            normalize_voratoon_web_url("https://v4.voratoon.com/series/comic-d"),
+            "https://v5.voratoon.com/series/comic-d",
         )
-        self.assertEqual(normalize_voratoon_web_url(None), "https://v4.voratoon.com/")
+        self.assertEqual(normalize_voratoon_web_url(None), "https://v5.voratoon.com/")
 
     def test_build_voratoon_api_headers_normalizes_referer(self):
         headers = build_voratoon_api_headers("https://v1.voratoon.com/series/sample/chapter/65")
         self.assertEqual(
             headers["Referer"],
-            "https://v4.voratoon.com/series/sample/chapter/65",
+            "https://v5.voratoon.com/series/sample/chapter/65",
         )
-        self.assertEqual(headers["Origin"], "https://v4.voratoon.com")
+        self.assertEqual(headers["Origin"], "https://v5.voratoon.com")
 
     def test_extract_series_slug(self):
         url = "https://v1.voratoon.com/series/gomi-ika-da-to-tsuihou-sareta-shiyounin"
@@ -142,7 +142,7 @@ class VoratoonImageProxySecurityTests(unittest.TestCase):
 
     def test_voratoon_referer_header(self):
         headers = get_proxy_headers("https://cdn.voratoon.com/wp-content/img/sample/001/01.jpg")
-        self.assertEqual(headers.get("Referer"), "https://v4.voratoon.com/")
+        self.assertEqual(headers.get("Referer"), "https://v5.voratoon.com/")
 
 
 class VoratoonScraperFlowTests(unittest.IsolatedAsyncioTestCase):

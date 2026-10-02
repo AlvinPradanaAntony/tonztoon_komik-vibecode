@@ -68,7 +68,9 @@ IMAGE_PROXY_DEFAULT_ALLOWED_HOST_SUFFIXES = (
     "api.voratoon.com",
     "v1.voratoon.com",
     "v2.voratoon.com",
+    "v3.voratoon.com",
     "v4.voratoon.com",
+    "v5.voratoon.com",
 )
 
 # Mapping host suffix -> Referer header yang benar untuk masing-masing source.
@@ -80,10 +82,10 @@ REFERER_BY_HOST_SUFFIX = {
     "cdnkomiku.xyz": "https://01.komiku.asia/",
     "shinigami.asia": "https://e.shinigami.asia/",
     "shngm.id": "https://e.shinigami.asia/",
-    "voratoon.com": "https://v4.voratoon.com/",
-    "voratoon.id": "https://v4.voratoon.com/",
-    "cdn.voratoon.com": "https://v4.voratoon.com/",
-    "cvr.voratoon.id": "https://v4.voratoon.com/",
+    "voratoon.com": "https://v5.voratoon.com/",
+    "voratoon.id": "https://v5.voratoon.com/",
+    "cdn.voratoon.com": "https://v5.voratoon.com/",
+    "cvr.voratoon.id": "https://v5.voratoon.com/",
 }
 SCRAPLING_IMAGE_FALLBACK_STATUSES = {
     # Komiku's CDN challenge is commonly returned as 403.
@@ -383,6 +385,14 @@ def _referer_for_image_url(image_url: str) -> str:
     except ImageProxyValidationError:
         host = parsed.netloc.lower()
 
+    if _host_matches_suffix(host, "voratoon.com") or _host_matches_suffix(host, "voratoon.id"):
+        try:
+            from scraper.sources.voratoon_api import get_voratoon_base_url
+
+            return f"{get_voratoon_base_url()}/"
+        except Exception:
+            return "https://v5.voratoon.com/"
+
     for suffix, referer in REFERER_BY_HOST_SUFFIX.items():
         if _host_matches_suffix(host, suffix):
             return referer
@@ -502,11 +512,18 @@ async def fetch_voratoon_cover_url_for_slug(
     if not slug:
         return None
     api_url = f"https://api.voratoon.com/series/{slug}?includeMeta=true"
+    try:
+        from scraper.sources.voratoon_api import get_voratoon_base_url
+
+        voratoon_base = get_voratoon_base_url()
+    except Exception:
+        voratoon_base = "https://v5.voratoon.com"
+
     headers = {
         "User-Agent": DEFAULT_USER_AGENT,
         "Accept": "application/json, text/plain, */*",
-        "Referer": f"https://v4.voratoon.com/series/{slug}",
-        "Origin": "https://v4.voratoon.com",
+        "Referer": f"{voratoon_base}/series/{slug}",
+        "Origin": voratoon_base,
         "Sec-Fetch-Dest": "empty",
         "Sec-Fetch-Mode": "cors",
         "Sec-Fetch-Site": "cross-site",
