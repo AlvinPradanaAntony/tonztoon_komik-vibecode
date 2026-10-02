@@ -86,6 +86,8 @@ REFERER_BY_HOST_SUFFIX = {
     "voratoon.id": "https://v5.voratoon.com/",
     "cdn.voratoon.com": "https://v5.voratoon.com/",
     "cvr.voratoon.id": "https://v5.voratoon.com/",
+    "kiryuu.to": "https://v7.kiryuu.to/",
+    "yuucdn.com": "https://v7.kiryuu.to/",
 }
 SCRAPLING_IMAGE_FALLBACK_STATUSES = {
     # Komiku's CDN challenge is commonly returned as 403.
@@ -392,6 +394,14 @@ def _referer_for_image_url(image_url: str) -> str:
             return f"{get_voratoon_base_url()}/"
         except Exception:
             return "https://v5.voratoon.com/"
+
+    if _host_matches_suffix(host, "kiryuu.to") or _host_matches_suffix(host, "yuucdn.com"):
+        try:
+            from scraper.sources.kiryuu_api import get_kiryuu_base_url
+
+            return f"{get_kiryuu_base_url()}/"
+        except Exception:
+            return "https://v7.kiryuu.to/"
 
     for suffix, referer in REFERER_BY_HOST_SUFFIX.items():
         if _host_matches_suffix(host, suffix):

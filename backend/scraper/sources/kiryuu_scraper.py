@@ -1,7 +1,7 @@
 """
 Tonztoon Komik — Kiryuu Scraper
 
-Scraper untuk https://v5.kiryuu.to/.
+Scraper untuk Kiryuu (https://v7.kiryuu.to/ dan portal canonical https://kiryuu.io).
 
 Hasil investigasi source:
 - Katalog, search, dan detail metadata memakai WordPress REST
@@ -32,24 +32,35 @@ from scraper.sources.kiryuu_api import (
     build_kiryuu_manga_detail_url,
     build_kiryuu_manga_list_url,
     build_kiryuu_nonce_url,
+    discover_kiryuu_base_url,
+    get_kiryuu_advanced_search_url,
+    get_kiryuu_base_url,
+    normalize_kiryuu_url,
 )
 from scraper.utils import clean_text
 
 logger = logging.getLogger("scraper.kiryuu")
 
 
+class _KiryuuBaseUrlDescriptor:
+    """Descriptor agar BASE_URL bekerja baik di class maupun instance."""
+
+    def __get__(self, instance, owner=None) -> str:
+        return get_kiryuu_base_url()
+
+
 class KiryuuScraper(ScraperCommonMixin, BaseComicScraper):
-    """Scraper implementation untuk Kiryuu v5 berbasis REST + AJAX resmi."""
+    """Scraper implementation untuk Kiryuu berbasis REST + AJAX resmi dan auto-discovery domain."""
 
     SOURCE_NAME = "kiryuu"
-    BASE_URL = KIRYUU_BASE_URL
+    BASE_URL = _KiryuuBaseUrlDescriptor()
 
     REST_PAGE_SIZE = 24
     CATALOG_ORDER_BY = "title"
     LATEST_ORDER_BY = "updated"
     POPULAR_ORDER_BY = "popular"
 
-    _RETRY_STATUSES = {500, 502, 503, 504}
+    _RETRY_STATUSES = {403, 500, 502, 503, 504}
     _HTML_FALLBACK_FIELDS = {
         "alternative_titles",
         "cover_image_url",
@@ -65,12 +76,53 @@ class KiryuuScraper(ScraperCommonMixin, BaseComicScraper):
         last_page = None
         for attempt in range(retries + 1):
             logger.info("Fetch Kiryuu GET: %s", url)
-            page = self.fetcher.get(url, headers=headers, stealthy_headers=True, timeout=45)
+            page = None
+            try:
+                page = self.fetcher.get(url, headers=headers, stealthy_headers=True, timeout=45)
+            except Exception as exc:
+                logger.warning("Error fetching Kiryuu GET %s: %s", url, exc)
+                if attempt == 0:
+                    logger.warning(
+                        "Koneksi Kiryuu gagal (%s). Memeriksa rotasi mirror domain di kiryuu.io/domain...",
+                        url,
+                    )
+                    current_base = get_kiryuu_base_url()
+                    discovered = discover_kiryuu_base_url()
+                    if discovered != current_base:
+                        logger.info(
+                            "Kiryuu mirror diperbarui: %s -> %s. Mencoba request ulang...",
+                            current_base,
+                            discovered,
+                        )
+                        url = normalize_kiryuu_url(url)
+                        headers = build_kiryuu_headers(referer_url)
+                        continue
             last_page = page
-            if getattr(page, "status", 0) not in self._RETRY_STATUSES:
+            status = getattr(page, "status", 0)
+            if status == 200:
                 return page
-            if attempt < retries:
-                time.sleep(1.0 + attempt)
+            if status in self._RETRY_STATUSES or status == 0:
+                if attempt == 0:
+                    logger.warning(
+                        "Mendapat status %s dari Kiryuu (%s). Memeriksa rotasi mirror domain di kiryuu.io/domain...",
+                        status or "koneksi error",
+                        url,
+                    )
+                    current_base = get_kiryuu_base_url()
+                    discovered = discover_kiryuu_base_url()
+                    if discovered != current_base:
+                        logger.info(
+                            "Kiryuu mirror diperbarui: %s -> %s. Mencoba request ulang...",
+                            current_base,
+                            discovered,
+                        )
+                        url = normalize_kiryuu_url(url)
+                        headers = build_kiryuu_headers(referer_url)
+                        continue
+                if attempt < retries:
+                    time.sleep(1.0 + attempt)
+                continue
+            return page
         return last_page
 
     def _fetch_rest_json(self, url: str, *, referer_url: str | None = None) -> tuple[Any, dict[str, str]]:
@@ -101,22 +153,64 @@ class KiryuuScraper(ScraperCommonMixin, BaseComicScraper):
         last_page = None
         for attempt in range(retries + 1):
             logger.info("Fetch Kiryuu POST: %s", url)
-            page = self.fetcher.post(
-                url,
-                data=data,
-                headers=headers,
-                stealthy_headers=True,
-                timeout=45,
-            )
+            page = None
+            try:
+                page = self.fetcher.post(
+                    url,
+                    data=data,
+                    headers=headers,
+                    stealthy_headers=True,
+                    timeout=45,
+                )
+            except Exception as exc:
+                logger.warning("Error fetching Kiryuu POST %s: %s", url, exc)
+                if attempt == 0:
+                    logger.warning(
+                        "Koneksi Kiryuu gagal (%s). Memeriksa rotasi mirror domain di kiryuu.io/domain...",
+                        url,
+                    )
+                    current_base = get_kiryuu_base_url()
+                    discovered = discover_kiryuu_base_url()
+                    if discovered != current_base:
+                        logger.info(
+                            "Kiryuu mirror diperbarui: %s -> %s. Mencoba request ulang...",
+                            current_base,
+                            discovered,
+                        )
+                        url = normalize_kiryuu_url(url)
+                        headers = build_kiryuu_headers(referer_url)
+                        continue
             last_page = page
-            if getattr(page, "status", 0) not in self._RETRY_STATUSES:
+            status = getattr(page, "status", 0)
+            if status == 200:
                 return page
-            if attempt < retries:
-                time.sleep(1.0 + attempt)
+            if status in self._RETRY_STATUSES or status == 0:
+                if attempt == 0:
+                    logger.warning(
+                        "Mendapat status %s dari Kiryuu (%s). Memeriksa rotasi mirror domain di kiryuu.io/domain...",
+                        status or "koneksi error",
+                        url,
+                    )
+                    current_base = get_kiryuu_base_url()
+                    discovered = discover_kiryuu_base_url()
+                    if discovered != current_base:
+                        logger.info(
+                            "Kiryuu mirror diperbarui: %s -> %s. Mencoba request ulang...",
+                            current_base,
+                            discovered,
+                        )
+                        url = normalize_kiryuu_url(url)
+                        headers = build_kiryuu_headers(referer_url)
+                        continue
+                if attempt < retries:
+                    time.sleep(1.0 + attempt)
+                continue
+            return page
         return last_page
 
     def _resolve_url(self, href: str | None) -> str:
-        return urljoin(self.BASE_URL, clean_text(href))
+        resolved = urljoin(self.BASE_URL, clean_text(href))
+        return normalize_kiryuu_url(resolved)
 
     def _extract_nonce(self) -> str:
         page = self._fetch_get(build_kiryuu_nonce_url(), referer_url=KIRYUU_ADVANCED_SEARCH_URL)
@@ -157,10 +251,13 @@ class KiryuuScraper(ScraperCommonMixin, BaseComicScraper):
         return response
 
     def _extract_series_slug(self, url: str) -> str:
-        match = re.search(r"/manga/([^/?#]+)/?$", url)
-        if not match:
-            raise ValueError(f"Tidak dapat mengekstrak slug Kiryuu dari URL: {url}")
-        return match.group(1)
+        cleaned = clean_text(url)
+        match = re.search(r"/manga/([^/?#]+)/?", cleaned)
+        if match:
+            return match.group(1)
+        if "/" not in cleaned and cleaned:
+            return cleaned
+        raise ValueError(f"Tidak dapat mengekstrak slug Kiryuu dari URL: {url}")
 
     def _clean_html_text(self, value: str | None) -> str:
         cleaned = re.sub(r"<[^>]+>", " ", value or "")
@@ -310,8 +407,8 @@ class KiryuuScraper(ScraperCommonMixin, BaseComicScraper):
         cleaned = clean_text(url)
         if not cleaned:
             return None
-        if cleaned.startswith("http://v5.kiryuu.to/"):
-            return cleaned.replace("http://", "https://", 1)
+        if cleaned.startswith("http://"):
+            cleaned = cleaned.replace("http://", "https://", 1)
         return self._resolve_url(cleaned)
 
     def _parse_listing_fragment(self, response) -> list[dict[str, Any]]:

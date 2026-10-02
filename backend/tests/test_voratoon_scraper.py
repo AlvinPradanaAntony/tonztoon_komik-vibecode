@@ -127,6 +127,9 @@ class VoratoonScraperRegistryTests(unittest.TestCase):
         self.assertEqual(meta["id"], "voratoon")
         self.assertEqual(meta["label"], "Voratoon")
         self.assertTrue(meta["enabled"])
+        self.assertIsInstance(meta["base_url"], str)
+        self.assertEqual(meta["base_url"], VORATOON_BASE_URL)
+        self.assertEqual(VoratoonScraper.BASE_URL, VORATOON_BASE_URL)
 
 
 class VoratoonImageProxySecurityTests(unittest.TestCase):

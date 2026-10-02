@@ -39,15 +39,19 @@ from scraper.sources.voratoon_api import (
 logger = logging.getLogger("scraper.voratoon")
 
 
+class _VoratoonBaseUrlDescriptor:
+    """Descriptor agar BASE_URL bekerja baik di class maupun instance."""
+
+    def __get__(self, instance, owner=None) -> str:
+        return get_voratoon_base_url()
+
+
 class VoratoonScraper(ScraperCommonMixin, BaseComicScraper):
     """Scraper implementation untuk Voratoon berbasis backend API resmi source."""
 
     SOURCE_NAME = "voratoon"
     API_BASE_URL = VORATOON_API_BASE_URL
-
-    @property
-    def BASE_URL(self) -> str:
-        return get_voratoon_base_url()
+    BASE_URL = _VoratoonBaseUrlDescriptor()
 
     def _build_api_headers(self, referer_url: str | None = None) -> dict[str, str]:
         return build_voratoon_api_headers(referer_url)
