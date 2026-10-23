@@ -1,9 +1,6 @@
 # ================================================
 # Tonztoon Komik — Scraper GitHub Actions Workflow
 # ================================================
-# Trigger:
-#   1. Cron job latest update (terjadwal setiap 2 jam)
-#   2. workflow_dispatch manual untuk latest sync
 
 name: "🕷️ Scraper: Latest Sync"
 
@@ -31,7 +28,6 @@ on:
         required: false
         default: "3"
 
-# Force Node.js 24 to avoid deprecation warnings
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -62,67 +58,18 @@ jobs:
       - name: 🖥️ Install virtual display
         if: github.event_name != 'workflow_dispatch' || github.event.inputs.source == '' || github.event.inputs.source == 'all' || github.event.inputs.source == 'komiku_asia'
         run: sudo apt-get update && sudo apt-get install -y xvfb
-      
+
       - name: 🌐 Install Scrapling browser dependencies
         run: scrapling install
 
-      - name: 🔐 Validate database and FCM configuration
+      - name: 🔐 Validate configuration
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           FCM_PROJECT_ID: ${{ secrets.FCM_PROJECT_ID }}
           FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
         run: |
-          set -euo pipefail
-
-          python - <<'PY'
-          import json
-          import os
-          import sys
-
-          errors = []
-          database_url = os.environ.get("DATABASE_URL", "").strip()
-          project_id = os.environ.get("FCM_PROJECT_ID", "").strip()
-          raw_service_account = os.environ.get(
-              "FCM_SERVICE_ACCOUNT_JSON",
-              "",
-          ).strip()
-
-          if not database_url:
-              errors.append("DATABASE_URL secret is empty.")
-
-          service_account = {}
-          if not raw_service_account:
-              errors.append("FCM_SERVICE_ACCOUNT_JSON secret is empty.")
-          else:
-              try:
-                  service_account = json.loads(raw_service_account)
-              except json.JSONDecodeError:
-                  errors.append("FCM_SERVICE_ACCOUNT_JSON is not valid JSON.")
-
-          for field in ("client_email", "private_key"):
-              if service_account and not service_account.get(field):
-                  errors.append(
-                      f"FCM_SERVICE_ACCOUNT_JSON is missing {field}."
-                  )
-
-          json_project_id = str(service_account.get("project_id") or "").strip()
-          if not project_id and not json_project_id:
-              errors.append(
-                  "FCM project ID is missing from both FCM_PROJECT_ID "
-                  "and FCM_SERVICE_ACCOUNT_JSON."
-              )
-          elif project_id and json_project_id and project_id != json_project_id:
-              errors.append(
-                  "FCM_PROJECT_ID does not match the service account project_id."
-              )
-
-          if errors:
-              for error in errors:
-                  print(f"::error::{error}")
-              sys.exit(1)
-
-          print("Database and FCM configuration are present and valid.")
-          PY
+          cd backend
+          python -m scraper.validate_config
 
       - name: 🕷️ Run scraper
         env:
@@ -142,7 +89,6 @@ jobs:
             cd backend
 
             args=()
-
             if [ -n "${SCRAPER_SOURCE}" ] && [ "${SCRAPER_SOURCE}" != "all" ]; then
               args+=(--source "${SCRAPER_SOURCE}")
               if [[ "${SCRAPER_SOURCE}" == "komiku" || "${SCRAPER_SOURCE}" == "voratoon" || "${SCRAPER_SOURCE}" == "shinigami" ]]; then
@@ -151,24 +97,16 @@ jobs:
             fi
 
             if [ -n "${SCRAPER_MAX_PAGES}" ]; then
-              if ! [[ "${SCRAPER_MAX_PAGES}" =~ ^[0-9]+$ ]]; then
-                echo "max_pages must be an integer >= 0"
-                exit 1
-              fi
               args+=(--max-pages "${SCRAPER_MAX_PAGES}")
             fi
 
             if [ -n "${SCRAPER_EARLY_STOP}" ]; then
-              if ! [[ "${SCRAPER_EARLY_STOP}" =~ ^[0-9]+$ ]]; then
-                echo "early_stop must be an integer >= 1"
-                exit 1
-              fi
               args+=(--early-stop "${SCRAPER_EARLY_STOP}")
             fi
 
             printf 'Running scraper with args:'
             printf ' %q' "${args[@]}"
-            printf '\n'
+            echo ""
 
             if [ "${SCRAPER_SOURCE}" = "komiku_asia" ]; then
               echo "Running komiku_asia through xvfb."
@@ -176,10 +114,16 @@ jobs:
             elif [ -z "${SCRAPER_SOURCE}" ] || [ "${SCRAPER_SOURCE}" = "all" ]; then
               echo "Running non-komiku_asia sources without xvfb."
               for source in komiku voratoon shinigami; do
-                python -m scraper.main --source "${source}" --no-anti-blocking "${args[@]}"
+                echo "─── Source: ${source} ───"
+                python -m scraper.main --source "${source}" --no-anti-blocking "${args[@]}" || {
+                  echo "::warning::Scraper untuk source ${source} selesai dengan error."
+                }
               done
+              echo "─── Source: komiku_asia ───"
               echo "Running komiku_asia through xvfb."
-              xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.main --source komiku_asia "${args[@]}"
+              xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.main --source komiku_asia "${args[@]}" || {
+                echo "::warning::Scraper untuk source komiku_asia selesai dengan error."
+              }
             else
               echo "komiku_asia is not included; running without xvfb."
               python -m scraper.main "${args[@]}"
@@ -191,184 +135,22 @@ jobs:
 
       - name: 📝 Write scraper summary
         if: always()
-        env:
-          TRIGGER_SOURCE: ${{ github.event.inputs.trigger_source || github.event_name }}
-          SCRAPER_SOURCE: ${{ github.event.inputs.source || 'all' }}
-          SCRAPER_MAX_PAGES: ${{ github.event.inputs.max_pages || 'default' }}
-          SCRAPER_EARLY_STOP: ${{ github.event.inputs.early_stop || 'default' }}
         run: |
-          set -euo pipefail
-
-          completed_at="$(date -u +'%Y-%m-%d %H:%M:%S UTC')"
-
-          status="unknown"
-          if [ -f scraper-latest.status ]; then
-            status="$(cat scraper-latest.status)"
-          fi
-
-          result_errors="false"
-          if [ -f scraper-latest.log ] && grep -E "( ERROR | ✗ | failed:|Gagal| [1-9][0-9]* errors)" scraper-latest.log >/dev/null; then
-            result_errors="true"
-          fi
-
-          if [ "${status}" = "0" ] && [ "${result_errors}" = "false" ]; then
-            conclusion="success"
-          elif [ "${status}" = "0" ]; then
-            conclusion="completed_with_errors"
-          else
-            conclusion="failed"
-          fi
-
-          {
-            echo "## 🕷️ Scraper summary"
-            echo
-            echo "| Metric | Value |"
-            echo "|---|---|"
-            echo "| Trigger source | ${TRIGGER_SOURCE} |"
-            echo "| Source | ${SCRAPER_SOURCE} |"
-            echo "| Latest pages | ${SCRAPER_MAX_PAGES} |"
-            echo "| Early stop | ${SCRAPER_EARLY_STOP} |"
-            echo "| Exit status | ${status} (${conclusion}) |"
-            echo "| Completed at | ${completed_at} |"
-            echo
-
-            if [ -f scraper-latest.log ]; then
-              python - <<'PY'
-          import re
-          from pathlib import Path
-
-          log_path = Path("scraper-latest.log")
-          text = log_path.read_text(encoding="utf-8", errors="replace")
-          lines = text.splitlines()
-
-          clean_re = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
-          def clean(value: str) -> str:
-              return clean_re.sub("", value)
-
-          source_re = re.compile(r"Scraper:\s+([a-z_]+)\s+\(")
-          done_re = re.compile(
-              r"Selesai scraper ([a-z_]+): "
-              r"(\d+) pages, (\d+) listing items, (\d+) candidates, "
-              r"(\d+) unchanged, (\d+) comics, (\d+) chapter metadata, "
-              r"(\d+) chapter images pre-warmed, (\d+) push events, "
-              r"(\d+) push messages, (\d+) skipped, (\d+) errors"
-          )
-          update_re = re.compile(r"Done:\s+(.+?)\s+[—-]\s+(\d+) chapters metadata,\s+(\d+) images pre-warmed")
-          summaries = []
-          updates = []
-          errors = []
-          current_source = "unknown"
-
-          for raw_line in lines:
-              line = clean(raw_line)
-              source_match = source_re.search(line)
-              if source_match:
-                  current_source = source_match.group(1)
-
-              done_match = done_re.search(line)
-              if done_match:
-                  summaries.append(done_match.groups())
-
-              update_match = update_re.search(line)
-              if update_match and len(updates) < 5:
-                  title, chapters, images = update_match.groups()
-                  updates.append((current_source, title.strip(), chapters, images))
-
-              lowered = line.lower()
-              nonzero_error_count = re.search(r"\b[1-9][0-9]* errors\b", lowered) is not None
-              if (
-                  " error " in f" {lowered} "
-                  or nonzero_error_count
-                  or "failed:" in lowered
-                  or "gagal" in lowered
-                  or "✗" in line
-              ):
-                  errors.append(line)
-
-          if summaries:
-              print("### Per-source latest results")
-              print()
-              print("| Source | Pages | Listing | Candidates | Unchanged | Comics updated | Chapter metadata | Images pre-warmed | Push events | Push queued | Skipped | Errors |")
-              print("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
-              for row in summaries:
-                  source, pages, listing, candidates, unchanged, comics, meta, images, push_events, push_messages, skipped, errs = row
-                  print(f"| {source} | {pages} | {listing} | {candidates} | {unchanged} | {comics} | {meta} | {images} | {push_events} | {push_messages} | {skipped} | {errs} |")
-              print()
-
-          if summaries:
-              totals = {
-                  "Pages": 0,
-                  "Listing": 0,
-                  "Candidates": 0,
-                  "Unchanged": 0,
-                  "Comics": 0,
-                  "Chapter meta": 0,
-                  "Pre-warmed": 0,
-                  "Push events": 0,
-                  "Push queued": 0,
-                  "Skipped": 0,
-                  "Errors": 0,
-              }
-              for row in summaries:
-                  _, pages, listing, candidates, unchanged, comics, meta, images, push_events, push_messages, skipped, errs = row
-                  totals["Pages"] += int(pages)
-                  totals["Listing"] += int(listing)
-                  totals["Candidates"] += int(candidates)
-                  totals["Unchanged"] += int(unchanged)
-                  totals["Comics"] += int(comics)
-                  totals["Chapter meta"] += int(meta)
-                  totals["Pre-warmed"] += int(images)
-                  totals["Push events"] += int(push_events)
-                  totals["Push queued"] += int(push_messages)
-                  totals["Skipped"] += int(skipped)
-                  totals["Errors"] += int(errs)
-
-              print("### Aggregate totals")
-              print()
-              print("| Metric | Value |")
-              print("|---|---:|")
-              for key in ("Pages", "Listing", "Candidates", "Unchanged", "Comics", "Chapter meta", "Pre-warmed", "Push events", "Push queued", "Skipped", "Errors"):
-                  print(f"| {key} | {totals[key]} |")
-              print()
-
-          print("### Sample updated comics")
-          print()
-          if updates:
-              print("| Source | Comic | Chapter metadata | Images pre-warmed |")
-              print("|---|---|---:|---:|")
-              for source, title, chapters, images in updates:
-                  title = title.replace("|", "\\|")
-                  print(f"| {source} | {title} | {chapters} | {images} |")
-          else:
-              print("No updated comics were logged in this run.")
-          print()
-
-          if errors:
-              print("### Error lines")
-              print()
-              print("```text")
-              for line in errors[-40:]:
-                  print(line)
-              print("```")
-              print()
-          PY
-
-              echo "### Recent scraper log"
-              echo
-              echo '```text'
-              tail -n 120 scraper-latest.log
-              echo '```'
-            else
-              echo "No scraper log was produced."
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          echo "Scraper workflow finished at $(date -u)"
+          PYTHONPATH=backend python -m scraper.report_summary \
+            --log-file scraper-latest.log \
+            --status-file scraper-latest.status \
+            --mode latest \
+            --trigger-source "${{ github.event.inputs.trigger_source || github.event_name }}" \
+            --source "${{ github.event.inputs.source || 'all' }}" \
+            --max-pages "${{ github.event.inputs.max_pages || 'default' }}" \
+            --early-stop "${{ github.event.inputs.early_stop || 'default' }}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: 📎 Upload scraper log
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: scraper-latest-log
-          path: scraper-latest.log
+          path: |
+            scraper-latest.log
+            backend/scraper-latest.log
           if-no-files-found: ignore

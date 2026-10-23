@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, patch
 import httpx
 
 from app.services.image_service import (
+    IMAGE_DIMENSION_PROBE_MAX_BYTES,
     ImageProxyFetchResult,
     _parse_avif_dimensions,
     _parse_jpeg_dimensions,
@@ -124,7 +125,7 @@ class ImageDimensionTests(unittest.IsolatedAsyncioTestCase):
             dimensions = await probe_image_dimensions(client, image_url)
 
         self.assertEqual(dimensions, (720, 1280))
-        fetch_fallback.assert_awaited_once_with(image_url)
+        fetch_fallback.assert_awaited_once_with(image_url, max_bytes=IMAGE_DIMENSION_PROBE_MAX_BYTES)
 
     async def test_probe_uses_scrapling_fallback_for_cdn_voratoon_404(self):
         client = _FakeClient(b"not found", status_code=404)
@@ -148,7 +149,7 @@ class ImageDimensionTests(unittest.IsolatedAsyncioTestCase):
             dimensions = await probe_image_dimensions(client, image_url)
 
         self.assertEqual(dimensions, (800, 1200))
-        fetch_fallback.assert_awaited_once_with(image_url)
+        fetch_fallback.assert_awaited_once_with(image_url, max_bytes=IMAGE_DIMENSION_PROBE_MAX_BYTES)
 
 
 if __name__ == "__main__":

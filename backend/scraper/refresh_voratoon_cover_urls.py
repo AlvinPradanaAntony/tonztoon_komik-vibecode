@@ -3,7 +3,7 @@ Tonztoon Komik — Refresh Voratoon Cover URLs
 
 Voratoon cover images are short-lived signed MinIO/S3 URLs (`X-Amz-Expires=86400`).
 This script refreshes `comics.cover_image_url` for source `voratoon` by resolving the
-latest `coverImage` from the Voratoon JSON API (`https://api.voratoon.com`).
+latest `coverImage` from the Voratoon API proxy (`https://voratoon.co/api/proxy`).
 
 Mode operasi:
 - Batch once, cocok untuk lokal manual atau cron.

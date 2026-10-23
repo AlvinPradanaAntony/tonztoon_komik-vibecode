@@ -135,18 +135,14 @@ async def main(argv: list[str]) -> None:
         )
         time_str = _format_datetime(stat.last_refreshed_at)
         if stat.last_error:
-            err_msg = (
-                stat.last_error.split(":")[0]
-                if ":" in stat.last_error
-                else stat.last_error[:30]
-            )
+            err_msg = stat.last_error.split("\n")[0][:35].strip()
             print(
-                f"  {icon} {label:<14} : {count_str} komik  │  Refreshed: {time_str}  │  ⚠️  [Gagal: {err_msg}]",
+                f"  {icon} {label:<14} : {count_str} komik  |  Refreshed: {time_str}  |  ❌ [Gagal: {err_msg}]",
                 flush=True,
             )
         else:
             print(
-                f"  {icon} {label:<14} : {count_str} komik  │  Refreshed: {time_str}  │  ✅  [Sukses]",
+                f"  {icon} {label:<14} : {count_str} komik  |  Refreshed: {time_str}  |  ✅ [Sukses]",
                 flush=True,
             )
     print("═" * banner_width, flush=True)

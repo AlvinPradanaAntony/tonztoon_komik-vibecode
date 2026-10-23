@@ -63,14 +63,7 @@ IMAGE_PROXY_DEFAULT_ALLOWED_HOST_SUFFIXES = (
     "yuucdn.com",
     "voratoon.com",
     "voratoon.id",
-    "cvr.voratoon.id",
-    "cdn.voratoon.com",
-    "api.voratoon.com",
-    "v1.voratoon.com",
-    "v2.voratoon.com",
-    "v3.voratoon.com",
-    "v4.voratoon.com",
-    "v5.voratoon.com",
+    "voratoon.co",
 )
 
 # Mapping host suffix -> Referer header yang benar untuk masing-masing source.
@@ -82,20 +75,27 @@ REFERER_BY_HOST_SUFFIX = {
     "cdnkomiku.xyz": "https://01.komiku.asia/",
     "shinigami.asia": "https://e.shinigami.asia/",
     "shngm.id": "https://e.shinigami.asia/",
-    "voratoon.com": "https://v5.voratoon.com/",
-    "voratoon.id": "https://v5.voratoon.com/",
-    "cdn.voratoon.com": "https://v5.voratoon.com/",
-    "cvr.voratoon.id": "https://v5.voratoon.com/",
+    "voratoon.com": "https://voratoon.co/",
+    "voratoon.id": "https://voratoon.co/",
+    "voratoon.co": "https://voratoon.co/",
     "kiryuu.to": "https://v7.kiryuu.to/",
     "yuucdn.com": "https://v7.kiryuu.to/",
 }
 SCRAPLING_IMAGE_FALLBACK_STATUSES = {
     # Komiku's CDN challenge is commonly returned as 403.
     "cdnkomiku.xyz": frozenset({403}),
-    # Voratoon has legacy image paths that can return 404 to httpx while a
-    # browser-like request may still resolve the asset.
-    "cdn.voratoon.com": frozenset({403, 404}),
+    # Voratoon CDN paths return 403 or 404 to httpx/plain clients without browser TLS / session
+    "voratoon.com": frozenset({403, 404}),
+    "voratoon.id": frozenset({403, 404}),
+    "voratoon.co": frozenset({403, 404}),
 }
+SCRAPLING_PREFERRED_HOST_SUFFIXES = (
+    "voratoon.com",
+    "voratoon.id",
+    "voratoon.co",
+    "cdnkomiku.xyz",
+)
+
 
 
 class ImageProxyValidationError(ValueError):
@@ -271,7 +271,7 @@ def validate_proxy_image_url(image_url: str) -> str:
 
     DNS resolution is handled separately so redirects can be validated per-hop.
     """
-    cleaned = image_url.strip()
+    cleaned = normalize_voratoon_image_url(image_url.strip())
     parsed = urlparse(cleaned)
     if parsed.scheme.lower() not in IMAGE_PROXY_ALLOWED_SCHEMES:
         raise ImageProxyValidationError("Image URL scheme is not allowed.")
@@ -387,13 +387,13 @@ def _referer_for_image_url(image_url: str) -> str:
     except ImageProxyValidationError:
         host = parsed.netloc.lower()
 
-    if _host_matches_suffix(host, "voratoon.com") or _host_matches_suffix(host, "voratoon.id"):
+    if _host_matches_suffix(host, "voratoon.com") or _host_matches_suffix(host, "voratoon.id") or _host_matches_suffix(host, "voratoon.co"):
         try:
             from scraper.sources.voratoon_api import get_voratoon_base_url
 
             return f"{get_voratoon_base_url()}/"
         except Exception:
-            return "https://v5.voratoon.com/"
+            return "https://voratoon.co/"
 
     if _host_matches_suffix(host, "kiryuu.to") or _host_matches_suffix(host, "yuucdn.com"):
         try:
@@ -429,37 +429,96 @@ def _should_try_scrapling_image_fallback(image_url: str, status_code: int) -> bo
     )
 
 
+def normalize_voratoon_image_url(image_url: str) -> str:
+    """Normalisasi URL gambar Voratoon CDN agar path wp-content/img tidak mengandung spasi mentah."""
+    if "cdn.voratoon.com/wp-content/img/" in image_url and " " in image_url:
+        return re.sub(
+            r"(cdn\.voratoon\.com/wp-content/img/[^?#]+)",
+            lambda m: m.group(1).replace(" ", "_"),
+            image_url,
+        )
+    return image_url
+
+
+def _is_scrapling_preferred_image_host(image_url: str) -> bool:
+    """True jika domain gambar diketahui memblokir httpx dan membutuhkan browser TLS/Scrapling."""
+    try:
+        host = _normalize_hostname(urlparse(image_url).hostname)
+        return any(
+            _host_matches_suffix(host, suffix)
+            for suffix in SCRAPLING_PREFERRED_HOST_SUFFIXES
+        )
+    except Exception:
+        return False
+
+
 async def _fetch_image_via_scrapling(
     image_url: str,
+    *,
+    max_bytes: int | None = None,
 ) -> ImageProxyFetchResult | None:
     """
     Retry protected/legacy CDN images through Scrapling's browser-like headers.
 
     The fallback is scoped to known source CDNs and only used for their
-    configured HTTP statuses.
+    configured HTTP statuses. Mendukung Cloudflare DoH, proxy session handshake
+    cookies (vt_proxy), TLS Chrome impersonation, dan Range header untuk probe dimensi.
     """
+    image_url = normalize_voratoon_image_url(image_url)
+    action_label = "probe dimensi" if max_bytes is not None else "proxy image"
     try:
         from scrapling.fetchers import Fetcher
+
+        parsed_host = _normalize_hostname(urlparse(image_url).hostname)
+        headers = {
+            **get_proxy_headers(image_url),
+            "Accept": "image/avif,image/webp,image/apng,image/svg+xml,"
+            "image/*,*/*;q=0.8",
+        }
+        if max_bytes is not None and max_bytes > 0:
+            headers["Range"] = f"bytes=0-{max_bytes - 1}"
+
+        cookies: dict[str, str] = {}
+
+        if (
+            _host_matches_suffix(parsed_host, "voratoon.com")
+            or _host_matches_suffix(parsed_host, "voratoon.id")
+            or _host_matches_suffix(parsed_host, "voratoon.co")
+        ):
+            try:
+                from scraper.sources.voratoon_api import (
+                    ensure_voratoon_dns_configured,
+                    ensure_voratoon_session,
+                    get_voratoon_base_url,
+                )
+
+                ensure_voratoon_dns_configured()
+                cookies = await asyncio.to_thread(ensure_voratoon_session)
+                headers["Origin"] = get_voratoon_base_url()
+            except Exception as exc:
+                logger.debug(
+                    "Gagal inisialisasi session Voratoon untuk image %s: %s",
+                    image_url,
+                    exc,
+                )
 
         page = await asyncio.to_thread(
             Fetcher.get,
             image_url,
             stealthy_headers=True,
-            headers={
-                **get_proxy_headers(image_url),
-                "Accept": "image/avif,image/webp,image/apng,image/svg+xml,"
-                "image/*,*/*;q=0.8",
-            },
+            headers=headers,
+            cookies=cookies,
             timeout=30_000,
         )
     except Exception as exc:
-        logger.warning("Scrapling image fallback gagal untuk %s: %s", image_url, exc)
+        logger.debug("Scrapling %s gagal untuk %s: %s", action_label, image_url, exc)
         return None
 
     status = getattr(page, "status", None)
-    if status != 200:
-        logger.warning(
-            "Scrapling image fallback mendapat status %s untuk %s",
+    if status not in (200, 206):
+        logger.debug(
+            "Scrapling %s mendapat HTTP %s untuk %s",
+            action_label,
             status,
             image_url,
         )
@@ -485,12 +544,12 @@ async def _fetch_image_via_scrapling(
     }
     validate_image_response_headers(response_headers)
     response = httpx.Response(
-        status_code=200,
+        status_code=status or 200,
         headers=response_headers,
         content=body,
         request=httpx.Request("GET", image_url),
     )
-    logger.info("Scrapling image fallback berhasil untuk %s", image_url)
+    logger.debug("Scrapling %s berhasil untuk %s (status %s, size %d bytes)", action_label, image_url, status, len(body))
     return ImageProxyFetchResult(
         response=response,
         url=image_url,
@@ -521,57 +580,25 @@ async def fetch_voratoon_cover_url_for_slug(
     slug = slug.strip()
     if not slug:
         return None
-    api_url = f"https://api.voratoon.com/series/{slug}?includeMeta=true"
+
     try:
-        from scraper.sources.voratoon_api import get_voratoon_base_url
+        from scraper.sources.voratoon_api import (
+            build_voratoon_series_detail_url,
+            extract_cover_from_src,
+            fetch_voratoon_api_json,
+        )
 
-        voratoon_base = get_voratoon_base_url()
+        api_url = build_voratoon_series_detail_url(slug, include_meta=True)
+        payload = await fetch_voratoon_api_json(api_url)
+        item = payload.get("data") or {}
+        item_data = item.get("data") or {}
+        fresh = item_data.get("coverImage") or item_data.get("cover")
+        if fresh and isinstance(fresh, str):
+            resolved = extract_cover_from_src(fresh)
+            if resolved:
+                return resolved.strip()
     except Exception:
-        voratoon_base = "https://v5.voratoon.com"
-
-    headers = {
-        "User-Agent": DEFAULT_USER_AGENT,
-        "Accept": "application/json, text/plain, */*",
-        "Referer": f"{voratoon_base}/series/{slug}",
-        "Origin": voratoon_base,
-        "Sec-Fetch-Dest": "empty",
-        "Sec-Fetch-Mode": "cors",
-        "Sec-Fetch-Site": "cross-site",
-    }
-    try:
-        res = await client.get(api_url, headers=headers, timeout=15.0, follow_redirects=True)
-        if res.status_code == 200:
-            payload = res.json()
-            item = payload.get("data") or {}
-            item_data = item.get("data") or {}
-            fresh = item_data.get("coverImage") or item_data.get("cover")
-            if fresh and isinstance(fresh, str):
-                return fresh.strip()
-    except Exception:
-        logger.debug("Httpx failed for voratoon cover slug %s, trying scrapling", slug, exc_info=True)
-
-    # Fallback via Scrapling Fetcher
-    try:
-        from scrapling.fetchers import Fetcher
-
-        def _do_fetch():
-            return Fetcher.get(
-                api_url,
-                headers=headers,
-                stealthy_headers=True,
-                timeout=20,
-            )
-
-        page = await asyncio.to_thread(_do_fetch)
-        if getattr(page, "status", None) == 200:
-            payload = page.json()
-            item = payload.get("data") or {}
-            item_data = item.get("data") or {}
-            fresh = item_data.get("coverImage") or item_data.get("cover")
-            if fresh and isinstance(fresh, str):
-                return fresh.strip()
-    except Exception:
-        logger.debug("Failed on-demand refresh of cover for slug %s", slug, exc_info=True)
+        logger.debug("Failed API fetch for voratoon cover slug %s", slug, exc_info=True)
 
     return None
 
@@ -815,7 +842,7 @@ def normalize_chapter_image(image: dict[str, Any]) -> dict[str, Any]:
     """Simpan hanya kontrak JSONB reader dan pertahankan dimensi valid."""
     normalized = {
         "page": image["page"],
-        "url": image["url"],
+        "url": normalize_voratoon_image_url(image["url"]),
     }
     width = _positive_dimension(image.get("width"))
     height = _positive_dimension(image.get("height"))
@@ -991,7 +1018,25 @@ async def probe_image_dimensions(
     client: httpx.AsyncClient,
     image_url: str,
 ) -> tuple[int, int] | None:
-    """Baca metadata dimensi dari awal stream tanpa mengunduh seluruh gambar."""
+    """Baca metadata dimensi dari awal stream tanpa mengunduh seluruh gambar.
+
+    Untuk host yang memerlukan impersonasi browser (seperti Voratoon CDN dan cdnkomiku),
+    gunakan Scrapling Fetcher secara langsung untuk menghindari error HTTP 403 dari httpx.
+    """
+    image_url = normalize_voratoon_image_url(image_url)
+    if _is_scrapling_preferred_image_host(image_url):
+        scrapling_result = await _fetch_image_via_scrapling(
+            image_url, max_bytes=IMAGE_DIMENSION_PROBE_MAX_BYTES
+        )
+        if scrapling_result is None:
+            return None
+        try:
+            return _parse_image_dimensions_from_bytes(
+                scrapling_result.response.content
+            )
+        finally:
+            await scrapling_result.response.aclose()
+
     headers = {
         **get_proxy_headers(image_url),
         "Range": f"bytes=0-{IMAGE_DIMENSION_PROBE_MAX_BYTES - 1}",
@@ -1015,7 +1060,7 @@ async def probe_image_dimensions(
                     image_url,
                 )
                 await response.aclose()
-                scrapling_result = await _fetch_image_via_scrapling(image_url)
+                scrapling_result = await _fetch_image_via_scrapling(image_url, max_bytes=IMAGE_DIMENSION_PROBE_MAX_BYTES)
                 if scrapling_result is None:
                     return None
                 try:

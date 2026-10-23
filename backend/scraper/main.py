@@ -1508,15 +1508,31 @@ async def run_scraper(
 
             except Exception as e:
                 stats.total_errors += 1
-                logger.error(f"  ✗ Scraper {scraper.SOURCE_NAME} failed: {e}")
+                error_msg = f"{type(e).__name__}: {e}"
+                logger.error(f"  ✗ Scraper {scraper.SOURCE_NAME} failed: {error_msg}")
                 await session.rollback()
                 # Mark error
                 async with async_session() as stat_session:
                     await update_source_status(
                         stat_session,
                         scraper.SOURCE_NAME,
-                        last_error=f"{type(e).__name__}: {e}",
+                        last_error=error_msg,
                     )
+                logger.info(
+                    f"  ⚠️ Selesai scraper {scraper.SOURCE_NAME}: "
+                    f"{stats.total_pages_scanned - scraper_start_pages} pages, "
+                    f"{stats.total_listing_items - scraper_start_listing} listing items, "
+                    f"{stats.total_candidates - scraper_start_candidates} candidates, "
+                    f"{stats.total_unchanged_listing - scraper_start_unchanged} unchanged, "
+                    f"{stats.total_comics - scraper_start_comics} comics, "
+                    f"{stats.total_chapters_meta - scraper_start_meta} chapter metadata, "
+                    f"{stats.total_chapters_images - scraper_start_images} chapter images pre-warmed, "
+                    f"{stats.total_push_events - scraper_start_push_events} push events, "
+                    f"{stats.total_push_messages - scraper_start_push_messages} push messages, "
+                    f"{stats.total_skipped - scraper_start_skipped} skipped, "
+                    f"{stats.total_errors - scraper_start_errors} errors"
+                )
+                logger.error(f"  ❌ Last error {scraper.SOURCE_NAME}: {error_msg}")
                 continue
             finally:
                 try:

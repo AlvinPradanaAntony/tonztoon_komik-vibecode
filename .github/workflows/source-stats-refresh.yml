@@ -49,6 +49,13 @@ jobs:
       - name: 🌐 Install Scrapling browser dependencies
         run: scrapling install
 
+      - name: 🔐 Validate database configuration
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          cd backend
+          python -m scraper.validate_config --db-only
+
       - name: 📊 Refresh source stats
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -68,101 +75,32 @@ jobs:
 
             printf 'Running source stats refresh with args:'
             printf ' %q' "${args[@]}"
-            printf '\n'
+            echo ""
 
-            if [ "${SOURCE_FILTER}" = "komiku_asia" ]; then
-              echo "Running komiku_asia through xvfb."
-              xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.refresh_source_stats "${args[@]}"
-            elif [ -z "${SOURCE_FILTER}" ] || [ "${SOURCE_FILTER}" = "all" ]; then
-              echo "Running non-komiku_asia sources without xvfb."
-              python -m scraper.refresh_source_stats --source komiku,voratoon,shinigami
-              echo "Running komiku_asia through xvfb."
-              xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.refresh_source_stats --source komiku_asia
-            else
-              echo "komiku_asia is not included; running without xvfb."
-              python -m scraper.refresh_source_stats "${args[@]}"
-            fi
+            echo "Running source stats refresh through xvfb..."
+            xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.refresh_source_stats "${args[@]}"
           } 2>&1 | tee source-stats-refresh.log
+
           status=${PIPESTATUS[0]}
           echo "${status}" > source-stats-refresh.status
           exit "${status}"
 
       - name: 📝 Write source stats summary
         if: always()
-        env:
-          TRIGGER_SOURCE: ${{ github.event.inputs.trigger_source || github.event_name }}
-          SOURCE_FILTER: ${{ github.event.inputs.source || '' }}
         run: |
-          set -euo pipefail
-
-          completed_at="$(date -u +'%Y-%m-%d %H:%M:%S UTC')"
-          source_filter="${SOURCE_FILTER:-}"
-          if [ -z "${source_filter}" ]; then
-            source_filter="<all sources>"
-          fi
-
-          status="unknown"
-          if [ -f source-stats-refresh.status ]; then
-            status="$(cat source-stats-refresh.status)"
-          fi
-
-          result_errors="false"
-          if [ -f source-stats-refresh.log ] && awk '/last_error=/ && $0 !~ /last_error=None$/ && $0 !~ /last_error=$/ { found=1 } END { exit found ? 0 : 1 }' source-stats-refresh.log; then
-            result_errors="true"
-          fi
-
-          if [ "${status}" = "0" ] && [ "${result_errors}" = "false" ]; then
-            conclusion="success"
-          elif [ "${status}" = "0" ]; then
-            conclusion="completed_with_errors"
-          else
-            conclusion="failed"
-          fi
-
-          {
-            echo "## 📊 Source stats refresh summary"
-            echo
-            echo "| Metric | Value |"
-            echo "|---|---|"
-            echo "| Trigger source | ${TRIGGER_SOURCE} |"
-            echo "| Source filter | ${source_filter} |"
-            echo "| Exit status | ${status} (${conclusion}) |"
-            echo "| Completed at | ${completed_at} |"
-            echo
-
-            if [ -f source-stats-refresh.log ]; then
-              echo "### Result rows"
-              echo
-              echo '```text'
-              grep -E "^[a-z_]+: count=.*last_refreshed_at=.*last_error=" source-stats-refresh.log || true
-              echo '```'
-              echo
-
-              if [ "${result_errors}" = "true" ]; then
-                echo "### Source errors"
-                echo
-                echo '```text'
-                awk '/last_error=/ && $0 !~ /last_error=None$/ && $0 !~ /last_error=$/ { print }' source-stats-refresh.log || true
-                echo '```'
-                echo
-              fi
-
-              echo "### Recent refresh log"
-              echo
-              echo '```text'
-              tail -n 120 source-stats-refresh.log
-              echo '```'
-            else
-              echo "No source stats refresh log was produced."
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          echo "Source stats workflow finished at $(date -u)"
+          PYTHONPATH=backend python -m scraper.report_summary \
+            --log-file source-stats-refresh.log \
+            --status-file source-stats-refresh.status \
+            --mode stats \
+            --trigger-source "${{ github.event.inputs.trigger_source || github.event_name }}" \
+            --source "${{ github.event.inputs.source || '' }}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: 📎 Upload source stats log
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: source-stats-refresh-log
-          path: source-stats-refresh.log
+          path: |
+            source-stats-refresh.log
+            backend/source-stats-refresh.log
           if-no-files-found: ignore

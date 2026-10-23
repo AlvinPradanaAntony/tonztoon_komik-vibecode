@@ -9,7 +9,6 @@ from app.services.image_service import (
 )
 from scraper.sources.registry import (
     create_scraper,
-    get_all_source_metadata,
     get_source_metadata,
     get_supported_source_names,
 )
@@ -21,8 +20,10 @@ from scraper.sources.voratoon_api import (
     build_voratoon_popular_url,
     build_voratoon_series_chapters_url,
     build_voratoon_series_detail_url,
+    build_voratoon_series_index_params,
     build_voratoon_series_index_url,
     coalesce_voratoon_total_view,
+    extract_cover_from_src,
     extract_voratoon_chapter_identity,
     extract_voratoon_series_slug,
     normalize_voratoon_web_url,
@@ -35,29 +36,42 @@ class VoratoonApiHelperTests(unittest.TestCase):
     def test_normalize_voratoon_web_url(self):
         self.assertEqual(
             normalize_voratoon_web_url("https://v1.voratoon.com/series/comic-a"),
-            "https://v5.voratoon.com/series/comic-a",
+            f"{VORATOON_BASE_URL}/series/comic-a",
         )
         self.assertEqual(
             normalize_voratoon_web_url("https://voratoon.com/series/comic-b/chapter/10"),
-            "https://v5.voratoon.com/series/comic-b/chapter/10",
+            f"{VORATOON_BASE_URL}/series/comic-b/chapter/10",
         )
         self.assertEqual(
             normalize_voratoon_web_url("https://voratoon.id/series/comic-c"),
-            "https://v5.voratoon.com/series/comic-c",
+            f"{VORATOON_BASE_URL}/series/comic-c",
         )
         self.assertEqual(
             normalize_voratoon_web_url("https://v4.voratoon.com/series/comic-d"),
-            "https://v5.voratoon.com/series/comic-d",
+            f"{VORATOON_BASE_URL}/series/comic-d",
         )
-        self.assertEqual(normalize_voratoon_web_url(None), "https://v5.voratoon.com/")
+        self.assertEqual(normalize_voratoon_web_url(None), f"{VORATOON_BASE_URL}/")
+
+    def test_extract_cover_from_src(self):
+        direct = "https://cvr.voratoon.id/prod/series/test/cover/cover.webp"
+        self.assertEqual(extract_cover_from_src(direct), direct)
+
+        proxy_src = (
+            "https://voratoon.co/api/cover?src="
+            "https%3A%2F%2Fcvr.voratoon.id%2Fprod%2Fseries%2Ftest%2Fcover%2Fcover.webp&w=384&q=75"
+        )
+        self.assertEqual(extract_cover_from_src(proxy_src), direct)
+        self.assertIsNone(extract_cover_from_src(None))
+        self.assertIsNone(extract_cover_from_src("   "))
 
     def test_build_voratoon_api_headers_normalizes_referer(self):
         headers = build_voratoon_api_headers("https://v1.voratoon.com/series/sample/chapter/65")
         self.assertEqual(
             headers["Referer"],
-            "https://v5.voratoon.com/series/sample/chapter/65",
+            f"{VORATOON_BASE_URL}/series/sample/chapter/65",
         )
-        self.assertEqual(headers["Origin"], "https://v5.voratoon.com")
+        self.assertEqual(headers["Origin"], VORATOON_BASE_URL)
+        self.assertIn("application/json", headers["Accept"])
 
     def test_extract_series_slug(self):
         url = "https://v1.voratoon.com/series/gomi-ika-da-to-tsuihou-sareta-shiyounin"
@@ -65,6 +79,9 @@ class VoratoonApiHelperTests(unittest.TestCase):
             extract_voratoon_series_slug(url),
             "gomi-ika-da-to-tsuihou-sareta-shiyounin",
         )
+
+        with self.assertRaises(ValueError):
+            extract_voratoon_series_slug("https://voratoon.co/about")
 
     def test_extract_chapter_identity(self):
         url = "https://v1.voratoon.com/series/demon-x-angel/chapter/135.1"
@@ -77,12 +94,18 @@ class VoratoonApiHelperTests(unittest.TestCase):
         self.assertEqual(slug2, "demo")
         self.assertEqual(ch2, "65")
 
+        with self.assertRaises(ValueError):
+            extract_voratoon_chapter_identity("https://voratoon.co/series/only-series")
+
     def test_parse_iso_datetime(self):
         dt = parse_voratoon_iso_datetime("2026-08-15T03:22:32.352+00:00")
         self.assertIsNotNone(dt)
         self.assertEqual(dt.year, 2026)
         self.assertEqual(dt.month, 8)
         self.assertEqual(dt.day, 15)
+
+        self.assertIsNone(parse_voratoon_iso_datetime("invalid-date"))
+        self.assertIsNone(parse_voratoon_iso_datetime(None))
 
     def test_coalesce_total_view(self):
         total = coalesce_voratoon_total_view(
@@ -92,11 +115,26 @@ class VoratoonApiHelperTests(unittest.TestCase):
         )
         self.assertEqual(total, 15000)
 
+        # Fallback to totalViewsComputed
+        total_computed = coalesce_voratoon_total_view(
+            item_data={},
+            item_metadata={},
+            item_data_metadata={"totalViewsComputed": "9999"},
+        )
+        self.assertEqual(total_computed, 9999)
+
+        # Empty returns None
+        self.assertIsNone(coalesce_voratoon_total_view(item_data={}, item_metadata={}, item_data_metadata={}))
+
     def test_url_builders(self):
         index_url = build_voratoon_series_index_url(page=2, take=24, sort="latest")
         self.assertIn("page=2", index_url)
         self.assertIn("take=24", index_url)
         self.assertIn(VORATOON_API_BASE_URL, index_url)
+
+        search_url = build_voratoon_series_index_url(page=1, query="solo leveling")
+        self.assertIn("filter=", search_url)
+        self.assertIn("solo+leveling", search_url)
 
         popular_url = build_voratoon_popular_url(page=1, take=20)
         self.assertIn("/series/most-read", popular_url)
@@ -109,6 +147,9 @@ class VoratoonApiHelperTests(unittest.TestCase):
 
         chapter_detail_url = build_voratoon_chapter_detail_url("sample-slug", "11")
         self.assertEqual(chapter_detail_url, f"{VORATOON_API_BASE_URL}/series/sample-slug/chapters/11")
+
+        chapter_decimal_url = build_voratoon_chapter_detail_url("sample-slug", "15.0")
+        self.assertEqual(chapter_decimal_url, f"{VORATOON_API_BASE_URL}/series/sample-slug/chapters/15")
 
 
 class VoratoonScraperRegistryTests(unittest.TestCase):
@@ -143,9 +184,18 @@ class VoratoonImageProxySecurityTests(unittest.TestCase):
         v2_url = "https://v2.voratoon.com/logo.png"
         self.assertEqual(validate_proxy_image_url(v2_url), v2_url)
 
+        v10_url = "https://v10.voratoon.com/logo.png"
+        self.assertEqual(validate_proxy_image_url(v10_url), v10_url)
+
+        v11_url = "https://11.voratoon.com/logo.png"
+        self.assertEqual(validate_proxy_image_url(v11_url), v11_url)
+
+        co_url = "https://voratoon.co/logo.png"
+        self.assertEqual(validate_proxy_image_url(co_url), co_url)
+
     def test_voratoon_referer_header(self):
         headers = get_proxy_headers("https://cdn.voratoon.com/wp-content/img/sample/001/01.jpg")
-        self.assertEqual(headers.get("Referer"), "https://v5.voratoon.com/")
+        self.assertEqual(headers.get("Referer"), f"{VORATOON_BASE_URL}/")
 
 
 class VoratoonScraperFlowTests(unittest.IsolatedAsyncioTestCase):
@@ -157,6 +207,11 @@ class VoratoonScraperFlowTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(self.scraper, "_fetch_api_json", new=AsyncMock(return_value=mock_payload)):
             count = await self.scraper.get_source_comic_count()
             self.assertEqual(count, 10338)
+
+    async def test_get_source_comic_count_returns_none_on_error(self):
+        with patch.object(self.scraper, "_fetch_api_json", new=AsyncMock(side_effect=RuntimeError("API error"))):
+            count = await self.scraper.get_source_comic_count()
+            self.assertIsNone(count)
 
     async def test_get_latest_updates(self):
         mock_payload = {
@@ -171,6 +226,7 @@ class VoratoonScraperFlowTests(unittest.IsolatedAsyncioTestCase):
                         "format": "manga",
                         "rating": "8.5",
                         "genres": [{"data": {"name": "Action"}}],
+                        "totalChapters": 25,
                     },
                     "dataMetadata": {"totalViewsComputed": "1500"},
                 }
@@ -185,6 +241,84 @@ class VoratoonScraperFlowTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(items[0]["type"], "manga")
             self.assertEqual(items[0]["rating"], 8.5)
             self.assertEqual(items[0]["genres"], ["Action"])
+            self.assertEqual(items[0]["latest_chapter"], "Chapter 25")
+            self.assertEqual(items[0]["latest_chapter_number"], 25.0)
+
+    async def test_get_popular(self):
+        mock_payload = {
+            "data": [
+                {
+                    "id": 10222,
+                    "data": {
+                        "slug": "popular-comic",
+                        "title": "Popular Comic",
+                        "coverImage": "https://cvr.voratoon.id/pop.webp",
+                        "status": "ongoing",
+                        "format": "manhwa",
+                        "rating": "9.5",
+                        "genres": [{"data": {"name": "Fantasy"}}],
+                    },
+                    "dataMetadata": {"totalViewsComputed": "50000"},
+                }
+            ]
+        }
+        with patch.object(self.scraper, "_fetch_api_json", new=AsyncMock(return_value=mock_payload)):
+            items = await self.scraper.get_popular(page=1)
+            self.assertEqual(len(items), 1)
+            self.assertEqual(items[0]["title"], "Popular Comic")
+            self.assertEqual(items[0]["type"], "manhwa")
+            self.assertEqual(items[0]["rating"], 9.5)
+            self.assertEqual(items[0]["total_view"], 50000)
+
+    async def test_get_comic_list(self):
+        mock_payload = {
+            "data": [
+                {
+                    "id": 10333,
+                    "data": {
+                        "slug": "alpha-comic",
+                        "title": "Alpha Comic",
+                        "coverImage": "https://cvr.voratoon.id/alpha.webp",
+                        "status": "completed",
+                        "format": "manhua",
+                        "rating": "7.0",
+                    },
+                    "dataMetadata": {"totalViewsComputed": "1200"},
+                }
+            ]
+        }
+        with patch.object(self.scraper, "_fetch_api_json", new=AsyncMock(return_value=mock_payload)):
+            items = await self.scraper.get_comic_list(page=1)
+            self.assertEqual(len(items), 1)
+            self.assertEqual(items[0]["title"], "Alpha Comic")
+            self.assertEqual(items[0]["type"], "manhua")
+            self.assertEqual(items[0]["status"], "completed")
+
+    async def test_search(self):
+        mock_payload = {
+            "data": [
+                {
+                    "id": 10444,
+                    "data": {
+                        "slug": "magic-emperor",
+                        "title": "Magic Emperor",
+                        "coverImage": "https://cvr.voratoon.id/magic.webp",
+                        "status": "ongoing",
+                        "format": "manhua",
+                        "rating": "9.2",
+                    },
+                }
+            ]
+        }
+        with patch.object(self.scraper, "_fetch_api_json", new=AsyncMock(return_value=mock_payload)):
+            items = await self.scraper.search("magic", page=1)
+            self.assertEqual(len(items), 1)
+            self.assertEqual(items[0]["title"], "Magic Emperor")
+            self.assertEqual(items[0]["slug"], "magic-emperor")
+
+    async def test_search_empty_query_returns_empty(self):
+        items = await self.scraper.search("   ", page=1)
+        self.assertEqual(items, [])
 
     async def test_get_comic_detail(self):
         mock_detail = {
@@ -234,6 +368,14 @@ class VoratoonScraperFlowTests(unittest.IsolatedAsyncioTestCase):
             # Checked sorted desc
             self.assertEqual(detail["chapters"][0]["chapter_number"], 2.0)
             self.assertEqual(detail["chapters"][1]["chapter_number"], 1.0)
+
+    async def test_get_comic_detail_404_raises_value_error(self):
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+        error = httpx.HTTPStatusError("Not Found", request=MagicMock(), response=mock_response)
+        with patch.object(self.scraper, "_fetch_api_json", new=AsyncMock(side_effect=error)):
+            with self.assertRaises(ValueError):
+                await self.scraper.get_comic_detail("https://voratoon.co/series/unknown-comic")
 
     async def test_get_chapter_images(self):
         mock_payload = {
