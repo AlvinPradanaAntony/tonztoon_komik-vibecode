@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 
@@ -150,6 +150,31 @@ class ImageDimensionTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(dimensions, (800, 1200))
         fetch_fallback.assert_awaited_once_with(image_url, max_bytes=IMAGE_DIMENSION_PROBE_MAX_BYTES)
+
+    async def test_fetch_image_via_scrapling_sends_subresource_headers(self):
+        from app.services.image_service import _fetch_image_via_scrapling
+        from types import SimpleNamespace
+
+        scrapling_page = SimpleNamespace(
+            status=200,
+            headers={"content-type": "image/jpeg"},
+            body=b"\xff\xd8\xff\xe0\x00\x10JFIF\x00",
+        )
+        mock_get = MagicMock(return_value=scrapling_page)
+        with patch("scrapling.fetchers.Fetcher.get", mock_get):
+            res = await _fetch_image_via_scrapling(
+                "https://cdn.voratoon.com/wp-content/img/A/001.jpg",
+                max_bytes=512,
+            )
+            self.assertIsNotNone(res)
+            mock_get.assert_called_once()
+            _, kwargs = mock_get.call_args
+            headers = kwargs.get("headers") or {}
+            self.assertEqual(headers.get("Sec-Fetch-Dest"), "image")
+            self.assertEqual(headers.get("Sec-Fetch-Mode"), "no-cors")
+            self.assertEqual(headers.get("Sec-Fetch-Site"), "cross-site")
+            self.assertIsNone(headers.get("Sec-Fetch-User"))
+            self.assertIsNone(headers.get("Upgrade-Insecure-Requests"))
 
 
 if __name__ == "__main__":

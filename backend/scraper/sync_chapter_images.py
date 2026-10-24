@@ -1104,7 +1104,7 @@ async def process_pending_dimensions_batch(
                 if enriched_images == images:
                     stats.total_skipped += 1
                     skipped_in_batch += 1
-                    logger.info("    ⚠️ Dimensi belum berhasil dibaca, skip.")
+                    logger.info("    ℹ️ Dimensi gambar belum terbaca dari CDN (halaman chapter tetap tersimpan aman).")
                     update_progress(
                         checkpoint,
                         state="dimension-unresolved",

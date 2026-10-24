@@ -470,10 +470,19 @@ async def _fetch_image_via_scrapling(
         from scrapling.fetchers import Fetcher
 
         parsed_host = _normalize_hostname(urlparse(image_url).hostname)
+        # Adaptasi browser subresource headers untuk CDN images (mencegah error 403 dari Cloudflare WAF):
+        # - Sec-Fetch-Dest: image
+        # - Sec-Fetch-Mode: no-cors
+        # - Sec-Fetch-Site: cross-site
+        # - Hapus Upgrade-Insecure-Requests dan Sec-Fetch-User yang hanya berlaku untuk navigasi dokumen HTML
         headers = {
             **get_proxy_headers(image_url),
-            "Accept": "image/avif,image/webp,image/apng,image/svg+xml,"
-            "image/*,*/*;q=0.8",
+            "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+            "Sec-Fetch-Dest": "image",
+            "Sec-Fetch-Mode": "no-cors",
+            "Sec-Fetch-Site": "cross-site",
+            "Sec-Fetch-User": None,
+            "Upgrade-Insecure-Requests": None,
         }
         if max_bytes is not None and max_bytes > 0:
             headers["Range"] = f"bytes=0-{max_bytes - 1}"
@@ -488,12 +497,10 @@ async def _fetch_image_via_scrapling(
             try:
                 from scraper.sources.voratoon_api import (
                     ensure_voratoon_dns_configured,
-                    ensure_voratoon_session,
                     get_voratoon_base_url,
                 )
 
                 ensure_voratoon_dns_configured()
-                cookies = await asyncio.to_thread(ensure_voratoon_session)
                 headers["Origin"] = get_voratoon_base_url()
             except Exception as exc:
                 logger.debug(
@@ -502,14 +509,22 @@ async def _fetch_image_via_scrapling(
                     exc,
                 )
 
-        page = await asyncio.to_thread(
-            Fetcher.get,
-            image_url,
-            stealthy_headers=True,
-            headers=headers,
-            cookies=cookies,
-            timeout=30_000,
-        )
+        def _fetch_sync():
+            scrapling_logger = logging.getLogger("scrapling")
+            prev_level = scrapling_logger.level
+            try:
+                scrapling_logger.setLevel(logging.WARNING)
+                return Fetcher.get(
+                    image_url,
+                    stealthy_headers=True,
+                    headers=headers,
+                    cookies=cookies,
+                    timeout=30_000,
+                )
+            finally:
+                scrapling_logger.setLevel(prev_level)
+
+        page = await asyncio.to_thread(_fetch_sync)
     except Exception as exc:
         logger.debug("Scrapling %s gagal untuk %s: %s", action_label, image_url, exc)
         return None

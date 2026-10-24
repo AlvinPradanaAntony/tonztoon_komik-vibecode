@@ -378,10 +378,12 @@ class VoratoonScraper(ScraperCommonMixin, BaseComicScraper):
         inner_data = data.get("data") or {}
         raw_images = inner_data.get("images") or data.get("images") or []
 
+        from app.services.image_service import normalize_voratoon_image_url
+
         images: list[dict[str, Any]] = []
         for idx, img_url in enumerate(raw_images, start=1):
             cleaned_url = clean_text(img_url)
             if cleaned_url:
-                images.append({"page": idx, "url": cleaned_url})
+                images.append({"page": idx, "url": normalize_voratoon_image_url(cleaned_url)})
 
         return images
