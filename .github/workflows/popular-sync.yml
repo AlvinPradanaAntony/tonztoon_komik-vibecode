@@ -43,7 +43,8 @@ concurrency:
 jobs:
   scrape-popular:
     name: Run Popular Feed Sync
-    runs-on: ubuntu-latest
+    # Scrapling 0.4.7 uses Playwright 1.58, which does not support Ubuntu 26.04.
+    runs-on: ubuntu-24.04
 
     steps:
       - name: 📥 Checkout repository
