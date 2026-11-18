@@ -1,0 +1,220 @@
+{
+  "invalid": [
+    {
+      "theme": "light",
+      "control": "Input",
+      "color": "rgb(185, 28, 28)",
+      "focused": true,
+      "invalid": "true",
+      "offset": "3px",
+      "outline": "rgb(185, 28, 28) solid 3px",
+      "surface": "rgb(255, 255, 255)",
+      "contrast": 6.4700447145121895
+    },
+    {
+      "theme": "light",
+      "control": "Select-open",
+      "color": "rgb(185, 28, 28)",
+      "invalid": "true",
+      "offset": "3px",
+      "open": true,
+      "outline": "rgb(185, 28, 28) solid 3px",
+      "surface": "rgb(255, 255, 255)",
+      "contrast": 6.4700447145121895
+    },
+    {
+      "theme": "light",
+      "control": "Checkbox",
+      "color": "rgb(185, 28, 28)",
+      "focused": true,
+      "invalid": "true",
+      "offset": "3px",
+      "outline": "rgb(185, 28, 28) solid 3px",
+      "surface": "rgb(255, 255, 255)",
+      "contrast": 6.4700447145121895
+    },
+    {
+      "theme": "light",
+      "control": "Textarea",
+      "color": "rgb(185, 28, 28)",
+      "focused": true,
+      "invalid": "true",
+      "offset": "3px",
+      "outline": "rgb(185, 28, 28) solid 3px",
+      "surface": "rgb(255, 255, 255)",
+      "contrast": 6.4700447145121895
+    },
+    {
+      "theme": "dark",
+      "control": "Input",
+      "color": "rgb(240, 138, 138)",
+      "focused": true,
+      "invalid": "true",
+      "offset": "3px",
+      "outline": "rgb(240, 138, 138) solid 3px",
+      "surface": "rgb(24, 27, 32)",
+      "contrast": 7.157968288217983
+    },
+    {
+      "theme": "dark",
+      "control": "Select-open",
+      "color": "rgb(240, 138, 138)",
+      "invalid": "true",
+      "offset": "3px",
+      "open": true,
+      "outline": "rgb(240, 138, 138) solid 3px",
+      "surface": "rgb(24, 27, 32)",
+      "contrast": 7.157968288217983
+    },
+    {
+      "theme": "dark",
+      "control": "Checkbox",
+      "color": "rgb(240, 138, 138)",
+      "focused": true,
+      "invalid": "true",
+      "offset": "3px",
+      "outline": "rgb(240, 138, 138) solid 3px",
+      "surface": "rgb(24, 27, 32)",
+      "contrast": 7.157968288217983
+    },
+    {
+      "theme": "dark",
+      "control": "Textarea",
+      "color": "rgb(240, 138, 138)",
+      "focused": true,
+      "invalid": "true",
+      "offset": "3px",
+      "outline": "rgb(240, 138, 138) solid 3px",
+      "surface": "rgb(24, 27, 32)",
+      "contrast": 7.157968288217983
+    }
+  ],
+  "states": [
+    {
+      "theme": "light",
+      "state": "tone-error",
+      "invalid": null,
+      "outline": "rgb(185, 28, 28) solid 3px",
+      "tone": "error"
+    },
+    {
+      "theme": "light",
+      "state": "normal",
+      "invalid": null,
+      "outline": "rgb(26, 95, 168) solid 3px",
+      "tone": "neutral"
+    },
+    {
+      "theme": "light",
+      "state": "disabled-invalid",
+      "fields": [
+        {
+          "focusToken": "#1a5fa8",
+          "focused": false,
+          "outlineStyle": "none",
+          "tag": "INPUT"
+        },
+        {
+          "focusToken": "#1a5fa8",
+          "focused": false,
+          "outlineStyle": "none",
+          "tag": "SELECT"
+        },
+        {
+          "focusToken": "#1a5fa8",
+          "focused": false,
+          "outlineStyle": "none",
+          "tag": "INPUT"
+        },
+        {
+          "focusToken": "#1a5fa8",
+          "focused": false,
+          "outlineStyle": "none",
+          "tag": "SELECT"
+        },
+        {
+          "focusToken": "#1a5fa8",
+          "focused": false,
+          "outlineStyle": "none",
+          "tag": "INPUT"
+        },
+        {
+          "focusToken": "#1a5fa8",
+          "focused": false,
+          "outlineStyle": "none",
+          "tag": "TEXTAREA"
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "state": "mobile-select-open",
+      "offset": "3px",
+      "open": true,
+      "outline": "rgb(185, 28, 28) solid 3px"
+    },
+    {
+      "theme": "dark",
+      "state": "tone-error",
+      "invalid": null,
+      "outline": "rgb(240, 138, 138) solid 3px",
+      "tone": "error"
+    },
+    {
+      "theme": "dark",
+      "state": "normal",
+      "invalid": null,
+      "outline": "rgb(91, 163, 232) solid 3px",
+      "tone": "neutral"
+    },
+    {
+      "theme": "dark",
+      "state": "disabled-invalid",
+      "fields": [
+        {
+          "focusToken": "#5ba3e8",
+          "focused": false,
+          "outlineStyle": "none",
+          "tag": "INPUT"
+        },
+        {
+          "focusToken": "#5ba3e8",
+          "focused": false,
+          "outlineStyle": "none",
+          "tag": "SELECT"
+        },
+        {
+          "focusToken": "#5ba3e8",
+          "focused": false,
+          "outlineStyle": "none",
+          "tag": "INPUT"
+        },
+        {
+          "focusToken": "#5ba3e8",
+          "focused": false,
+          "outlineStyle": "none",
+          "tag": "SELECT"
+        },
+        {
+          "focusToken": "#5ba3e8",
+          "focused": false,
+          "outlineStyle": "none",
+          "tag": "INPUT"
+        },
+        {
+          "focusToken": "#5ba3e8",
+          "focused": false,
+          "outlineStyle": "none",
+          "tag": "TEXTAREA"
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "state": "mobile-select-open",
+      "offset": "3px",
+      "open": true,
+      "outline": "rgb(240, 138, 138) solid 3px"
+    }
+  ]
+}

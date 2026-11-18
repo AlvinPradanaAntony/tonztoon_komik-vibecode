@@ -1,0 +1,3738 @@
+{
+  "layouts": [
+    {
+      "route": "/overview",
+      "theme": "light",
+      "width": 375,
+      "scrollWidth": 375,
+      "h1": "Overview"
+    },
+    {
+      "route": "/data/comics/c1/edit",
+      "theme": "light",
+      "width": 375,
+      "scrollWidth": 375,
+      "h1": "Editor Komik"
+    },
+    {
+      "route": "/runtime-logs",
+      "theme": "light",
+      "width": 375,
+      "scrollWidth": 375,
+      "h1": "Log runtime"
+    },
+    {
+      "route": "/comic-preview/komiku/komik-contoh-a/chapters/12.5",
+      "theme": "light",
+      "width": 375,
+      "scrollWidth": 375,
+      "h1": "Reader diagnostik"
+    },
+    {
+      "route": "/data-flow",
+      "theme": "light",
+      "width": 375,
+      "scrollWidth": 375,
+      "h1": "Data flow"
+    },
+    {
+      "route": "/data-model",
+      "theme": "light",
+      "width": 375,
+      "scrollWidth": 375,
+      "h1": "ERD explorer"
+    },
+    {
+      "route": "/overview",
+      "theme": "light",
+      "width": 768,
+      "scrollWidth": 768,
+      "h1": "Overview"
+    },
+    {
+      "route": "/data/comics/c1/edit",
+      "theme": "light",
+      "width": 768,
+      "scrollWidth": 768,
+      "h1": "Editor Komik"
+    },
+    {
+      "route": "/runtime-logs",
+      "theme": "light",
+      "width": 768,
+      "scrollWidth": 768,
+      "h1": "Log runtime"
+    },
+    {
+      "route": "/comic-preview/komiku/komik-contoh-a/chapters/12.5",
+      "theme": "light",
+      "width": 768,
+      "scrollWidth": 768,
+      "h1": "Reader diagnostik"
+    },
+    {
+      "route": "/data-flow",
+      "theme": "light",
+      "width": 768,
+      "scrollWidth": 768,
+      "h1": "Data flow"
+    },
+    {
+      "route": "/data-model",
+      "theme": "light",
+      "width": 768,
+      "scrollWidth": 768,
+      "h1": "ERD explorer"
+    },
+    {
+      "route": "/overview",
+      "theme": "light",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "h1": "Overview"
+    },
+    {
+      "route": "/data/comics/c1/edit",
+      "theme": "light",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "h1": "Editor Komik"
+    },
+    {
+      "route": "/runtime-logs",
+      "theme": "light",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "h1": "Log runtime"
+    },
+    {
+      "route": "/comic-preview/komiku/komik-contoh-a/chapters/12.5",
+      "theme": "light",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "h1": "Reader diagnostik"
+    },
+    {
+      "route": "/data-flow",
+      "theme": "light",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "h1": "Data flow"
+    },
+    {
+      "route": "/data-model",
+      "theme": "light",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "h1": "ERD explorer"
+    },
+    {
+      "route": "/overview",
+      "theme": "dark",
+      "width": 375,
+      "scrollWidth": 375,
+      "h1": "Overview"
+    },
+    {
+      "route": "/data/comics/c1/edit",
+      "theme": "dark",
+      "width": 375,
+      "scrollWidth": 375,
+      "h1": "Editor Komik"
+    },
+    {
+      "route": "/runtime-logs",
+      "theme": "dark",
+      "width": 375,
+      "scrollWidth": 375,
+      "h1": "Log runtime"
+    },
+    {
+      "route": "/comic-preview/komiku/komik-contoh-a/chapters/12.5",
+      "theme": "dark",
+      "width": 375,
+      "scrollWidth": 375,
+      "h1": "Reader diagnostik"
+    },
+    {
+      "route": "/data-flow",
+      "theme": "dark",
+      "width": 375,
+      "scrollWidth": 375,
+      "h1": "Data flow"
+    },
+    {
+      "route": "/data-model",
+      "theme": "dark",
+      "width": 375,
+      "scrollWidth": 375,
+      "h1": "ERD explorer"
+    },
+    {
+      "route": "/overview",
+      "theme": "dark",
+      "width": 768,
+      "scrollWidth": 768,
+      "h1": "Overview"
+    },
+    {
+      "route": "/data/comics/c1/edit",
+      "theme": "dark",
+      "width": 768,
+      "scrollWidth": 768,
+      "h1": "Editor Komik"
+    },
+    {
+      "route": "/runtime-logs",
+      "theme": "dark",
+      "width": 768,
+      "scrollWidth": 768,
+      "h1": "Log runtime"
+    },
+    {
+      "route": "/comic-preview/komiku/komik-contoh-a/chapters/12.5",
+      "theme": "dark",
+      "width": 768,
+      "scrollWidth": 768,
+      "h1": "Reader diagnostik"
+    },
+    {
+      "route": "/data-flow",
+      "theme": "dark",
+      "width": 768,
+      "scrollWidth": 768,
+      "h1": "Data flow"
+    },
+    {
+      "route": "/data-model",
+      "theme": "dark",
+      "width": 768,
+      "scrollWidth": 768,
+      "h1": "ERD explorer"
+    },
+    {
+      "route": "/overview",
+      "theme": "dark",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "h1": "Overview"
+    },
+    {
+      "route": "/data/comics/c1/edit",
+      "theme": "dark",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "h1": "Editor Komik"
+    },
+    {
+      "route": "/runtime-logs",
+      "theme": "dark",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "h1": "Log runtime"
+    },
+    {
+      "route": "/comic-preview/komiku/komik-contoh-a/chapters/12.5",
+      "theme": "dark",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "h1": "Reader diagnostik"
+    },
+    {
+      "route": "/data-flow",
+      "theme": "dark",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "h1": "Data flow"
+    },
+    {
+      "route": "/data-model",
+      "theme": "dark",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "h1": "ERD explorer"
+    }
+  ],
+  "contrast": [
+    {
+      "theme": "light",
+      "route": "/overview",
+      "rows": [
+        {
+          "text": "Overview",
+          "ratio": 17.85,
+          "size": "31.68px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 3
+        },
+        {
+          "text": "Pantau API. Temukan gangguan. Telusuri penyebabnya.",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Tentang snapshot",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Demo lokal terhubung",
+          "ratio": 16.2,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Dijeda",
+          "ratio": 6.5,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "233,238,244",
+          "minimum": 4.5
+        },
+        {
+          "text": "·",
+          "ratio": 6.5,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "233,238,244",
+          "minimum": 4.5
+        },
+        {
+          "text": "Normal / pulih",
+          "ratio": 6.5,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "233,238,244",
+          "minimum": 4.5
+        },
+        {
+          "text": "Environment simulasi",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Skenario",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Mulai demo",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "255,255,255",
+          "bg": "15,23,42",
+          "minimum": 4.5
+        },
+        {
+          "text": "Jalankan skenario",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Langkah 30 detik",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Reset demo",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Jam demo 28 Okt 2026,",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "13:19:29",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "UTC+7 · 1 tick = 30 detik simulasi / 2 detik nyata. Sesi lokal · ",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "0",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "event keluar dari retensi.",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Environment monitoring",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "5 menit",
+          "ratio": 6.5,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "233,238,244",
+          "minimum": 4.5
+        },
+        {
+          "text": "15 menit",
+          "ratio": 15.3,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "233,238,244",
+          "minimum": 4.5
+        },
+        {
+          "text": "1 jam",
+          "ratio": 6.5,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "233,238,244",
+          "minimum": 4.5
+        },
+        {
+          "text": "24 jam",
+          "ratio": 6.5,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "233,238,244",
+          "minimum": 4.5
+        },
+        {
+          "text": "Kustom",
+          "ratio": 6.5,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "233,238,244",
+          "minimum": 4.5
+        },
+        {
+          "text": "Snapshot contoh",
+          "ratio": 7.58,
+          "size": "13px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "28 Okt 2026, 13.04",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "sampai",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "28 Okt 2026, 13.19",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "· cutoff",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "13:19:29",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "UTC+7 · jam demo",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "observed_at",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "13:19:29",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "· umur cutoff",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "0",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "dtk · Data contoh",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Request selesai",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "600",
+          "ratio": 17.85,
+          "size": "33.6px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 3
+        },
+        {
+          "text": "0,67 req/s · reader",
+          "ratio": 7.58,
+          "size": "13px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "HTTP 5xx",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "0",
+          "ratio": 17.85,
+          "size": "33.6px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 3
+        },
+        {
+          "text": "%",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "0 dari 600 respons",
+          "ratio": 7.58,
+          "size": "13px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Latensi p95",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "394",
+          "ratio": 17.85,
+          "size": "33.6px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 3
+        },
+        {
+          "text": "ms",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "p50 242 ms · p99 394 ms",
+          "ratio": 7.58,
+          "size": "13px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Availability liveness",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "100",
+          "ratio": 17.85,
+          "size": "33.6px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 3
+        },
+        {
+          "text": "%",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "180/180 probe · coverage 100%",
+          "ratio": 7.58,
+          "size": "13px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "0",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "request in-flight pada snapshot selesai",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "HTTP 4xx:",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "2,83%",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "(",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "17",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "respons)",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Quantile dari event demo",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Cakupan metrik:",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "fixture tersimpan",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Trafik & respons server",
+          "ratio": 16.2,
+          "size": "16px",
+          "fg": "15,23,42",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "15 menit · production · data contoh lokal",
+          "ratio": 6.88,
+          "size": "13px",
+          "fg": "71,85,105",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Request selesai",
+          "ratio": 6.88,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "HTTP 5xx",
+          "ratio": 6.88,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Trafik & 5xx",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Latensi",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Status HTTP",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Kondisi layanan",
+          "ratio": 16.2,
+          "size": "16px",
+          "fg": "15,23,42",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Status dari probe contoh",
+          "ratio": 6.88,
+          "size": "13px",
+          "fg": "71,85,105",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Layanan API",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Probe GET / · setiap 5 detik",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Terjangkau",
+          "ratio": 6.5,
+          "size": "12px",
+          "fg": "22,101,52",
+          "bg": "237,247,239",
+          "minimum": 4.5
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "route": "/data/comics",
+      "rows": [
+        {
+          "text": "Komik",
+          "ratio": 17.85,
+          "size": "31.68px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 3
+        },
+        {
+          "text": "Identitas source + slug tetap; metadata source, override dan efek",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Tambah",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "255,255,255",
+          "bg": "15,23,42",
+          "minimum": 4.5
+        },
+        {
+          "text": "komik",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "255,255,255",
+          "bg": "15,23,42",
+          "minimum": 4.5
+        },
+        {
+          "text": "Data contoh lokal dari prototype. Perubahan hanya di memori sesi ",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Komik",
+          "ratio": 16.2,
+          "size": "16px",
+          "fg": "15,23,42",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "8 dari 8 resource contoh. Filter dan urutan tersimpan pada URL.",
+          "ratio": 6.88,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Cari Komik",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Source",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Genre",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Status",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Reset filter",
+          "ratio": 16.2,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Komik contoh",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Judul / identitas",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Source",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Status",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Genre",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Chapter",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Aksi",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Komik Contoh A",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "komiku/komik-contoh-a",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "komiku",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "ongoing",
+          "ratio": 6.5,
+          "size": "12px",
+          "fg": "22,101,52",
+          "bg": "237,247,239",
+          "minimum": 4.5
+        },
+        {
+          "text": "Action",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "8",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Edit metadata",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Komik Contoh B",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "shinigami/komik-contoh-b",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "shinigami",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "completed",
+          "ratio": 6.5,
+          "size": "12px",
+          "fg": "22,101,52",
+          "bg": "237,247,239",
+          "minimum": 4.5
+        },
+        {
+          "text": "Fantasy",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "8",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Edit metadata",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Komik Contoh C",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "voratoon/komik-contoh-c",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "voratoon",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "ongoing",
+          "ratio": 6.5,
+          "size": "12px",
+          "fg": "22,101,52",
+          "bg": "237,247,239",
+          "minimum": 4.5
+        },
+        {
+          "text": "Adventure",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "8",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Edit metadata",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Komik Contoh D",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "komiku_asia/komik-contoh-d",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "komiku_asia",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "hiatus",
+          "ratio": 6.5,
+          "size": "12px",
+          "fg": "22,101,52",
+          "bg": "237,247,239",
+          "minimum": 4.5
+        },
+        {
+          "text": "Action",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "8",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Edit metadata",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "komiku",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Fantasy",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "8",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "route": "/data/comics/c1/edit",
+      "rows": [
+        {
+          "text": "Editor Komik",
+          "ratio": 17.85,
+          "size": "31.68px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 3
+        },
+        {
+          "text": "Identitas source + slug tetap; metadata source, override dan efek",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Kembali",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Data contoh lokal dari prototype. Perubahan hanya di memori sesi ",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Editor komik",
+          "ratio": 16.2,
+          "size": "16px",
+          "fg": "15,23,42",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Revision 1. Perubahan hanya simulasi lokal, tidak dikirim ke back",
+          "ratio": 6.88,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Judul",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Slug",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Tetap setelah dibuat.",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Source",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Tetap setelah dibuat.",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Status",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Judul alternatif",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Author",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Artist",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Type",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Cover URL HTTPS",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Genre editorial",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Sinopsis",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "route": "/runtime-logs",
+      "rows": [
+        {
+          "text": "Log runtime",
+          "ratio": 17.85,
+          "size": "31.68px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 3
+        },
+        {
+          "text": "Snapshot contoh · production · 15 menit · cutoff 28 Okt 2026, 13.",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Data contoh lokal dari prototype. Perubahan hanya di memori sesi ",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Environment",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Rentang",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Tambahkan batch contoh",
+          "ratio": 16.2,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Skenario monitoring lokal",
+          "ratio": 16.2,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Skenario",
+          "ratio": 16.2,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Langkah 30 detik",
+          "ratio": 16.2,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Reset monitoring",
+          "ratio": 16.2,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Jam simulasi browser. Collector, probe, SSE dan polling produksi ",
+          "ratio": 6.88,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Output FastAPI / Uvicorn",
+          "ratio": 16.2,
+          "size": "16px",
+          "fg": "15,23,42",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Console dibentuk dari record contoh, bukan tangkapan proses asli.",
+          "ratio": 6.88,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Cari pesan runtime",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Level",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Logger",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Jenis",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Instance",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Request ID persis",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Reset filter",
+          "ratio": 16.2,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Jeda tampilan",
+          "ratio": 16.2,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Salin log tersanitasi",
+          "ratio": 16.2,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Bersihkan tampilan lokal",
+          "ratio": 16.2,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Ke event terbaru",
+          "ratio": 16.2,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Perluas panel",
+          "ratio": 16.2,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Autoscroll",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Bungkus baris",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Collector belum terhubung · Browser lokal ·",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Snapshot",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "· Buffer",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "601",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "/1.000 ·",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "0",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "event baru ·",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "0",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "keluar dari retensi contoh.",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Terminal",
+          "ratio": 16.2,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Terstruktur",
+          "ratio": 6.88,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "2026-10-28T06:04:30.498Z INFO uvicorn.access GET /api/v1/sources/",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "route": "/data-model?view=list",
+      "rows": [
+        {
+          "text": "ERD explorer",
+          "ratio": 17.85,
+          "size": "31.68px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 3
+        },
+        {
+          "text": "Empat diagram baca saja dan data dictionary. Tidak menampilkan ro",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Data contoh lokal dari prototype. Perubahan hanya di memori sesi ",
+          "ratio": 7.58,
+          "size": "12px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Model data TonzToon",
+          "ratio": 16.2,
+          "size": "16px",
+          "fg": "15,23,42",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Legend: FK terdefinisi · Relasi logis · Usulan migration. Tampila",
+          "ratio": 6.88,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "242,244,247",
+          "minimum": 4.5
+        },
+        {
+          "text": "Diagram",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Cakupan schema",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Cari tabel / kolom",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Tampilan ERD",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Tabel dan kolom, alternatif diagram",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Tabel",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Status",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "Kolom",
+          "ratio": 7.58,
+          "size": "14px",
+          "fg": "71,85,105",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "comics",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "existing",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "id (integer), source_name (varchar(100)), slug (varchar(600)), ti",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "chapters",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "existing",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "id (integer), comic_id (integer), chapter_number (float), title (",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "genres",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "existing",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "id (integer), name (varchar(100)), slug (varchar(120))",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "comic_genre",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "existing",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "comic_id (integer), genre_id (integer)",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "user_bookmarks",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "existing",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "id (integer), user_id (uuid), comic_id (integer)",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "existing",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        },
+        {
+          "text": "id (integer), user_id (uuid), comic_id (integer), chapter_id (int",
+          "ratio": 17.85,
+          "size": "14px",
+          "fg": "15,23,42",
+          "bg": "255,255,255",
+          "minimum": 4.5
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "route": "/overview",
+      "rows": [
+        {
+          "text": "Overview",
+          "ratio": 16.87,
+          "size": "31.68px",
+          "fg": "241,243,245",
+          "bg": "16,18,21",
+          "minimum": 3
+        },
+        {
+          "text": "Pantau API. Temukan gangguan. Telusuri penyebabnya.",
+          "ratio": 10.35,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "Tentang snapshot",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Demo lokal terhubung",
+          "ratio": 13.47,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Dijeda",
+          "ratio": 7.32,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "43,48,56",
+          "minimum": 4.5
+        },
+        {
+          "text": "·",
+          "ratio": 7.32,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "43,48,56",
+          "minimum": 4.5
+        },
+        {
+          "text": "Normal / pulih",
+          "ratio": 7.32,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "43,48,56",
+          "minimum": 4.5
+        },
+        {
+          "text": "Environment simulasi",
+          "ratio": 9.52,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Skenario",
+          "ratio": 9.52,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Mulai demo",
+          "ratio": 16.87,
+          "size": "14px",
+          "fg": "16,18,21",
+          "bg": "241,243,245",
+          "minimum": 4.5
+        },
+        {
+          "text": "Jalankan skenario",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Langkah 30 detik",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Reset demo",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Jam demo 28 Okt 2026,",
+          "ratio": 9.52,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "13:19:29",
+          "ratio": 9.52,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "UTC+7 · 1 tick = 30 detik simulasi / 2 detik nyata. Sesi lokal · ",
+          "ratio": 9.52,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "0",
+          "ratio": 9.52,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "event keluar dari retensi.",
+          "ratio": 9.52,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Environment monitoring",
+          "ratio": 16.87,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "5 menit",
+          "ratio": 7.32,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "43,48,56",
+          "minimum": 4.5
+        },
+        {
+          "text": "15 menit",
+          "ratio": 11.93,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "43,48,56",
+          "minimum": 4.5
+        },
+        {
+          "text": "1 jam",
+          "ratio": 7.32,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "43,48,56",
+          "minimum": 4.5
+        },
+        {
+          "text": "24 jam",
+          "ratio": 7.32,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "43,48,56",
+          "minimum": 4.5
+        },
+        {
+          "text": "Kustom",
+          "ratio": 7.32,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "43,48,56",
+          "minimum": 4.5
+        },
+        {
+          "text": "Snapshot contoh",
+          "ratio": 10.35,
+          "size": "13px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "28 Okt 2026, 13.04",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "sampai",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "28 Okt 2026, 13.19",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "· cutoff",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "13:19:29",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "UTC+7 · jam demo",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "observed_at",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "13:19:29",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "· umur cutoff",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "0",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "dtk · Data contoh",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "Request selesai",
+          "ratio": 9.52,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "600",
+          "ratio": 15.52,
+          "size": "33.6px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 3
+        },
+        {
+          "text": "0,67 req/s · reader",
+          "ratio": 9.52,
+          "size": "13px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "HTTP 5xx",
+          "ratio": 9.52,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "0",
+          "ratio": 15.52,
+          "size": "33.6px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 3
+        },
+        {
+          "text": "%",
+          "ratio": 9.52,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "0 dari 600 respons",
+          "ratio": 9.52,
+          "size": "13px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Latensi p95",
+          "ratio": 9.52,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "394",
+          "ratio": 15.52,
+          "size": "33.6px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 3
+        },
+        {
+          "text": "ms",
+          "ratio": 9.52,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "p50 242 ms · p99 394 ms",
+          "ratio": 9.52,
+          "size": "13px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Availability liveness",
+          "ratio": 9.52,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "100",
+          "ratio": 15.52,
+          "size": "33.6px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 3
+        },
+        {
+          "text": "%",
+          "ratio": 9.52,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "180/180 probe · coverage 100%",
+          "ratio": 9.52,
+          "size": "13px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "0",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "request in-flight pada snapshot selesai",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "HTTP 4xx:",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "2,83%",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "(",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "17",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "respons)",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "Quantile dari event demo",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "Cakupan metrik:",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "fixture tersimpan",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "Trafik & respons server",
+          "ratio": 13.47,
+          "size": "16px",
+          "fg": "241,243,245",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "15 menit · production · data contoh lokal",
+          "ratio": 8.27,
+          "size": "13px",
+          "fg": "185,193,206",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Request selesai",
+          "ratio": 8.27,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "HTTP 5xx",
+          "ratio": 8.27,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Trafik & 5xx",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Latensi",
+          "ratio": 9.52,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Status HTTP",
+          "ratio": 9.52,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Kondisi layanan",
+          "ratio": 13.47,
+          "size": "16px",
+          "fg": "241,243,245",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Status dari probe contoh",
+          "ratio": 8.27,
+          "size": "13px",
+          "fg": "185,193,206",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Layanan API",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Probe GET / · setiap 5 detik",
+          "ratio": 9.52,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Terjangkau",
+          "ratio": 8.22,
+          "size": "12px",
+          "fg": "104,211,145",
+          "bg": "24,41,31",
+          "minimum": 4.5
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "route": "/data/comics",
+      "rows": [
+        {
+          "text": "Komik",
+          "ratio": 16.87,
+          "size": "31.68px",
+          "fg": "241,243,245",
+          "bg": "16,18,21",
+          "minimum": 3
+        },
+        {
+          "text": "Identitas source + slug tetap; metadata source, override dan efek",
+          "ratio": 10.35,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "Tambah",
+          "ratio": 16.87,
+          "size": "14px",
+          "fg": "16,18,21",
+          "bg": "241,243,245",
+          "minimum": 4.5
+        },
+        {
+          "text": "komik",
+          "ratio": 16.87,
+          "size": "14px",
+          "fg": "16,18,21",
+          "bg": "241,243,245",
+          "minimum": 4.5
+        },
+        {
+          "text": "Data contoh lokal dari prototype. Perubahan hanya di memori sesi ",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "Komik",
+          "ratio": 13.47,
+          "size": "16px",
+          "fg": "241,243,245",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "8 dari 8 resource contoh. Filter dan urutan tersimpan pada URL.",
+          "ratio": 8.27,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Cari Komik",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Source",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Genre",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Status",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Reset filter",
+          "ratio": 13.47,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Komik contoh",
+          "ratio": 9.52,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Judul / identitas",
+          "ratio": 9.52,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Source",
+          "ratio": 9.52,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Status",
+          "ratio": 9.52,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Genre",
+          "ratio": 9.52,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Chapter",
+          "ratio": 9.52,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Aksi",
+          "ratio": 9.52,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Komik Contoh A",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "komiku/komik-contoh-a",
+          "ratio": 9.52,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "komiku",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "ongoing",
+          "ratio": 8.22,
+          "size": "12px",
+          "fg": "104,211,145",
+          "bg": "24,41,31",
+          "minimum": 4.5
+        },
+        {
+          "text": "Action",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "8",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Edit metadata",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Komik Contoh B",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "shinigami/komik-contoh-b",
+          "ratio": 9.52,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "shinigami",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "completed",
+          "ratio": 8.22,
+          "size": "12px",
+          "fg": "104,211,145",
+          "bg": "24,41,31",
+          "minimum": 4.5
+        },
+        {
+          "text": "Fantasy",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "8",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Edit metadata",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Komik Contoh C",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "voratoon/komik-contoh-c",
+          "ratio": 9.52,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "voratoon",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "ongoing",
+          "ratio": 8.22,
+          "size": "12px",
+          "fg": "104,211,145",
+          "bg": "24,41,31",
+          "minimum": 4.5
+        },
+        {
+          "text": "Adventure",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "8",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Edit metadata",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Komik Contoh D",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "komiku_asia/komik-contoh-d",
+          "ratio": 9.52,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "komiku_asia",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "hiatus",
+          "ratio": 8.22,
+          "size": "12px",
+          "fg": "104,211,145",
+          "bg": "24,41,31",
+          "minimum": 4.5
+        },
+        {
+          "text": "Action",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "8",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Edit metadata",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "komiku",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Fantasy",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "8",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "route": "/data/comics/c1/edit",
+      "rows": [
+        {
+          "text": "Editor Komik",
+          "ratio": 16.87,
+          "size": "31.68px",
+          "fg": "241,243,245",
+          "bg": "16,18,21",
+          "minimum": 3
+        },
+        {
+          "text": "Identitas source + slug tetap; metadata source, override dan efek",
+          "ratio": 10.35,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "Kembali",
+          "ratio": 16.87,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "Data contoh lokal dari prototype. Perubahan hanya di memori sesi ",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "Editor komik",
+          "ratio": 13.47,
+          "size": "16px",
+          "fg": "241,243,245",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Revision 1. Perubahan hanya simulasi lokal, tidak dikirim ke back",
+          "ratio": 8.27,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Judul",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Slug",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Tetap setelah dibuat.",
+          "ratio": 9.52,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Source",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Tetap setelah dibuat.",
+          "ratio": 9.52,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Status",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Judul alternatif",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Author",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Artist",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Type",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Cover URL HTTPS",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Genre editorial",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Sinopsis",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "route": "/runtime-logs",
+      "rows": [
+        {
+          "text": "Log runtime",
+          "ratio": 16.87,
+          "size": "31.68px",
+          "fg": "241,243,245",
+          "bg": "16,18,21",
+          "minimum": 3
+        },
+        {
+          "text": "Snapshot contoh · production · 15 menit · cutoff 28 Okt 2026, 13.",
+          "ratio": 10.35,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "Data contoh lokal dari prototype. Perubahan hanya di memori sesi ",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "Environment",
+          "ratio": 16.87,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "Rentang",
+          "ratio": 16.87,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "Tambahkan batch contoh",
+          "ratio": 13.47,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Skenario monitoring lokal",
+          "ratio": 13.47,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Skenario",
+          "ratio": 13.47,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Langkah 30 detik",
+          "ratio": 13.47,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Reset monitoring",
+          "ratio": 13.47,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Jam simulasi browser. Collector, probe, SSE dan polling produksi ",
+          "ratio": 8.27,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Output FastAPI / Uvicorn",
+          "ratio": 13.47,
+          "size": "16px",
+          "fg": "241,243,245",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Console dibentuk dari record contoh, bukan tangkapan proses asli.",
+          "ratio": 8.27,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Cari pesan runtime",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Level",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Logger",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Jenis",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Instance",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Request ID persis",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Reset filter",
+          "ratio": 13.47,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Jeda tampilan",
+          "ratio": 13.47,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Salin log tersanitasi",
+          "ratio": 13.47,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Bersihkan tampilan lokal",
+          "ratio": 13.47,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Ke event terbaru",
+          "ratio": 13.47,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Perluas panel",
+          "ratio": 13.47,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Autoscroll",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Bungkus baris",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Collector belum terhubung · Browser lokal ·",
+          "ratio": 9.52,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Snapshot",
+          "ratio": 9.52,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "· Buffer",
+          "ratio": 9.52,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "601",
+          "ratio": 9.52,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "/1.000 ·",
+          "ratio": 9.52,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "0",
+          "ratio": 9.52,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "event baru ·",
+          "ratio": 9.52,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "0",
+          "ratio": 9.52,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "keluar dari retensi contoh.",
+          "ratio": 9.52,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Terminal",
+          "ratio": 13.47,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Terstruktur",
+          "ratio": 8.27,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "2026-10-28T06:04:30.498Z INFO uvicorn.access GET /api/v1/sources/",
+          "ratio": 16.87,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "route": "/data-model?view=list",
+      "rows": [
+        {
+          "text": "ERD explorer",
+          "ratio": 16.87,
+          "size": "31.68px",
+          "fg": "241,243,245",
+          "bg": "16,18,21",
+          "minimum": 3
+        },
+        {
+          "text": "Empat diagram baca saja dan data dictionary. Tidak menampilkan ro",
+          "ratio": 10.35,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "Data contoh lokal dari prototype. Perubahan hanya di memori sesi ",
+          "ratio": 10.35,
+          "size": "12px",
+          "fg": "185,193,206",
+          "bg": "16,18,21",
+          "minimum": 4.5
+        },
+        {
+          "text": "Model data TonzToon",
+          "ratio": 13.47,
+          "size": "16px",
+          "fg": "241,243,245",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Legend: FK terdefinisi · Relasi logis · Usulan migration. Tampila",
+          "ratio": 8.27,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "35,39,46",
+          "minimum": 4.5
+        },
+        {
+          "text": "Diagram",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Cakupan schema",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Cari tabel / kolom",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Tampilan ERD",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Tabel dan kolom, alternatif diagram",
+          "ratio": 9.52,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Tabel",
+          "ratio": 9.52,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Status",
+          "ratio": 9.52,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "Kolom",
+          "ratio": 9.52,
+          "size": "14px",
+          "fg": "185,193,206",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "comics",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "existing",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "id (integer), source_name (varchar(100)), slug (varchar(600)), ti",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "chapters",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "existing",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "id (integer), comic_id (integer), chapter_number (float), title (",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "genres",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "existing",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "id (integer), name (varchar(100)), slug (varchar(120))",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "comic_genre",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "existing",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "comic_id (integer), genre_id (integer)",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "user_bookmarks",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "existing",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "id (integer), user_id (uuid), comic_id (integer)",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "existing",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        },
+        {
+          "text": "id (integer), user_id (uuid), comic_id (integer), chapter_id (int",
+          "ratio": 15.52,
+          "size": "14px",
+          "fg": "241,243,245",
+          "bg": "24,27,32",
+          "minimum": 4.5
+        }
+      ]
+    }
+  ],
+  "special": [
+    {
+      "kind": "landscape",
+      "theme": "light",
+      "width": 844,
+      "scrollWidth": 844,
+      "h1": "Komik"
+    },
+    {
+      "kind": "text zoom 200%",
+      "theme": "light",
+      "width": 360,
+      "scrollWidth": 360,
+      "h1": "Editor Komik"
+    },
+    {
+      "kind": "landscape",
+      "theme": "dark",
+      "width": 844,
+      "scrollWidth": 844,
+      "h1": "Komik"
+    },
+    {
+      "kind": "text zoom 200%",
+      "theme": "dark",
+      "width": 360,
+      "scrollWidth": 360,
+      "h1": "Editor Komik"
+    },
+    {
+      "kind": "forced colors",
+      "outline": "solid",
+      "outlineWidth": "3px",
+      "overflow": false
+    },
+    {
+      "kind": "storage denied",
+      "h1": "Komik",
+      "overflow": false,
+      "errors": false,
+      "console": []
+    }
+  ],
+  "errors": []
+}

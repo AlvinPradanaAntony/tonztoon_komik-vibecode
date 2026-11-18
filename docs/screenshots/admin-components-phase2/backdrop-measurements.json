@@ -1,0 +1,154 @@
+[
+  {
+    "type": "dialog",
+    "backdropDisplay": "block",
+    "background": "rgba(15, 23, 42, 0.6)",
+    "blur": "blur(4px)",
+    "dialogBackground": "rgba(0, 0, 0, 0)",
+    "panelBackground": "rgb(255, 255, 255)",
+    "panelFilter": "none",
+    "theme": "light",
+    "width": 1440,
+    "trapped": {
+      "inside": true,
+      "label": "Gunakan dialog contoh"
+    },
+    "restored": {
+      "focus": "Buka dialog",
+      "openCount": 0
+    }
+  },
+  {
+    "type": "drawer",
+    "backdropDisplay": "block",
+    "background": "rgba(15, 23, 42, 0.6)",
+    "blur": "blur(4px)",
+    "dialogBackground": "rgba(0, 0, 0, 0)",
+    "panelBackground": "rgb(255, 255, 255)",
+    "panelFilter": "none",
+    "theme": "light",
+    "width": 1440,
+    "trapped": {
+      "inside": true,
+      "label": "Table"
+    },
+    "restored": {
+      "focus": "Buka drawer",
+      "openCount": 0
+    }
+  },
+  {
+    "type": "dialog",
+    "backdropDisplay": "block",
+    "background": "rgba(15, 23, 42, 0.6)",
+    "blur": "blur(4px)",
+    "dialogBackground": "rgba(0, 0, 0, 0)",
+    "panelBackground": "rgb(255, 255, 255)",
+    "panelFilter": "none",
+    "theme": "light",
+    "width": 360,
+    "trapped": {
+      "inside": true,
+      "label": "Gunakan dialog contoh"
+    },
+    "restored": {
+      "focus": "Buka dialog",
+      "openCount": 0
+    }
+  },
+  {
+    "type": "drawer",
+    "backdropDisplay": "block",
+    "background": "rgba(15, 23, 42, 0.6)",
+    "blur": "blur(4px)",
+    "dialogBackground": "rgba(0, 0, 0, 0)",
+    "panelBackground": "rgb(255, 255, 255)",
+    "panelFilter": "none",
+    "theme": "light",
+    "width": 360,
+    "trapped": {
+      "inside": true,
+      "label": "Table"
+    },
+    "restored": {
+      "focus": "Buka drawer",
+      "openCount": 0
+    }
+  },
+  {
+    "type": "dialog",
+    "backdropDisplay": "block",
+    "background": "rgba(6, 9, 15, 0.72)",
+    "blur": "blur(4px)",
+    "dialogBackground": "rgba(0, 0, 0, 0)",
+    "panelBackground": "rgb(24, 27, 32)",
+    "panelFilter": "none",
+    "theme": "dark",
+    "width": 1440,
+    "trapped": {
+      "inside": true,
+      "label": "Gunakan dialog contoh"
+    },
+    "restored": {
+      "focus": "Buka dialog",
+      "openCount": 0
+    }
+  },
+  {
+    "type": "drawer",
+    "backdropDisplay": "block",
+    "background": "rgba(6, 9, 15, 0.72)",
+    "blur": "blur(4px)",
+    "dialogBackground": "rgba(0, 0, 0, 0)",
+    "panelBackground": "rgb(24, 27, 32)",
+    "panelFilter": "none",
+    "theme": "dark",
+    "width": 1440,
+    "trapped": {
+      "inside": true,
+      "label": "Table"
+    },
+    "restored": {
+      "focus": "Buka drawer",
+      "openCount": 0
+    }
+  },
+  {
+    "type": "dialog",
+    "backdropDisplay": "block",
+    "background": "rgba(6, 9, 15, 0.72)",
+    "blur": "blur(4px)",
+    "dialogBackground": "rgba(0, 0, 0, 0)",
+    "panelBackground": "rgb(24, 27, 32)",
+    "panelFilter": "none",
+    "theme": "dark",
+    "width": 360,
+    "trapped": {
+      "inside": true,
+      "label": "Gunakan dialog contoh"
+    },
+    "restored": {
+      "focus": "Buka dialog",
+      "openCount": 0
+    }
+  },
+  {
+    "type": "drawer",
+    "backdropDisplay": "block",
+    "background": "rgba(6, 9, 15, 0.72)",
+    "blur": "blur(4px)",
+    "dialogBackground": "rgba(0, 0, 0, 0)",
+    "panelBackground": "rgb(24, 27, 32)",
+    "panelFilter": "none",
+    "theme": "dark",
+    "width": 360,
+    "trapped": {
+      "inside": true,
+      "label": "Table"
+    },
+    "restored": {
+      "focus": "Buka drawer",
+      "openCount": 0
+    }
+  }
+]

@@ -26,7 +26,9 @@ def _utcnow() -> datetime:
 def build_helpdesk_response(
     submission: HelpdeskSubmission,
 ) -> HelpdeskSubmissionResponse:
+    from app.admin.data import fingerprint
     return HelpdeskSubmissionResponse(
+        etag=fingerprint({"id":str(submission.id),"status":submission.status,"admin_note":submission.admin_note,"updated_at":submission.updated_at}),
         id=submission.id,
         reference_code=submission.reference_code,
         user_id=submission.user_id,

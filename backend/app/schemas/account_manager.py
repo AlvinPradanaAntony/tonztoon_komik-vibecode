@@ -5,7 +5,7 @@ Schemas untuk dashboard account manager.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
@@ -89,6 +89,7 @@ class AccountManagerUser(BaseModel):
     profile: AccountProfileData | None = None
     relation_counts: AccountRelationCounts = Field(default_factory=AccountRelationCounts)
     relation_total: int = 0
+    etag: str | None = None
 
 
 class AccountManagerListResponse(BaseModel):
@@ -110,8 +111,15 @@ class AccountManagerCreateRequest(BaseModel):
     avatar_url: str | None = Field(default=None, max_length=1000)
     onboarding_completed: bool = False
     account_role: str = Field(default="reader", max_length=50)
-    account_status: str = Field(default="active", max_length=50)
+    account_status: Literal["active","pending","suspended"] = "active"
     email_confirm: bool = True
+
+    @field_validator("account_role")
+    @classmethod
+    def only_reader_role(cls, value: str) -> str:
+        if value != "reader":
+            raise ValueError("Role khusus hanya diberikan melalui provisioning tepercaya.")
+        return value
 
     @field_validator("display_name", "username", "avatar_url")
     @classmethod
@@ -132,7 +140,14 @@ class AccountManagerUpdateRequest(BaseModel):
     avatar_url: str | None = Field(default=None, max_length=1000)
     onboarding_completed: bool | None = None
     account_role: str | None = Field(default=None, max_length=50)
-    account_status: str | None = Field(default=None, max_length=50)
+    account_status: Literal["active","pending","suspended"] | None = None
+
+    @field_validator("account_role")
+    @classmethod
+    def only_reader_role(cls, value: str | None) -> str | None:
+        if value not in {None, "reader"}:
+            raise ValueError("Role khusus hanya diberikan melalui provisioning tepercaya.")
+        return value
 
     @field_validator("display_name", "username", "avatar_url")
     @classmethod

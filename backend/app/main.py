@@ -34,9 +34,31 @@ async def lifespan(app: FastAPI):
     )
 
     await startup_http_clients()
+    telemetry_task = None
+    runtime_handler = None
+    if settings.ADMIN_CONSOLE_ENABLED:
+        import logging
+        from app.admin.telemetry import telemetry, RuntimeHandler
+        if os.environ.get("ADMIN_EXTERNAL_COLLECTOR") != "1":
+            runtime_handler = RuntimeHandler()
+            logging.getLogger().addHandler(runtime_handler)
+        telemetry.log("tonztoon.lifecycle", "INFO", "API mulai menerima request.")
+        telemetry_task = asyncio.create_task(telemetry.run())
     try:
         yield
     finally:
+        if telemetry_task:
+            import logging
+            from app.admin.telemetry import telemetry
+            telemetry_task.cancel()
+            try:
+                await telemetry_task
+            except asyncio.CancelledError:
+                pass
+            telemetry.log("tonztoon.lifecycle", "INFO", "API menghentikan layanan.")
+            await telemetry.flush()
+            if runtime_handler:
+                logging.getLogger().removeHandler(runtime_handler)
         # Shutdown — tutup pooled HTTP clients.
         await shutdown_http_clients()
 
@@ -67,6 +89,8 @@ app.add_middleware(
 
 # Include all API routes
 app.include_router(api_router, prefix="/api")
+
+from app.admin.telemetry import TelemetryMiddleware
 
 # Mount admin static files (mendukung local dev & Docker container)
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -99,7 +123,7 @@ async def request_validation_exception_handler(
         status_code=422,
         content={
             "message": get_fallback_error_message(422),
-            "errors": exc.errors(),
+            "errors": [{key:error[key] for key in ("loc","msg","type") if key in error} for error in exc.errors()],
         },
     )
 
@@ -125,3 +149,8 @@ async def root():
         "status": "running",
         "environment": settings.APP_ENV,
     }
+
+
+# Wrap the completed app so unhandled-error responses and the final streamed
+# body pass through the same observer, outside Starlette's error middleware.
+app = TelemetryMiddleware(app)

@@ -159,6 +159,7 @@ class Settings(BaseSettings):
     # --- App ---
     APP_ENV: str = Field(default="development")
     APP_DEBUG: bool = Field(default=False)
+    ADMIN_CONSOLE_ENABLED: bool = Field(default=False)
 
     model_config = {
         "env_file": ENV_FILE,

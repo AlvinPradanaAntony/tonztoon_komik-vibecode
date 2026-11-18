@@ -1,0 +1,8 @@
+@layer theme, base, vendor, components, utilities;
+@import "tailwindcss" source(none);
+@import "@fontsource-variable/inter";
+@import "overlayscrollbars/overlayscrollbars.css" layer(vendor);
+@import "../styles/tokens.css";
+@import "../styles/integrations.css";
+
+@source "../";

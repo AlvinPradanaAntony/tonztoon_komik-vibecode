@@ -1,0 +1,491 @@
+{
+  "groups": [
+    {
+      "name": "Login validation and 401/403/expired",
+      "pass": true,
+      "console": []
+    },
+    {
+      "name": "Catalog editor validation, preview, focus and local commit",
+      "pass": true,
+      "console": []
+    },
+    {
+      "name": "Draft, conflict and uncertain operation reconciliation",
+      "pass": true,
+      "console": []
+    },
+    {
+      "name": "Archive restore and URL filters pagination",
+      "pass": true,
+      "console": []
+    },
+    {
+      "name": "Genre/chapter/account/helpdesk editors",
+      "pass": true,
+      "console": []
+    },
+    {
+      "name": "Demo permissions and recovery states",
+      "pass": true,
+      "console": []
+    },
+    {
+      "name": "Request pause, filters, exact ID and runtime correlation",
+      "pass": true,
+      "console": []
+    },
+    {
+      "name": "Runtime shared modes, buffer, filters, copy, clear and selection",
+      "pass": true,
+      "console": []
+    },
+    {
+      "name": "Health unknown slots and alert states",
+      "pass": true,
+      "console": []
+    },
+    {
+      "name": "Custom time window validation and investigation cutoff",
+      "pass": true,
+      "console": []
+    },
+    {
+      "name": "Preview source scope, fractional chapter and reader measurements",
+      "pass": true,
+      "console": []
+    },
+    {
+      "name": "Custom flow selection, pan, zoom, edge and motion semantics",
+      "pass": true,
+      "console": []
+    },
+    {
+      "name": "Readonly ERD four diagrams, search, dictionary and relations",
+      "pass": true,
+      "console": []
+    },
+    {
+      "name": "Mobile drawer, focus return and desktop sidebar preference",
+      "pass": true,
+      "console": []
+    },
+    {
+      "name": "Sidebar destinations and component/login links",
+      "pass": true,
+      "console": []
+    }
+  ],
+  "checks": [
+    {
+      "name": "login required fields",
+      "pass": true
+    },
+    {
+      "name": "login outcome 401",
+      "pass": true
+    },
+    {
+      "name": "login outcome 403",
+      "pass": true
+    },
+    {
+      "name": "login outcome expired",
+      "pass": true
+    },
+    {
+      "name": "login outcome success",
+      "pass": true
+    },
+    {
+      "name": "login secrets not in storage",
+      "pass": true
+    },
+    {
+      "name": "editor error summary",
+      "pass": true
+    },
+    {
+      "name": "preview opened",
+      "pass": true
+    },
+    {
+      "name": "preview diff before/after",
+      "pass": true
+    },
+    {
+      "name": "Escape closes preview",
+      "pass": true
+    },
+    {
+      "name": "focus restored after preview",
+      "pass": true
+    },
+    {
+      "name": "local commit labeled",
+      "pass": true
+    },
+    {
+      "name": "source override effective columns",
+      "pass": true
+    },
+    {
+      "name": "reset override",
+      "pass": true
+    },
+    {
+      "name": "detail relations tab",
+      "pass": true
+    },
+    {
+      "name": "local audit correlation",
+      "pass": true
+    },
+    {
+      "name": "conflict draft retained",
+      "pass": true
+    },
+    {
+      "name": "copy draft feedback",
+      "pass": true
+    },
+    {
+      "name": "pending no success",
+      "pass": true
+    },
+    {
+      "name": "reconciled result",
+      "pass": true
+    },
+    {
+      "name": "draft absence after confirmed commit",
+      "pass": true
+    },
+    {
+      "name": "archive state",
+      "pass": true
+    },
+    {
+      "name": "restored state",
+      "pass": true
+    },
+    {
+      "name": "pagination URL",
+      "pass": true
+    },
+    {
+      "name": "filter empty",
+      "pass": true
+    },
+    {
+      "name": "source URL filter",
+      "pass": true
+    },
+    {
+      "name": "return preserves source",
+      "pass": true
+    },
+    {
+      "name": "genre created locally",
+      "pass": true
+    },
+    {
+      "name": "fractional chapter create",
+      "pass": true
+    },
+    {
+      "name": "account preview excludes secret",
+      "pass": true
+    },
+    {
+      "name": "account local mutation",
+      "pass": true
+    },
+    {
+      "name": "account no secret storage",
+      "pass": true
+    },
+    {
+      "name": "helpdesk updated",
+      "pass": true
+    },
+    {
+      "name": "account denied without rows",
+      "pass": true
+    },
+    {
+      "name": "loading state",
+      "pass": true
+    },
+    {
+      "name": "retry restores rows",
+      "pass": true
+    },
+    {
+      "name": "paused new event count",
+      "pass": true
+    },
+    {
+      "name": "request exact ID found",
+      "pass": true
+    },
+    {
+      "name": "runtime inspector correlation",
+      "pass": true
+    },
+    {
+      "name": "runtime waiting events",
+      "pass": true
+    },
+    {
+      "name": "mode URL",
+      "pass": true
+    },
+    {
+      "name": "pause survives mode",
+      "pass": true
+    },
+    {
+      "name": "runtime empty filter",
+      "pass": true
+    },
+    {
+      "name": "runtime copy feedback",
+      "pass": true
+    },
+    {
+      "name": "runtime expanded",
+      "pass": true
+    },
+    {
+      "name": "runtime wrap toggle",
+      "pass": true
+    },
+    {
+      "name": "runtime clear local",
+      "pass": true
+    },
+    {
+      "name": "new logs after clear",
+      "pass": true
+    },
+    {
+      "name": "health unknown",
+      "pass": true
+    },
+    {
+      "name": "alert firing state",
+      "pass": true
+    },
+    {
+      "name": "collapsed alert badge remains inside link",
+      "pass": true
+    },
+    {
+      "name": "alert unknown state",
+      "pass": true
+    },
+    {
+      "name": "custom range maximum seven days",
+      "pass": true
+    },
+    {
+      "name": "custom range URL applied",
+      "pass": true
+    },
+    {
+      "name": "investigation preserves custom cutoff",
+      "pass": true
+    },
+    {
+      "name": "predefined range restored",
+      "pass": true
+    },
+    {
+      "name": "popular fixture order",
+      "pass": true
+    },
+    {
+      "name": "latest fixture order",
+      "pass": true
+    },
+    {
+      "name": "reader measured http and bytes",
+      "pass": true
+    },
+    {
+      "name": "HTTP error measured",
+      "pass": true
+    },
+    {
+      "name": "HTML 200 separated from decode",
+      "pass": true
+    },
+    {
+      "name": "failed attempts retained",
+      "pass": true
+    },
+    {
+      "name": "duplicate payload flagged",
+      "pass": true
+    },
+    {
+      "name": "reader reset explicit",
+      "pass": true
+    },
+    {
+      "name": "flow focus does not select",
+      "pass": true
+    },
+    {
+      "name": "flow Enter selects",
+      "pass": true
+    },
+    {
+      "name": "flow Escape clears and restores focus",
+      "pass": true
+    },
+    {
+      "name": "flow node inspector",
+      "pass": true
+    },
+    {
+      "name": "demo labeled",
+      "pass": true
+    },
+    {
+      "name": "reduced motion static edges",
+      "pass": true
+    },
+    {
+      "name": "flow edge inspector",
+      "pass": true
+    },
+    {
+      "name": "ERD JSONB and generated",
+      "pass": true
+    },
+    {
+      "name": "ERD diagram users",
+      "pass": true
+    },
+    {
+      "name": "ERD diagram monitoring",
+      "pass": true
+    },
+    {
+      "name": "ERD diagram admin",
+      "pass": true
+    },
+    {
+      "name": "ERD diagram catalog",
+      "pass": true
+    },
+    {
+      "name": "ERD readonly nodes",
+      "pass": true
+    },
+    {
+      "name": "ERD readonly keyboard instructions",
+      "pass": true
+    },
+    {
+      "name": "ERD Enter selects",
+      "pass": true
+    },
+    {
+      "name": "ERD Escape clears selection",
+      "pass": true
+    },
+    {
+      "name": "logical relation inspector",
+      "pass": true
+    },
+    {
+      "name": "mobile drawer open",
+      "pass": true
+    },
+    {
+      "name": "drawer focus return",
+      "pass": true
+    },
+    {
+      "name": "sidebar saved preference",
+      "pass": true
+    },
+    {
+      "name": "sidebar preference reload",
+      "pass": true
+    },
+    {
+      "name": "sidebar Endpoint",
+      "pass": true
+    },
+    {
+      "name": "sidebar Request log",
+      "pass": true
+    },
+    {
+      "name": "sidebar Log runtime",
+      "pass": true
+    },
+    {
+      "name": "sidebar Health",
+      "pass": true
+    },
+    {
+      "name": "sidebar Alert",
+      "pass": true
+    },
+    {
+      "name": "sidebar Preview Komik",
+      "pass": true
+    },
+    {
+      "name": "sidebar Katalog & chapter",
+      "pass": true
+    },
+    {
+      "name": "sidebar Genre",
+      "pass": true
+    },
+    {
+      "name": "sidebar Source",
+      "pass": true
+    },
+    {
+      "name": "sidebar Akun",
+      "pass": true
+    },
+    {
+      "name": "sidebar Helpdesk",
+      "pass": true
+    },
+    {
+      "name": "sidebar Audit",
+      "pass": true
+    },
+    {
+      "name": "sidebar Data flow",
+      "pass": true
+    },
+    {
+      "name": "sidebar ERD explorer",
+      "pass": true
+    },
+    {
+      "name": "sidebar Overview",
+      "pass": true
+    },
+    {
+      "name": "login header link",
+      "pass": true
+    },
+    {
+      "name": "component footer link",
+      "pass": true
+    }
+  ],
+  "failures": [],
+  "console": []
+}

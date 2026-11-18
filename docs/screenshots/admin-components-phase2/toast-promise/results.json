@@ -1,0 +1,29 @@
+{
+  "results": [
+    {
+      "theme": "light",
+      "width": 1440,
+      "passed": true,
+      "sameId": "tt-toast-1"
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "passed": true,
+      "sameId": "tt-toast-1"
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "passed": true,
+      "sameId": "tt-toast-1"
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "passed": true,
+      "sameId": "tt-toast-1"
+    }
+  ],
+  "errors": []
+}

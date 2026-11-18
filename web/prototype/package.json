@@ -1,0 +1,19 @@
+{
+  "name": "tonztoon-admin-prototype",
+  "version": "1.0.0",
+  "private": true,
+  "description": "HTML and Tailwind TonzToon Admin prototype with local demo interactions",
+  "scripts": {
+    "build": "npm run build:vendor && npm run build:css",
+    "build:vendor": "node scripts/copy-vendor.mjs",
+    "build:css": "tailwindcss -i ./styles.input.css -o ./styles.css --minify",
+    "watch:css": "tailwindcss -i ./styles.input.css -o ./styles.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.0.0",
+    "tailwindcss": "^4.0.0"
+  },
+  "dependencies": {
+    "simplebar": "6.3.3"
+  }
+}

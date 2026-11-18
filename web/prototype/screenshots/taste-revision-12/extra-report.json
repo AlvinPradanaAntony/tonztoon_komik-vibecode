@@ -1,0 +1,288 @@
+{
+  "colors": [
+    {
+      "theme": "light",
+      "selector": ".sidebar .nav-item.active",
+      "color": "rgb(15, 23, 42)",
+      "background": "rgb(223, 229, 236)",
+      "border": "rgb(15, 23, 42)"
+    },
+    {
+      "theme": "light",
+      "selector": ".range-option.selected",
+      "color": "rgb(15, 23, 42)",
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(113, 128, 150)"
+    },
+    {
+      "theme": "light",
+      "selector": ".chart-tab.selected",
+      "color": "rgb(15, 23, 42)",
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(15, 23, 42)"
+    },
+    {
+      "theme": "light",
+      "selector": ".button.primary",
+      "color": "rgb(255, 255, 255)",
+      "background": "rgb(15, 23, 42)",
+      "border": "rgba(0, 0, 0, 0)"
+    },
+    {
+      "theme": "light",
+      "selector": ".button.secondary",
+      "color": "rgb(15, 23, 42)",
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(113, 128, 150)"
+    },
+    {
+      "theme": "light",
+      "selector": ".brand-sub",
+      "color": "rgb(71, 85, 105)",
+      "background": "rgb(237, 240, 244)",
+      "border": "rgb(71, 85, 105)"
+    },
+    {
+      "theme": "light",
+      "selector": ".metric-label",
+      "color": "rgb(71, 85, 105)",
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(71, 85, 105)"
+    },
+    {
+      "theme": "light",
+      "selector": ".snapshot-mode",
+      "color": "rgb(71, 85, 105)",
+      "background": "rgb(255, 255, 255)",
+      "border": "rgb(71, 85, 105)"
+    },
+    {
+      "theme": "dark",
+      "selector": ".sidebar .nav-item.active",
+      "color": "rgb(241, 243, 245)",
+      "background": "rgb(52, 58, 67)",
+      "border": "rgb(241, 243, 245)"
+    },
+    {
+      "theme": "dark",
+      "selector": ".range-option.selected",
+      "color": "rgb(241, 243, 245)",
+      "background": "rgb(24, 27, 32)",
+      "border": "rgb(135, 146, 164)"
+    },
+    {
+      "theme": "dark",
+      "selector": ".chart-tab.selected",
+      "color": "rgb(241, 243, 245)",
+      "background": "rgb(24, 27, 32)",
+      "border": "rgb(241, 243, 245)"
+    },
+    {
+      "theme": "dark",
+      "selector": ".button.primary",
+      "color": "rgb(16, 18, 21)",
+      "background": "rgb(241, 243, 245)",
+      "border": "rgba(0, 0, 0, 0)"
+    },
+    {
+      "theme": "dark",
+      "selector": ".button.secondary",
+      "color": "rgb(241, 243, 245)",
+      "background": "rgb(24, 27, 32)",
+      "border": "rgb(135, 146, 164)"
+    },
+    {
+      "theme": "dark",
+      "selector": ".brand-sub",
+      "color": "rgb(185, 193, 206)",
+      "background": "rgb(9, 10, 13)",
+      "border": "rgb(185, 193, 206)"
+    },
+    {
+      "theme": "dark",
+      "selector": ".metric-label",
+      "color": "rgb(185, 193, 206)",
+      "background": "rgb(24, 27, 32)",
+      "border": "rgb(185, 193, 206)"
+    },
+    {
+      "theme": "dark",
+      "selector": ".snapshot-mode",
+      "color": "rgb(185, 193, 206)",
+      "background": "rgb(16, 18, 21)",
+      "border": "rgb(185, 193, 206)"
+    }
+  ],
+  "layout": [
+    {
+      "theme": "light",
+      "sidebar": 240,
+      "shell": 240,
+      "margin": "240px",
+      "variable": "240px"
+    },
+    {
+      "theme": "dark",
+      "sidebar": 240,
+      "shell": 240,
+      "margin": "240px",
+      "variable": "240px"
+    }
+  ],
+  "checks": [
+    {
+      "name": "light shell clears sidebar",
+      "pass": true
+    },
+    {
+      "name": "light endpoint 0 opens and close button works",
+      "pass": true
+    },
+    {
+      "name": "light endpoint 1 opens and close button works",
+      "pass": true
+    },
+    {
+      "name": "light endpoint 2 opens and close button works",
+      "pass": true
+    },
+    {
+      "name": "light endpoint 3 opens and close button works",
+      "pass": true
+    },
+    {
+      "name": "light endpoint 4 opens and close button works",
+      "pass": true
+    },
+    {
+      "name": "light permission profile denies then restores Overview",
+      "pass": true
+    },
+    {
+      "name": "light scenario and incident inspection",
+      "pass": true
+    },
+    {
+      "name": "light reset cancellation",
+      "pass": true,
+      "detail": "Native confirm cancelled; existing session retained"
+    },
+    {
+      "name": "light shared endpoints.html 1440",
+      "pass": true
+    },
+    {
+      "name": "light shared endpoints.html 375",
+      "pass": true
+    },
+    {
+      "name": "light shared comics.html 1440",
+      "pass": true
+    },
+    {
+      "name": "light shared comics.html 375",
+      "pass": true
+    },
+    {
+      "name": "light shared comic-detail.html 1440",
+      "pass": true
+    },
+    {
+      "name": "light shared comic-detail.html 375",
+      "pass": true
+    },
+    {
+      "name": "light shared login.html 1440",
+      "pass": true
+    },
+    {
+      "name": "light shared login.html 375",
+      "pass": true
+    },
+    {
+      "name": "light no JavaScript exceptions",
+      "pass": true
+    },
+    {
+      "name": "light no-script fallback",
+      "pass": true
+    },
+    {
+      "name": "dark shell clears sidebar",
+      "pass": true
+    },
+    {
+      "name": "dark endpoint 0 opens and close button works",
+      "pass": true
+    },
+    {
+      "name": "dark endpoint 1 opens and close button works",
+      "pass": true
+    },
+    {
+      "name": "dark endpoint 2 opens and close button works",
+      "pass": true
+    },
+    {
+      "name": "dark endpoint 3 opens and close button works",
+      "pass": true
+    },
+    {
+      "name": "dark endpoint 4 opens and close button works",
+      "pass": true
+    },
+    {
+      "name": "dark permission profile denies then restores Overview",
+      "pass": true
+    },
+    {
+      "name": "dark scenario and incident inspection",
+      "pass": true
+    },
+    {
+      "name": "dark reset cancellation",
+      "pass": true,
+      "detail": "Native confirm cancelled; existing session retained"
+    },
+    {
+      "name": "dark shared endpoints.html 1440",
+      "pass": true
+    },
+    {
+      "name": "dark shared endpoints.html 375",
+      "pass": true
+    },
+    {
+      "name": "dark shared comics.html 1440",
+      "pass": true
+    },
+    {
+      "name": "dark shared comics.html 375",
+      "pass": true
+    },
+    {
+      "name": "dark shared comic-detail.html 1440",
+      "pass": true
+    },
+    {
+      "name": "dark shared comic-detail.html 375",
+      "pass": true
+    },
+    {
+      "name": "dark shared login.html 1440",
+      "pass": true
+    },
+    {
+      "name": "dark shared login.html 375",
+      "pass": true
+    },
+    {
+      "name": "dark no JavaScript exceptions",
+      "pass": true
+    },
+    {
+      "name": "dark no-script fallback",
+      "pass": true
+    }
+  ]
+}

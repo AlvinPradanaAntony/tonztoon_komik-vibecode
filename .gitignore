@@ -24,3 +24,5 @@ backend/.env-hf
 assets/
 .agents/
 AGENTS.md
+backend/.env copy
+/.github/context-mode/

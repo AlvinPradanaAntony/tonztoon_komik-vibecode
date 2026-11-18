@@ -5,12 +5,14 @@ from __future__ import annotations
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_optional_auth_user
 from app.api.errors import raise_api_error
-from app.api.v1.account_manager import require_account_manager_admin
+from app.admin.security import require
+
+require_helpdesk_admin = require("helpdesk:manage")
 from app.database import get_db
 from app.schemas import (
     AuthenticatedUser,
@@ -65,7 +67,7 @@ async def get_helpdesk_submissions(
         "closed",
     ]
     | None = Query(default=None, alias="status"),
-    _: AuthenticatedUser = Depends(require_account_manager_admin),
+    _: AuthenticatedUser = Depends(require_helpdesk_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """List helpdesk submissions for administrators."""
@@ -85,11 +87,43 @@ async def get_helpdesk_submissions(
 async def patch_helpdesk_submission(
     submission_id: UUID,
     payload: HelpdeskSubmissionUpdateRequest,
-    _: AuthenticatedUser = Depends(require_account_manager_admin),
+    request: Request,
+    actor: AuthenticatedUser = Depends(require_helpdesk_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Update helpdesk workflow status or an internal admin note."""
     try:
+        from app.config import settings
+        if settings.ADMIN_CONSOLE_ENABLED:
+            from app.admin.data import idempotency, require_match
+            from app.admin.tables import audit, operations, outbox
+            from app.admin.telemetry import request_id_context
+            from app.models import HelpdeskSubmission
+            from app.services.helpdesk_service import build_helpdesk_response
+            from sqlalchemy import select, insert, update
+            from datetime import datetime, timezone
+            import uuid
+            operation,previous=await idempotency(db,request,actor,payload.model_dump(mode="json"))
+            if previous is not None:
+                return previous
+            obj=await db.scalar(select(HelpdeskSubmission).where(HelpdeskSubmission.id==submission_id).with_for_update())
+            if obj is None:
+                raise HTTPException(404,"Laporan tidak ditemukan.")
+            before=build_helpdesk_response(obj)
+            require_match(request,{"etag":before.etag})
+            if payload.status is not None:
+                obj.status=payload.status
+            if "admin_note" in payload.model_fields_set:
+                obj.admin_note=payload.admin_note
+            obj.updated_at=datetime.now(timezone.utc)
+            result=build_helpdesk_response(obj).model_dump(mode="json")
+            await db.execute(insert(audit).values(id=str(uuid.uuid4()),actor=str(actor.user_id),permission="helpdesk:manage",
+                resource=f"helpdesk/{submission_id}",action="update",fields={"status":{"before":before.status,"after":obj.status},"admin_note":{"changed":"admin_note" in payload.model_fields_set}},
+                request_id=request_id_context.get(),operation_id=operation))
+            await db.execute(insert(outbox).values(payload={"type":"resource_changed","resource":f"helpdesk/{submission_id}"}))
+            await db.execute(update(operations).where(operations.c.key==operation).values(response=result,status="succeeded"))
+            await db.commit()
+            return result
         return await update_helpdesk_submission(db, submission_id, payload)
     except LookupError as exc:
         raise_api_error(
@@ -99,13 +133,24 @@ async def patch_helpdesk_submission(
         )
 
 
+@router.get("/submissions/{submission_id}", response_model=HelpdeskSubmissionResponse)
+async def get_submission(submission_id: UUID, _: AuthenticatedUser = Depends(require_helpdesk_admin), db: AsyncSession = Depends(get_db)):
+    from sqlalchemy import select
+    from app.models import HelpdeskSubmission
+    from app.services.helpdesk_service import build_helpdesk_response
+    obj=await db.scalar(select(HelpdeskSubmission).where(HelpdeskSubmission.id==submission_id))
+    if obj is None:
+        raise HTTPException(404,"Laporan tidak ditemukan.")
+    return build_helpdesk_response(obj)
+
+
 @router.delete(
     "/submissions/{submission_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_submission_endpoint(
     submission_id: UUID,
-    _: AuthenticatedUser = Depends(require_account_manager_admin),
+    _: AuthenticatedUser = Depends(require_helpdesk_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a helpdesk submission."""

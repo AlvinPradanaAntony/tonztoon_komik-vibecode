@@ -1,0 +1,146 @@
+[
+  {
+    "theme": "light",
+    "selector": ".sidebar .nav-item.active",
+    "color": "rgb(15, 23, 42)",
+    "background": "rgb(223, 229, 236)",
+    "border": "rgb(15, 23, 42)",
+    "ratio": 14.08,
+    "pass": true
+  },
+  {
+    "theme": "light",
+    "selector": ".range-option.selected",
+    "color": "rgb(15, 23, 42)",
+    "background": "rgb(255, 255, 255)",
+    "border": "rgb(113, 128, 150)",
+    "ratio": 17.85,
+    "pass": true
+  },
+  {
+    "theme": "light",
+    "selector": ".chart-tab.selected",
+    "color": "rgb(15, 23, 42)",
+    "background": "rgb(255, 255, 255)",
+    "border": "rgb(15, 23, 42)",
+    "ratio": 17.85,
+    "pass": true
+  },
+  {
+    "theme": "light",
+    "selector": ".button.primary",
+    "color": "rgb(255, 255, 255)",
+    "background": "rgb(15, 23, 42)",
+    "border": "rgba(0, 0, 0, 0)",
+    "ratio": 17.85,
+    "pass": true
+  },
+  {
+    "theme": "light",
+    "selector": ".button.secondary",
+    "color": "rgb(15, 23, 42)",
+    "background": "rgb(255, 255, 255)",
+    "border": "rgb(113, 128, 150)",
+    "ratio": 17.85,
+    "pass": true
+  },
+  {
+    "theme": "light",
+    "selector": ".brand-sub",
+    "color": "rgb(71, 85, 105)",
+    "background": "rgb(237, 240, 244)",
+    "border": "rgb(71, 85, 105)",
+    "ratio": 6.63,
+    "pass": true
+  },
+  {
+    "theme": "light",
+    "selector": ".metric-label",
+    "color": "rgb(71, 85, 105)",
+    "background": "rgb(255, 255, 255)",
+    "border": "rgb(71, 85, 105)",
+    "ratio": 7.58,
+    "pass": true
+  },
+  {
+    "theme": "light",
+    "selector": ".snapshot-mode",
+    "color": "rgb(71, 85, 105)",
+    "background": "rgb(255, 255, 255)",
+    "border": "rgb(71, 85, 105)",
+    "ratio": 7.58,
+    "pass": true
+  },
+  {
+    "theme": "dark",
+    "selector": ".sidebar .nav-item.active",
+    "color": "rgb(241, 243, 245)",
+    "background": "rgb(52, 58, 67)",
+    "border": "rgb(241, 243, 245)",
+    "ratio": 10.3,
+    "pass": true
+  },
+  {
+    "theme": "dark",
+    "selector": ".range-option.selected",
+    "color": "rgb(241, 243, 245)",
+    "background": "rgb(24, 27, 32)",
+    "border": "rgb(135, 146, 164)",
+    "ratio": 15.52,
+    "pass": true
+  },
+  {
+    "theme": "dark",
+    "selector": ".chart-tab.selected",
+    "color": "rgb(241, 243, 245)",
+    "background": "rgb(24, 27, 32)",
+    "border": "rgb(241, 243, 245)",
+    "ratio": 15.52,
+    "pass": true
+  },
+  {
+    "theme": "dark",
+    "selector": ".button.primary",
+    "color": "rgb(16, 18, 21)",
+    "background": "rgb(241, 243, 245)",
+    "border": "rgba(0, 0, 0, 0)",
+    "ratio": 16.87,
+    "pass": true
+  },
+  {
+    "theme": "dark",
+    "selector": ".button.secondary",
+    "color": "rgb(241, 243, 245)",
+    "background": "rgb(24, 27, 32)",
+    "border": "rgb(135, 146, 164)",
+    "ratio": 15.52,
+    "pass": true
+  },
+  {
+    "theme": "dark",
+    "selector": ".brand-sub",
+    "color": "rgb(185, 193, 206)",
+    "background": "rgb(9, 10, 13)",
+    "border": "rgb(185, 193, 206)",
+    "ratio": 10.92,
+    "pass": true
+  },
+  {
+    "theme": "dark",
+    "selector": ".metric-label",
+    "color": "rgb(185, 193, 206)",
+    "background": "rgb(24, 27, 32)",
+    "border": "rgb(185, 193, 206)",
+    "ratio": 9.52,
+    "pass": true
+  },
+  {
+    "theme": "dark",
+    "selector": ".snapshot-mode",
+    "color": "rgb(185, 193, 206)",
+    "background": "rgb(16, 18, 21)",
+    "border": "rgb(185, 193, 206)",
+    "ratio": 10.35,
+    "pass": true
+  }
+]

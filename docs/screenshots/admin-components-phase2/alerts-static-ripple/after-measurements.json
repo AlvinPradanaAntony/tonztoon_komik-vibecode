@@ -1,0 +1,1116 @@
+{
+  "browser": "155.0.8059.85",
+  "results": [
+    {
+      "staticIcons": [
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.786667 0.813333 0.847843)",
+          "border": "color(srgb 0.850196 0.873333 0.902353)",
+          "stroke": "rgb(71, 85, 105)"
+        },
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.75451 0.833726 0.922353)",
+          "border": "color(srgb 0.836078 0.891373 0.955294)",
+          "stroke": "rgb(26, 95, 168)"
+        },
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.760784 0.854118 0.790588)",
+          "border": "color(srgb 0.845098 0.911372 0.863922)",
+          "stroke": "rgb(22, 101, 52)"
+        },
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.91451 0.837647 0.748235)",
+          "border": "color(srgb 0.957255 0.91098 0.834902)",
+          "stroke": "rgb(146, 64, 14)"
+        },
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.941961 0.781177 0.781177)",
+          "border": "color(srgb 0.96902 0.865098 0.865098)",
+          "stroke": "rgb(185, 28, 28)"
+        }
+      ],
+      "theme": "light",
+      "width": 1440,
+      "textScale": 1
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "height": 900,
+      "textScale": 1,
+      "metrics": [
+        {
+          "tone": "neutral",
+          "role": "note",
+          "width": 580,
+          "height": 78,
+          "radius": "12px",
+          "borderStart": "4px",
+          "borderColor": "rgb(71, 85, 105)",
+          "background": "rgb(233, 238, 244)",
+          "textColor": "rgb(15, 23, 42)",
+          "textFont": "14px",
+          "titleColor": "rgb(15, 23, 42)",
+          "icon": {
+            "width": 32,
+            "height": 32,
+            "color": "rgb(71, 85, 105)",
+            "background": "color(srgb 0.786667 0.813333 0.847843)",
+            "border": "color(srgb 0.850196 0.873333 0.902353)",
+            "hidden": "true",
+            "svgWidth": "18px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": false,
+          "aligned": true
+        },
+        {
+          "tone": "info",
+          "role": "note",
+          "width": 580,
+          "height": 78,
+          "radius": "12px",
+          "borderStart": "4px",
+          "borderColor": "rgb(26, 95, 168)",
+          "background": "rgb(234, 242, 252)",
+          "textColor": "rgb(15, 23, 42)",
+          "textFont": "14px",
+          "titleColor": "rgb(15, 23, 42)",
+          "icon": {
+            "width": 32,
+            "height": 32,
+            "color": "rgb(26, 95, 168)",
+            "background": "color(srgb 0.75451 0.833726 0.922353)",
+            "border": "color(srgb 0.836078 0.891373 0.955294)",
+            "hidden": "true",
+            "svgWidth": "18px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": false,
+          "aligned": true
+        },
+        {
+          "tone": "success",
+          "role": "note",
+          "width": 580,
+          "height": 78,
+          "radius": "12px",
+          "borderStart": "4px",
+          "borderColor": "rgb(22, 101, 52)",
+          "background": "rgb(237, 247, 239)",
+          "textColor": "rgb(15, 23, 42)",
+          "textFont": "14px",
+          "titleColor": "rgb(15, 23, 42)",
+          "icon": {
+            "width": 32,
+            "height": 32,
+            "color": "rgb(22, 101, 52)",
+            "background": "color(srgb 0.760784 0.854118 0.790588)",
+            "border": "color(srgb 0.845098 0.911372 0.863922)",
+            "hidden": "true",
+            "svgWidth": "18px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": false,
+          "aligned": true
+        },
+        {
+          "tone": "warning",
+          "role": "note",
+          "width": 580,
+          "height": 78,
+          "radius": "12px",
+          "borderStart": "4px",
+          "borderColor": "rgb(146, 64, 14)",
+          "background": "rgb(255, 251, 235)",
+          "textColor": "rgb(15, 23, 42)",
+          "textFont": "14px",
+          "titleColor": "rgb(15, 23, 42)",
+          "icon": {
+            "width": 32,
+            "height": 32,
+            "color": "rgb(146, 64, 14)",
+            "background": "color(srgb 0.91451 0.837647 0.748235)",
+            "border": "color(srgb 0.957255 0.91098 0.834902)",
+            "hidden": "true",
+            "svgWidth": "18px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": false,
+          "aligned": true
+        },
+        {
+          "tone": "error",
+          "role": "note",
+          "width": 1176,
+          "height": 78,
+          "radius": "12px",
+          "borderStart": "4px",
+          "borderColor": "rgb(185, 28, 28)",
+          "background": "rgb(254, 242, 242)",
+          "textColor": "rgb(15, 23, 42)",
+          "textFont": "14px",
+          "titleColor": "rgb(15, 23, 42)",
+          "icon": {
+            "width": 32,
+            "height": 32,
+            "color": "rgb(185, 28, 28)",
+            "background": "color(srgb 0.941961 0.781177 0.781177)",
+            "border": "color(srgb 0.96902 0.865098 0.865098)",
+            "hidden": "true",
+            "svgWidth": "18px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": false,
+          "aligned": true
+        }
+      ]
+    },
+    {
+      "staticIcons": [
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.786667 0.813333 0.847843)",
+          "border": "color(srgb 0.850196 0.873333 0.902353)",
+          "stroke": "rgb(71, 85, 105)"
+        },
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.75451 0.833726 0.922353)",
+          "border": "color(srgb 0.836078 0.891373 0.955294)",
+          "stroke": "rgb(26, 95, 168)"
+        },
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.760784 0.854118 0.790588)",
+          "border": "color(srgb 0.845098 0.911372 0.863922)",
+          "stroke": "rgb(22, 101, 52)"
+        },
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.91451 0.837647 0.748235)",
+          "border": "color(srgb 0.957255 0.91098 0.834902)",
+          "stroke": "rgb(146, 64, 14)"
+        },
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.941961 0.781177 0.781177)",
+          "border": "color(srgb 0.96902 0.865098 0.865098)",
+          "stroke": "rgb(185, 28, 28)"
+        }
+      ],
+      "theme": "light",
+      "width": 360,
+      "textScale": 1
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "height": 900,
+      "textScale": 1,
+      "metrics": [
+        {
+          "tone": "neutral",
+          "role": "note",
+          "width": 280,
+          "height": 99,
+          "radius": "12px",
+          "borderStart": "4px",
+          "borderColor": "rgb(71, 85, 105)",
+          "background": "rgb(233, 238, 244)",
+          "textColor": "rgb(15, 23, 42)",
+          "textFont": "14px",
+          "titleColor": "rgb(15, 23, 42)",
+          "icon": {
+            "width": 32,
+            "height": 32,
+            "color": "rgb(71, 85, 105)",
+            "background": "color(srgb 0.786667 0.813333 0.847843)",
+            "border": "color(srgb 0.850196 0.873333 0.902353)",
+            "hidden": "true",
+            "svgWidth": "18px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": false,
+          "aligned": true
+        },
+        {
+          "tone": "info",
+          "role": "note",
+          "width": 280,
+          "height": 99,
+          "radius": "12px",
+          "borderStart": "4px",
+          "borderColor": "rgb(26, 95, 168)",
+          "background": "rgb(234, 242, 252)",
+          "textColor": "rgb(15, 23, 42)",
+          "textFont": "14px",
+          "titleColor": "rgb(15, 23, 42)",
+          "icon": {
+            "width": 32,
+            "height": 32,
+            "color": "rgb(26, 95, 168)",
+            "background": "color(srgb 0.75451 0.833726 0.922353)",
+            "border": "color(srgb 0.836078 0.891373 0.955294)",
+            "hidden": "true",
+            "svgWidth": "18px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": false,
+          "aligned": true
+        },
+        {
+          "tone": "success",
+          "role": "note",
+          "width": 280,
+          "height": 99,
+          "radius": "12px",
+          "borderStart": "4px",
+          "borderColor": "rgb(22, 101, 52)",
+          "background": "rgb(237, 247, 239)",
+          "textColor": "rgb(15, 23, 42)",
+          "textFont": "14px",
+          "titleColor": "rgb(15, 23, 42)",
+          "icon": {
+            "width": 32,
+            "height": 32,
+            "color": "rgb(22, 101, 52)",
+            "background": "color(srgb 0.760784 0.854118 0.790588)",
+            "border": "color(srgb 0.845098 0.911372 0.863922)",
+            "hidden": "true",
+            "svgWidth": "18px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": false,
+          "aligned": true
+        },
+        {
+          "tone": "warning",
+          "role": "note",
+          "width": 280,
+          "height": 99,
+          "radius": "12px",
+          "borderStart": "4px",
+          "borderColor": "rgb(146, 64, 14)",
+          "background": "rgb(255, 251, 235)",
+          "textColor": "rgb(15, 23, 42)",
+          "textFont": "14px",
+          "titleColor": "rgb(15, 23, 42)",
+          "icon": {
+            "width": 32,
+            "height": 32,
+            "color": "rgb(146, 64, 14)",
+            "background": "color(srgb 0.91451 0.837647 0.748235)",
+            "border": "color(srgb 0.957255 0.91098 0.834902)",
+            "hidden": "true",
+            "svgWidth": "18px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": false,
+          "aligned": true
+        },
+        {
+          "tone": "error",
+          "role": "note",
+          "width": 280,
+          "height": 99,
+          "radius": "12px",
+          "borderStart": "4px",
+          "borderColor": "rgb(185, 28, 28)",
+          "background": "rgb(254, 242, 242)",
+          "textColor": "rgb(15, 23, 42)",
+          "textFont": "14px",
+          "titleColor": "rgb(15, 23, 42)",
+          "icon": {
+            "width": 32,
+            "height": 32,
+            "color": "rgb(185, 28, 28)",
+            "background": "color(srgb 0.941961 0.781177 0.781177)",
+            "border": "color(srgb 0.96902 0.865098 0.865098)",
+            "hidden": "true",
+            "svgWidth": "18px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": false,
+          "aligned": true
+        }
+      ]
+    },
+    {
+      "staticIcons": [
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.786667 0.813333 0.847843)",
+          "border": "color(srgb 0.850196 0.873333 0.902353)",
+          "stroke": "rgb(71, 85, 105)"
+        },
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.75451 0.833726 0.922353)",
+          "border": "color(srgb 0.836078 0.891373 0.955294)",
+          "stroke": "rgb(26, 95, 168)"
+        },
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.760784 0.854118 0.790588)",
+          "border": "color(srgb 0.845098 0.911372 0.863922)",
+          "stroke": "rgb(22, 101, 52)"
+        },
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.91451 0.837647 0.748235)",
+          "border": "color(srgb 0.957255 0.91098 0.834902)",
+          "stroke": "rgb(146, 64, 14)"
+        },
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.941961 0.781177 0.781177)",
+          "border": "color(srgb 0.96902 0.865098 0.865098)",
+          "stroke": "rgb(185, 28, 28)"
+        }
+      ],
+      "theme": "light",
+      "width": 360,
+      "textScale": 2
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "height": 900,
+      "textScale": 2,
+      "metrics": [
+        {
+          "tone": "neutral",
+          "role": "note",
+          "width": 200,
+          "height": 452,
+          "radius": "24px",
+          "borderStart": "4px",
+          "borderColor": "rgb(71, 85, 105)",
+          "background": "rgb(233, 238, 244)",
+          "textColor": "rgb(15, 23, 42)",
+          "textFont": "28px",
+          "titleColor": "rgb(15, 23, 42)",
+          "icon": {
+            "width": 64,
+            "height": 64,
+            "color": "rgb(71, 85, 105)",
+            "background": "color(srgb 0.786667 0.813333 0.847843)",
+            "border": "color(srgb 0.850196 0.873333 0.902353)",
+            "hidden": "true",
+            "svgWidth": "36px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": true,
+          "aligned": true
+        },
+        {
+          "tone": "info",
+          "role": "note",
+          "width": 200,
+          "height": 452,
+          "radius": "24px",
+          "borderStart": "4px",
+          "borderColor": "rgb(26, 95, 168)",
+          "background": "rgb(234, 242, 252)",
+          "textColor": "rgb(15, 23, 42)",
+          "textFont": "28px",
+          "titleColor": "rgb(15, 23, 42)",
+          "icon": {
+            "width": 64,
+            "height": 64,
+            "color": "rgb(26, 95, 168)",
+            "background": "color(srgb 0.75451 0.833726 0.922353)",
+            "border": "color(srgb 0.836078 0.891373 0.955294)",
+            "hidden": "true",
+            "svgWidth": "36px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": true,
+          "aligned": true
+        },
+        {
+          "tone": "success",
+          "role": "note",
+          "width": 200,
+          "height": 452,
+          "radius": "24px",
+          "borderStart": "4px",
+          "borderColor": "rgb(22, 101, 52)",
+          "background": "rgb(237, 247, 239)",
+          "textColor": "rgb(15, 23, 42)",
+          "textFont": "28px",
+          "titleColor": "rgb(15, 23, 42)",
+          "icon": {
+            "width": 64,
+            "height": 64,
+            "color": "rgb(22, 101, 52)",
+            "background": "color(srgb 0.760784 0.854118 0.790588)",
+            "border": "color(srgb 0.845098 0.911372 0.863922)",
+            "hidden": "true",
+            "svgWidth": "36px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": true,
+          "aligned": true
+        },
+        {
+          "tone": "warning",
+          "role": "note",
+          "width": 200,
+          "height": 494,
+          "radius": "24px",
+          "borderStart": "4px",
+          "borderColor": "rgb(146, 64, 14)",
+          "background": "rgb(255, 251, 235)",
+          "textColor": "rgb(15, 23, 42)",
+          "textFont": "28px",
+          "titleColor": "rgb(15, 23, 42)",
+          "icon": {
+            "width": 64,
+            "height": 64,
+            "color": "rgb(146, 64, 14)",
+            "background": "color(srgb 0.91451 0.837647 0.748235)",
+            "border": "color(srgb 0.957255 0.91098 0.834902)",
+            "hidden": "true",
+            "svgWidth": "36px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": true,
+          "aligned": true
+        },
+        {
+          "tone": "error",
+          "role": "note",
+          "width": 200,
+          "height": 452,
+          "radius": "24px",
+          "borderStart": "4px",
+          "borderColor": "rgb(185, 28, 28)",
+          "background": "rgb(254, 242, 242)",
+          "textColor": "rgb(15, 23, 42)",
+          "textFont": "28px",
+          "titleColor": "rgb(15, 23, 42)",
+          "icon": {
+            "width": 64,
+            "height": 64,
+            "color": "rgb(185, 28, 28)",
+            "background": "color(srgb 0.941961 0.781177 0.781177)",
+            "border": "color(srgb 0.96902 0.865098 0.865098)",
+            "hidden": "true",
+            "svgWidth": "36px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": true,
+          "aligned": true
+        }
+      ]
+    },
+    {
+      "staticIcons": [
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.28 0.301961 0.337255)",
+          "border": "color(srgb 0.224314 0.245098 0.278431)",
+          "stroke": "rgb(185, 193, 206)"
+        },
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.143529 0.256471 0.357647)",
+          "border": "color(srgb 0.116863 0.208627 0.288627)",
+          "stroke": "rgb(91, 163, 232)"
+        },
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.156863 0.294118 0.21098)",
+          "border": "color(srgb 0.12549 0.227451 0.166275)",
+          "stroke": "rgb(104, 211, 145)"
+        },
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.331765 0.265098 0.149804)",
+          "border": "color(srgb 0.26 0.20902 0.123922)",
+          "stroke": "rgb(231, 182, 91)"
+        },
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.338823 0.20549 0.218039)",
+          "border": "color(srgb 0.263529 0.163529 0.177647)",
+          "stroke": "rgb(240, 138, 138)"
+        }
+      ],
+      "theme": "dark",
+      "width": 1440,
+      "textScale": 1
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "height": 900,
+      "textScale": 1,
+      "metrics": [
+        {
+          "tone": "neutral",
+          "role": "note",
+          "width": 580,
+          "height": 78,
+          "radius": "12px",
+          "borderStart": "4px",
+          "borderColor": "rgb(185, 193, 206)",
+          "background": "rgb(43, 48, 56)",
+          "textColor": "rgb(241, 243, 245)",
+          "textFont": "14px",
+          "titleColor": "rgb(241, 243, 245)",
+          "icon": {
+            "width": 32,
+            "height": 32,
+            "color": "rgb(185, 193, 206)",
+            "background": "color(srgb 0.28 0.301961 0.337255)",
+            "border": "color(srgb 0.224314 0.245098 0.278431)",
+            "hidden": "true",
+            "svgWidth": "18px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": false,
+          "aligned": true
+        },
+        {
+          "tone": "info",
+          "role": "note",
+          "width": 580,
+          "height": 78,
+          "radius": "12px",
+          "borderStart": "4px",
+          "borderColor": "rgb(91, 163, 232)",
+          "background": "rgb(23, 41, 56)",
+          "textColor": "rgb(241, 243, 245)",
+          "textFont": "14px",
+          "titleColor": "rgb(241, 243, 245)",
+          "icon": {
+            "width": 32,
+            "height": 32,
+            "color": "rgb(91, 163, 232)",
+            "background": "color(srgb 0.143529 0.256471 0.357647)",
+            "border": "color(srgb 0.116863 0.208627 0.288627)",
+            "hidden": "true",
+            "svgWidth": "18px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": false,
+          "aligned": true
+        },
+        {
+          "tone": "success",
+          "role": "note",
+          "width": 580,
+          "height": 78,
+          "radius": "12px",
+          "borderStart": "4px",
+          "borderColor": "rgb(104, 211, 145)",
+          "background": "rgb(24, 41, 31)",
+          "textColor": "rgb(241, 243, 245)",
+          "textFont": "14px",
+          "titleColor": "rgb(241, 243, 245)",
+          "icon": {
+            "width": 32,
+            "height": 32,
+            "color": "rgb(104, 211, 145)",
+            "background": "color(srgb 0.156863 0.294118 0.21098)",
+            "border": "color(srgb 0.12549 0.227451 0.166275)",
+            "hidden": "true",
+            "svgWidth": "18px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": false,
+          "aligned": true
+        },
+        {
+          "tone": "warning",
+          "role": "note",
+          "width": 580,
+          "height": 78,
+          "radius": "12px",
+          "borderStart": "4px",
+          "borderColor": "rgb(231, 182, 91)",
+          "background": "rgb(48, 39, 25)",
+          "textColor": "rgb(241, 243, 245)",
+          "textFont": "14px",
+          "titleColor": "rgb(241, 243, 245)",
+          "icon": {
+            "width": 32,
+            "height": 32,
+            "color": "rgb(231, 182, 91)",
+            "background": "color(srgb 0.331765 0.265098 0.149804)",
+            "border": "color(srgb 0.26 0.20902 0.123922)",
+            "hidden": "true",
+            "svgWidth": "18px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": false,
+          "aligned": true
+        },
+        {
+          "tone": "error",
+          "role": "note",
+          "width": 1176,
+          "height": 78,
+          "radius": "12px",
+          "borderStart": "4px",
+          "borderColor": "rgb(240, 138, 138)",
+          "background": "rgb(48, 31, 35)",
+          "textColor": "rgb(241, 243, 245)",
+          "textFont": "14px",
+          "titleColor": "rgb(241, 243, 245)",
+          "icon": {
+            "width": 32,
+            "height": 32,
+            "color": "rgb(240, 138, 138)",
+            "background": "color(srgb 0.338823 0.20549 0.218039)",
+            "border": "color(srgb 0.263529 0.163529 0.177647)",
+            "hidden": "true",
+            "svgWidth": "18px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": false,
+          "aligned": true
+        }
+      ]
+    },
+    {
+      "staticIcons": [
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.28 0.301961 0.337255)",
+          "border": "color(srgb 0.224314 0.245098 0.278431)",
+          "stroke": "rgb(185, 193, 206)"
+        },
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.143529 0.256471 0.357647)",
+          "border": "color(srgb 0.116863 0.208627 0.288627)",
+          "stroke": "rgb(91, 163, 232)"
+        },
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.156863 0.294118 0.21098)",
+          "border": "color(srgb 0.12549 0.227451 0.166275)",
+          "stroke": "rgb(104, 211, 145)"
+        },
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.331765 0.265098 0.149804)",
+          "border": "color(srgb 0.26 0.20902 0.123922)",
+          "stroke": "rgb(231, 182, 91)"
+        },
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.338823 0.20549 0.218039)",
+          "border": "color(srgb 0.263529 0.163529 0.177647)",
+          "stroke": "rgb(240, 138, 138)"
+        }
+      ],
+      "theme": "dark",
+      "width": 360,
+      "textScale": 1
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "height": 900,
+      "textScale": 1,
+      "metrics": [
+        {
+          "tone": "neutral",
+          "role": "note",
+          "width": 280,
+          "height": 99,
+          "radius": "12px",
+          "borderStart": "4px",
+          "borderColor": "rgb(185, 193, 206)",
+          "background": "rgb(43, 48, 56)",
+          "textColor": "rgb(241, 243, 245)",
+          "textFont": "14px",
+          "titleColor": "rgb(241, 243, 245)",
+          "icon": {
+            "width": 32,
+            "height": 32,
+            "color": "rgb(185, 193, 206)",
+            "background": "color(srgb 0.28 0.301961 0.337255)",
+            "border": "color(srgb 0.224314 0.245098 0.278431)",
+            "hidden": "true",
+            "svgWidth": "18px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": false,
+          "aligned": true
+        },
+        {
+          "tone": "info",
+          "role": "note",
+          "width": 280,
+          "height": 99,
+          "radius": "12px",
+          "borderStart": "4px",
+          "borderColor": "rgb(91, 163, 232)",
+          "background": "rgb(23, 41, 56)",
+          "textColor": "rgb(241, 243, 245)",
+          "textFont": "14px",
+          "titleColor": "rgb(241, 243, 245)",
+          "icon": {
+            "width": 32,
+            "height": 32,
+            "color": "rgb(91, 163, 232)",
+            "background": "color(srgb 0.143529 0.256471 0.357647)",
+            "border": "color(srgb 0.116863 0.208627 0.288627)",
+            "hidden": "true",
+            "svgWidth": "18px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": false,
+          "aligned": true
+        },
+        {
+          "tone": "success",
+          "role": "note",
+          "width": 280,
+          "height": 99,
+          "radius": "12px",
+          "borderStart": "4px",
+          "borderColor": "rgb(104, 211, 145)",
+          "background": "rgb(24, 41, 31)",
+          "textColor": "rgb(241, 243, 245)",
+          "textFont": "14px",
+          "titleColor": "rgb(241, 243, 245)",
+          "icon": {
+            "width": 32,
+            "height": 32,
+            "color": "rgb(104, 211, 145)",
+            "background": "color(srgb 0.156863 0.294118 0.21098)",
+            "border": "color(srgb 0.12549 0.227451 0.166275)",
+            "hidden": "true",
+            "svgWidth": "18px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": false,
+          "aligned": true
+        },
+        {
+          "tone": "warning",
+          "role": "note",
+          "width": 280,
+          "height": 99,
+          "radius": "12px",
+          "borderStart": "4px",
+          "borderColor": "rgb(231, 182, 91)",
+          "background": "rgb(48, 39, 25)",
+          "textColor": "rgb(241, 243, 245)",
+          "textFont": "14px",
+          "titleColor": "rgb(241, 243, 245)",
+          "icon": {
+            "width": 32,
+            "height": 32,
+            "color": "rgb(231, 182, 91)",
+            "background": "color(srgb 0.331765 0.265098 0.149804)",
+            "border": "color(srgb 0.26 0.20902 0.123922)",
+            "hidden": "true",
+            "svgWidth": "18px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": false,
+          "aligned": true
+        },
+        {
+          "tone": "error",
+          "role": "note",
+          "width": 280,
+          "height": 99,
+          "radius": "12px",
+          "borderStart": "4px",
+          "borderColor": "rgb(240, 138, 138)",
+          "background": "rgb(48, 31, 35)",
+          "textColor": "rgb(241, 243, 245)",
+          "textFont": "14px",
+          "titleColor": "rgb(241, 243, 245)",
+          "icon": {
+            "width": 32,
+            "height": 32,
+            "color": "rgb(240, 138, 138)",
+            "background": "color(srgb 0.338823 0.20549 0.218039)",
+            "border": "color(srgb 0.263529 0.163529 0.177647)",
+            "hidden": "true",
+            "svgWidth": "18px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": false,
+          "aligned": true
+        }
+      ]
+    },
+    {
+      "staticIcons": [
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.28 0.301961 0.337255)",
+          "border": "color(srgb 0.224314 0.245098 0.278431)",
+          "stroke": "rgb(185, 193, 206)"
+        },
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.143529 0.256471 0.357647)",
+          "border": "color(srgb 0.116863 0.208627 0.288627)",
+          "stroke": "rgb(91, 163, 232)"
+        },
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.156863 0.294118 0.21098)",
+          "border": "color(srgb 0.12549 0.227451 0.166275)",
+          "stroke": "rgb(104, 211, 145)"
+        },
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.331765 0.265098 0.149804)",
+          "border": "color(srgb 0.26 0.20902 0.123922)",
+          "stroke": "rgb(231, 182, 91)"
+        },
+        {
+          "animations": 0,
+          "duration": "0s",
+          "ring": "4px",
+          "background": "color(srgb 0.338823 0.20549 0.218039)",
+          "border": "color(srgb 0.263529 0.163529 0.177647)",
+          "stroke": "rgb(240, 138, 138)"
+        }
+      ],
+      "theme": "dark",
+      "width": 360,
+      "textScale": 2
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "height": 900,
+      "textScale": 2,
+      "metrics": [
+        {
+          "tone": "neutral",
+          "role": "note",
+          "width": 200,
+          "height": 452,
+          "radius": "24px",
+          "borderStart": "4px",
+          "borderColor": "rgb(185, 193, 206)",
+          "background": "rgb(43, 48, 56)",
+          "textColor": "rgb(241, 243, 245)",
+          "textFont": "28px",
+          "titleColor": "rgb(241, 243, 245)",
+          "icon": {
+            "width": 64,
+            "height": 64,
+            "color": "rgb(185, 193, 206)",
+            "background": "color(srgb 0.28 0.301961 0.337255)",
+            "border": "color(srgb 0.224314 0.245098 0.278431)",
+            "hidden": "true",
+            "svgWidth": "36px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": true,
+          "aligned": true
+        },
+        {
+          "tone": "info",
+          "role": "note",
+          "width": 200,
+          "height": 452,
+          "radius": "24px",
+          "borderStart": "4px",
+          "borderColor": "rgb(91, 163, 232)",
+          "background": "rgb(23, 41, 56)",
+          "textColor": "rgb(241, 243, 245)",
+          "textFont": "28px",
+          "titleColor": "rgb(241, 243, 245)",
+          "icon": {
+            "width": 64,
+            "height": 64,
+            "color": "rgb(91, 163, 232)",
+            "background": "color(srgb 0.143529 0.256471 0.357647)",
+            "border": "color(srgb 0.116863 0.208627 0.288627)",
+            "hidden": "true",
+            "svgWidth": "36px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": true,
+          "aligned": true
+        },
+        {
+          "tone": "success",
+          "role": "note",
+          "width": 200,
+          "height": 452,
+          "radius": "24px",
+          "borderStart": "4px",
+          "borderColor": "rgb(104, 211, 145)",
+          "background": "rgb(24, 41, 31)",
+          "textColor": "rgb(241, 243, 245)",
+          "textFont": "28px",
+          "titleColor": "rgb(241, 243, 245)",
+          "icon": {
+            "width": 64,
+            "height": 64,
+            "color": "rgb(104, 211, 145)",
+            "background": "color(srgb 0.156863 0.294118 0.21098)",
+            "border": "color(srgb 0.12549 0.227451 0.166275)",
+            "hidden": "true",
+            "svgWidth": "36px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": true,
+          "aligned": true
+        },
+        {
+          "tone": "warning",
+          "role": "note",
+          "width": 200,
+          "height": 494,
+          "radius": "24px",
+          "borderStart": "4px",
+          "borderColor": "rgb(231, 182, 91)",
+          "background": "rgb(48, 39, 25)",
+          "textColor": "rgb(241, 243, 245)",
+          "textFont": "28px",
+          "titleColor": "rgb(241, 243, 245)",
+          "icon": {
+            "width": 64,
+            "height": 64,
+            "color": "rgb(231, 182, 91)",
+            "background": "color(srgb 0.331765 0.265098 0.149804)",
+            "border": "color(srgb 0.26 0.20902 0.123922)",
+            "hidden": "true",
+            "svgWidth": "36px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": true,
+          "aligned": true
+        },
+        {
+          "tone": "error",
+          "role": "note",
+          "width": 200,
+          "height": 452,
+          "radius": "24px",
+          "borderStart": "4px",
+          "borderColor": "rgb(240, 138, 138)",
+          "background": "rgb(48, 31, 35)",
+          "textColor": "rgb(241, 243, 245)",
+          "textFont": "28px",
+          "titleColor": "rgb(241, 243, 245)",
+          "icon": {
+            "width": 64,
+            "height": 64,
+            "color": "rgb(240, 138, 138)",
+            "background": "color(srgb 0.338823 0.20549 0.218039)",
+            "border": "color(srgb 0.263529 0.163529 0.177647)",
+            "hidden": "true",
+            "svgWidth": "36px"
+          },
+          "fits": true,
+          "contentFits": true,
+          "stacked": true,
+          "aligned": true
+        }
+      ]
+    }
+  ],
+  "errors": []
+}

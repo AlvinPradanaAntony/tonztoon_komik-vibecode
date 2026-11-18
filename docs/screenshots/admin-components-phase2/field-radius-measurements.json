@@ -1,0 +1,786 @@
+{
+  "sizes": [
+    {
+      "theme": "light",
+      "width": 1440,
+      "size": "sm",
+      "controls": [
+        {
+          "disabled": false,
+          "height": 44,
+          "label": "Nama pemeriksaan",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": false,
+          "height": 44,
+          "label": "Sumber contoh",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "SELECT"
+        },
+        {
+          "disabled": false,
+          "height": 44,
+          "label": "Nilai baca saja",
+          "radius": "18px",
+          "readonly": true,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": true,
+          "height": 44,
+          "label": "Input nonaktif",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": true,
+          "height": 44,
+          "label": "Select nonaktif",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "SELECT"
+        },
+        {
+          "disabled": false,
+          "height": 128,
+          "label": "Catatan pemeriksaan",
+          "radius": "16px",
+          "readonly": false,
+          "tag": "TEXTAREA"
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "size": "md",
+      "controls": [
+        {
+          "disabled": false,
+          "height": 44,
+          "label": "Nama pemeriksaan",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": false,
+          "height": 44,
+          "label": "Sumber contoh",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "SELECT"
+        },
+        {
+          "disabled": false,
+          "height": 44,
+          "label": "Nilai baca saja",
+          "radius": "18px",
+          "readonly": true,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": true,
+          "height": 44,
+          "label": "Input nonaktif",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": true,
+          "height": 44,
+          "label": "Select nonaktif",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "SELECT"
+        },
+        {
+          "disabled": false,
+          "height": 128,
+          "label": "Catatan pemeriksaan",
+          "radius": "16px",
+          "readonly": false,
+          "tag": "TEXTAREA"
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "size": "lg",
+      "controls": [
+        {
+          "disabled": false,
+          "height": 48,
+          "label": "Nama pemeriksaan",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": false,
+          "height": 48,
+          "label": "Sumber contoh",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "SELECT"
+        },
+        {
+          "disabled": false,
+          "height": 48,
+          "label": "Nilai baca saja",
+          "radius": "18px",
+          "readonly": true,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": true,
+          "height": 48,
+          "label": "Input nonaktif",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": true,
+          "height": 48,
+          "label": "Select nonaktif",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "SELECT"
+        },
+        {
+          "disabled": false,
+          "height": 128,
+          "label": "Catatan pemeriksaan",
+          "radius": "16px",
+          "readonly": false,
+          "tag": "TEXTAREA"
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "size": "sm",
+      "controls": [
+        {
+          "disabled": false,
+          "height": 44,
+          "label": "Nama pemeriksaan",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": false,
+          "height": 44,
+          "label": "Sumber contoh",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "SELECT"
+        },
+        {
+          "disabled": false,
+          "height": 44,
+          "label": "Nilai baca saja",
+          "radius": "18px",
+          "readonly": true,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": true,
+          "height": 44,
+          "label": "Input nonaktif",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": true,
+          "height": 44,
+          "label": "Select nonaktif",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "SELECT"
+        },
+        {
+          "disabled": false,
+          "height": 128,
+          "label": "Catatan pemeriksaan",
+          "radius": "16px",
+          "readonly": false,
+          "tag": "TEXTAREA"
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "size": "md",
+      "controls": [
+        {
+          "disabled": false,
+          "height": 44,
+          "label": "Nama pemeriksaan",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": false,
+          "height": 44,
+          "label": "Sumber contoh",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "SELECT"
+        },
+        {
+          "disabled": false,
+          "height": 44,
+          "label": "Nilai baca saja",
+          "radius": "18px",
+          "readonly": true,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": true,
+          "height": 44,
+          "label": "Input nonaktif",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": true,
+          "height": 44,
+          "label": "Select nonaktif",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "SELECT"
+        },
+        {
+          "disabled": false,
+          "height": 128,
+          "label": "Catatan pemeriksaan",
+          "radius": "16px",
+          "readonly": false,
+          "tag": "TEXTAREA"
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "size": "lg",
+      "controls": [
+        {
+          "disabled": false,
+          "height": 48,
+          "label": "Nama pemeriksaan",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": false,
+          "height": 48,
+          "label": "Sumber contoh",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "SELECT"
+        },
+        {
+          "disabled": false,
+          "height": 48,
+          "label": "Nilai baca saja",
+          "radius": "18px",
+          "readonly": true,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": true,
+          "height": 48,
+          "label": "Input nonaktif",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": true,
+          "height": 48,
+          "label": "Select nonaktif",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "SELECT"
+        },
+        {
+          "disabled": false,
+          "height": 128,
+          "label": "Catatan pemeriksaan",
+          "radius": "16px",
+          "readonly": false,
+          "tag": "TEXTAREA"
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "size": "sm",
+      "controls": [
+        {
+          "disabled": false,
+          "height": 44,
+          "label": "Nama pemeriksaan",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": false,
+          "height": 44,
+          "label": "Sumber contoh",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "SELECT"
+        },
+        {
+          "disabled": false,
+          "height": 44,
+          "label": "Nilai baca saja",
+          "radius": "18px",
+          "readonly": true,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": true,
+          "height": 44,
+          "label": "Input nonaktif",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": true,
+          "height": 44,
+          "label": "Select nonaktif",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "SELECT"
+        },
+        {
+          "disabled": false,
+          "height": 128,
+          "label": "Catatan pemeriksaan",
+          "radius": "16px",
+          "readonly": false,
+          "tag": "TEXTAREA"
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "size": "md",
+      "controls": [
+        {
+          "disabled": false,
+          "height": 44,
+          "label": "Nama pemeriksaan",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": false,
+          "height": 44,
+          "label": "Sumber contoh",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "SELECT"
+        },
+        {
+          "disabled": false,
+          "height": 44,
+          "label": "Nilai baca saja",
+          "radius": "18px",
+          "readonly": true,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": true,
+          "height": 44,
+          "label": "Input nonaktif",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": true,
+          "height": 44,
+          "label": "Select nonaktif",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "SELECT"
+        },
+        {
+          "disabled": false,
+          "height": 128,
+          "label": "Catatan pemeriksaan",
+          "radius": "16px",
+          "readonly": false,
+          "tag": "TEXTAREA"
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "size": "lg",
+      "controls": [
+        {
+          "disabled": false,
+          "height": 48,
+          "label": "Nama pemeriksaan",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": false,
+          "height": 48,
+          "label": "Sumber contoh",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "SELECT"
+        },
+        {
+          "disabled": false,
+          "height": 48,
+          "label": "Nilai baca saja",
+          "radius": "18px",
+          "readonly": true,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": true,
+          "height": 48,
+          "label": "Input nonaktif",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": true,
+          "height": 48,
+          "label": "Select nonaktif",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "SELECT"
+        },
+        {
+          "disabled": false,
+          "height": 128,
+          "label": "Catatan pemeriksaan",
+          "radius": "16px",
+          "readonly": false,
+          "tag": "TEXTAREA"
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "size": "sm",
+      "controls": [
+        {
+          "disabled": false,
+          "height": 44,
+          "label": "Nama pemeriksaan",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": false,
+          "height": 44,
+          "label": "Sumber contoh",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "SELECT"
+        },
+        {
+          "disabled": false,
+          "height": 44,
+          "label": "Nilai baca saja",
+          "radius": "18px",
+          "readonly": true,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": true,
+          "height": 44,
+          "label": "Input nonaktif",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": true,
+          "height": 44,
+          "label": "Select nonaktif",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "SELECT"
+        },
+        {
+          "disabled": false,
+          "height": 128,
+          "label": "Catatan pemeriksaan",
+          "radius": "16px",
+          "readonly": false,
+          "tag": "TEXTAREA"
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "size": "md",
+      "controls": [
+        {
+          "disabled": false,
+          "height": 44,
+          "label": "Nama pemeriksaan",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": false,
+          "height": 44,
+          "label": "Sumber contoh",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "SELECT"
+        },
+        {
+          "disabled": false,
+          "height": 44,
+          "label": "Nilai baca saja",
+          "radius": "18px",
+          "readonly": true,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": true,
+          "height": 44,
+          "label": "Input nonaktif",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": true,
+          "height": 44,
+          "label": "Select nonaktif",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "SELECT"
+        },
+        {
+          "disabled": false,
+          "height": 128,
+          "label": "Catatan pemeriksaan",
+          "radius": "16px",
+          "readonly": false,
+          "tag": "TEXTAREA"
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "size": "lg",
+      "controls": [
+        {
+          "disabled": false,
+          "height": 48,
+          "label": "Nama pemeriksaan",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": false,
+          "height": 48,
+          "label": "Sumber contoh",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "SELECT"
+        },
+        {
+          "disabled": false,
+          "height": 48,
+          "label": "Nilai baca saja",
+          "radius": "18px",
+          "readonly": true,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": true,
+          "height": 48,
+          "label": "Input nonaktif",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "INPUT"
+        },
+        {
+          "disabled": true,
+          "height": 48,
+          "label": "Select nonaktif",
+          "radius": "18px",
+          "readonly": false,
+          "tag": "SELECT"
+        },
+        {
+          "disabled": false,
+          "height": 128,
+          "label": "Catatan pemeriksaan",
+          "radius": "16px",
+          "readonly": false,
+          "tag": "TEXTAREA"
+        }
+      ]
+    }
+  ],
+  "states": [
+    {
+      "theme": "light",
+      "state": "focus-open",
+      "offset": "3px",
+      "open": true,
+      "outline": "rgb(26, 95, 168) solid 3px",
+      "radius": "18px"
+    },
+    {
+      "theme": "light",
+      "state": "invalid-loading",
+      "fields": [
+        {
+          "busy": "true",
+          "disabled": true,
+          "invalid": "true",
+          "radius": "18px",
+          "tag": "INPUT"
+        },
+        {
+          "busy": "true",
+          "disabled": true,
+          "invalid": "true",
+          "radius": "18px",
+          "tag": "SELECT"
+        },
+        {
+          "busy": null,
+          "disabled": false,
+          "invalid": null,
+          "radius": "18px",
+          "tag": "INPUT"
+        },
+        {
+          "busy": null,
+          "disabled": true,
+          "invalid": null,
+          "radius": "18px",
+          "tag": "INPUT"
+        },
+        {
+          "busy": null,
+          "disabled": true,
+          "invalid": null,
+          "radius": "18px",
+          "tag": "SELECT"
+        },
+        {
+          "busy": "true",
+          "disabled": true,
+          "invalid": "true",
+          "radius": "16px",
+          "tag": "TEXTAREA"
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "state": "focus-open",
+      "offset": "3px",
+      "open": true,
+      "outline": "rgb(91, 163, 232) solid 3px",
+      "radius": "18px"
+    },
+    {
+      "theme": "dark",
+      "state": "invalid-loading",
+      "fields": [
+        {
+          "busy": "true",
+          "disabled": true,
+          "invalid": "true",
+          "radius": "18px",
+          "tag": "INPUT"
+        },
+        {
+          "busy": "true",
+          "disabled": true,
+          "invalid": "true",
+          "radius": "18px",
+          "tag": "SELECT"
+        },
+        {
+          "busy": null,
+          "disabled": false,
+          "invalid": null,
+          "radius": "18px",
+          "tag": "INPUT"
+        },
+        {
+          "busy": null,
+          "disabled": true,
+          "invalid": null,
+          "radius": "18px",
+          "tag": "INPUT"
+        },
+        {
+          "busy": null,
+          "disabled": true,
+          "invalid": null,
+          "radius": "18px",
+          "tag": "SELECT"
+        },
+        {
+          "busy": "true",
+          "disabled": true,
+          "invalid": "true",
+          "radius": "16px",
+          "tag": "TEXTAREA"
+        }
+      ]
+    }
+  ],
+  "others": {
+    "button": "8px",
+    "card": "16px",
+    "clientWidth": 1425,
+    "panel": "24px",
+    "panelBody": "20px",
+    "scrollWidth": 1425
+  }
+}

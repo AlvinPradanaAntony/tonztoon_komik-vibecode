@@ -1,0 +1,366 @@
+[
+  {
+    "theme": "light",
+    "width": 1440,
+    "button": {
+      "color": "rgb(23, 43, 70)",
+      "bg": "rgb(245, 185, 50)",
+      "border": "oklab(0.819777 0.0202098 0.153922)",
+      "widths": [
+        "1px",
+        "1px",
+        "1px",
+        "1px"
+      ],
+      "shadow": "none"
+    },
+    "alert": {
+      "color": "rgb(15, 23, 42)",
+      "bg": "rgb(255, 248, 225)",
+      "border": "rgb(15, 23, 42) rgb(15, 23, 42) rgb(15, 23, 42) rgb(128, 91, 0)",
+      "widths": [
+        "0px",
+        "0px",
+        "0px",
+        "4px"
+      ],
+      "shadow": "rgba(15, 23, 42, 0.06) 0px 2px 6px 0px"
+    },
+    "badge": {
+      "color": "rgb(128, 91, 0)",
+      "bg": "rgb(255, 248, 225)",
+      "border": "rgba(0, 0, 0, 0)",
+      "widths": [
+        "1px",
+        "1px",
+        "1px",
+        "1px"
+      ],
+      "shadow": "none"
+    },
+    "fields": [
+      {
+        "color": "rgb(15, 23, 42)",
+        "bg": "rgb(255, 255, 255)",
+        "border": "rgb(128, 91, 0)",
+        "widths": [
+          "1px",
+          "1px",
+          "1px",
+          "1px"
+        ],
+        "shadow": "none"
+      },
+      {
+        "color": "rgb(15, 23, 42)",
+        "bg": "rgb(255, 255, 255)",
+        "border": "rgb(128, 91, 0)",
+        "widths": [
+          "1px",
+          "1px",
+          "1px",
+          "1px"
+        ],
+        "shadow": "none"
+      },
+      {
+        "color": "rgb(23, 43, 70)",
+        "bg": "rgb(245, 185, 50)",
+        "border": "rgb(128, 91, 0)",
+        "widths": [
+          "1px",
+          "1px",
+          "1px",
+          "1px"
+        ],
+        "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px inset, oklch(1 0 0 / 0) 0px 8px 0px -4px inset, oklch(0 0 0 / 0) 0px 1px 0px 0px"
+      },
+      {
+        "color": "rgb(15, 23, 42)",
+        "bg": "rgb(255, 255, 255)",
+        "border": "rgb(128, 91, 0)",
+        "widths": [
+          "1px",
+          "1px",
+          "1px",
+          "1px"
+        ],
+        "shadow": "none"
+      }
+    ],
+    "overflow": false
+  },
+  {
+    "theme": "light",
+    "width": 360,
+    "button": {
+      "color": "rgb(23, 43, 70)",
+      "bg": "rgb(245, 185, 50)",
+      "border": "oklab(0.819777 0.0202098 0.153922)",
+      "widths": [
+        "1px",
+        "1px",
+        "1px",
+        "1px"
+      ],
+      "shadow": "none"
+    },
+    "alert": {
+      "color": "rgb(15, 23, 42)",
+      "bg": "rgb(255, 248, 225)",
+      "border": "rgb(15, 23, 42) rgb(15, 23, 42) rgb(15, 23, 42) rgb(128, 91, 0)",
+      "widths": [
+        "0px",
+        "0px",
+        "0px",
+        "4px"
+      ],
+      "shadow": "rgba(15, 23, 42, 0.06) 0px 2px 6px 0px"
+    },
+    "badge": {
+      "color": "rgb(128, 91, 0)",
+      "bg": "rgb(255, 248, 225)",
+      "border": "rgba(0, 0, 0, 0)",
+      "widths": [
+        "1px",
+        "1px",
+        "1px",
+        "1px"
+      ],
+      "shadow": "none"
+    },
+    "fields": [
+      {
+        "color": "rgb(15, 23, 42)",
+        "bg": "rgb(255, 255, 255)",
+        "border": "rgb(128, 91, 0)",
+        "widths": [
+          "1px",
+          "1px",
+          "1px",
+          "1px"
+        ],
+        "shadow": "none"
+      },
+      {
+        "color": "rgb(15, 23, 42)",
+        "bg": "rgb(255, 255, 255)",
+        "border": "rgb(128, 91, 0)",
+        "widths": [
+          "1px",
+          "1px",
+          "1px",
+          "1px"
+        ],
+        "shadow": "none"
+      },
+      {
+        "color": "rgb(23, 43, 70)",
+        "bg": "rgb(245, 185, 50)",
+        "border": "rgb(128, 91, 0)",
+        "widths": [
+          "1px",
+          "1px",
+          "1px",
+          "1px"
+        ],
+        "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px inset, oklch(1 0 0 / 0) 0px 8px 0px -4px inset, oklch(0 0 0 / 0) 0px 1px 0px 0px"
+      },
+      {
+        "color": "rgb(15, 23, 42)",
+        "bg": "rgb(255, 255, 255)",
+        "border": "rgb(128, 91, 0)",
+        "widths": [
+          "1px",
+          "1px",
+          "1px",
+          "1px"
+        ],
+        "shadow": "none"
+      }
+    ],
+    "overflow": false
+  },
+  {
+    "theme": "dark",
+    "width": 1440,
+    "button": {
+      "color": "rgb(23, 43, 70)",
+      "bg": "rgb(245, 196, 81)",
+      "border": "oklab(0.843189 0.0110591 0.140805)",
+      "widths": [
+        "1px",
+        "1px",
+        "1px",
+        "1px"
+      ],
+      "shadow": "none"
+    },
+    "alert": {
+      "color": "rgb(241, 243, 245)",
+      "bg": "rgb(48, 41, 24)",
+      "border": "rgb(241, 243, 245) rgb(241, 243, 245) rgb(241, 243, 245) rgb(245, 196, 81)",
+      "widths": [
+        "0px",
+        "0px",
+        "0px",
+        "4px"
+      ],
+      "shadow": "rgba(0, 0, 0, 0.18) 0px 2px 6px 0px"
+    },
+    "badge": {
+      "color": "rgb(245, 196, 81)",
+      "bg": "rgb(48, 41, 24)",
+      "border": "rgba(0, 0, 0, 0)",
+      "widths": [
+        "1px",
+        "1px",
+        "1px",
+        "1px"
+      ],
+      "shadow": "none"
+    },
+    "fields": [
+      {
+        "color": "rgb(241, 243, 245)",
+        "bg": "rgb(24, 27, 32)",
+        "border": "rgb(245, 196, 81)",
+        "widths": [
+          "1px",
+          "1px",
+          "1px",
+          "1px"
+        ],
+        "shadow": "none"
+      },
+      {
+        "color": "rgb(241, 243, 245)",
+        "bg": "rgb(24, 27, 32)",
+        "border": "rgb(245, 196, 81)",
+        "widths": [
+          "1px",
+          "1px",
+          "1px",
+          "1px"
+        ],
+        "shadow": "none"
+      },
+      {
+        "color": "rgb(23, 43, 70)",
+        "bg": "rgb(245, 196, 81)",
+        "border": "rgb(245, 196, 81)",
+        "widths": [
+          "1px",
+          "1px",
+          "1px",
+          "1px"
+        ],
+        "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px inset, oklch(1 0 0 / 0) 0px 8px 0px -4px inset, oklch(0 0 0 / 0) 0px 1px 0px 0px"
+      },
+      {
+        "color": "rgb(241, 243, 245)",
+        "bg": "rgb(24, 27, 32)",
+        "border": "rgb(245, 196, 81)",
+        "widths": [
+          "1px",
+          "1px",
+          "1px",
+          "1px"
+        ],
+        "shadow": "none"
+      }
+    ],
+    "overflow": false
+  },
+  {
+    "theme": "dark",
+    "width": 360,
+    "button": {
+      "color": "rgb(23, 43, 70)",
+      "bg": "rgb(245, 196, 81)",
+      "border": "oklab(0.843189 0.0110591 0.140805)",
+      "widths": [
+        "1px",
+        "1px",
+        "1px",
+        "1px"
+      ],
+      "shadow": "none"
+    },
+    "alert": {
+      "color": "rgb(241, 243, 245)",
+      "bg": "rgb(48, 41, 24)",
+      "border": "rgb(241, 243, 245) rgb(241, 243, 245) rgb(241, 243, 245) rgb(245, 196, 81)",
+      "widths": [
+        "0px",
+        "0px",
+        "0px",
+        "4px"
+      ],
+      "shadow": "rgba(0, 0, 0, 0.18) 0px 2px 6px 0px"
+    },
+    "badge": {
+      "color": "rgb(245, 196, 81)",
+      "bg": "rgb(48, 41, 24)",
+      "border": "rgba(0, 0, 0, 0)",
+      "widths": [
+        "1px",
+        "1px",
+        "1px",
+        "1px"
+      ],
+      "shadow": "none"
+    },
+    "fields": [
+      {
+        "color": "rgb(241, 243, 245)",
+        "bg": "rgb(24, 27, 32)",
+        "border": "rgb(245, 196, 81)",
+        "widths": [
+          "1px",
+          "1px",
+          "1px",
+          "1px"
+        ],
+        "shadow": "none"
+      },
+      {
+        "color": "rgb(241, 243, 245)",
+        "bg": "rgb(24, 27, 32)",
+        "border": "rgb(245, 196, 81)",
+        "widths": [
+          "1px",
+          "1px",
+          "1px",
+          "1px"
+        ],
+        "shadow": "none"
+      },
+      {
+        "color": "rgb(23, 43, 70)",
+        "bg": "rgb(245, 196, 81)",
+        "border": "rgb(245, 196, 81)",
+        "widths": [
+          "1px",
+          "1px",
+          "1px",
+          "1px"
+        ],
+        "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px inset, oklch(1 0 0 / 0) 0px 8px 0px -4px inset, oklch(0 0 0 / 0) 0px 1px 0px 0px"
+      },
+      {
+        "color": "rgb(241, 243, 245)",
+        "bg": "rgb(24, 27, 32)",
+        "border": "rgb(245, 196, 81)",
+        "widths": [
+          "1px",
+          "1px",
+          "1px",
+          "1px"
+        ],
+        "shadow": "none"
+      }
+    ],
+    "overflow": false
+  }
+]

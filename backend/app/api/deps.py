@@ -19,6 +19,8 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 def is_admin_auth_user(auth_user: AuthenticatedUser) -> bool:
     """Return whether an authenticated user has the application admin role."""
+    if not auth_user.raw_claims:
+        return False
     allowed_admin_ids = {
         value.strip()
         for value in (settings.ADMIN_USER_IDS or "").split(",")
@@ -29,7 +31,7 @@ def is_admin_auth_user(auth_user: AuthenticatedUser) -> bool:
 
     role_values = {auth_user.role}
     claims = auth_user.raw_claims or {}
-    for metadata_key in ("app_metadata", "user_metadata"):
+    for metadata_key in ("app_metadata",):
         metadata = claims.get(metadata_key) or {}
         role_values.update(
             metadata.get(key)

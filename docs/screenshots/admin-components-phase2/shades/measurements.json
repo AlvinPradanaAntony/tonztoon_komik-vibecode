@@ -1,0 +1,962 @@
+[
+  {
+    "theme": "light",
+    "width": 1440,
+    "samples": [
+      {
+        "kind": "solid",
+        "state": "rest",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          37,
+          99,
+          235
+        ],
+        "cssBg": "rgb(37, 99, 235)",
+        "border": "oklab(0.54613 -0.0266538 -0.213537)",
+        "appearance": "solid",
+        "tone": "info"
+      },
+      {
+        "kind": "solid",
+        "state": "hover",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          33,
+          89,
+          212
+        ],
+        "cssBg": "color(srgb 0.130588 0.349412 0.829412)",
+        "border": "oklab(0.507901 -0.0247881 -0.198589)",
+        "appearance": "solid",
+        "tone": "info"
+      },
+      {
+        "kind": "soft",
+        "fg": [
+          29,
+          78,
+          216
+        ],
+        "bg": [
+          239,
+          246,
+          255
+        ],
+        "cssBg": "rgb(239, 246, 255)",
+        "border": "rgba(0, 0, 0, 0)",
+        "appearance": "soft",
+        "tone": "info"
+      },
+      {
+        "kind": "solid",
+        "state": "rest",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          22,
+          163,
+          74
+        ],
+        "cssBg": "rgb(22, 163, 74)",
+        "border": "oklab(0.627048 -0.145936 0.0869728)",
+        "appearance": "solid",
+        "tone": "success"
+      },
+      {
+        "kind": "solid",
+        "state": "hover",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          20,
+          147,
+          67
+        ],
+        "cssBg": "color(srgb 0.0776471 0.575294 0.261176)",
+        "border": "oklab(0.583154 -0.135721 0.0808847)",
+        "appearance": "solid",
+        "tone": "success"
+      },
+      {
+        "kind": "soft",
+        "fg": [
+          21,
+          128,
+          61
+        ],
+        "bg": [
+          240,
+          253,
+          244
+        ],
+        "cssBg": "rgb(240, 253, 244)",
+        "border": "rgba(0, 0, 0, 0)",
+        "appearance": "soft",
+        "tone": "success"
+      },
+      {
+        "kind": "solid",
+        "state": "rest",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          234,
+          179,
+          8
+        ],
+        "cssBg": "rgb(234, 179, 8)",
+        "border": "oklab(0.795245 0.0111836 0.161292)",
+        "appearance": "solid",
+        "tone": "warning"
+      },
+      {
+        "kind": "solid",
+        "state": "hover",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          211,
+          161,
+          7
+        ],
+        "cssBg": "color(srgb 0.825882 0.631765 0.0282353)",
+        "border": "oklab(0.739578 0.0104008 0.150001)",
+        "appearance": "solid",
+        "tone": "warning"
+      },
+      {
+        "kind": "soft",
+        "fg": [
+          161,
+          98,
+          7
+        ],
+        "bg": [
+          254,
+          252,
+          232
+        ],
+        "cssBg": "rgb(254, 252, 232)",
+        "border": "rgba(0, 0, 0, 0)",
+        "appearance": "soft",
+        "tone": "warning"
+      },
+      {
+        "kind": "solid",
+        "state": "rest",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          220,
+          38,
+          38
+        ],
+        "cssBg": "rgb(220, 38, 38)",
+        "border": "oklab(0.577107 0.191166 0.0987778)",
+        "appearance": "solid",
+        "tone": "error"
+      },
+      {
+        "kind": "solid",
+        "state": "hover",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          198,
+          34,
+          34
+        ],
+        "cssBg": "color(srgb 0.776471 0.134118 0.134118)",
+        "border": "oklab(0.53671 0.177784 0.0918633)",
+        "appearance": "solid",
+        "tone": "error"
+      },
+      {
+        "kind": "soft",
+        "fg": [
+          185,
+          28,
+          28
+        ],
+        "bg": [
+          254,
+          242,
+          242
+        ],
+        "cssBg": "rgb(254, 242, 242)",
+        "border": "rgba(0, 0, 0, 0)",
+        "appearance": "soft",
+        "tone": "error"
+      }
+    ],
+    "semantic": [
+      {
+        "tone": "info",
+        "color": "rgb(29, 78, 216)",
+        "background": "rgb(239, 246, 255)"
+      },
+      {
+        "tone": "success",
+        "color": "rgb(21, 128, 61)",
+        "background": "rgb(240, 253, 244)"
+      },
+      {
+        "tone": "warning",
+        "color": "rgb(161, 98, 7)",
+        "background": "rgb(254, 252, 232)"
+      },
+      {
+        "tone": "error",
+        "color": "rgb(185, 28, 28)",
+        "background": "rgb(254, 242, 242)"
+      }
+    ]
+  },
+  {
+    "theme": "light",
+    "width": 360,
+    "samples": [
+      {
+        "kind": "solid",
+        "state": "rest",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          37,
+          99,
+          235
+        ],
+        "cssBg": "rgb(37, 99, 235)",
+        "border": "oklab(0.54613 -0.0266538 -0.213537)",
+        "appearance": "solid",
+        "tone": "info"
+      },
+      {
+        "kind": "solid",
+        "state": "hover",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          33,
+          89,
+          212
+        ],
+        "cssBg": "color(srgb 0.130588 0.349412 0.829412)",
+        "border": "oklab(0.507901 -0.0247881 -0.198589)",
+        "appearance": "solid",
+        "tone": "info"
+      },
+      {
+        "kind": "soft",
+        "fg": [
+          29,
+          78,
+          216
+        ],
+        "bg": [
+          239,
+          246,
+          255
+        ],
+        "cssBg": "rgb(239, 246, 255)",
+        "border": "rgba(0, 0, 0, 0)",
+        "appearance": "soft",
+        "tone": "info"
+      },
+      {
+        "kind": "solid",
+        "state": "rest",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          22,
+          163,
+          74
+        ],
+        "cssBg": "rgb(22, 163, 74)",
+        "border": "oklab(0.627048 -0.145936 0.0869728)",
+        "appearance": "solid",
+        "tone": "success"
+      },
+      {
+        "kind": "solid",
+        "state": "hover",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          20,
+          147,
+          67
+        ],
+        "cssBg": "color(srgb 0.0776471 0.575294 0.261176)",
+        "border": "oklab(0.583154 -0.135721 0.0808847)",
+        "appearance": "solid",
+        "tone": "success"
+      },
+      {
+        "kind": "soft",
+        "fg": [
+          21,
+          128,
+          61
+        ],
+        "bg": [
+          240,
+          253,
+          244
+        ],
+        "cssBg": "rgb(240, 253, 244)",
+        "border": "rgba(0, 0, 0, 0)",
+        "appearance": "soft",
+        "tone": "success"
+      },
+      {
+        "kind": "solid",
+        "state": "rest",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          234,
+          179,
+          8
+        ],
+        "cssBg": "rgb(234, 179, 8)",
+        "border": "oklab(0.795245 0.0111836 0.161292)",
+        "appearance": "solid",
+        "tone": "warning"
+      },
+      {
+        "kind": "solid",
+        "state": "hover",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          211,
+          161,
+          7
+        ],
+        "cssBg": "color(srgb 0.825882 0.631765 0.0282353)",
+        "border": "oklab(0.739578 0.0104008 0.150001)",
+        "appearance": "solid",
+        "tone": "warning"
+      },
+      {
+        "kind": "soft",
+        "fg": [
+          161,
+          98,
+          7
+        ],
+        "bg": [
+          254,
+          252,
+          232
+        ],
+        "cssBg": "rgb(254, 252, 232)",
+        "border": "rgba(0, 0, 0, 0)",
+        "appearance": "soft",
+        "tone": "warning"
+      },
+      {
+        "kind": "solid",
+        "state": "rest",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          220,
+          38,
+          38
+        ],
+        "cssBg": "rgb(220, 38, 38)",
+        "border": "oklab(0.577107 0.191166 0.0987778)",
+        "appearance": "solid",
+        "tone": "error"
+      },
+      {
+        "kind": "solid",
+        "state": "hover",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          198,
+          34,
+          34
+        ],
+        "cssBg": "color(srgb 0.776471 0.134118 0.134118)",
+        "border": "oklab(0.53671 0.177784 0.0918633)",
+        "appearance": "solid",
+        "tone": "error"
+      },
+      {
+        "kind": "soft",
+        "fg": [
+          185,
+          28,
+          28
+        ],
+        "bg": [
+          254,
+          242,
+          242
+        ],
+        "cssBg": "rgb(254, 242, 242)",
+        "border": "rgba(0, 0, 0, 0)",
+        "appearance": "soft",
+        "tone": "error"
+      }
+    ],
+    "semantic": [
+      {
+        "tone": "info",
+        "color": "rgb(29, 78, 216)",
+        "background": "rgb(239, 246, 255)"
+      },
+      {
+        "tone": "success",
+        "color": "rgb(21, 128, 61)",
+        "background": "rgb(240, 253, 244)"
+      },
+      {
+        "tone": "warning",
+        "color": "rgb(161, 98, 7)",
+        "background": "rgb(254, 252, 232)"
+      },
+      {
+        "tone": "error",
+        "color": "rgb(185, 28, 28)",
+        "background": "rgb(254, 242, 242)"
+      }
+    ]
+  },
+  {
+    "theme": "dark",
+    "width": 1440,
+    "samples": [
+      {
+        "kind": "solid",
+        "state": "rest",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          37,
+          99,
+          235
+        ],
+        "cssBg": "rgb(37, 99, 235)",
+        "border": "oklab(0.54613 -0.0266538 -0.213537)",
+        "appearance": "solid",
+        "tone": "info"
+      },
+      {
+        "kind": "solid",
+        "state": "hover",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          33,
+          89,
+          212
+        ],
+        "cssBg": "color(srgb 0.130588 0.349412 0.829412)",
+        "border": "oklab(0.507901 -0.0247881 -0.198589)",
+        "appearance": "solid",
+        "tone": "info"
+      },
+      {
+        "kind": "soft",
+        "fg": [
+          96,
+          165,
+          250
+        ],
+        "bg": [
+          23,
+          37,
+          84
+        ],
+        "cssBg": "rgb(23, 37, 84)",
+        "border": "rgba(0, 0, 0, 0)",
+        "appearance": "soft",
+        "tone": "info"
+      },
+      {
+        "kind": "solid",
+        "state": "rest",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          22,
+          163,
+          74
+        ],
+        "cssBg": "rgb(22, 163, 74)",
+        "border": "oklab(0.627048 -0.145936 0.0869728)",
+        "appearance": "solid",
+        "tone": "success"
+      },
+      {
+        "kind": "solid",
+        "state": "hover",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          20,
+          147,
+          67
+        ],
+        "cssBg": "color(srgb 0.0776471 0.575294 0.261176)",
+        "border": "oklab(0.583154 -0.135721 0.0808847)",
+        "appearance": "solid",
+        "tone": "success"
+      },
+      {
+        "kind": "soft",
+        "fg": [
+          74,
+          222,
+          128
+        ],
+        "bg": [
+          5,
+          46,
+          22
+        ],
+        "cssBg": "rgb(5, 46, 22)",
+        "border": "rgba(0, 0, 0, 0)",
+        "appearance": "soft",
+        "tone": "success"
+      },
+      {
+        "kind": "solid",
+        "state": "rest",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          234,
+          179,
+          8
+        ],
+        "cssBg": "rgb(234, 179, 8)",
+        "border": "oklab(0.795245 0.0111836 0.161292)",
+        "appearance": "solid",
+        "tone": "warning"
+      },
+      {
+        "kind": "solid",
+        "state": "hover",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          211,
+          161,
+          7
+        ],
+        "cssBg": "color(srgb 0.825882 0.631765 0.0282353)",
+        "border": "oklab(0.739578 0.0104008 0.150001)",
+        "appearance": "solid",
+        "tone": "warning"
+      },
+      {
+        "kind": "soft",
+        "fg": [
+          250,
+          204,
+          21
+        ],
+        "bg": [
+          66,
+          32,
+          6
+        ],
+        "cssBg": "rgb(66, 32, 6)",
+        "border": "rgba(0, 0, 0, 0)",
+        "appearance": "soft",
+        "tone": "warning"
+      },
+      {
+        "kind": "solid",
+        "state": "rest",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          220,
+          38,
+          38
+        ],
+        "cssBg": "rgb(220, 38, 38)",
+        "border": "oklab(0.577107 0.191166 0.0987778)",
+        "appearance": "solid",
+        "tone": "error"
+      },
+      {
+        "kind": "solid",
+        "state": "hover",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          198,
+          34,
+          34
+        ],
+        "cssBg": "color(srgb 0.776471 0.134118 0.134118)",
+        "border": "oklab(0.53671 0.177784 0.0918633)",
+        "appearance": "solid",
+        "tone": "error"
+      },
+      {
+        "kind": "soft",
+        "fg": [
+          248,
+          113,
+          113
+        ],
+        "bg": [
+          69,
+          10,
+          10
+        ],
+        "cssBg": "rgb(69, 10, 10)",
+        "border": "rgba(0, 0, 0, 0)",
+        "appearance": "soft",
+        "tone": "error"
+      }
+    ],
+    "semantic": [
+      {
+        "tone": "info",
+        "color": "rgb(96, 165, 250)",
+        "background": "rgb(23, 37, 84)"
+      },
+      {
+        "tone": "success",
+        "color": "rgb(74, 222, 128)",
+        "background": "rgb(5, 46, 22)"
+      },
+      {
+        "tone": "warning",
+        "color": "rgb(250, 204, 21)",
+        "background": "rgb(66, 32, 6)"
+      },
+      {
+        "tone": "error",
+        "color": "rgb(248, 113, 113)",
+        "background": "rgb(69, 10, 10)"
+      }
+    ]
+  },
+  {
+    "theme": "dark",
+    "width": 360,
+    "samples": [
+      {
+        "kind": "solid",
+        "state": "rest",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          37,
+          99,
+          235
+        ],
+        "cssBg": "rgb(37, 99, 235)",
+        "border": "oklab(0.54613 -0.0266538 -0.213537)",
+        "appearance": "solid",
+        "tone": "info"
+      },
+      {
+        "kind": "solid",
+        "state": "hover",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          33,
+          89,
+          212
+        ],
+        "cssBg": "color(srgb 0.130588 0.349412 0.829412)",
+        "border": "oklab(0.507901 -0.0247881 -0.198589)",
+        "appearance": "solid",
+        "tone": "info"
+      },
+      {
+        "kind": "soft",
+        "fg": [
+          96,
+          165,
+          250
+        ],
+        "bg": [
+          23,
+          37,
+          84
+        ],
+        "cssBg": "rgb(23, 37, 84)",
+        "border": "rgba(0, 0, 0, 0)",
+        "appearance": "soft",
+        "tone": "info"
+      },
+      {
+        "kind": "solid",
+        "state": "rest",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          22,
+          163,
+          74
+        ],
+        "cssBg": "rgb(22, 163, 74)",
+        "border": "oklab(0.627048 -0.145936 0.0869728)",
+        "appearance": "solid",
+        "tone": "success"
+      },
+      {
+        "kind": "solid",
+        "state": "hover",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          20,
+          147,
+          67
+        ],
+        "cssBg": "color(srgb 0.0776471 0.575294 0.261176)",
+        "border": "oklab(0.583154 -0.135721 0.0808847)",
+        "appearance": "solid",
+        "tone": "success"
+      },
+      {
+        "kind": "soft",
+        "fg": [
+          74,
+          222,
+          128
+        ],
+        "bg": [
+          5,
+          46,
+          22
+        ],
+        "cssBg": "rgb(5, 46, 22)",
+        "border": "rgba(0, 0, 0, 0)",
+        "appearance": "soft",
+        "tone": "success"
+      },
+      {
+        "kind": "solid",
+        "state": "rest",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          234,
+          179,
+          8
+        ],
+        "cssBg": "rgb(234, 179, 8)",
+        "border": "oklab(0.795245 0.0111836 0.161292)",
+        "appearance": "solid",
+        "tone": "warning"
+      },
+      {
+        "kind": "solid",
+        "state": "hover",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          211,
+          161,
+          7
+        ],
+        "cssBg": "color(srgb 0.825882 0.631765 0.0282353)",
+        "border": "oklab(0.739578 0.0104008 0.150001)",
+        "appearance": "solid",
+        "tone": "warning"
+      },
+      {
+        "kind": "soft",
+        "fg": [
+          250,
+          204,
+          21
+        ],
+        "bg": [
+          66,
+          32,
+          6
+        ],
+        "cssBg": "rgb(66, 32, 6)",
+        "border": "rgba(0, 0, 0, 0)",
+        "appearance": "soft",
+        "tone": "warning"
+      },
+      {
+        "kind": "solid",
+        "state": "rest",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          220,
+          38,
+          38
+        ],
+        "cssBg": "rgb(220, 38, 38)",
+        "border": "oklab(0.577107 0.191166 0.0987778)",
+        "appearance": "solid",
+        "tone": "error"
+      },
+      {
+        "kind": "solid",
+        "state": "hover",
+        "fg": [
+          255,
+          255,
+          255
+        ],
+        "bg": [
+          198,
+          34,
+          34
+        ],
+        "cssBg": "color(srgb 0.776471 0.134118 0.134118)",
+        "border": "oklab(0.53671 0.177784 0.0918633)",
+        "appearance": "solid",
+        "tone": "error"
+      },
+      {
+        "kind": "soft",
+        "fg": [
+          248,
+          113,
+          113
+        ],
+        "bg": [
+          69,
+          10,
+          10
+        ],
+        "cssBg": "rgb(69, 10, 10)",
+        "border": "rgba(0, 0, 0, 0)",
+        "appearance": "soft",
+        "tone": "error"
+      }
+    ],
+    "semantic": [
+      {
+        "tone": "info",
+        "color": "rgb(96, 165, 250)",
+        "background": "rgb(23, 37, 84)"
+      },
+      {
+        "tone": "success",
+        "color": "rgb(74, 222, 128)",
+        "background": "rgb(5, 46, 22)"
+      },
+      {
+        "tone": "warning",
+        "color": "rgb(250, 204, 21)",
+        "background": "rgb(66, 32, 6)"
+      },
+      {
+        "tone": "error",
+        "color": "rgb(248, 113, 113)",
+        "background": "rgb(69, 10, 10)"
+      }
+    ]
+  }
+]

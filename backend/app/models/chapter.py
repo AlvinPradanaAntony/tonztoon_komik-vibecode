@@ -65,11 +65,11 @@ class Chapter(Base):
         Integer, ForeignKey("comics.id", ondelete="CASCADE"), nullable=False
     )
     chapter_number: Mapped[float] = mapped_column(Float, nullable=False)
-    title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    _source_title: Mapped[str | None] = mapped_column("title", String(500), nullable=True)
     source_url: Mapped[str] = mapped_column(String(1000), nullable=False)
 
-    release_date: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+    _source_release_date: Mapped[datetime | None] = mapped_column(
+        "release_date", DateTime(timezone=True), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -88,3 +88,7 @@ class Chapter(Base):
 
     def __repr__(self) -> str:
         return f"<Chapter(id={self.id}, comic_id={self.comic_id}, number={self.chapter_number})>"
+
+
+from app.admin.editorial import install_fields
+install_fields(Chapter, "chapters", ("title", "release_date"))

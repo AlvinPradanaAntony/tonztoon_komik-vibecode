@@ -1,0 +1,16 @@
+/* React Flow vendor variables and generated controls require a namespaced integration. */
+.tt-erd {
+  --xy-background-color: var(--canvas);
+  --xy-node-color: var(--fg);
+  --xy-edge-stroke: var(--control);
+  --xy-controls-button-background-color: var(--surface);
+  --xy-controls-button-background-color-hover: var(--panel);
+  --xy-controls-button-color: var(--fg);
+  --xy-controls-button-color-hover: var(--fg);
+  --xy-controls-button-border-color: var(--control);
+  --xy-minimap-background-color: var(--surface);
+}
+.tt-erd .react-flow__controls-button { width: 44px; height: 44px; }
+.tt-erd .react-flow__attribution { background: var(--surface); color: var(--fg); font-size: 11px; }
+.tt-erd .react-flow__node-table:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+@media (forced-colors: active) { .tt-erd .react-flow__edge-path { stroke: CanvasText; } }

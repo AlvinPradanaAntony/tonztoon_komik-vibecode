@@ -1,0 +1,108 @@
+{
+  "tests": [
+    {
+      "input": "none",
+      "marker": "0px",
+      "optionTop": 501.609375,
+      "pickerHeight": "98px",
+      "selectBottom": 492.609375,
+      "test": "desktop-down",
+      "wrapper": "solid"
+    },
+    {
+      "client": 360,
+      "options": [
+        {
+          "bottom": 480.984375,
+          "height": 44,
+          "left": 52,
+          "right": 265.203125,
+          "top": 436.984375,
+          "width": 213.203125,
+          "x": 52,
+          "y": 436.984375
+        },
+        {
+          "bottom": 524.984375,
+          "height": 44,
+          "left": 52,
+          "right": 265.203125,
+          "top": 480.984375,
+          "width": 213.203125,
+          "x": 52,
+          "y": 480.984375
+        }
+      ],
+      "ring": "rgb(91, 163, 232) solid 3px",
+      "scroll": 360,
+      "select": {
+        "bottom": 427.984375,
+        "height": 44,
+        "left": 47,
+        "right": 253,
+        "top": 383.984375,
+        "width": 206,
+        "x": 47,
+        "y": 383.984375
+      },
+      "test": "mobile-dark",
+      "width": 375
+    },
+    {
+      "height": 390,
+      "last": {
+        "bottom": 372.984375,
+        "height": 44,
+        "left": 204,
+        "right": 384,
+        "top": 328.984375,
+        "width": 180,
+        "x": 204,
+        "y": 328.984375
+      },
+      "pickerHeight": "157.016px",
+      "select": {
+        "bottom": 216.984375,
+        "height": 44,
+        "left": 199,
+        "right": 404,
+        "top": 172.984375,
+        "width": 205,
+        "x": 199,
+        "y": 172.984375
+      },
+      "test": "short-viewport-fixed-native-keys"
+    },
+    {
+      "first": {
+        "bottom": 545.609375,
+        "height": 44,
+        "left": 305,
+        "right": 518.203125,
+        "top": 501.609375,
+        "width": 213.203125,
+        "x": 305,
+        "y": 501.609375
+      },
+      "icon": "block",
+      "order": "normal",
+      "select": {
+        "bottom": 492.609375,
+        "height": 44,
+        "left": 300,
+        "right": 506,
+        "top": 448.609375,
+        "width": 206,
+        "x": 300,
+        "y": 448.609375
+      },
+      "test": "final-down-priority"
+    },
+    {
+      "lastBottom": 439.609375,
+      "order": "normal",
+      "selectTop": 448.609375,
+      "test": "final-upward-fallback"
+    }
+  ]
+}

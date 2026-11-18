@@ -382,7 +382,7 @@ async def build_account_user(
     counts = relation_counts or await get_relation_counts(db, user_id)
     
     # 1. Resolve role dari metadata
-    account_role = _metadata_role(app_metadata, _metadata_role(user_metadata, "reader"))
+    account_role = _metadata_role(app_metadata, "reader")
     
     # 2. Jika akun di-bypass lewat ADMIN_USER_IDS, paksa ia menjadi admin
     admin_ids_csv = settings.ADMIN_USER_IDS or ""

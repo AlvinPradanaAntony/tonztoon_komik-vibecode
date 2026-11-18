@@ -22,6 +22,9 @@ from app.api.v1 import (
 
 api_router = APIRouter()
 
+from app.admin.router import router as admin_console_router
+api_router.include_router(admin_console_router, prefix="/v1")
+
 api_router.include_router(comics.router, prefix="/v1/comics", tags=["Comics"])
 api_router.include_router(sources.router, prefix="/v1/sources", tags=["Sources"])
 api_router.include_router(search.router, prefix="/v1/search", tags=["Search"])

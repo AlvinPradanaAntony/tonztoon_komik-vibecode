@@ -1,0 +1,590 @@
+{
+  "phase": "after",
+  "results": [
+    {
+      "name": "light 1440 no page overflow",
+      "pass": true
+    },
+    {
+      "name": "light 1440 text floor 11px",
+      "pass": true
+    },
+    {
+      "name": "light 1024 no page overflow",
+      "pass": true
+    },
+    {
+      "name": "light 1024 text floor 11px",
+      "pass": true
+    },
+    {
+      "name": "light 768 no page overflow",
+      "pass": true
+    },
+    {
+      "name": "light 768 text floor 11px",
+      "pass": true
+    },
+    {
+      "name": "light 375 no page overflow",
+      "pass": true
+    },
+    {
+      "name": "light 375 text floor 11px",
+      "pass": true
+    },
+    {
+      "name": "light 360 no page overflow",
+      "pass": true
+    },
+    {
+      "name": "light 360 text floor 11px",
+      "pass": true
+    },
+    {
+      "name": "light range 5",
+      "pass": true
+    },
+    {
+      "name": "light range 15",
+      "pass": true
+    },
+    {
+      "name": "light range 60",
+      "pass": true
+    },
+    {
+      "name": "light range 1440",
+      "pass": true
+    },
+    {
+      "name": "light chart latency",
+      "pass": true
+    },
+    {
+      "name": "light chart status",
+      "pass": true
+    },
+    {
+      "name": "light chart traffic",
+      "pass": true
+    },
+    {
+      "name": "light Staging empty then Production",
+      "pass": true
+    },
+    {
+      "name": "light endpoint search and reset",
+      "pass": true
+    },
+    {
+      "name": "light endpoint sorting",
+      "pass": true
+    },
+    {
+      "name": "light popover snapshot-detail opens and Escape closes",
+      "pass": true
+    },
+    {
+      "name": "light popover health-detail opens and Escape closes",
+      "pass": true
+    },
+    {
+      "name": "light popover request-detail opens and Escape closes",
+      "pass": true
+    },
+    {
+      "name": "light popover endpoint-0 opens and Escape closes",
+      "pass": true
+    },
+    {
+      "name": "light chart disclosure",
+      "pass": true
+    },
+    {
+      "name": "light sidebar collapse and restore",
+      "pass": true
+    },
+    {
+      "name": "light keyboard focus and Space on chart",
+      "pass": true
+    },
+    {
+      "name": "light theme toggle round trip",
+      "pass": true
+    },
+    {
+      "name": "light data state 1",
+      "pass": true
+    },
+    {
+      "name": "light data state 2",
+      "pass": true
+    },
+    {
+      "name": "light data state 3",
+      "pass": true
+    },
+    {
+      "name": "light data state 4",
+      "pass": true
+    },
+    {
+      "name": "light data state 5",
+      "pass": true
+    },
+    {
+      "name": "light data state 6",
+      "pass": true
+    },
+    {
+      "name": "light simulation step/start/pause",
+      "pass": true
+    },
+    {
+      "name": "light mobile drawer, neutral active nav, Escape",
+      "pass": true
+    },
+    {
+      "name": "light landscape no overflow",
+      "pass": true
+    },
+    {
+      "name": "light text size 200% no page overflow",
+      "pass": true
+    },
+    {
+      "name": "dark 1440 no page overflow",
+      "pass": true
+    },
+    {
+      "name": "dark 1440 text floor 11px",
+      "pass": true
+    },
+    {
+      "name": "dark 1024 no page overflow",
+      "pass": true
+    },
+    {
+      "name": "dark 1024 text floor 11px",
+      "pass": true
+    },
+    {
+      "name": "dark 768 no page overflow",
+      "pass": true
+    },
+    {
+      "name": "dark 768 text floor 11px",
+      "pass": true
+    },
+    {
+      "name": "dark 375 no page overflow",
+      "pass": true
+    },
+    {
+      "name": "dark 375 text floor 11px",
+      "pass": true
+    },
+    {
+      "name": "dark 360 no page overflow",
+      "pass": true
+    },
+    {
+      "name": "dark 360 text floor 11px",
+      "pass": true
+    },
+    {
+      "name": "dark range 5",
+      "pass": true
+    },
+    {
+      "name": "dark range 15",
+      "pass": true
+    },
+    {
+      "name": "dark range 60",
+      "pass": true
+    },
+    {
+      "name": "dark range 1440",
+      "pass": true
+    },
+    {
+      "name": "dark chart latency",
+      "pass": true
+    },
+    {
+      "name": "dark chart status",
+      "pass": true
+    },
+    {
+      "name": "dark chart traffic",
+      "pass": true
+    },
+    {
+      "name": "dark Staging empty then Production",
+      "pass": true
+    },
+    {
+      "name": "dark endpoint search and reset",
+      "pass": true
+    },
+    {
+      "name": "dark endpoint sorting",
+      "pass": true
+    },
+    {
+      "name": "dark popover snapshot-detail opens and Escape closes",
+      "pass": true
+    },
+    {
+      "name": "dark popover health-detail opens and Escape closes",
+      "pass": true
+    },
+    {
+      "name": "dark popover request-detail opens and Escape closes",
+      "pass": true
+    },
+    {
+      "name": "dark popover endpoint-0 opens and Escape closes",
+      "pass": true
+    },
+    {
+      "name": "dark chart disclosure",
+      "pass": true
+    },
+    {
+      "name": "dark sidebar collapse and restore",
+      "pass": true
+    },
+    {
+      "name": "dark keyboard focus and Space on chart",
+      "pass": true
+    },
+    {
+      "name": "dark theme toggle round trip",
+      "pass": true
+    },
+    {
+      "name": "dark data state 1",
+      "pass": true
+    },
+    {
+      "name": "dark data state 2",
+      "pass": true
+    },
+    {
+      "name": "dark data state 3",
+      "pass": true
+    },
+    {
+      "name": "dark data state 4",
+      "pass": true
+    },
+    {
+      "name": "dark data state 5",
+      "pass": true
+    },
+    {
+      "name": "dark data state 6",
+      "pass": true
+    },
+    {
+      "name": "dark simulation step/start/pause",
+      "pass": true
+    },
+    {
+      "name": "dark mobile drawer, neutral active nav, Escape",
+      "pass": true
+    },
+    {
+      "name": "dark landscape no overflow",
+      "pass": true
+    },
+    {
+      "name": "dark text size 200% no page overflow",
+      "pass": true
+    },
+    {
+      "name": "shared styles endpoints.html",
+      "pass": true
+    },
+    {
+      "name": "shared styles comics.html",
+      "pass": true
+    },
+    {
+      "name": "shared styles comic-detail.html",
+      "pass": true
+    },
+    {
+      "name": "shared styles login.html",
+      "pass": true
+    },
+    {
+      "name": "reduced motion content and drawer",
+      "pass": true
+    },
+    {
+      "name": "no JavaScript exceptions",
+      "pass": true
+    }
+  ],
+  "metrics": [
+    {
+      "width": 1440,
+      "height": 1000,
+      "theme": "light",
+      "pageWidth": 1440,
+      "tiny": [],
+      "tab": {
+        "color": "rgb(15, 23, 42)",
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "rgb(15, 23, 42)"
+      },
+      "nav": {
+        "background": "rgb(223, 229, 236)",
+        "color": "rgb(15, 23, 42)",
+        "radius": "8px"
+      },
+      "title": "Overview",
+      "font": "Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif"
+    },
+    {
+      "width": 1024,
+      "height": 1000,
+      "theme": "light",
+      "pageWidth": 1024,
+      "tiny": [],
+      "tab": {
+        "color": "rgb(15, 23, 42)",
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "rgb(15, 23, 42)"
+      },
+      "nav": {
+        "background": "rgb(223, 229, 236)",
+        "color": "rgb(15, 23, 42)",
+        "radius": "8px"
+      },
+      "title": "Overview",
+      "font": "Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif"
+    },
+    {
+      "width": 768,
+      "height": 1000,
+      "theme": "light",
+      "pageWidth": 768,
+      "tiny": [],
+      "tab": {
+        "color": "rgb(15, 23, 42)",
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "rgb(15, 23, 42)"
+      },
+      "nav": {
+        "background": "rgb(223, 229, 236)",
+        "color": "rgb(15, 23, 42)",
+        "radius": "8px"
+      },
+      "title": "Overview",
+      "font": "Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif"
+    },
+    {
+      "width": 375,
+      "height": 900,
+      "theme": "light",
+      "pageWidth": 375,
+      "tiny": [],
+      "tab": {
+        "color": "rgb(15, 23, 42)",
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "rgb(15, 23, 42)"
+      },
+      "nav": {
+        "background": "rgb(223, 229, 236)",
+        "color": "rgb(15, 23, 42)",
+        "radius": "8px"
+      },
+      "title": "Overview",
+      "font": "Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif"
+    },
+    {
+      "width": 360,
+      "height": 900,
+      "theme": "light",
+      "pageWidth": 360,
+      "tiny": [],
+      "tab": {
+        "color": "rgb(15, 23, 42)",
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "rgb(15, 23, 42)"
+      },
+      "nav": {
+        "background": "rgb(223, 229, 236)",
+        "color": "rgb(15, 23, 42)",
+        "radius": "8px"
+      },
+      "title": "Overview",
+      "font": "Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif"
+    },
+    {
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "pageWidth": 1440,
+      "tiny": [],
+      "tab": {
+        "color": "rgb(241, 243, 245)",
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "rgb(241, 243, 245)"
+      },
+      "nav": {
+        "background": "rgb(52, 58, 67)",
+        "color": "rgb(241, 243, 245)",
+        "radius": "8px"
+      },
+      "title": "Overview",
+      "font": "Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif"
+    },
+    {
+      "width": 1024,
+      "height": 1000,
+      "theme": "dark",
+      "pageWidth": 1024,
+      "tiny": [],
+      "tab": {
+        "color": "rgb(241, 243, 245)",
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "rgb(241, 243, 245)"
+      },
+      "nav": {
+        "background": "rgb(52, 58, 67)",
+        "color": "rgb(241, 243, 245)",
+        "radius": "8px"
+      },
+      "title": "Overview",
+      "font": "Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif"
+    },
+    {
+      "width": 768,
+      "height": 1000,
+      "theme": "dark",
+      "pageWidth": 768,
+      "tiny": [],
+      "tab": {
+        "color": "rgb(241, 243, 245)",
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "rgb(241, 243, 245)"
+      },
+      "nav": {
+        "background": "rgb(52, 58, 67)",
+        "color": "rgb(241, 243, 245)",
+        "radius": "8px"
+      },
+      "title": "Overview",
+      "font": "Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif"
+    },
+    {
+      "width": 375,
+      "height": 900,
+      "theme": "dark",
+      "pageWidth": 375,
+      "tiny": [],
+      "tab": {
+        "color": "rgb(241, 243, 245)",
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "rgb(241, 243, 245)"
+      },
+      "nav": {
+        "background": "rgb(52, 58, 67)",
+        "color": "rgb(241, 243, 245)",
+        "radius": "8px"
+      },
+      "title": "Overview",
+      "font": "Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif"
+    },
+    {
+      "width": 360,
+      "height": 900,
+      "theme": "dark",
+      "pageWidth": 360,
+      "tiny": [],
+      "tab": {
+        "color": "rgb(241, 243, 245)",
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "rgb(241, 243, 245)"
+      },
+      "nav": {
+        "background": "rgb(52, 58, 67)",
+        "color": "rgb(241, 243, 245)",
+        "radius": "8px"
+      },
+      "title": "Overview",
+      "font": "Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif"
+    },
+    {
+      "file": "endpoints.html",
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "pageWidth": 1440,
+      "tiny": [],
+      "tab": null,
+      "nav": {
+        "background": "rgb(52, 58, 67)",
+        "color": "rgb(241, 243, 245)",
+        "radius": "8px"
+      },
+      "title": "Endpoint",
+      "font": "Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif"
+    },
+    {
+      "file": "comics.html",
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "pageWidth": 1440,
+      "tiny": [],
+      "tab": null,
+      "nav": {
+        "background": "rgb(52, 58, 67)",
+        "color": "rgb(241, 243, 245)",
+        "radius": "8px"
+      },
+      "title": "Katalog & chapter",
+      "font": "Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif"
+    },
+    {
+      "file": "comic-detail.html",
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "pageWidth": 1440,
+      "tiny": [],
+      "tab": null,
+      "nav": {
+        "background": "rgb(52, 58, 67)",
+        "color": "rgb(241, 243, 245)",
+        "radius": "8px"
+      },
+      "title": "Detail komik",
+      "font": "Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif"
+    },
+    {
+      "file": "login.html",
+      "width": 1440,
+      "height": 1000,
+      "theme": "dark",
+      "pageWidth": 1440,
+      "tiny": [],
+      "tab": null,
+      "nav": {
+        "background": "rgb(52, 58, 67)",
+        "color": "rgb(241, 243, 245)",
+        "radius": "8px"
+      },
+      "title": "Login admin",
+      "font": "Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif"
+    }
+  ],
+  "consoleErrors": []
+}

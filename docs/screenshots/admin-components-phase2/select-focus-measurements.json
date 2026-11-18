@@ -1,0 +1,204 @@
+{
+  "focus": [
+    {
+      "theme": "light",
+      "width": 1440,
+      "inputFocus": {
+        "offset": "3px",
+        "outline": "rgb(26, 95, 168) solid 3px"
+      },
+      "keyboardFocus": {
+        "focus": true,
+        "offset": "3px",
+        "outline": "rgb(26, 95, 168) solid 3px",
+        "visible": true
+      },
+      "mouseOpen": {
+        "border": "rgb(113, 128, 150)",
+        "focus": false,
+        "offset": "3px",
+        "open": true,
+        "outline": "rgb(26, 95, 168) solid 3px"
+      },
+      "closed": {
+        "offset": "3px",
+        "open": false,
+        "outline": "rgb(26, 95, 168) solid 3px"
+      }
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "inputFocus": {
+        "offset": "3px",
+        "outline": "rgb(26, 95, 168) solid 3px"
+      },
+      "keyboardFocus": {
+        "focus": true,
+        "offset": "3px",
+        "outline": "rgb(26, 95, 168) solid 3px",
+        "visible": true
+      },
+      "mouseOpen": {
+        "border": "rgb(113, 128, 150)",
+        "focus": false,
+        "offset": "3px",
+        "open": true,
+        "outline": "rgb(26, 95, 168) solid 3px"
+      },
+      "closed": {
+        "offset": "3px",
+        "open": false,
+        "outline": "rgb(26, 95, 168) solid 3px"
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "inputFocus": {
+        "offset": "3px",
+        "outline": "rgb(91, 163, 232) solid 3px"
+      },
+      "keyboardFocus": {
+        "focus": true,
+        "offset": "3px",
+        "outline": "rgb(91, 163, 232) solid 3px",
+        "visible": true
+      },
+      "mouseOpen": {
+        "border": "rgb(135, 146, 164)",
+        "focus": false,
+        "offset": "3px",
+        "open": true,
+        "outline": "rgb(91, 163, 232) solid 3px"
+      },
+      "closed": {
+        "offset": "3px",
+        "open": false,
+        "outline": "rgb(91, 163, 232) solid 3px"
+      }
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "inputFocus": {
+        "offset": "3px",
+        "outline": "rgb(91, 163, 232) solid 3px"
+      },
+      "keyboardFocus": {
+        "focus": true,
+        "offset": "3px",
+        "outline": "rgb(91, 163, 232) solid 3px",
+        "visible": true
+      },
+      "mouseOpen": {
+        "border": "rgb(135, 146, 164)",
+        "focus": false,
+        "offset": "3px",
+        "open": true,
+        "outline": "rgb(91, 163, 232) solid 3px"
+      },
+      "closed": {
+        "offset": "3px",
+        "open": false,
+        "outline": "rgb(91, 163, 232) solid 3px"
+      }
+    }
+  ],
+  "tones": [
+    {
+      "theme": "light",
+      "tone": "neutral",
+      "border": "rgb(113, 128, 150)",
+      "offset": "3px",
+      "open": true,
+      "outline": "rgb(26, 95, 168) solid 3px"
+    },
+    {
+      "theme": "light",
+      "tone": "info",
+      "border": "rgb(26, 95, 168)",
+      "offset": "3px",
+      "open": true,
+      "outline": "rgb(26, 95, 168) solid 3px"
+    },
+    {
+      "theme": "light",
+      "tone": "success",
+      "border": "rgb(22, 101, 52)",
+      "offset": "3px",
+      "open": true,
+      "outline": "rgb(26, 95, 168) solid 3px"
+    },
+    {
+      "theme": "light",
+      "tone": "warning",
+      "border": "rgb(146, 64, 14)",
+      "offset": "3px",
+      "open": true,
+      "outline": "rgb(26, 95, 168) solid 3px"
+    },
+    {
+      "theme": "light",
+      "tone": "error",
+      "border": "rgb(185, 28, 28)",
+      "offset": "3px",
+      "open": true,
+      "outline": "rgb(26, 95, 168) solid 3px"
+    },
+    {
+      "theme": "light",
+      "state": "invalid",
+      "border": "rgb(185, 28, 28)",
+      "invalid": "true",
+      "outline": "rgb(26, 95, 168) solid 3px"
+    },
+    {
+      "theme": "dark",
+      "tone": "neutral",
+      "border": "rgb(135, 146, 164)",
+      "offset": "3px",
+      "open": true,
+      "outline": "rgb(91, 163, 232) solid 3px"
+    },
+    {
+      "theme": "dark",
+      "tone": "info",
+      "border": "rgb(91, 163, 232)",
+      "offset": "3px",
+      "open": true,
+      "outline": "rgb(91, 163, 232) solid 3px"
+    },
+    {
+      "theme": "dark",
+      "tone": "success",
+      "border": "rgb(104, 211, 145)",
+      "offset": "3px",
+      "open": true,
+      "outline": "rgb(91, 163, 232) solid 3px"
+    },
+    {
+      "theme": "dark",
+      "tone": "warning",
+      "border": "rgb(231, 182, 91)",
+      "offset": "3px",
+      "open": true,
+      "outline": "rgb(91, 163, 232) solid 3px"
+    },
+    {
+      "theme": "dark",
+      "tone": "error",
+      "border": "rgb(240, 138, 138)",
+      "offset": "3px",
+      "open": true,
+      "outline": "rgb(91, 163, 232) solid 3px"
+    },
+    {
+      "theme": "dark",
+      "state": "invalid",
+      "border": "rgb(240, 138, 138)",
+      "invalid": "true",
+      "outline": "rgb(91, 163, 232) solid 3px"
+    }
+  ]
+}

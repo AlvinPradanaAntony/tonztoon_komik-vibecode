@@ -1,0 +1,3 @@
+/* SVG dash offset cannot be expressed without a keyframe. Geometry remains in React. */
+@keyframes tt-flow-dash { to { stroke-dashoffset: -26; } }
+@media (prefers-reduced-motion: reduce) { .tt-admin svg path { animation: none; } }

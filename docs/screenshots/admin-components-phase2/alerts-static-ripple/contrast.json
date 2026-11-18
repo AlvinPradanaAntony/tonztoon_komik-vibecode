@@ -1,0 +1,72 @@
+[
+  {
+    "theme": "light",
+    "tone": "neutral",
+    "text": 15.30291466413074,
+    "icon": 4.846100030216181,
+    "accentBorder": 6.495455411499817
+  },
+  {
+    "theme": "light",
+    "tone": "info",
+    "text": 15.81648931500294,
+    "icon": 4.291496754308553,
+    "accentBorder": 5.731249534821412
+  },
+  {
+    "theme": "light",
+    "tone": "success",
+    "text": 16.281180096727986,
+    "icon": 4.80473207482547,
+    "accentBorder": 6.502710272830427
+  },
+  {
+    "theme": "light",
+    "tone": "warning",
+    "text": 17.21537271257024,
+    "icon": 4.9968642910177445,
+    "accentBorder": 6.837002380367332
+  },
+  {
+    "theme": "light",
+    "tone": "error",
+    "text": 16.31991981070193,
+    "icon": 4.2290758839098235,
+    "accentBorder": 5.914600426850339
+  },
+  {
+    "theme": "dark",
+    "tone": "neutral",
+    "text": 11.929014455454556,
+    "icon": 4.695029501517771,
+    "accentBorder": 7.318375079723341
+  },
+  {
+    "theme": "dark",
+    "tone": "info",
+    "text": 13.382540144061366,
+    "icon": 3.935714648382125,
+    "accentBorder": 5.563819721839709
+  },
+  {
+    "theme": "dark",
+    "tone": "success",
+    "text": 13.722138702950312,
+    "icon": 5.2639785921049125,
+    "accentBorder": 8.224445315469362
+  },
+  {
+    "theme": "dark",
+    "tone": "warning",
+    "text": 13.202764087002048,
+    "icon": 5.044948755135683,
+    "accentBorder": 7.860597049028286
+  },
+  {
+    "theme": "dark",
+    "tone": "error",
+    "text": 14.026557068844799,
+    "icon": 4.455787484423339,
+    "accentBorder": 6.46941132829104
+  }
+]

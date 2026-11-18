@@ -1,0 +1,210 @@
+@plugin "daisyui" {
+  themes: false;
+  logs: false;
+}
+
+@plugin "daisyui/theme" {
+  name: "light";
+  default: true;
+  prefersdark: false;
+  color-scheme: light;
+
+  --bg: #edf0f4;
+  --canvas: #ffffff;
+  --surface: #ffffff;
+  --panel: #f2f4f7;
+  --surface-alt: #e9eef4;
+  --overlay: rgba(15, 23, 42, 0.6);
+  --tt-alert-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
+  --fg: #0f172a;
+  --muted: #475569;
+  --subtle: #526176;
+  --line: #dfe5ec;
+  --control: #718096;
+  --accent: #1a5fa8;
+  --accent-ink: #1a5fa8;
+  --accent-bg: #eaf2fc;
+  --accent-solid: #2563eb;
+  --on-accent: #ffffff;
+  --secondary: #172b46;
+  --on-secondary: #ffffff;
+  --success: #166534;
+  --success-ink: #166534;
+  --success-bg: #edf7ef;
+  --success-solid: #16a34a;
+  --warning: #92400e;
+  --warning-solid: #eab308;
+  --on-warning: #172b46;
+  --warning-bg: #fffbeb;
+  --incident-bg: #fffbeb;
+  --warning-line: #d4b476;
+  --danger: #b91c1c;
+  --danger-solid: #dc2626;
+  --danger-ink: #b91c1c;
+  --danger-text: #b91c1c;
+  --danger-bg: #fef2f2;
+  --chart: #2b7cd4;
+  --chart-area: #edf4fd;
+  --chart-error: #b91c1c;
+
+  --color-base-100: var(--surface);
+  --color-base-200: var(--panel);
+  --color-base-300: var(--surface-alt);
+  --color-base-content: var(--fg);
+  --color-primary: var(--fg);
+  --color-primary-content: var(--canvas);
+  --color-secondary: var(--secondary);
+  --color-secondary-content: var(--on-secondary);
+  --color-accent: var(--accent);
+  --color-accent-content: var(--on-accent);
+  --color-neutral: var(--surface-alt);
+  --color-neutral-content: var(--fg);
+  --color-info: var(--accent-solid);
+  --color-info-content: var(--on-accent);
+  --color-success: var(--success-solid);
+  --color-success-content: #ffffff;
+  --color-warning: var(--warning-solid);
+  --color-warning-content: var(--on-warning);
+  --color-error: var(--danger-solid);
+  --color-error-content: var(--canvas);
+  --radius-selector: var(--tt-radius-control);
+  --radius-field: var(--tt-radius-field);
+  --radius-box: var(--tt-radius-panel);
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@plugin "daisyui/theme" {
+  name: "dark";
+  default: false;
+  prefersdark: true;
+  color-scheme: dark;
+
+  --bg: #090a0d;
+  --canvas: #101215;
+  --surface: #181b20;
+  --panel: #23272e;
+  --surface-alt: #2b3038;
+  --overlay: rgba(6, 9, 15, 0.72);
+  --tt-alert-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+  --fg: #f1f3f5;
+  --muted: #b9c1ce;
+  --subtle: #a8b3c3;
+  --line: #343a43;
+  --control: #8792a4;
+  --accent: #5ba3e8;
+  --accent-ink: #5ba3e8;
+  --accent-bg: #172938;
+  --accent-solid: #2563eb;
+  --on-accent: #172b46;
+  --secondary: #172b46;
+  --on-secondary: #ffffff;
+  --success: #68d391;
+  --success-ink: #68d391;
+  --success-bg: #18291f;
+  --success-solid: #16a34a;
+  --warning: #e7b65b;
+  --warning-solid: #eab308;
+  --on-warning: #172b46;
+  --warning-bg: #302719;
+  --incident-bg: #211e18;
+  --warning-line: #75603b;
+  --danger: #f08a8a;
+  --danger-solid: #dc2626;
+  --danger-ink: #f08a8a;
+  --danger-text: #f08a8a;
+  --danger-bg: #301f23;
+  --chart: #5ba3e8;
+  --chart-area: #152331;
+  --chart-error: #f08a8a;
+
+  --color-base-100: var(--surface);
+  --color-base-200: var(--panel);
+  --color-base-300: var(--surface-alt);
+  --color-base-content: var(--fg);
+  --color-primary: var(--fg);
+  --color-primary-content: var(--canvas);
+  --color-secondary: var(--secondary);
+  --color-secondary-content: var(--on-secondary);
+  --color-accent: var(--accent);
+  --color-accent-content: var(--on-accent);
+  --color-neutral: var(--surface-alt);
+  --color-neutral-content: var(--fg);
+  --color-info: var(--accent-solid);
+  --color-info-content: #ffffff;
+  --color-success: var(--success-solid);
+  --color-success-content: #ffffff;
+  --color-warning: var(--warning-solid);
+  --color-warning-content: var(--on-warning);
+  --color-error: var(--danger-solid);
+  --color-error-content: #ffffff;
+  --radius-selector: var(--tt-radius-control);
+  --radius-field: var(--tt-radius-field);
+  --radius-box: var(--tt-radius-panel);
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@theme inline {
+  --color-page: var(--bg);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-panel: var(--panel);
+  --color-foreground: var(--fg);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-control: var(--control);
+  --color-surface-alt: var(--surface-alt);
+  --color-subtle: var(--subtle);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-bg: var(--accent-bg);
+  --color-warning-solid: var(--warning-solid);
+  --color-danger-text: var(--danger-text);
+  --color-danger: var(--danger);
+  --radius-field: var(--tt-radius-field);
+  --radius-control: var(--tt-radius-control);
+  --radius-inner: var(--tt-radius-inner);
+  --radius-panel: var(--tt-radius-panel);
+  --radius-panel-inner: var(--tt-radius-panel-inner);
+  --font-sans: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+
+@layer base {
+  :root {
+    --tt-radius-control: 0.5rem;
+    --tt-radius-field: 1.125rem;
+    --tt-radius-textarea: 1rem;
+    --tt-radius-inner: 1rem;
+    --tt-radius-alert: 0.75rem;
+    --tt-alert-icon-size: 2rem;
+    --tt-radius-panel: 1.5rem;
+    --tt-panel-inset: 0.25rem;
+    --tt-radius-panel-inner: max(0px, calc(var(--tt-radius-panel) - var(--tt-panel-inset)));
+    --tt-radius-pill: 9999px;
+    --tt-space-sm: 1rem;
+    --tt-space-md: 1.25rem;
+    --tt-space-lg: 1.5rem;
+    --tt-control-sm: 2.75rem;
+    --tt-control-md: 2.75rem;
+    --tt-control-lg: 3rem;
+    --tt-focus-width: 3px;
+    --tt-focus-offset: 3px;
+    --tt-overlay-blur: 4px;
+    --tt-dialog-duration: 200ms;
+    --tt-drawer-duration: 280ms;
+    --tt-overlay-ease: cubic-bezier(0.4, 0, 0.2, 1);
+    --tt-dialog-sm: 24rem;
+    --tt-dialog-md: 32rem;
+    --tt-dialog-lg: 40rem;
+    --tt-drawer-sm: 20rem;
+    --tt-drawer-md: 22.5rem;
+    --tt-drawer-lg: 22.5rem;
+  }
+}

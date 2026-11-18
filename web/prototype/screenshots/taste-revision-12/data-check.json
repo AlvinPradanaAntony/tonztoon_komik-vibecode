@@ -1,0 +1,16 @@
+[
+  {
+    "theme": "light",
+    "total": 600,
+    "endpoints": 600,
+    "buckets": 600,
+    "pass": true
+  },
+  {
+    "theme": "dark",
+    "total": 600,
+    "endpoints": 600,
+    "buckets": 600,
+    "pass": true
+  }
+]

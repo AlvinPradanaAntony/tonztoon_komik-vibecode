@@ -1,0 +1,2811 @@
+{
+  "date": "2026-10-27",
+  "url": "http://127.0.0.1:3100/",
+  "runtime": "next build + next start",
+  "responsive": [
+    {
+      "viewport": 360,
+      "columns": "328px",
+      "height": 4265,
+      "scrollWidth": 360,
+      "smallTargets": [],
+      "theme": "light",
+      "themeWidth": 144,
+      "width": 360
+    },
+    {
+      "viewport": 375,
+      "columns": "343px",
+      "height": 4151,
+      "scrollWidth": 375,
+      "smallTargets": [],
+      "theme": "light",
+      "themeWidth": 144,
+      "width": 375
+    },
+    {
+      "viewport": 390,
+      "columns": "358px",
+      "height": 4127,
+      "scrollWidth": 390,
+      "smallTargets": [],
+      "theme": "light",
+      "themeWidth": 144,
+      "width": 390
+    },
+    {
+      "viewport": 768,
+      "columns": "712px",
+      "height": 2973,
+      "scrollWidth": 768,
+      "smallTargets": [],
+      "theme": "light",
+      "themeWidth": 144,
+      "width": 768
+    },
+    {
+      "viewport": 1024,
+      "columns": "550.656px 393.328px",
+      "height": 2377,
+      "scrollWidth": 1024,
+      "smallTargets": [],
+      "theme": "light",
+      "themeWidth": 144,
+      "width": 1024
+    },
+    {
+      "viewport": 1440,
+      "columns": "699.984px 500px",
+      "height": 2218,
+      "scrollWidth": 1440,
+      "smallTargets": [],
+      "theme": "light",
+      "themeWidth": 144,
+      "width": 1440
+    },
+    {
+      "viewport": 360,
+      "columns": "328px",
+      "height": 4265,
+      "scrollWidth": 360,
+      "smallTargets": [],
+      "theme": "dark",
+      "themeWidth": 144,
+      "width": 360
+    },
+    {
+      "viewport": 375,
+      "columns": "343px",
+      "height": 4151,
+      "scrollWidth": 375,
+      "smallTargets": [],
+      "theme": "dark",
+      "themeWidth": 144,
+      "width": 375
+    },
+    {
+      "viewport": 390,
+      "columns": "358px",
+      "height": 4127,
+      "scrollWidth": 390,
+      "smallTargets": [],
+      "theme": "dark",
+      "themeWidth": 144,
+      "width": 390
+    },
+    {
+      "viewport": 768,
+      "columns": "712px",
+      "height": 2973,
+      "scrollWidth": 768,
+      "smallTargets": [],
+      "theme": "dark",
+      "themeWidth": 144,
+      "width": 768
+    },
+    {
+      "viewport": 1024,
+      "columns": "550.656px 393.328px",
+      "height": 2377,
+      "scrollWidth": 1024,
+      "smallTargets": [],
+      "theme": "dark",
+      "themeWidth": 144,
+      "width": 1024
+    },
+    {
+      "viewport": 1440,
+      "columns": "699.984px 500px",
+      "height": 2218,
+      "scrollWidth": 1440,
+      "smallTargets": [],
+      "theme": "dark",
+      "themeWidth": 144,
+      "width": 1440
+    }
+  ],
+  "overlays": [
+    {
+      "focus": "Tutup: Pemeriksaan dialog",
+      "rect": {
+        "bottom": 574.5,
+        "height": 349,
+        "left": 16,
+        "right": 329,
+        "top": 225.5,
+        "width": 313,
+        "x": 16,
+        "y": 225.5
+      },
+      "theme": "light",
+      "type": "dialog"
+    },
+    {
+      "rect": {
+        "bottom": 800,
+        "height": 800,
+        "left": 24,
+        "right": 345,
+        "top": 0,
+        "width": 321,
+        "x": 24,
+        "y": 0
+      },
+      "theme": "light",
+      "type": "drawer"
+    },
+    {
+      "scrollWidth": 844,
+      "theme": "light",
+      "type": "landscape",
+      "width": 844
+    },
+    {
+      "bodyHeight": 153,
+      "rect": {
+        "bottom": 357.5,
+        "height": 325,
+        "left": 158.5,
+        "right": 670.5,
+        "top": 32.5,
+        "width": 512,
+        "x": 158.5,
+        "y": 32.5
+      },
+      "theme": "light",
+      "type": "landscape-dialog"
+    },
+    {
+      "focus": "Tutup: Pemeriksaan dialog",
+      "rect": {
+        "bottom": 574.5,
+        "height": 349,
+        "left": 16,
+        "right": 329,
+        "top": 225.5,
+        "width": 313,
+        "x": 16,
+        "y": 225.5
+      },
+      "theme": "dark",
+      "type": "dialog"
+    },
+    {
+      "rect": {
+        "bottom": 800,
+        "height": 800,
+        "left": 24,
+        "right": 345,
+        "top": 0,
+        "width": 321,
+        "x": 24,
+        "y": 0
+      },
+      "theme": "dark",
+      "type": "drawer"
+    },
+    {
+      "scrollWidth": 844,
+      "theme": "dark",
+      "type": "landscape",
+      "width": 844
+    },
+    {
+      "bodyHeight": 153,
+      "rect": {
+        "bottom": 357.5,
+        "height": 325,
+        "left": 158.5,
+        "right": 670.5,
+        "top": 32.5,
+        "width": 512,
+        "x": 158.5,
+        "y": 32.5
+      },
+      "theme": "dark",
+      "type": "landscape-dialog"
+    }
+  ],
+  "fields": [
+    {
+      "theme": "light",
+      "tone": "neutral",
+      "fields": [
+        {
+          "bg": "rgb(255, 255, 255)",
+          "border": "rgb(113, 128, 150)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "height": 44,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "neutral"
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "border": "rgb(113, 128, 150)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "height": 44,
+          "readonly": false,
+          "tag": "SELECT",
+          "tone": "neutral"
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "border": "rgb(113, 128, 150)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "height": 44,
+          "readonly": true,
+          "tag": "INPUT",
+          "tone": "neutral"
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "border": "rgb(113, 128, 150)",
+          "disabled": true,
+          "fg": "rgb(71, 85, 105)",
+          "height": 44,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "error"
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "border": "rgb(113, 128, 150)",
+          "disabled": true,
+          "fg": "rgb(71, 85, 105)",
+          "height": 44,
+          "readonly": false,
+          "tag": "SELECT",
+          "tone": "success"
+        },
+        {
+          "bg": "rgb(15, 23, 42)",
+          "border": "rgb(113, 128, 150)",
+          "disabled": false,
+          "fg": "rgb(255, 255, 255)",
+          "height": 24,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "neutral"
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "border": "rgb(113, 128, 150)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "height": 128,
+          "readonly": false,
+          "tag": "TEXTAREA",
+          "tone": "neutral"
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "tone": "info",
+      "fields": [
+        {
+          "bg": "rgb(255, 255, 255)",
+          "border": "rgb(26, 95, 168)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "height": 44,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "info"
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "border": "rgb(26, 95, 168)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "height": 44,
+          "readonly": false,
+          "tag": "SELECT",
+          "tone": "info"
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "border": "rgb(113, 128, 150)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "height": 44,
+          "readonly": true,
+          "tag": "INPUT",
+          "tone": "neutral"
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "border": "rgb(113, 128, 150)",
+          "disabled": true,
+          "fg": "rgb(71, 85, 105)",
+          "height": 44,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "error"
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "border": "rgb(113, 128, 150)",
+          "disabled": true,
+          "fg": "rgb(71, 85, 105)",
+          "height": 44,
+          "readonly": false,
+          "tag": "SELECT",
+          "tone": "success"
+        },
+        {
+          "bg": "rgb(26, 95, 168)",
+          "border": "rgb(26, 95, 168)",
+          "disabled": false,
+          "fg": "rgb(255, 255, 255)",
+          "height": 24,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "info"
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "border": "rgb(26, 95, 168)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "height": 128,
+          "readonly": false,
+          "tag": "TEXTAREA",
+          "tone": "info"
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "tone": "success",
+      "fields": [
+        {
+          "bg": "rgb(255, 255, 255)",
+          "border": "rgb(22, 101, 52)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "height": 44,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "success"
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "border": "rgb(22, 101, 52)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "height": 44,
+          "readonly": false,
+          "tag": "SELECT",
+          "tone": "success"
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "border": "rgb(113, 128, 150)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "height": 44,
+          "readonly": true,
+          "tag": "INPUT",
+          "tone": "neutral"
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "border": "rgb(113, 128, 150)",
+          "disabled": true,
+          "fg": "rgb(71, 85, 105)",
+          "height": 44,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "error"
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "border": "rgb(113, 128, 150)",
+          "disabled": true,
+          "fg": "rgb(71, 85, 105)",
+          "height": 44,
+          "readonly": false,
+          "tag": "SELECT",
+          "tone": "success"
+        },
+        {
+          "bg": "rgb(22, 101, 52)",
+          "border": "rgb(22, 101, 52)",
+          "disabled": false,
+          "fg": "rgb(255, 255, 255)",
+          "height": 24,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "success"
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "border": "rgb(22, 101, 52)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "height": 128,
+          "readonly": false,
+          "tag": "TEXTAREA",
+          "tone": "success"
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "tone": "warning",
+      "fields": [
+        {
+          "bg": "rgb(255, 255, 255)",
+          "border": "rgb(146, 64, 14)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "height": 44,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "warning"
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "border": "rgb(146, 64, 14)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "height": 44,
+          "readonly": false,
+          "tag": "SELECT",
+          "tone": "warning"
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "border": "rgb(113, 128, 150)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "height": 44,
+          "readonly": true,
+          "tag": "INPUT",
+          "tone": "neutral"
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "border": "rgb(113, 128, 150)",
+          "disabled": true,
+          "fg": "rgb(71, 85, 105)",
+          "height": 44,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "error"
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "border": "rgb(113, 128, 150)",
+          "disabled": true,
+          "fg": "rgb(71, 85, 105)",
+          "height": 44,
+          "readonly": false,
+          "tag": "SELECT",
+          "tone": "success"
+        },
+        {
+          "bg": "rgb(146, 64, 14)",
+          "border": "rgb(146, 64, 14)",
+          "disabled": false,
+          "fg": "rgb(255, 255, 255)",
+          "height": 24,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "warning"
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "border": "rgb(146, 64, 14)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "height": 128,
+          "readonly": false,
+          "tag": "TEXTAREA",
+          "tone": "warning"
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "tone": "error",
+      "fields": [
+        {
+          "bg": "rgb(255, 255, 255)",
+          "border": "rgb(185, 28, 28)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "height": 44,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "error"
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "border": "rgb(185, 28, 28)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "height": 44,
+          "readonly": false,
+          "tag": "SELECT",
+          "tone": "error"
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "border": "rgb(113, 128, 150)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "height": 44,
+          "readonly": true,
+          "tag": "INPUT",
+          "tone": "neutral"
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "border": "rgb(113, 128, 150)",
+          "disabled": true,
+          "fg": "rgb(71, 85, 105)",
+          "height": 44,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "error"
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "border": "rgb(113, 128, 150)",
+          "disabled": true,
+          "fg": "rgb(71, 85, 105)",
+          "height": 44,
+          "readonly": false,
+          "tag": "SELECT",
+          "tone": "success"
+        },
+        {
+          "bg": "rgb(185, 28, 28)",
+          "border": "rgb(185, 28, 28)",
+          "disabled": false,
+          "fg": "rgb(255, 255, 255)",
+          "height": 24,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "error"
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "border": "rgb(185, 28, 28)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "height": 128,
+          "readonly": false,
+          "tag": "TEXTAREA",
+          "tone": "error"
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "tone": "neutral",
+      "fields": [
+        {
+          "bg": "rgb(24, 27, 32)",
+          "border": "rgb(135, 146, 164)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "height": 44,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "neutral"
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "border": "rgb(135, 146, 164)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "height": 44,
+          "readonly": false,
+          "tag": "SELECT",
+          "tone": "neutral"
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "border": "rgb(135, 146, 164)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "height": 44,
+          "readonly": true,
+          "tag": "INPUT",
+          "tone": "neutral"
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "border": "rgb(135, 146, 164)",
+          "disabled": true,
+          "fg": "rgb(185, 193, 206)",
+          "height": 44,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "error"
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "border": "rgb(135, 146, 164)",
+          "disabled": true,
+          "fg": "rgb(185, 193, 206)",
+          "height": 44,
+          "readonly": false,
+          "tag": "SELECT",
+          "tone": "success"
+        },
+        {
+          "bg": "rgb(241, 243, 245)",
+          "border": "rgb(135, 146, 164)",
+          "disabled": false,
+          "fg": "rgb(16, 18, 21)",
+          "height": 24,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "neutral"
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "border": "rgb(135, 146, 164)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "height": 128,
+          "readonly": false,
+          "tag": "TEXTAREA",
+          "tone": "neutral"
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "tone": "info",
+      "fields": [
+        {
+          "bg": "rgb(24, 27, 32)",
+          "border": "rgb(91, 163, 232)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "height": 44,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "info"
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "border": "rgb(91, 163, 232)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "height": 44,
+          "readonly": false,
+          "tag": "SELECT",
+          "tone": "info"
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "border": "rgb(135, 146, 164)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "height": 44,
+          "readonly": true,
+          "tag": "INPUT",
+          "tone": "neutral"
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "border": "rgb(135, 146, 164)",
+          "disabled": true,
+          "fg": "rgb(185, 193, 206)",
+          "height": 44,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "error"
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "border": "rgb(135, 146, 164)",
+          "disabled": true,
+          "fg": "rgb(185, 193, 206)",
+          "height": 44,
+          "readonly": false,
+          "tag": "SELECT",
+          "tone": "success"
+        },
+        {
+          "bg": "rgb(91, 163, 232)",
+          "border": "rgb(91, 163, 232)",
+          "disabled": false,
+          "fg": "rgb(16, 18, 21)",
+          "height": 24,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "info"
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "border": "rgb(91, 163, 232)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "height": 128,
+          "readonly": false,
+          "tag": "TEXTAREA",
+          "tone": "info"
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "tone": "success",
+      "fields": [
+        {
+          "bg": "rgb(24, 27, 32)",
+          "border": "rgb(104, 211, 145)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "height": 44,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "success"
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "border": "rgb(104, 211, 145)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "height": 44,
+          "readonly": false,
+          "tag": "SELECT",
+          "tone": "success"
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "border": "rgb(135, 146, 164)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "height": 44,
+          "readonly": true,
+          "tag": "INPUT",
+          "tone": "neutral"
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "border": "rgb(135, 146, 164)",
+          "disabled": true,
+          "fg": "rgb(185, 193, 206)",
+          "height": 44,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "error"
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "border": "rgb(135, 146, 164)",
+          "disabled": true,
+          "fg": "rgb(185, 193, 206)",
+          "height": 44,
+          "readonly": false,
+          "tag": "SELECT",
+          "tone": "success"
+        },
+        {
+          "bg": "rgb(104, 211, 145)",
+          "border": "rgb(104, 211, 145)",
+          "disabled": false,
+          "fg": "rgb(24, 41, 31)",
+          "height": 24,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "success"
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "border": "rgb(104, 211, 145)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "height": 128,
+          "readonly": false,
+          "tag": "TEXTAREA",
+          "tone": "success"
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "tone": "warning",
+      "fields": [
+        {
+          "bg": "rgb(24, 27, 32)",
+          "border": "rgb(231, 182, 91)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "height": 44,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "warning"
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "border": "rgb(231, 182, 91)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "height": 44,
+          "readonly": false,
+          "tag": "SELECT",
+          "tone": "warning"
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "border": "rgb(135, 146, 164)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "height": 44,
+          "readonly": true,
+          "tag": "INPUT",
+          "tone": "neutral"
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "border": "rgb(135, 146, 164)",
+          "disabled": true,
+          "fg": "rgb(185, 193, 206)",
+          "height": 44,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "error"
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "border": "rgb(135, 146, 164)",
+          "disabled": true,
+          "fg": "rgb(185, 193, 206)",
+          "height": 44,
+          "readonly": false,
+          "tag": "SELECT",
+          "tone": "success"
+        },
+        {
+          "bg": "rgb(231, 182, 91)",
+          "border": "rgb(231, 182, 91)",
+          "disabled": false,
+          "fg": "rgb(48, 39, 25)",
+          "height": 24,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "warning"
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "border": "rgb(231, 182, 91)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "height": 128,
+          "readonly": false,
+          "tag": "TEXTAREA",
+          "tone": "warning"
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "tone": "error",
+      "fields": [
+        {
+          "bg": "rgb(24, 27, 32)",
+          "border": "rgb(240, 138, 138)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "height": 44,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "error"
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "border": "rgb(240, 138, 138)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "height": 44,
+          "readonly": false,
+          "tag": "SELECT",
+          "tone": "error"
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "border": "rgb(135, 146, 164)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "height": 44,
+          "readonly": true,
+          "tag": "INPUT",
+          "tone": "neutral"
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "border": "rgb(135, 146, 164)",
+          "disabled": true,
+          "fg": "rgb(185, 193, 206)",
+          "height": 44,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "error"
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "border": "rgb(135, 146, 164)",
+          "disabled": true,
+          "fg": "rgb(185, 193, 206)",
+          "height": 44,
+          "readonly": false,
+          "tag": "SELECT",
+          "tone": "success"
+        },
+        {
+          "bg": "rgb(240, 138, 138)",
+          "border": "rgb(240, 138, 138)",
+          "disabled": false,
+          "fg": "rgb(48, 31, 35)",
+          "height": 24,
+          "readonly": false,
+          "tag": "INPUT",
+          "tone": "error"
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "border": "rgb(240, 138, 138)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "height": 128,
+          "readonly": false,
+          "tag": "TEXTAREA",
+          "tone": "error"
+        }
+      ]
+    }
+  ],
+  "buttons": [
+    {
+      "theme": "light",
+      "variant": "primary",
+      "bg": "oklab(0.193141 -0.00273341 -0.0369305)",
+      "fg": "rgb(255, 255, 255)",
+      "ratio": 18.391976416077863
+    },
+    {
+      "theme": "light",
+      "variant": "secondary",
+      "bg": "rgb(233, 238, 244)",
+      "fg": "rgb(15, 23, 42)",
+      "ratio": 15.30291466413074
+    },
+    {
+      "theme": "light",
+      "variant": "ghost",
+      "bg": "oklab(0.898822 -0.000814439 -0.00412117)",
+      "fg": "rgb(15, 23, 42)",
+      "ratio": 13.198278812645832
+    },
+    {
+      "theme": "light",
+      "variant": "info",
+      "bg": "oklab(0.450024 -0.035225 -0.120091)",
+      "fg": "rgb(255, 255, 255)",
+      "ratio": 7.482308179688602
+    },
+    {
+      "theme": "light",
+      "variant": "success",
+      "bg": "oklab(0.416567 -0.0883643 0.0483386)",
+      "fg": "rgb(255, 255, 255)",
+      "ratio": 8.188564383988089
+    },
+    {
+      "theme": "light",
+      "variant": "warning",
+      "bg": "oklab(0.44007 0.0802839 0.0837102)",
+      "fg": "rgb(255, 255, 255)",
+      "ratio": 8.145580090800669
+    },
+    {
+      "theme": "light",
+      "variant": "error",
+      "bg": "oklab(0.470048 0.15713 0.0818628)",
+      "fg": "rgb(255, 255, 255)",
+      "ratio": 7.482813261905959
+    },
+    {
+      "theme": "dark",
+      "variant": "primary",
+      "bg": "oklab(0.895767 -0.00116181 -0.00293764)",
+      "fg": "rgb(16, 18, 21)",
+      "ratio": 13.740152595002206
+    },
+    {
+      "theme": "dark",
+      "variant": "secondary",
+      "bg": "rgb(43, 48, 56)",
+      "fg": "rgb(241, 243, 245)",
+      "ratio": 11.929014455454556
+    },
+    {
+      "theme": "dark",
+      "variant": "ghost",
+      "bg": "oklab(0.252681 -0.00190432 -0.0131019)",
+      "fg": "rgb(241, 243, 245)",
+      "ratio": 14.273723878148472
+    },
+    {
+      "theme": "dark",
+      "variant": "info",
+      "bg": "oklab(0.649103 -0.041453 -0.10879)",
+      "fg": "rgb(16, 18, 21)",
+      "ratio": 5.8144757061022485
+    },
+    {
+      "theme": "dark",
+      "variant": "success",
+      "bg": "oklab(0.730988 -0.11572 0.0551665)",
+      "fg": "rgb(24, 41, 31)",
+      "ratio": 6.757353297826653
+    },
+    {
+      "theme": "dark",
+      "variant": "warning",
+      "bg": "oklab(0.74672 0.017942 0.112539)",
+      "fg": "rgb(48, 39, 25)",
+      "ratio": 6.45946003002637
+    },
+    {
+      "theme": "dark",
+      "variant": "error",
+      "bg": "oklab(0.69057 0.108581 0.040552)",
+      "fg": "rgb(48, 31, 35)",
+      "ratio": 5.349025867521043
+    }
+  ],
+  "contrast": [
+    {
+      "theme": "light",
+      "samples": [
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "A",
+          "text": "Lewati ke konten",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(237, 240, 244)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "H1",
+          "text": "TonzToon Admin",
+          "ratio": 15.61779798332019
+        },
+        {
+          "bg": "rgb(237, 240, 244)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "P",
+          "text": "Pemeriksaan komponen",
+          "ratio": 6.6291103788384405
+        },
+        {
+          "bg": "rgb(237, 240, 244)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "LABEL",
+          "text": "Tema",
+          "ratio": 15.61779798332019
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "SELECT",
+          "text": "Tema",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(237, 240, 244)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "P",
+          "text": "Contoh lokal untuk memeriksa komponen, varian, dan state bersama ",
+          "ratio": 6.6291103788384405
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "H2",
+          "text": "Daftar contoh",
+          "ratio": 16.20228285909689
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "P",
+          "text": "Input, Select, Table, dan StatusBadge memakai kontrak bersama.",
+          "ratio": 6.877200074993015
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "LABEL",
+          "text": "Cari modul",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "INPUT",
+          "text": "Cari modul",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "LABEL",
+          "text": "Kondisi tabel",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "SELECT",
+          "text": "Kondisi tabel",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "CAPTION",
+          "text": "Modul rencana integrasi, bukan kesehatan layanan",
+          "ratio": 7.577663953533317
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "TH",
+          "text": "Modul",
+          "ratio": 7.577663953533317
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "TH",
+          "text": "Integrasi starter",
+          "ratio": 7.577663953533317
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "TH",
+          "text": "Sesi admin\nIdentitas dan izin",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "SPAN",
+          "text": "Identitas dan izin",
+          "ratio": 7.577663953533317
+        },
+        {
+          "bg": "rgb(233, 238, 244)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "SPAN",
+          "text": "Belum terhubung",
+          "ratio": 6.495455411499817
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "TH",
+          "text": "Monitoring API\nMethod + route template",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "SPAN",
+          "text": "Method + route template",
+          "ratio": 7.577663953533317
+        },
+        {
+          "bg": "rgb(233, 238, 244)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "SPAN",
+          "text": "Belum terhubung",
+          "ratio": 6.495455411499817
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "TH",
+          "text": "Katalog komik\nSource + slug",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "SPAN",
+          "text": "Source + slug",
+          "ratio": 7.577663953533317
+        },
+        {
+          "bg": "rgb(233, 238, 244)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "SPAN",
+          "text": "Belum terhubung",
+          "ratio": 6.495455411499817
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "H2",
+          "text": "Aksi dan status",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "P",
+          "text": "Setiap tombol aktif hanya mengubah pesan contoh lokal.",
+          "ratio": 7.577663953533317
+        },
+        {
+          "bg": "rgb(15, 23, 42)",
+          "disabled": false,
+          "fg": "rgb(255, 255, 255)",
+          "tag": "BUTTON",
+          "text": "primary",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "BUTTON",
+          "text": "secondary",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "BUTTON",
+          "text": "ghost",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(26, 95, 168)",
+          "disabled": false,
+          "fg": "rgb(255, 255, 255)",
+          "tag": "BUTTON",
+          "text": "info",
+          "ratio": 6.4690292936876626
+        },
+        {
+          "bg": "rgb(22, 101, 52)",
+          "disabled": false,
+          "fg": "rgb(255, 255, 255)",
+          "tag": "BUTTON",
+          "text": "success",
+          "ratio": 7.130310076434003
+        },
+        {
+          "bg": "rgb(146, 64, 14)",
+          "disabled": false,
+          "fg": "rgb(255, 255, 255)",
+          "tag": "BUTTON",
+          "text": "warning",
+          "ratio": 7.090048300172369
+        },
+        {
+          "bg": "oklab(0.470048 0.15713 0.0818628)",
+          "disabled": false,
+          "fg": "rgb(255, 255, 255)",
+          "tag": "BUTTON",
+          "text": "error",
+          "ratio": 7.482813261905959
+        },
+        {
+          "bg": "rgb(233, 238, 244)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "DIV",
+          "text": "Varian error dipilih. Tidak ada perubahan backend.",
+          "ratio": 6.495455411499817
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "P",
+          "text": "Loading dan disabled",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(22, 101, 52)",
+          "disabled": false,
+          "fg": "rgb(255, 255, 255)",
+          "tag": "BUTTON",
+          "text": "Proses contoh",
+          "ratio": 7.130310076434003
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "disabled": true,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "BUTTON",
+          "text": "Akhiri loading",
+          "ratio": 6.877200074993015
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "disabled": true,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "BUTTON",
+          "text": "Aksi nonaktif",
+          "ratio": 6.877200074993015
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "P",
+          "text": "Proses contoh menjalankan loading lokal sampai Anda memilih Akhir",
+          "ratio": 7.577663953533317
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "P",
+          "text": "Badge status",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(233, 238, 244)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "SPAN",
+          "text": "Netral",
+          "ratio": 6.495455411499817
+        },
+        {
+          "bg": "rgb(234, 242, 252)",
+          "disabled": false,
+          "fg": "rgb(26, 95, 168)",
+          "tag": "SPAN",
+          "text": "Informasi",
+          "ratio": 5.731249534821412
+        },
+        {
+          "bg": "rgb(237, 247, 239)",
+          "disabled": false,
+          "fg": "rgb(22, 101, 52)",
+          "tag": "SPAN",
+          "text": "Sukses",
+          "ratio": 6.502710272830427
+        },
+        {
+          "bg": "rgb(255, 251, 235)",
+          "disabled": false,
+          "fg": "rgb(146, 64, 14)",
+          "tag": "SPAN",
+          "text": "Peringatan",
+          "ratio": 6.837002380367332
+        },
+        {
+          "bg": "rgb(254, 242, 242)",
+          "disabled": false,
+          "fg": "rgb(185, 28, 28)",
+          "tag": "SPAN",
+          "text": "Error",
+          "ratio": 5.914600426850339
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(22, 101, 52)",
+          "tag": "SPAN",
+          "text": "Outline sukses",
+          "ratio": 7.130310076434003
+        },
+        {
+          "bg": "rgb(185, 28, 28)",
+          "disabled": false,
+          "fg": "rgb(255, 255, 255)",
+          "tag": "SPAN",
+          "text": "Solid error",
+          "ratio": 6.4700447145121895
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "P",
+          "text": "Contoh StatusBadge",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(237, 247, 239)",
+          "disabled": false,
+          "fg": "rgb(22, 101, 52)",
+          "tag": "SPAN",
+          "text": "Berhasil",
+          "ratio": 6.502710272830427
+        },
+        {
+          "bg": "rgb(255, 251, 235)",
+          "disabled": false,
+          "fg": "rgb(146, 64, 14)",
+          "tag": "SPAN",
+          "text": "Perlu perhatian",
+          "ratio": 6.837002380367332
+        },
+        {
+          "bg": "rgb(254, 242, 242)",
+          "disabled": false,
+          "fg": "rgb(185, 28, 28)",
+          "tag": "SPAN",
+          "text": "Gagal",
+          "ratio": 5.914600426850339
+        },
+        {
+          "bg": "rgb(233, 238, 244)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "SPAN",
+          "text": "Belum tersedia",
+          "ratio": 6.495455411499817
+        },
+        {
+          "bg": "rgb(234, 242, 252)",
+          "disabled": false,
+          "fg": "rgb(26, 95, 168)",
+          "tag": "SPAN",
+          "text": "Memuat",
+          "ratio": 5.731249534821412
+        },
+        {
+          "bg": "rgb(233, 238, 244)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "SPAN",
+          "text": "Nonaktif",
+          "ratio": 6.495455411499817
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "H2",
+          "text": "Field dan validasi",
+          "ratio": 16.20228285909689
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "P",
+          "text": "Pengaturan berikut menguji props bersama. Validasi hanya berlaku ",
+          "ratio": 6.877200074993015
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "LABEL",
+          "text": "Ukuran komponen",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "SELECT",
+          "text": "Ukuran komponen",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "LABEL",
+          "text": "Tone field",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "SELECT",
+          "text": "Tone field",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "SPAN",
+          "text": "Tampilkan invalid",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "SPAN",
+          "text": "Tampilkan loading field",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "LABEL",
+          "text": "Nama pemeriksaan",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "INPUT",
+          "text": "Nama pemeriksaan",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "P",
+          "text": "Nama hanya dipakai pada pemeriksaan lokal.",
+          "ratio": 7.577663953533317
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "LABEL",
+          "text": "Sumber contoh",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "SELECT",
+          "text": "Sumber contoh",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "LABEL",
+          "text": "Nilai baca saja",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "INPUT",
+          "text": "Nilai baca saja",
+          "ratio": 6.877200074993015
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "P",
+          "text": "Readonly tetap dapat difokuskan dan disalin.",
+          "ratio": 7.577663953533317
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "LABEL",
+          "text": "Input nonaktif",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "disabled": true,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "INPUT",
+          "text": "Input nonaktif",
+          "ratio": 6.877200074993015
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "P",
+          "text": "Disabled mengungguli tone error, tanpa mengurangi keterbacaan.",
+          "ratio": 7.577663953533317
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "LABEL",
+          "text": "Select nonaktif",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "disabled": true,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "SELECT",
+          "text": "Select nonaktif",
+          "ratio": 6.877200074993015
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "SPAN",
+          "text": "Sertakan catatan contoh",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "LABEL",
+          "text": "Catatan pemeriksaan",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "TEXTAREA",
+          "text": "Catatan pemeriksaan",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(15, 23, 42)",
+          "disabled": false,
+          "fg": "rgb(255, 255, 255)",
+          "tag": "BUTTON",
+          "text": "Periksa isian",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "BUTTON",
+          "text": "Reset form",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "H2",
+          "text": "Pesan semantik",
+          "ratio": 16.20228285909689
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "P",
+          "text": "Warna status berasal dari tema bersama; style netral tidak menimp",
+          "ratio": 6.877200074993015
+        },
+        {
+          "bg": "rgb(233, 238, 244)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "P",
+          "text": "Netral",
+          "ratio": 6.495455411499817
+        },
+        {
+          "bg": "rgb(233, 238, 244)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "DIV",
+          "text": "Contoh pesan netral, bukan status backend.",
+          "ratio": 6.495455411499817
+        },
+        {
+          "bg": "rgb(234, 242, 252)",
+          "disabled": false,
+          "fg": "rgb(26, 95, 168)",
+          "tag": "P",
+          "text": "Informasi",
+          "ratio": 5.731249534821412
+        },
+        {
+          "bg": "rgb(234, 242, 252)",
+          "disabled": false,
+          "fg": "rgb(26, 95, 168)",
+          "tag": "DIV",
+          "text": "Contoh pesan informasi, bukan status backend.",
+          "ratio": 5.731249534821412
+        },
+        {
+          "bg": "rgb(237, 247, 239)",
+          "disabled": false,
+          "fg": "rgb(22, 101, 52)",
+          "tag": "P",
+          "text": "Sukses",
+          "ratio": 6.502710272830427
+        },
+        {
+          "bg": "rgb(237, 247, 239)",
+          "disabled": false,
+          "fg": "rgb(22, 101, 52)",
+          "tag": "DIV",
+          "text": "Contoh pesan sukses, bukan status backend.",
+          "ratio": 6.502710272830427
+        },
+        {
+          "bg": "rgb(255, 251, 235)",
+          "disabled": false,
+          "fg": "rgb(146, 64, 14)",
+          "tag": "P",
+          "text": "Peringatan",
+          "ratio": 6.837002380367332
+        },
+        {
+          "bg": "rgb(255, 251, 235)",
+          "disabled": false,
+          "fg": "rgb(146, 64, 14)",
+          "tag": "DIV",
+          "text": "Contoh pesan peringatan, bukan status backend.",
+          "ratio": 6.837002380367332
+        },
+        {
+          "bg": "rgb(254, 242, 242)",
+          "disabled": false,
+          "fg": "rgb(185, 28, 28)",
+          "tag": "P",
+          "text": "Error",
+          "ratio": 5.914600426850339
+        },
+        {
+          "bg": "rgb(254, 242, 242)",
+          "disabled": false,
+          "fg": "rgb(185, 28, 28)",
+          "tag": "DIV",
+          "text": "Contoh pesan error, bukan status backend.",
+          "ratio": 5.914600426850339
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "H2",
+          "text": "Dialog dan drawer",
+          "ratio": 16.20228285909689
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "P",
+          "text": "Overlay terkontrol dengan dialog native, Escape, fokus terkurung,",
+          "ratio": 6.877200074993015
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "LABEL",
+          "text": "Sisi drawer",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "SELECT",
+          "text": "Sisi drawer",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "BUTTON",
+          "text": "Buka dialog",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(255, 255, 255)",
+          "disabled": false,
+          "fg": "rgb(15, 23, 42)",
+          "tag": "BUTTON",
+          "text": "Buka drawer",
+          "ratio": 17.85253496299567
+        },
+        {
+          "bg": "rgb(233, 238, 244)",
+          "disabled": false,
+          "fg": "rgb(71, 85, 105)",
+          "tag": "DIV",
+          "text": "Komponen dipilih: Belum dipilih. Ini pilihan lokal, tanpa navigas",
+          "ratio": 6.495455411499817
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "samples": [
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "A",
+          "text": "Lewati ke konten",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(9, 10, 13)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "H1",
+          "text": "TonzToon Admin",
+          "ratio": 17.79612602354565
+        },
+        {
+          "bg": "rgb(9, 10, 13)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "P",
+          "text": "Pemeriksaan komponen",
+          "ratio": 10.917810997100494
+        },
+        {
+          "bg": "rgb(9, 10, 13)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "LABEL",
+          "text": "Tema",
+          "ratio": 17.79612602354565
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "SELECT",
+          "text": "Tema",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(9, 10, 13)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "P",
+          "text": "Contoh lokal untuk memeriksa komponen, varian, dan state bersama ",
+          "ratio": 10.917810997100494
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "H2",
+          "text": "Daftar contoh",
+          "ratio": 13.474115487760917
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "P",
+          "text": "Input, Select, Table, dan StatusBadge memakai kontrak bersama.",
+          "ratio": 8.266284811303493
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "LABEL",
+          "text": "Cari modul",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "INPUT",
+          "text": "Cari modul",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "LABEL",
+          "text": "Kondisi tabel",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "SELECT",
+          "text": "Kondisi tabel",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "CAPTION",
+          "text": "Modul rencana integrasi, bukan kesehatan layanan",
+          "ratio": 9.521079415016635
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "TH",
+          "text": "Modul",
+          "ratio": 9.521079415016635
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "TH",
+          "text": "Integrasi starter",
+          "ratio": 9.521079415016635
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "TH",
+          "text": "Sesi admin\nIdentitas dan izin",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "SPAN",
+          "text": "Identitas dan izin",
+          "ratio": 9.521079415016635
+        },
+        {
+          "bg": "rgb(43, 48, 56)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "SPAN",
+          "text": "Belum terhubung",
+          "ratio": 7.318375079723341
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "TH",
+          "text": "Monitoring API\nMethod + route template",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "SPAN",
+          "text": "Method + route template",
+          "ratio": 9.521079415016635
+        },
+        {
+          "bg": "rgb(43, 48, 56)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "SPAN",
+          "text": "Belum terhubung",
+          "ratio": 7.318375079723341
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "TH",
+          "text": "Katalog komik\nSource + slug",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "SPAN",
+          "text": "Source + slug",
+          "ratio": 9.521079415016635
+        },
+        {
+          "bg": "rgb(43, 48, 56)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "SPAN",
+          "text": "Belum terhubung",
+          "ratio": 7.318375079723341
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "H2",
+          "text": "Aksi dan status",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "P",
+          "text": "Setiap tombol aktif hanya mengubah pesan contoh lokal.",
+          "ratio": 9.521079415016635
+        },
+        {
+          "bg": "rgb(241, 243, 245)",
+          "disabled": false,
+          "fg": "rgb(16, 18, 21)",
+          "tag": "BUTTON",
+          "text": "primary",
+          "ratio": 16.865458099768205
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "BUTTON",
+          "text": "secondary",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "BUTTON",
+          "text": "ghost",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(91, 163, 232)",
+          "disabled": false,
+          "fg": "rgb(16, 18, 21)",
+          "tag": "BUTTON",
+          "text": "info",
+          "ratio": 7.011850320134657
+        },
+        {
+          "bg": "rgb(104, 211, 145)",
+          "disabled": false,
+          "fg": "rgb(24, 41, 31)",
+          "tag": "BUTTON",
+          "text": "success",
+          "ratio": 8.224445315469362
+        },
+        {
+          "bg": "rgb(231, 182, 91)",
+          "disabled": false,
+          "fg": "rgb(48, 39, 25)",
+          "tag": "BUTTON",
+          "text": "warning",
+          "ratio": 7.860597049028286
+        },
+        {
+          "bg": "oklab(0.69057 0.108581 0.040552)",
+          "disabled": false,
+          "fg": "rgb(48, 31, 35)",
+          "tag": "BUTTON",
+          "text": "error",
+          "ratio": 5.349025867521043
+        },
+        {
+          "bg": "rgb(43, 48, 56)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "DIV",
+          "text": "Varian error dipilih. Tidak ada perubahan backend.",
+          "ratio": 7.318375079723341
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "P",
+          "text": "Loading dan disabled",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(104, 211, 145)",
+          "disabled": false,
+          "fg": "rgb(24, 41, 31)",
+          "tag": "BUTTON",
+          "text": "Proses contoh",
+          "ratio": 8.224445315469362
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "disabled": true,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "BUTTON",
+          "text": "Akhiri loading",
+          "ratio": 8.266284811303493
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "disabled": true,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "BUTTON",
+          "text": "Aksi nonaktif",
+          "ratio": 8.266284811303493
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "P",
+          "text": "Proses contoh menjalankan loading lokal sampai Anda memilih Akhir",
+          "ratio": 9.521079415016635
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "P",
+          "text": "Badge status",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(43, 48, 56)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "SPAN",
+          "text": "Netral",
+          "ratio": 7.318375079723341
+        },
+        {
+          "bg": "rgb(23, 41, 56)",
+          "disabled": false,
+          "fg": "rgb(91, 163, 232)",
+          "tag": "SPAN",
+          "text": "Informasi",
+          "ratio": 5.563819721839709
+        },
+        {
+          "bg": "rgb(24, 41, 31)",
+          "disabled": false,
+          "fg": "rgb(104, 211, 145)",
+          "tag": "SPAN",
+          "text": "Sukses",
+          "ratio": 8.224445315469362
+        },
+        {
+          "bg": "rgb(48, 39, 25)",
+          "disabled": false,
+          "fg": "rgb(231, 182, 91)",
+          "tag": "SPAN",
+          "text": "Peringatan",
+          "ratio": 7.860597049028286
+        },
+        {
+          "bg": "rgb(48, 31, 35)",
+          "disabled": false,
+          "fg": "rgb(240, 138, 138)",
+          "tag": "SPAN",
+          "text": "Error",
+          "ratio": 6.46941132829104
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(104, 211, 145)",
+          "tag": "SPAN",
+          "text": "Outline sukses",
+          "ratio": 9.301669423467514
+        },
+        {
+          "bg": "rgb(240, 138, 138)",
+          "disabled": false,
+          "fg": "rgb(48, 31, 35)",
+          "tag": "SPAN",
+          "text": "Solid error",
+          "ratio": 6.46941132829104
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "P",
+          "text": "Contoh StatusBadge",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 41, 31)",
+          "disabled": false,
+          "fg": "rgb(104, 211, 145)",
+          "tag": "SPAN",
+          "text": "Berhasil",
+          "ratio": 8.224445315469362
+        },
+        {
+          "bg": "rgb(48, 39, 25)",
+          "disabled": false,
+          "fg": "rgb(231, 182, 91)",
+          "tag": "SPAN",
+          "text": "Perlu perhatian",
+          "ratio": 7.860597049028286
+        },
+        {
+          "bg": "rgb(48, 31, 35)",
+          "disabled": false,
+          "fg": "rgb(240, 138, 138)",
+          "tag": "SPAN",
+          "text": "Gagal",
+          "ratio": 6.46941132829104
+        },
+        {
+          "bg": "rgb(43, 48, 56)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "SPAN",
+          "text": "Belum tersedia",
+          "ratio": 7.318375079723341
+        },
+        {
+          "bg": "rgb(23, 41, 56)",
+          "disabled": false,
+          "fg": "rgb(91, 163, 232)",
+          "tag": "SPAN",
+          "text": "Memuat",
+          "ratio": 5.563819721839709
+        },
+        {
+          "bg": "rgb(43, 48, 56)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "SPAN",
+          "text": "Nonaktif",
+          "ratio": 7.318375079723341
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "H2",
+          "text": "Field dan validasi",
+          "ratio": 13.474115487760917
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "P",
+          "text": "Pengaturan berikut menguji props bersama. Validasi hanya berlaku ",
+          "ratio": 8.266284811303493
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "LABEL",
+          "text": "Ukuran komponen",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "SELECT",
+          "text": "Ukuran komponen",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "LABEL",
+          "text": "Tone field",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "SELECT",
+          "text": "Tone field",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "SPAN",
+          "text": "Tampilkan invalid",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "SPAN",
+          "text": "Tampilkan loading field",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "LABEL",
+          "text": "Nama pemeriksaan",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "INPUT",
+          "text": "Nama pemeriksaan",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "P",
+          "text": "Nama hanya dipakai pada pemeriksaan lokal.",
+          "ratio": 9.521079415016635
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "LABEL",
+          "text": "Sumber contoh",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "SELECT",
+          "text": "Sumber contoh",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "LABEL",
+          "text": "Nilai baca saja",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "INPUT",
+          "text": "Nilai baca saja",
+          "ratio": 8.266284811303493
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "P",
+          "text": "Readonly tetap dapat difokuskan dan disalin.",
+          "ratio": 9.521079415016635
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "LABEL",
+          "text": "Input nonaktif",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "disabled": true,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "INPUT",
+          "text": "Input nonaktif",
+          "ratio": 8.266284811303493
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "P",
+          "text": "Disabled mengungguli tone error, tanpa mengurangi keterbacaan.",
+          "ratio": 9.521079415016635
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "LABEL",
+          "text": "Select nonaktif",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "disabled": true,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "SELECT",
+          "text": "Select nonaktif",
+          "ratio": 8.266284811303493
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "SPAN",
+          "text": "Sertakan catatan contoh",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "LABEL",
+          "text": "Catatan pemeriksaan",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "TEXTAREA",
+          "text": "Catatan pemeriksaan",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(241, 243, 245)",
+          "disabled": false,
+          "fg": "rgb(16, 18, 21)",
+          "tag": "BUTTON",
+          "text": "Periksa isian",
+          "ratio": 16.865458099768205
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "BUTTON",
+          "text": "Reset form",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "H2",
+          "text": "Pesan semantik",
+          "ratio": 13.474115487760917
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "P",
+          "text": "Warna status berasal dari tema bersama; style netral tidak menimp",
+          "ratio": 8.266284811303493
+        },
+        {
+          "bg": "rgb(43, 48, 56)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "P",
+          "text": "Netral",
+          "ratio": 7.318375079723341
+        },
+        {
+          "bg": "rgb(43, 48, 56)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "DIV",
+          "text": "Contoh pesan netral, bukan status backend.",
+          "ratio": 7.318375079723341
+        },
+        {
+          "bg": "rgb(23, 41, 56)",
+          "disabled": false,
+          "fg": "rgb(91, 163, 232)",
+          "tag": "P",
+          "text": "Informasi",
+          "ratio": 5.563819721839709
+        },
+        {
+          "bg": "rgb(23, 41, 56)",
+          "disabled": false,
+          "fg": "rgb(91, 163, 232)",
+          "tag": "DIV",
+          "text": "Contoh pesan informasi, bukan status backend.",
+          "ratio": 5.563819721839709
+        },
+        {
+          "bg": "rgb(24, 41, 31)",
+          "disabled": false,
+          "fg": "rgb(104, 211, 145)",
+          "tag": "P",
+          "text": "Sukses",
+          "ratio": 8.224445315469362
+        },
+        {
+          "bg": "rgb(24, 41, 31)",
+          "disabled": false,
+          "fg": "rgb(104, 211, 145)",
+          "tag": "DIV",
+          "text": "Contoh pesan sukses, bukan status backend.",
+          "ratio": 8.224445315469362
+        },
+        {
+          "bg": "rgb(48, 39, 25)",
+          "disabled": false,
+          "fg": "rgb(231, 182, 91)",
+          "tag": "P",
+          "text": "Peringatan",
+          "ratio": 7.860597049028286
+        },
+        {
+          "bg": "rgb(48, 39, 25)",
+          "disabled": false,
+          "fg": "rgb(231, 182, 91)",
+          "tag": "DIV",
+          "text": "Contoh pesan peringatan, bukan status backend.",
+          "ratio": 7.860597049028286
+        },
+        {
+          "bg": "rgb(48, 31, 35)",
+          "disabled": false,
+          "fg": "rgb(240, 138, 138)",
+          "tag": "P",
+          "text": "Error",
+          "ratio": 6.46941132829104
+        },
+        {
+          "bg": "rgb(48, 31, 35)",
+          "disabled": false,
+          "fg": "rgb(240, 138, 138)",
+          "tag": "DIV",
+          "text": "Contoh pesan error, bukan status backend.",
+          "ratio": 6.46941132829104
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "H2",
+          "text": "Dialog dan drawer",
+          "ratio": 13.474115487760917
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "P",
+          "text": "Overlay terkontrol dengan dialog native, Escape, fokus terkurung,",
+          "ratio": 8.266284811303493
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "LABEL",
+          "text": "Sisi drawer",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "SELECT",
+          "text": "Sisi drawer",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "BUTTON",
+          "text": "Buka dialog",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(24, 27, 32)",
+          "disabled": false,
+          "fg": "rgb(241, 243, 245)",
+          "tag": "BUTTON",
+          "text": "Buka drawer",
+          "ratio": 15.51944150661896
+        },
+        {
+          "bg": "rgb(43, 48, 56)",
+          "disabled": false,
+          "fg": "rgb(185, 193, 206)",
+          "tag": "DIV",
+          "text": "Komponen dipilih: Belum dipilih. Ini pilihan lokal, tanpa navigas",
+          "ratio": 7.318375079723341
+        }
+      ]
+    }
+  ],
+  "sizes": [
+    {
+      "checkLabelHeight": 44,
+      "inputHeight": 44,
+      "readonlyBg": "rgb(242, 244, 247)",
+      "size": "sm",
+      "submitHeight": 44,
+      "theme": "light"
+    },
+    {
+      "checkLabelHeight": 44,
+      "inputHeight": 44,
+      "readonlyBg": "rgb(242, 244, 247)",
+      "size": "md",
+      "submitHeight": 44,
+      "theme": "light"
+    },
+    {
+      "checkLabelHeight": 44,
+      "inputHeight": 48,
+      "readonlyBg": "rgb(242, 244, 247)",
+      "size": "lg",
+      "submitHeight": 48,
+      "theme": "light"
+    },
+    {
+      "loading": [
+        {
+          "bg": "rgb(242, 244, 247)",
+          "disabled": true,
+          "invalid": "true",
+          "tag": "INPUT",
+          "tone": "error"
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "disabled": true,
+          "invalid": "true",
+          "tag": "SELECT",
+          "tone": "error"
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "disabled": true,
+          "invalid": "true",
+          "tag": "INPUT",
+          "tone": "error"
+        },
+        {
+          "bg": "rgb(242, 244, 247)",
+          "disabled": true,
+          "invalid": "true",
+          "tag": "TEXTAREA",
+          "tone": "error"
+        }
+      ],
+      "theme": "light"
+    },
+    {
+      "checkLabelHeight": 44,
+      "inputHeight": 44,
+      "readonlyBg": "rgb(35, 39, 46)",
+      "size": "sm",
+      "submitHeight": 44,
+      "theme": "dark"
+    },
+    {
+      "checkLabelHeight": 44,
+      "inputHeight": 44,
+      "readonlyBg": "rgb(35, 39, 46)",
+      "size": "md",
+      "submitHeight": 44,
+      "theme": "dark"
+    },
+    {
+      "checkLabelHeight": 44,
+      "inputHeight": 48,
+      "readonlyBg": "rgb(35, 39, 46)",
+      "size": "lg",
+      "submitHeight": 48,
+      "theme": "dark"
+    },
+    {
+      "loading": [
+        {
+          "bg": "rgb(35, 39, 46)",
+          "disabled": true,
+          "invalid": "true",
+          "tag": "INPUT",
+          "tone": "error"
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "disabled": true,
+          "invalid": "true",
+          "tag": "SELECT",
+          "tone": "error"
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "disabled": true,
+          "invalid": "true",
+          "tag": "INPUT",
+          "tone": "error"
+        },
+        {
+          "bg": "rgb(35, 39, 46)",
+          "disabled": true,
+          "invalid": "true",
+          "tag": "TEXTAREA",
+          "tone": "error"
+        }
+      ],
+      "theme": "dark"
+    }
+  ],
+  "a11y": {
+    "brokenDescriptions": [],
+    "duplicateIds": [],
+    "focusColor": "#1a5fa8",
+    "invalidCount": 4,
+    "placeholder": "rgb(82, 97, 118)",
+    "unlabelledFields": 0
+  }
+}

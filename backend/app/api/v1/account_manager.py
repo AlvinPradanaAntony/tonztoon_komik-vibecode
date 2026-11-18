@@ -6,11 +6,12 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_auth_user
+from app.admin.security import get_admin_auth_user
 from app.api.errors import raise_api_error
 from app.config import settings
 from app.database import get_db
@@ -56,17 +57,11 @@ def _metadata_has_admin_role(metadata: dict | None) -> bool:
 
 
 def require_account_manager_admin(
-    auth_user: AuthenticatedUser = Depends(get_current_auth_user),
+    auth_user: AuthenticatedUser = Depends(get_admin_auth_user),
 ) -> AuthenticatedUser:
     """Allow only configured/admin Supabase users to use account manager."""
-    allowed_user_ids = _csv_settings(settings.ADMIN_USER_IDS)
-    if str(auth_user.user_id) in allowed_user_ids:
-        return auth_user
-
-    claims = auth_user.raw_claims or {}
-    if _metadata_has_admin_role(claims.get("app_metadata")):
-        return auth_user
-    if _metadata_has_admin_role(claims.get("user_metadata")):
+    from app.admin.security import permissions_for
+    if "users:manage" in permissions_for(auth_user):
         return auth_user
 
     raise_api_error(
@@ -89,7 +84,11 @@ async def get_accounts(
 ):
     """List Supabase Auth users enriched dengan profile dan jumlah relasi app."""
     try:
-        return await list_accounts(db, page=page, per_page=per_page)
+        result = await list_accounts(db, page=page, per_page=per_page)
+        from app.admin.account_operations import account_etag
+        for user in result.users:
+            user.etag = account_etag(user)
+        return result
     except AccountManagerConfigurationError as exc:
         raise_api_error(status.HTTP_500_INTERNAL_SERVER_ERROR, str(exc))
     except AccountManagerRequestError as exc:
@@ -103,11 +102,15 @@ async def get_accounts(
 )
 async def post_account(
     payload: AccountManagerCreateRequest,
-    _: AuthenticatedUser = Depends(require_account_manager_admin),
+    request: Request,
+    actor: AuthenticatedUser = Depends(require_account_manager_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Create Supabase Auth user dan profile aplikasi default."""
     try:
+        if settings.ADMIN_CONSOLE_ENABLED:
+            from app.admin.account_operations import mutate
+            return await mutate(db,request,actor,payload,lambda:create_account(db,payload))
         return await create_account(db, payload)
     except ValueError as exc:
         raise_api_error(status.HTTP_409_CONFLICT, str(exc))
@@ -121,11 +124,15 @@ async def post_account(
 async def patch_account(
     user_id: UUID,
     payload: AccountManagerUpdateRequest,
-    _: AuthenticatedUser = Depends(require_account_manager_admin),
+    request: Request,
+    actor: AuthenticatedUser = Depends(require_account_manager_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Update email/password/metadata Supabase Auth dan profile aplikasi."""
     try:
+        if settings.ADMIN_CONSOLE_ENABLED:
+            from app.admin.account_operations import mutate
+            return await mutate(db,request,actor,payload,lambda:update_account(db,user_id,payload),target=user_id)
         return await update_account(db, user_id, payload)
     except ValueError as exc:
         raise_api_error(status.HTTP_409_CONFLICT, str(exc))
@@ -138,11 +145,25 @@ async def patch_account(
 @router.get("/accounts/{user_id}/relations", response_model=AccountRelationPreview)
 async def get_account_relations(
     user_id: UUID,
-    _: AuthenticatedUser = Depends(require_account_manager_admin),
+    actor: AuthenticatedUser = Depends(require_account_manager_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Preview data aplikasi yang berelasi dengan user ID."""
+    from app.admin.security import permissions_for
+    if "users:inspect-library" not in permissions_for(actor):
+        raise_api_error(status.HTTP_403_FORBIDDEN,"Izin detail library tidak tersedia.")
     return await get_relation_preview(db, user_id)
+
+
+@router.get("/accounts/{user_id}", response_model=AccountManagerUser)
+async def get_account(user_id: UUID, _: AuthenticatedUser = Depends(require_account_manager_admin), db: AsyncSession = Depends(get_db)):
+    try:
+        from app.admin.account_operations import account_etag
+        user = await build_account_user(db, await get_auth_user(user_id))
+        user.etag = account_etag(user)
+        return user
+    except AccountManagerRequestError as exc:
+        _raise_service_error(exc)
 
 
 @router.get("/accounts/{user_id}/delete-preview", response_model=AccountDeletePreviewResponse)

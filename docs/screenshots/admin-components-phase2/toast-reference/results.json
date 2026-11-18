@@ -1,0 +1,29 @@
+{
+  "results": [
+    {
+      "theme": "light",
+      "width": 1440,
+      "positions": 6,
+      "passed": true
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "positions": 6,
+      "passed": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "positions": 6,
+      "passed": true
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "positions": 6,
+      "passed": true
+    }
+  ],
+  "errors": []
+}

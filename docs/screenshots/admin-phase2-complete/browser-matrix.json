@@ -1,0 +1,2096 @@
+{
+  "routes": [
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/login",
+      "heading": [
+        "Login admin"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 5,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/overview",
+      "heading": [
+        "Overview"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 43,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/endpoints",
+      "heading": [
+        "Endpoint"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 24,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/endpoints/reader",
+      "heading": [
+        "Endpoint · Detail"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 27,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/requests",
+      "heading": [
+        "Request log"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 32,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/requests/demo-req-0001",
+      "heading": [
+        "Request log · Detail"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 9,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/runtime-logs",
+      "heading": [
+        "Log runtime"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 626,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/runtime-logs/demo-req-0001",
+      "heading": [
+        "Log runtime · Detail"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 628,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/health",
+      "heading": [
+        "Health"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 19,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/alerts",
+      "heading": [
+        "Alert"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 21,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/alerts/reader-latency",
+      "heading": [
+        "Alert · Detail"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 19,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/data/comics",
+      "heading": [
+        "Komik"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 17,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/data/comics/c1",
+      "heading": [
+        "Detail Komik"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 11,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/data/comics/c1/edit",
+      "heading": [
+        "Editor Komik"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 20,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/data/comics/c1/chapters",
+      "heading": [
+        "Chapter · Komik Contoh A"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 16,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/data/chapters/c1-12.5",
+      "heading": [
+        "Detail Chapter"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 4,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/data/chapters/c1-12.5/edit",
+      "heading": [
+        "Editor Chapter"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 14,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/data/genres",
+      "heading": [
+        "Genre"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 12,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/data/sources",
+      "heading": [
+        "Source"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 15,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/data/sources/komiku",
+      "heading": [
+        "Detail Source"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 3,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/data/accounts",
+      "heading": [
+        "Akun"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 15,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/data/accounts/u1",
+      "heading": [
+        "Detail Akun"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 3,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/data/accounts/u1/edit",
+      "heading": [
+        "Editor Akun"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 12,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/data/accounts/u1/library",
+      "heading": [
+        "Library Akun"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 13,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/data/helpdesk",
+      "heading": [
+        "Helpdesk"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 15,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/data/helpdesk/HD-DEMO-001",
+      "heading": [
+        "Detail Helpdesk"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 3,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/data/audit",
+      "heading": [
+        "Audit admin"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 22,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/data/audit/audit-001",
+      "heading": [
+        "Detail Audit admin"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 6,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/comic-preview",
+      "heading": [
+        "Preview Komik"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 12,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/comic-preview/komiku/komik-contoh-a",
+      "heading": [
+        "Preview detail komik"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 13,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/comic-preview/komiku/komik-contoh-a/chapters/12.5",
+      "heading": [
+        "Reader diagnostik"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 17,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/data-flow",
+      "heading": [
+        "Data flow"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 41,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "route": "/data-model",
+      "heading": [
+        "ERD explorer"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 25,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/login",
+      "heading": [
+        "Login admin"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 5,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/overview",
+      "heading": [
+        "Overview"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 43,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/endpoints",
+      "heading": [
+        "Endpoint"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 24,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/endpoints/reader",
+      "heading": [
+        "Endpoint · Detail"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 27,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/requests",
+      "heading": [
+        "Request log"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 32,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/requests/demo-req-0001",
+      "heading": [
+        "Request log · Detail"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 9,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/runtime-logs",
+      "heading": [
+        "Log runtime"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 626,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/runtime-logs/demo-req-0001",
+      "heading": [
+        "Log runtime · Detail"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 628,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/health",
+      "heading": [
+        "Health"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 19,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/alerts",
+      "heading": [
+        "Alert"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 21,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/alerts/reader-latency",
+      "heading": [
+        "Alert · Detail"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 19,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/data/comics",
+      "heading": [
+        "Komik"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 17,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/data/comics/c1",
+      "heading": [
+        "Detail Komik"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 11,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/data/comics/c1/edit",
+      "heading": [
+        "Editor Komik"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 20,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/data/comics/c1/chapters",
+      "heading": [
+        "Chapter · Komik Contoh A"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 16,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/data/chapters/c1-12.5",
+      "heading": [
+        "Detail Chapter"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 4,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/data/chapters/c1-12.5/edit",
+      "heading": [
+        "Editor Chapter"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 14,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/data/genres",
+      "heading": [
+        "Genre"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 12,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/data/sources",
+      "heading": [
+        "Source"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 15,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/data/sources/komiku",
+      "heading": [
+        "Detail Source"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 3,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/data/accounts",
+      "heading": [
+        "Akun"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 15,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/data/accounts/u1",
+      "heading": [
+        "Detail Akun"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 3,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/data/accounts/u1/edit",
+      "heading": [
+        "Editor Akun"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 12,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/data/accounts/u1/library",
+      "heading": [
+        "Library Akun"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 13,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/data/helpdesk",
+      "heading": [
+        "Helpdesk"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 15,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/data/helpdesk/HD-DEMO-001",
+      "heading": [
+        "Detail Helpdesk"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 3,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/data/audit",
+      "heading": [
+        "Audit admin"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 22,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/data/audit/audit-001",
+      "heading": [
+        "Detail Audit admin"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 6,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/comic-preview",
+      "heading": [
+        "Preview Komik"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 12,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/comic-preview/komiku/komik-contoh-a",
+      "heading": [
+        "Preview detail komik"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 13,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/comic-preview/komiku/komik-contoh-a/chapters/12.5",
+      "heading": [
+        "Reader diagnostik"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 17,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/data-flow",
+      "heading": [
+        "Data flow"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 44,
+      "console": []
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "route": "/data-model",
+      "heading": [
+        "ERD explorer"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 28,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/login",
+      "heading": [
+        "Login admin"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 5,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/overview",
+      "heading": [
+        "Overview"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 43,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/endpoints",
+      "heading": [
+        "Endpoint"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 24,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/endpoints/reader",
+      "heading": [
+        "Endpoint · Detail"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 27,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/requests",
+      "heading": [
+        "Request log"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 32,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/requests/demo-req-0001",
+      "heading": [
+        "Request log · Detail"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 9,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/runtime-logs",
+      "heading": [
+        "Log runtime"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 626,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/runtime-logs/demo-req-0001",
+      "heading": [
+        "Log runtime · Detail"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 628,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/health",
+      "heading": [
+        "Health"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 19,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/alerts",
+      "heading": [
+        "Alert"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 21,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/alerts/reader-latency",
+      "heading": [
+        "Alert · Detail"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 19,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/data/comics",
+      "heading": [
+        "Komik"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 17,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/data/comics/c1",
+      "heading": [
+        "Detail Komik"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 11,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/data/comics/c1/edit",
+      "heading": [
+        "Editor Komik"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 20,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/data/comics/c1/chapters",
+      "heading": [
+        "Chapter · Komik Contoh A"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 16,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/data/chapters/c1-12.5",
+      "heading": [
+        "Detail Chapter"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 4,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/data/chapters/c1-12.5/edit",
+      "heading": [
+        "Editor Chapter"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 14,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/data/genres",
+      "heading": [
+        "Genre"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 12,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/data/sources",
+      "heading": [
+        "Source"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 15,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/data/sources/komiku",
+      "heading": [
+        "Detail Source"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 3,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/data/accounts",
+      "heading": [
+        "Akun"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 15,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/data/accounts/u1",
+      "heading": [
+        "Detail Akun"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 3,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/data/accounts/u1/edit",
+      "heading": [
+        "Editor Akun"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 12,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/data/accounts/u1/library",
+      "heading": [
+        "Library Akun"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 13,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/data/helpdesk",
+      "heading": [
+        "Helpdesk"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 15,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/data/helpdesk/HD-DEMO-001",
+      "heading": [
+        "Detail Helpdesk"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 3,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/data/audit",
+      "heading": [
+        "Audit admin"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 22,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/data/audit/audit-001",
+      "heading": [
+        "Detail Audit admin"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 6,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/comic-preview",
+      "heading": [
+        "Preview Komik"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 12,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/comic-preview/komiku/komik-contoh-a",
+      "heading": [
+        "Preview detail komik"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 13,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/comic-preview/komiku/komik-contoh-a/chapters/12.5",
+      "heading": [
+        "Reader diagnostik"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 17,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/data-flow",
+      "heading": [
+        "Data flow"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 41,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "route": "/data-model",
+      "heading": [
+        "ERD explorer"
+      ],
+      "scrollWidth": 1440,
+      "errors": false,
+      "controls": 25,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/login",
+      "heading": [
+        "Login admin"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 5,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/overview",
+      "heading": [
+        "Overview"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 43,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/endpoints",
+      "heading": [
+        "Endpoint"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 24,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/endpoints/reader",
+      "heading": [
+        "Endpoint · Detail"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 27,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/requests",
+      "heading": [
+        "Request log"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 32,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/requests/demo-req-0001",
+      "heading": [
+        "Request log · Detail"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 9,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/runtime-logs",
+      "heading": [
+        "Log runtime"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 626,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/runtime-logs/demo-req-0001",
+      "heading": [
+        "Log runtime · Detail"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 628,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/health",
+      "heading": [
+        "Health"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 19,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/alerts",
+      "heading": [
+        "Alert"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 21,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/alerts/reader-latency",
+      "heading": [
+        "Alert · Detail"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 19,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/data/comics",
+      "heading": [
+        "Komik"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 17,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/data/comics/c1",
+      "heading": [
+        "Detail Komik"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 11,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/data/comics/c1/edit",
+      "heading": [
+        "Editor Komik"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 20,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/data/comics/c1/chapters",
+      "heading": [
+        "Chapter · Komik Contoh A"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 16,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/data/chapters/c1-12.5",
+      "heading": [
+        "Detail Chapter"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 4,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/data/chapters/c1-12.5/edit",
+      "heading": [
+        "Editor Chapter"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 14,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/data/genres",
+      "heading": [
+        "Genre"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 12,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/data/sources",
+      "heading": [
+        "Source"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 15,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/data/sources/komiku",
+      "heading": [
+        "Detail Source"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 3,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/data/accounts",
+      "heading": [
+        "Akun"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 15,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/data/accounts/u1",
+      "heading": [
+        "Detail Akun"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 3,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/data/accounts/u1/edit",
+      "heading": [
+        "Editor Akun"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 12,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/data/accounts/u1/library",
+      "heading": [
+        "Library Akun"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 13,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/data/helpdesk",
+      "heading": [
+        "Helpdesk"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 15,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/data/helpdesk/HD-DEMO-001",
+      "heading": [
+        "Detail Helpdesk"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 3,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/data/audit",
+      "heading": [
+        "Audit admin"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 22,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/data/audit/audit-001",
+      "heading": [
+        "Detail Audit admin"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 6,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/comic-preview",
+      "heading": [
+        "Preview Komik"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 12,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/comic-preview/komiku/komik-contoh-a",
+      "heading": [
+        "Preview detail komik"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 13,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/comic-preview/komiku/komik-contoh-a/chapters/12.5",
+      "heading": [
+        "Reader diagnostik"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 17,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/data-flow",
+      "heading": [
+        "Data flow"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 44,
+      "console": []
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "route": "/data-model",
+      "heading": [
+        "ERD explorer"
+      ],
+      "scrollWidth": 360,
+      "errors": false,
+      "controls": 28,
+      "console": []
+    }
+  ],
+  "states": [
+    {
+      "route": "/overview",
+      "state": "loading",
+      "headings": 1,
+      "overflow": false,
+      "text": "OverviewPantau API. Temukan gangguan. Telusuri penyebabnya.Tentang snapshotDemo lokal terhubungDijeda · Normal / pulih⌃Environment simulasiProductionStagingSkenarioNormal / pulihLatensi reader tinggiHTTP 5xx meningkatAPI tidak terjangkauTelemetry terputusLonjakan trafikMulai demoJalankan skenarioLangkah 30 detikReset demoJam demo 28 Okt 2026, 13:19:29 UTC+7 · 1 tick = 30 detik simulasi / 2 detik nyata. Sesi lokal · batas 1.000 event per feed · 0 "
+    },
+    {
+      "route": "/overview",
+      "state": "empty",
+      "headings": 1,
+      "overflow": false,
+      "text": "OverviewPantau API. Temukan gangguan. Telusuri penyebabnya.Tentang snapshotDemo lokal terhubungDijeda · Normal / pulih⌃Environment simulasiProductionStagingSkenarioNormal / pulihLatensi reader tinggiHTTP 5xx meningkatAPI tidak terjangkauTelemetry terputusLonjakan trafikMulai demoJalankan skenarioLangkah 30 detikReset demoJam demo 28 Okt 2026, 13:19:29 UTC+7 · 1 tick = 30 detik simulasi / 2 detik nyata. Sesi lokal · batas 1.000 event per feed · 0 "
+    },
+    {
+      "route": "/overview",
+      "state": "error",
+      "headings": 1,
+      "overflow": false,
+      "text": "OverviewPantau API. Temukan gangguan. Telusuri penyebabnya.Tentang snapshotDemo lokal terhubungDijeda · Normal / pulih⌃Environment simulasiProductionStagingSkenarioNormal / pulihLatensi reader tinggiHTTP 5xx meningkatAPI tidak terjangkauTelemetry terputusLonjakan trafikMulai demoJalankan skenarioLangkah 30 detikReset demoJam demo 28 Okt 2026, 13:19:29 UTC+7 · 1 tick = 30 detik simulasi / 2 detik nyata. Sesi lokal · batas 1.000 event per feed · 0 "
+    },
+    {
+      "route": "/overview",
+      "state": "denied",
+      "headings": 1,
+      "overflow": false,
+      "text": "OverviewPantau API. Temukan gangguan. Telusuri penyebabnya.Tentang snapshotDemo lokal terhubungDijeda · Normal / pulih⌃Environment simulasiProductionStagingSkenarioNormal / pulihLatensi reader tinggiHTTP 5xx meningkatAPI tidak terjangkauTelemetry terputusLonjakan trafikMulai demoJalankan skenarioLangkah 30 detikReset demoJam demo 28 Okt 2026, 13:19:29 UTC+7 · 1 tick = 30 detik simulasi / 2 detik nyata. Sesi lokal · batas 1.000 event per feed · 0 "
+    },
+    {
+      "route": "/overview",
+      "state": "stale",
+      "headings": 1,
+      "overflow": false,
+      "text": "OverviewPantau API. Temukan gangguan. Telusuri penyebabnya.Tentang snapshotDemo lokal terhubungDijeda · Normal / pulih⌃Environment simulasiProductionStagingSkenarioNormal / pulihLatensi reader tinggiHTTP 5xx meningkatAPI tidak terjangkauTelemetry terputusLonjakan trafikMulai demoJalankan skenarioLangkah 30 detikReset demoJam demo 28 Okt 2026, 13:19:29 UTC+7 · 1 tick = 30 detik simulasi / 2 detik nyata. Sesi lokal · batas 1.000 event per feed · 0 "
+    },
+    {
+      "route": "/overview",
+      "state": "partial",
+      "headings": 1,
+      "overflow": false,
+      "text": "OverviewPantau API. Temukan gangguan. Telusuri penyebabnya.Tentang snapshotDemo lokal terhubungDijeda · Normal / pulih⌃Environment simulasiProductionStagingSkenarioNormal / pulihLatensi reader tinggiHTTP 5xx meningkatAPI tidak terjangkauTelemetry terputusLonjakan trafikMulai demoJalankan skenarioLangkah 30 detikReset demoJam demo 28 Okt 2026, 13:19:29 UTC+7 · 1 tick = 30 detik simulasi / 2 detik nyata. Sesi lokal · batas 1.000 event per feed · 0 "
+    },
+    {
+      "route": "/overview",
+      "state": "timeout",
+      "headings": 1,
+      "overflow": false,
+      "text": "OverviewPantau API. Temukan gangguan. Telusuri penyebabnya.Tentang snapshotDemo lokal terhubungDijeda · Normal / pulih⌃Environment simulasiProductionStagingSkenarioNormal / pulihLatensi reader tinggiHTTP 5xx meningkatAPI tidak terjangkauTelemetry terputusLonjakan trafikMulai demoJalankan skenarioLangkah 30 detikReset demoJam demo 28 Okt 2026, 13:19:29 UTC+7 · 1 tick = 30 detik simulasi / 2 detik nyata. Sesi lokal · batas 1.000 event per feed · 0 "
+    },
+    {
+      "route": "/overview",
+      "state": "gap",
+      "headings": 1,
+      "overflow": false,
+      "text": "OverviewPantau API. Temukan gangguan. Telusuri penyebabnya.Tentang snapshotDemo lokal terhubungDijeda · Normal / pulih⌃Environment simulasiProductionStagingSkenarioNormal / pulihLatensi reader tinggiHTTP 5xx meningkatAPI tidak terjangkauTelemetry terputusLonjakan trafikMulai demoJalankan skenarioLangkah 30 detikReset demoJam demo 28 Okt 2026, 13:19:29 UTC+7 · 1 tick = 30 detik simulasi / 2 detik nyata. Sesi lokal · batas 1.000 event per feed · 0 "
+    },
+    {
+      "route": "/overview",
+      "state": "down",
+      "headings": 1,
+      "overflow": false,
+      "text": "OverviewPantau API. Temukan gangguan. Telusuri penyebabnya.Tentang snapshotDemo lokal terhubungDijeda · Normal / pulih⌃Environment simulasiProductionStagingSkenarioNormal / pulihLatensi reader tinggiHTTP 5xx meningkatAPI tidak terjangkauTelemetry terputusLonjakan trafikMulai demoJalankan skenarioLangkah 30 detikReset demoJam demo 28 Okt 2026, 13:19:29 UTC+7 · 1 tick = 30 detik simulasi / 2 detik nyata. Sesi lokal · batas 1.000 event per feed · 0 "
+    },
+    {
+      "route": "/endpoints",
+      "state": "loading",
+      "headings": 1,
+      "overflow": false,
+      "text": "EndpointSnapshot contoh · production · 15 menit · cutoff 28 Okt 2026, 13.19 UTC+7Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Selesaikan pemuatan contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downProfil izin contohSemua modul (contoh)Viewer monitoringOperator katalogOperator helpde"
+    },
+    {
+      "route": "/endpoints",
+      "state": "empty",
+      "headings": 1,
+      "overflow": false,
+      "text": "EndpointSnapshot contoh · production · 15 menit · cutoff 28 Okt 2026, 13.19 UTC+7Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Belum ada dataBelum ada resource pada snapshot contoh.Kembali ke data contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downProfil izin contohSemua modul (conto"
+    },
+    {
+      "route": "/endpoints",
+      "state": "error",
+      "headings": 1,
+      "overflow": false,
+      "text": "EndpointSnapshot contoh · production · 15 menit · cutoff 28 Okt 2026, 13.19 UTC+7Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Gagal memuatSnapshot tidak dapat dimuat. Status layanan dan koneksi browser tidak disamakan.Coba lagi contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downProf"
+    },
+    {
+      "route": "/endpoints",
+      "state": "denied",
+      "headings": 1,
+      "overflow": false,
+      "text": "EndpointSnapshot contoh · production · 15 menit · cutoff 28 Okt 2026, 13.19 UTC+7Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Akses ditolak (contoh)Profil ini tidak mempunyai izin monitoring:read. Pilihan profil di bawah hanya simulasi frontend.Opsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBacke"
+    },
+    {
+      "route": "/endpoints",
+      "state": "stale",
+      "headings": 1,
+      "overflow": false,
+      "text": "EndpointSnapshot contoh · production · 15 menit · cutoff 28 Okt 2026, 13.19 UTC+7Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Data stale (contoh)Snapshot dipertahankan dengan cakupan terbatas. Tidak dianggap sehat atau pulih. Muat ulang contohEnvironmentProduction (contoh)Staging (tanpa data awal)Rentang5 menit15 menit1 jam24 jamKustomTambahkan batch contohSkenario monit"
+    },
+    {
+      "route": "/endpoints",
+      "state": "partial",
+      "headings": 1,
+      "overflow": false,
+      "text": "EndpointSnapshot contoh · production · 15 menit · cutoff 28 Okt 2026, 13.19 UTC+7Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Cakupan parsial (contoh)Snapshot dipertahankan dengan cakupan terbatas. Tidak dianggap sehat atau pulih. Muat ulang contohEnvironmentProduction (contoh)Staging (tanpa data awal)Rentang5 menit15 menit1 jam24 jamKustomTambahkan batch contohSkenario "
+    },
+    {
+      "route": "/endpoints",
+      "state": "timeout",
+      "headings": 1,
+      "overflow": false,
+      "text": "EndpointSnapshot contoh · production · 15 menit · cutoff 28 Okt 2026, 13.19 UTC+7Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.TimeoutSnapshot tidak dapat dimuat. Status layanan dan koneksi browser tidak disamakan.Coba lagi contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downProfil iz"
+    },
+    {
+      "route": "/endpoints",
+      "state": "gap",
+      "headings": 1,
+      "overflow": false,
+      "text": "EndpointSnapshot contoh · production · 15 menit · cutoff 28 Okt 2026, 13.19 UTC+7Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Gap telemetry (contoh)Snapshot dipertahankan dengan cakupan terbatas. Tidak dianggap sehat atau pulih. Muat ulang contohEnvironmentProduction (contoh)Staging (tanpa data awal)Rentang5 menit15 menit1 jam24 jamKustomTambahkan batch contohSkenario mo"
+    },
+    {
+      "route": "/endpoints",
+      "state": "down",
+      "headings": 1,
+      "overflow": false,
+      "text": "EndpointSnapshot contoh · production · 15 menit · cutoff 28 Okt 2026, 13.19 UTC+7Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Backend downSnapshot tidak dapat dimuat. Status layanan dan koneksi browser tidak disamakan.Coba lagi contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downProf"
+    },
+    {
+      "route": "/runtime-logs",
+      "state": "loading",
+      "headings": 1,
+      "overflow": false,
+      "text": "Log runtimeSnapshot contoh · production · 15 menit · cutoff 28 Okt 2026, 13.19 UTC+7Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Selesaikan pemuatan contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downProfil izin contohSemua modul (contoh)Viewer monitoringOperator katalogOperator hel"
+    },
+    {
+      "route": "/runtime-logs",
+      "state": "empty",
+      "headings": 1,
+      "overflow": false,
+      "text": "Log runtimeSnapshot contoh · production · 15 menit · cutoff 28 Okt 2026, 13.19 UTC+7Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Belum ada dataBelum ada resource pada snapshot contoh.Kembali ke data contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downProfil izin contohSemua modul (co"
+    },
+    {
+      "route": "/runtime-logs",
+      "state": "error",
+      "headings": 1,
+      "overflow": false,
+      "text": "Log runtimeSnapshot contoh · production · 15 menit · cutoff 28 Okt 2026, 13.19 UTC+7Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Gagal memuatSnapshot tidak dapat dimuat. Status layanan dan koneksi browser tidak disamakan.Coba lagi contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downP"
+    },
+    {
+      "route": "/runtime-logs",
+      "state": "denied",
+      "headings": 1,
+      "overflow": false,
+      "text": "Log runtimeSnapshot contoh · production · 15 menit · cutoff 28 Okt 2026, 13.19 UTC+7Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Akses ditolak (contoh)Profil ini tidak mempunyai izin logs:read. Pilihan profil di bawah hanya simulasi frontend.Opsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend "
+    },
+    {
+      "route": "/runtime-logs",
+      "state": "stale",
+      "headings": 1,
+      "overflow": false,
+      "text": "Log runtimeSnapshot contoh · production · 15 menit · cutoff 28 Okt 2026, 13.19 UTC+7Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Data stale (contoh)Snapshot dipertahankan dengan cakupan terbatas. Tidak dianggap sehat atau pulih. Muat ulang contohEnvironmentProduction (contoh)Staging (tanpa data awal)Rentang5 menit15 menit1 jam24 jamKustomTambahkan batch contohSkenario mo"
+    },
+    {
+      "route": "/runtime-logs",
+      "state": "partial",
+      "headings": 1,
+      "overflow": false,
+      "text": "Log runtimeSnapshot contoh · production · 15 menit · cutoff 28 Okt 2026, 13.19 UTC+7Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Cakupan parsial (contoh)Snapshot dipertahankan dengan cakupan terbatas. Tidak dianggap sehat atau pulih. Muat ulang contohEnvironmentProduction (contoh)Staging (tanpa data awal)Rentang5 menit15 menit1 jam24 jamKustomTambahkan batch contohSkenar"
+    },
+    {
+      "route": "/runtime-logs",
+      "state": "timeout",
+      "headings": 1,
+      "overflow": false,
+      "text": "Log runtimeSnapshot contoh · production · 15 menit · cutoff 28 Okt 2026, 13.19 UTC+7Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.TimeoutSnapshot tidak dapat dimuat. Status layanan dan koneksi browser tidak disamakan.Coba lagi contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downProfil"
+    },
+    {
+      "route": "/runtime-logs",
+      "state": "gap",
+      "headings": 1,
+      "overflow": false,
+      "text": "Log runtimeSnapshot contoh · production · 15 menit · cutoff 28 Okt 2026, 13.19 UTC+7Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Gap telemetry (contoh)Snapshot dipertahankan dengan cakupan terbatas. Tidak dianggap sehat atau pulih. Muat ulang contohEnvironmentProduction (contoh)Staging (tanpa data awal)Rentang5 menit15 menit1 jam24 jamKustomTambahkan batch contohSkenario"
+    },
+    {
+      "route": "/runtime-logs",
+      "state": "down",
+      "headings": 1,
+      "overflow": false,
+      "text": "Log runtimeSnapshot contoh · production · 15 menit · cutoff 28 Okt 2026, 13.19 UTC+7Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Backend downSnapshot tidak dapat dimuat. Status layanan dan koneksi browser tidak disamakan.Coba lagi contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downP"
+    },
+    {
+      "route": "/data/comics",
+      "state": "loading",
+      "headings": 1,
+      "overflow": false,
+      "text": "KomikIdentitas source + slug tetap; metadata source, override dan efektif terpisah.Tambah komikData contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Selesaikan pemuatan contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downProfil izin contohSemua modul (contoh)Viewer monitoringOperator katalogO"
+    },
+    {
+      "route": "/data/comics",
+      "state": "empty",
+      "headings": 1,
+      "overflow": false,
+      "text": "KomikIdentitas source + slug tetap; metadata source, override dan efektif terpisah.Tambah komikData contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Belum ada dataBelum ada resource pada snapshot contoh.Kembali ke data contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downProfil izin contohSemu"
+    },
+    {
+      "route": "/data/comics",
+      "state": "error",
+      "headings": 1,
+      "overflow": false,
+      "text": "KomikIdentitas source + slug tetap; metadata source, override dan efektif terpisah.Tambah komikData contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Gagal memuatSnapshot tidak dapat dimuat. Status layanan dan koneksi browser tidak disamakan.Coba lagi contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBa"
+    },
+    {
+      "route": "/data/comics",
+      "state": "denied",
+      "headings": 1,
+      "overflow": false,
+      "text": "KomikIdentitas source + slug tetap; metadata source, override dan efektif terpisah.Tambah komikData contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Akses ditolak (contoh)Profil ini tidak mempunyai izin data:read. Pilihan profil di bawah hanya simulasi frontend.Opsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap teleme"
+    },
+    {
+      "route": "/data/comics",
+      "state": "stale",
+      "headings": 1,
+      "overflow": false,
+      "text": "KomikIdentitas source + slug tetap; metadata source, override dan efektif terpisah.Tambah komikData contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Data stale (contoh)Snapshot dipertahankan dengan cakupan terbatas. Tidak dianggap sehat atau pulih. Muat ulang contohKomik8 dari 8 resource contoh. Filter dan urutan tersimpan pada URL.Cari KomikSourceSemua sourcekomikukomiku_asiashi"
+    },
+    {
+      "route": "/data/comics",
+      "state": "partial",
+      "headings": 1,
+      "overflow": false,
+      "text": "KomikIdentitas source + slug tetap; metadata source, override dan efektif terpisah.Tambah komikData contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Cakupan parsial (contoh)Snapshot dipertahankan dengan cakupan terbatas. Tidak dianggap sehat atau pulih. Muat ulang contohKomik8 dari 8 resource contoh. Filter dan urutan tersimpan pada URL.Cari KomikSourceSemua sourcekomikukomiku_as"
+    },
+    {
+      "route": "/data/comics",
+      "state": "timeout",
+      "headings": 1,
+      "overflow": false,
+      "text": "KomikIdentitas source + slug tetap; metadata source, override dan efektif terpisah.Tambah komikData contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.TimeoutSnapshot tidak dapat dimuat. Status layanan dan koneksi browser tidak disamakan.Coba lagi contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend"
+    },
+    {
+      "route": "/data/comics",
+      "state": "gap",
+      "headings": 1,
+      "overflow": false,
+      "text": "KomikIdentitas source + slug tetap; metadata source, override dan efektif terpisah.Tambah komikData contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Gap telemetry (contoh)Snapshot dipertahankan dengan cakupan terbatas. Tidak dianggap sehat atau pulih. Muat ulang contohKomik8 dari 8 resource contoh. Filter dan urutan tersimpan pada URL.Cari KomikSourceSemua sourcekomikukomiku_asia"
+    },
+    {
+      "route": "/data/comics",
+      "state": "down",
+      "headings": 1,
+      "overflow": false,
+      "text": "KomikIdentitas source + slug tetap; metadata source, override dan efektif terpisah.Tambah komikData contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Backend downSnapshot tidak dapat dimuat. Status layanan dan koneksi browser tidak disamakan.Coba lagi contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBa"
+    },
+    {
+      "route": "/data/accounts",
+      "state": "loading",
+      "headings": 1,
+      "overflow": false,
+      "text": "AkunAkun nonadmin dan proyeksi profil minimum. Email tersamarkan.Tambah akun nonadminData contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Selesaikan pemuatan contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downProfil izin contohSemua modul (contoh)Viewer monitoringOperator katalogOperator he"
+    },
+    {
+      "route": "/data/accounts",
+      "state": "empty",
+      "headings": 1,
+      "overflow": false,
+      "text": "AkunAkun nonadmin dan proyeksi profil minimum. Email tersamarkan.Tambah akun nonadminData contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Belum ada dataBelum ada resource pada snapshot contoh.Kembali ke data contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downProfil izin contohSemua modul (c"
+    },
+    {
+      "route": "/data/accounts",
+      "state": "error",
+      "headings": 1,
+      "overflow": false,
+      "text": "AkunAkun nonadmin dan proyeksi profil minimum. Email tersamarkan.Tambah akun nonadminData contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Gagal memuatSnapshot tidak dapat dimuat. Status layanan dan koneksi browser tidak disamakan.Coba lagi contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend down"
+    },
+    {
+      "route": "/data/accounts",
+      "state": "denied",
+      "headings": 1,
+      "overflow": false,
+      "text": "AkunAkun nonadmin dan proyeksi profil minimum. Email tersamarkan.Tambah akun nonadminData contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Akses ditolak (contoh)Profil ini tidak mempunyai izin users:manage. Pilihan profil di bawah hanya simulasi frontend.Opsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBack"
+    },
+    {
+      "route": "/data/accounts",
+      "state": "stale",
+      "headings": 1,
+      "overflow": false,
+      "text": "AkunAkun nonadmin dan proyeksi profil minimum. Email tersamarkan.Tambah akun nonadminData contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Data stale (contoh)Snapshot dipertahankan dengan cakupan terbatas. Tidak dianggap sehat atau pulih. Muat ulang contohAkun7 dari 7 resource contoh. Filter dan urutan tersimpan pada URL.Cari AkunStatusSemua statusactivependingbannedReset filterA"
+    },
+    {
+      "route": "/data/accounts",
+      "state": "partial",
+      "headings": 1,
+      "overflow": false,
+      "text": "AkunAkun nonadmin dan proyeksi profil minimum. Email tersamarkan.Tambah akun nonadminData contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Cakupan parsial (contoh)Snapshot dipertahankan dengan cakupan terbatas. Tidak dianggap sehat atau pulih. Muat ulang contohAkun7 dari 7 resource contoh. Filter dan urutan tersimpan pada URL.Cari AkunStatusSemua statusactivependingbannedReset fi"
+    },
+    {
+      "route": "/data/accounts",
+      "state": "timeout",
+      "headings": 1,
+      "overflow": false,
+      "text": "AkunAkun nonadmin dan proyeksi profil minimum. Email tersamarkan.Tambah akun nonadminData contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.TimeoutSnapshot tidak dapat dimuat. Status layanan dan koneksi browser tidak disamakan.Coba lagi contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downProfi"
+    },
+    {
+      "route": "/data/accounts",
+      "state": "gap",
+      "headings": 1,
+      "overflow": false,
+      "text": "AkunAkun nonadmin dan proyeksi profil minimum. Email tersamarkan.Tambah akun nonadminData contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Gap telemetry (contoh)Snapshot dipertahankan dengan cakupan terbatas. Tidak dianggap sehat atau pulih. Muat ulang contohAkun7 dari 7 resource contoh. Filter dan urutan tersimpan pada URL.Cari AkunStatusSemua statusactivependingbannedReset filt"
+    },
+    {
+      "route": "/data/accounts",
+      "state": "down",
+      "headings": 1,
+      "overflow": false,
+      "text": "AkunAkun nonadmin dan proyeksi profil minimum. Email tersamarkan.Tambah akun nonadminData contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Backend downSnapshot tidak dapat dimuat. Status layanan dan koneksi browser tidak disamakan.Coba lagi contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend down"
+    },
+    {
+      "route": "/comic-preview",
+      "state": "loading",
+      "headings": 1,
+      "overflow": false,
+      "text": "Preview KomikLatest, Popular dan pencarian source/global pada katalog contoh.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Selesaikan pemuatan contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downProfil izin contohSemua modul (contoh)Viewer monitoringOperator katalogOperator helpdeskAd"
+    },
+    {
+      "route": "/comic-preview",
+      "state": "empty",
+      "headings": 1,
+      "overflow": false,
+      "text": "Preview KomikLatest, Popular dan pencarian source/global pada katalog contoh.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Belum ada dataBelum ada resource pada snapshot contoh.Kembali ke data contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downProfil izin contohSemua modul (contoh)Vi"
+    },
+    {
+      "route": "/comic-preview",
+      "state": "error",
+      "headings": 1,
+      "overflow": false,
+      "text": "Preview KomikLatest, Popular dan pencarian source/global pada katalog contoh.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Gagal memuatSnapshot tidak dapat dimuat. Status layanan dan koneksi browser tidak disamakan.Coba lagi contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downProfil i"
+    },
+    {
+      "route": "/comic-preview",
+      "state": "denied",
+      "headings": 1,
+      "overflow": false,
+      "text": "Preview KomikLatest, Popular dan pencarian source/global pada katalog contoh.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Akses ditolak (contoh)Profil ini tidak mempunyai izin preview:read. Pilihan profil di bawah hanya simulasi frontend.Opsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend down"
+    },
+    {
+      "route": "/comic-preview",
+      "state": "stale",
+      "headings": 1,
+      "overflow": false,
+      "text": "Preview KomikLatest, Popular dan pencarian source/global pada katalog contoh.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Data stale (contoh)Snapshot dipertahankan dengan cakupan terbatas. Tidak dianggap sehat atau pulih. Muat ulang contohJelajahi feed contohRanking Latest/Popular mengikuti urutan fixture prototype, bukan hasil ranking deployment.LatestPopularCari judul "
+    },
+    {
+      "route": "/comic-preview",
+      "state": "partial",
+      "headings": 1,
+      "overflow": false,
+      "text": "Preview KomikLatest, Popular dan pencarian source/global pada katalog contoh.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Cakupan parsial (contoh)Snapshot dipertahankan dengan cakupan terbatas. Tidak dianggap sehat atau pulih. Muat ulang contohJelajahi feed contohRanking Latest/Popular mengikuti urutan fixture prototype, bukan hasil ranking deployment.LatestPopularCari j"
+    },
+    {
+      "route": "/comic-preview",
+      "state": "timeout",
+      "headings": 1,
+      "overflow": false,
+      "text": "Preview KomikLatest, Popular dan pencarian source/global pada katalog contoh.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.TimeoutSnapshot tidak dapat dimuat. Status layanan dan koneksi browser tidak disamakan.Coba lagi contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downProfil izin c"
+    },
+    {
+      "route": "/comic-preview",
+      "state": "gap",
+      "headings": 1,
+      "overflow": false,
+      "text": "Preview KomikLatest, Popular dan pencarian source/global pada katalog contoh.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Gap telemetry (contoh)Snapshot dipertahankan dengan cakupan terbatas. Tidak dianggap sehat atau pulih. Muat ulang contohJelajahi feed contohRanking Latest/Popular mengikuti urutan fixture prototype, bukan hasil ranking deployment.LatestPopularCari jud"
+    },
+    {
+      "route": "/comic-preview",
+      "state": "down",
+      "headings": 1,
+      "overflow": false,
+      "text": "Preview KomikLatest, Popular dan pencarian source/global pada katalog contoh.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Backend downSnapshot tidak dapat dimuat. Status layanan dan koneksi browser tidak disamakan.Coba lagi contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downProfil i"
+    },
+    {
+      "route": "/data-flow",
+      "state": "loading",
+      "headings": 1,
+      "overflow": false,
+      "text": "Data flowPeta komponen TonzToon. Arah arsitektur dipisahkan dari aktivitas terukur.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Selesaikan pemuatan contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downProfil izin contohSemua modul (contoh)Viewer monitoringOperator katalogOperator help"
+    },
+    {
+      "route": "/data-flow",
+      "state": "empty",
+      "headings": 1,
+      "overflow": false,
+      "text": "Data flowPeta komponen TonzToon. Arah arsitektur dipisahkan dari aktivitas terukur.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Belum ada dataBelum ada resource pada snapshot contoh.Kembali ke data contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downProfil izin contohSemua modul (con"
+    },
+    {
+      "route": "/data-flow",
+      "state": "error",
+      "headings": 1,
+      "overflow": false,
+      "text": "Memuat konsol admin…"
+    },
+    {
+      "route": "/data-flow",
+      "state": "denied",
+      "headings": 1,
+      "overflow": false,
+      "text": "Data flowPeta komponen TonzToon. Arah arsitektur dipisahkan dari aktivitas terukur.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Akses ditolak (contoh)Profil ini tidak mempunyai izin monitoring:read. Pilihan profil di bawah hanya simulasi frontend.Opsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBac"
+    },
+    {
+      "route": "/data-flow",
+      "state": "stale",
+      "headings": 1,
+      "overflow": false,
+      "text": "Data flowPeta komponen TonzToon. Arah arsitektur dipisahkan dari aktivitas terukur.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Data stale (contoh)Snapshot dipertahankan dengan cakupan terbatas. Tidak dianggap sehat atau pulih. Muat ulang contohAlur dataRegistry contoh dari PRD/source. Tidak ada trace per-hop atau telemetry edge terhubung.Cari nodeDomain / layerSemua dom"
+    },
+    {
+      "route": "/data-flow",
+      "state": "partial",
+      "headings": 1,
+      "overflow": false,
+      "text": "Data flowPeta komponen TonzToon. Arah arsitektur dipisahkan dari aktivitas terukur.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Cakupan parsial (contoh)Snapshot dipertahankan dengan cakupan terbatas. Tidak dianggap sehat atau pulih. Muat ulang contohAlur dataRegistry contoh dari PRD/source. Tidak ada trace per-hop atau telemetry edge terhubung.Cari nodeDomain / layerSemu"
+    },
+    {
+      "route": "/data-flow",
+      "state": "timeout",
+      "headings": 1,
+      "overflow": false,
+      "text": "Data flowPeta komponen TonzToon. Arah arsitektur dipisahkan dari aktivitas terukur.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.TimeoutSnapshot tidak dapat dimuat. Status layanan dan koneksi browser tidak disamakan.Coba lagi contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downProfil "
+    },
+    {
+      "route": "/data-flow",
+      "state": "gap",
+      "headings": 1,
+      "overflow": false,
+      "text": "Data flowPeta komponen TonzToon. Arah arsitektur dipisahkan dari aktivitas terukur.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Gap telemetry (contoh)Snapshot dipertahankan dengan cakupan terbatas. Tidak dianggap sehat atau pulih. Muat ulang contohAlur dataRegistry contoh dari PRD/source. Tidak ada trace per-hop atau telemetry edge terhubung.Cari nodeDomain / layerSemua "
+    },
+    {
+      "route": "/data-flow",
+      "state": "down",
+      "headings": 1,
+      "overflow": false,
+      "text": "Data flowPeta komponen TonzToon. Arah arsitektur dipisahkan dari aktivitas terukur.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Backend downSnapshot tidak dapat dimuat. Status layanan dan koneksi browser tidak disamakan.Coba lagi contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downPr"
+    },
+    {
+      "route": "/data-model",
+      "state": "loading",
+      "headings": 1,
+      "overflow": false,
+      "text": "ERD explorerEmpat diagram baca saja dan data dictionary. Tidak menampilkan row data pribadi.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Selesaikan pemuatan contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downProfil izin contohSemua modul (contoh)Viewer monitoringOperator katalogOper"
+    },
+    {
+      "route": "/data-model",
+      "state": "empty",
+      "headings": 1,
+      "overflow": false,
+      "text": "ERD explorerEmpat diagram baca saja dan data dictionary. Tidak menampilkan row data pribadi.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Belum ada dataBelum ada resource pada snapshot contoh.Kembali ke data contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend downProfil izin contohSemua m"
+    },
+    {
+      "route": "/data-model",
+      "state": "error",
+      "headings": 1,
+      "overflow": false,
+      "text": "ERD explorerEmpat diagram baca saja dan data dictionary. Tidak menampilkan row data pribadi.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Gagal memuatSnapshot tidak dapat dimuat. Status layanan dan koneksi browser tidak disamakan.Coba lagi contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBacke"
+    },
+    {
+      "route": "/data-model",
+      "state": "denied",
+      "headings": 1,
+      "overflow": false,
+      "text": "ERD explorerEmpat diagram baca saja dan data dictionary. Tidak menampilkan row data pribadi.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Akses ditolak (contoh)Profil ini tidak mempunyai izin data:read. Pilihan profil di bawah hanya simulasi frontend.Opsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetry"
+    },
+    {
+      "route": "/data-model",
+      "state": "stale",
+      "headings": 1,
+      "overflow": false,
+      "text": "ERD explorerEmpat diagram baca saja dan data dictionary. Tidak menampilkan row data pribadi.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Data stale (contoh)Snapshot dipertahankan dengan cakupan terbatas. Tidak dianggap sehat atau pulih. Muat ulang contohModel data TonzToonLegend: FK terdefinisi · Relasi logis · Usulan migration. Tampilan existing menjadi awal.DiagramA · "
+    },
+    {
+      "route": "/data-model",
+      "state": "partial",
+      "headings": 1,
+      "overflow": false,
+      "text": "ERD explorerEmpat diagram baca saja dan data dictionary. Tidak menampilkan row data pribadi.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Cakupan parsial (contoh)Snapshot dipertahankan dengan cakupan terbatas. Tidak dianggap sehat atau pulih. Muat ulang contohModel data TonzToonLegend: FK terdefinisi · Relasi logis · Usulan migration. Tampilan existing menjadi awal.Diagra"
+    },
+    {
+      "route": "/data-model",
+      "state": "timeout",
+      "headings": 1,
+      "overflow": false,
+      "text": "ERD explorerEmpat diagram baca saja dan data dictionary. Tidak menampilkan row data pribadi.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.TimeoutSnapshot tidak dapat dimuat. Status layanan dan koneksi browser tidak disamakan.Coba lagi contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBackend do"
+    },
+    {
+      "route": "/data-model",
+      "state": "gap",
+      "headings": 1,
+      "overflow": false,
+      "text": "ERD explorerEmpat diagram baca saja dan data dictionary. Tidak menampilkan row data pribadi.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Gap telemetry (contoh)Snapshot dipertahankan dengan cakupan terbatas. Tidak dianggap sehat atau pulih. Muat ulang contohModel data TonzToonLegend: FK terdefinisi · Relasi logis · Usulan migration. Tampilan existing menjadi awal.DiagramA"
+    },
+    {
+      "route": "/data-model",
+      "state": "down",
+      "headings": 1,
+      "overflow": false,
+      "text": "ERD explorerEmpat diagram baca saja dan data dictionary. Tidak menampilkan row data pribadi.Data contoh lokal dari prototype. Perubahan hanya di memori sesi browser. API, collector, dan izin server belum terhubung.Backend downSnapshot tidak dapat dimuat. Status layanan dan koneksi browser tidak disamakan.Coba lagi contohOpsi data contohState dataData contohMemuatTanpa dataGagal memuatAkses ditolakData staleCakupan parsialTimeoutGap telemetryBacke"
+    }
+  ],
+  "failures": [],
+  "console": []
+}

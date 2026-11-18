@@ -1,0 +1,32 @@
+[
+  {
+    "doc": 360,
+    "theme": "light",
+    "w": 360
+  },
+  {
+    "doc": 375,
+    "theme": "light",
+    "w": 375
+  },
+  {
+    "doc": 768,
+    "theme": "light",
+    "w": 768
+  },
+  {
+    "doc": 1024,
+    "theme": "light",
+    "w": 1024
+  },
+  {
+    "doc": 1440,
+    "theme": "light",
+    "w": 1440
+  },
+  {
+    "doc": 812,
+    "theme": "light",
+    "w": 812
+  }
+]

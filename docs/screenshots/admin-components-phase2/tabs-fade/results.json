@@ -1,0 +1,126 @@
+[
+  {
+    "theme": "light",
+    "width": 1440,
+    "middle": [
+      {
+        "hidden": true,
+        "inert": true,
+        "aria": "true",
+        "opacity": 0.5,
+        "display": "block",
+        "transform": "none"
+      },
+      {
+        "hidden": false,
+        "inert": false,
+        "aria": "false",
+        "opacity": 0.5,
+        "display": "block",
+        "transform": "none"
+      },
+      {
+        "hidden": true,
+        "inert": true,
+        "aria": "true",
+        "opacity": 0,
+        "display": "none",
+        "transform": "none"
+      }
+    ],
+    "passed": true
+  },
+  {
+    "theme": "light",
+    "width": 360,
+    "middle": [
+      {
+        "hidden": true,
+        "inert": true,
+        "aria": "true",
+        "opacity": 0.5,
+        "display": "block",
+        "transform": "none"
+      },
+      {
+        "hidden": false,
+        "inert": false,
+        "aria": "false",
+        "opacity": 0.5,
+        "display": "block",
+        "transform": "none"
+      },
+      {
+        "hidden": true,
+        "inert": true,
+        "aria": "true",
+        "opacity": 0,
+        "display": "none",
+        "transform": "none"
+      }
+    ],
+    "passed": true
+  },
+  {
+    "theme": "dark",
+    "width": 1440,
+    "middle": [
+      {
+        "hidden": true,
+        "inert": true,
+        "aria": "true",
+        "opacity": 0.5,
+        "display": "block",
+        "transform": "none"
+      },
+      {
+        "hidden": false,
+        "inert": false,
+        "aria": "false",
+        "opacity": 0.5,
+        "display": "block",
+        "transform": "none"
+      },
+      {
+        "hidden": true,
+        "inert": true,
+        "aria": "true",
+        "opacity": 0,
+        "display": "none",
+        "transform": "none"
+      }
+    ],
+    "passed": true
+  },
+  {
+    "theme": "dark",
+    "width": 360,
+    "middle": [
+      {
+        "hidden": true,
+        "inert": true,
+        "aria": "true",
+        "opacity": 0.5,
+        "display": "block",
+        "transform": "none"
+      },
+      {
+        "hidden": false,
+        "inert": false,
+        "aria": "false",
+        "opacity": 0.5,
+        "display": "block",
+        "transform": "none"
+      },
+      {
+        "hidden": true,
+        "inert": true,
+        "aria": "true",
+        "opacity": 0,
+        "display": "none",
+        "transform": "none"
+      }
+    ],
+    "passed": true
+  }
+]

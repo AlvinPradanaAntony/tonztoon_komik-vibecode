@@ -1,0 +1,413 @@
+{
+  "interactions": [
+    {
+      "check": "search-match",
+      "rows": [
+        "ModulIntegrasi starter",
+        "Monitoring APIMethod + route templateBelum terhubung"
+      ]
+    },
+    {
+      "check": "search-empty",
+      "visible": true
+    },
+    {
+      "check": "reset-search",
+      "rows": 4
+    },
+    {
+      "check": "loading",
+      "visible": true
+    },
+    {
+      "check": "empty",
+      "visible": true
+    },
+    {
+      "check": "reset-empty",
+      "rows": 4
+    },
+    {
+      "check": "error",
+      "visible": true
+    },
+    {
+      "check": "recover-error",
+      "rows": 4
+    },
+    {
+      "check": "open-dialog-keyboard",
+      "visible": true
+    },
+    {
+      "check": "escape-focus-return",
+      "state": {
+        "activeText": "Periksa batas starter",
+        "open": false,
+        "outline": "rgb(26, 95, 168) solid 3px"
+      }
+    },
+    {
+      "check": "close-dialog-button",
+      "visible": false
+    },
+    {
+      "check": "dark",
+      "state": {
+        "background": "rgb(9, 10, 13)",
+        "theme": "dark"
+      }
+    },
+    {
+      "check": "theme-persists-reload",
+      "state": {
+        "selected": "dark",
+        "theme": "dark"
+      }
+    },
+    {
+      "check": "system-theme",
+      "state": {
+        "background": "rgb(9, 10, 13)",
+        "theme": null
+      }
+    },
+    {
+      "check": "skip-link",
+      "active": "konten"
+    },
+    {
+      "check": "tab-order",
+      "active": "search",
+      "outline": "rgb(91, 163, 232) solid 3px"
+    },
+    {
+      "check": "mobile-modal",
+      "state": {
+        "closeHeight": 44,
+        "open": true,
+        "overflow": false,
+        "width": 316.25
+      }
+    }
+  ],
+  "matrix": [
+    {
+      "theme": "light",
+      "background": "rgb(237, 240, 244)",
+      "controls": [
+        {
+          "height": 44,
+          "name": "SELECT",
+          "width": 144
+        },
+        {
+          "height": 44,
+          "name": "search",
+          "width": 265
+        },
+        {
+          "height": 44,
+          "name": "SELECT",
+          "width": 265
+        },
+        {
+          "height": 44,
+          "name": "button",
+          "width": 174.125
+        }
+      ],
+      "font": "\"Inter Variable\", Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+      "scrollWidth": 345,
+      "width": 360
+    },
+    {
+      "theme": "light",
+      "background": "rgb(237, 240, 244)",
+      "controls": [
+        {
+          "height": 44,
+          "name": "SELECT",
+          "width": 144
+        },
+        {
+          "height": 44,
+          "name": "search",
+          "width": 280
+        },
+        {
+          "height": 44,
+          "name": "SELECT",
+          "width": 280
+        },
+        {
+          "height": 44,
+          "name": "button",
+          "width": 174.125
+        }
+      ],
+      "font": "\"Inter Variable\", Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+      "scrollWidth": 360,
+      "width": 375
+    },
+    {
+      "theme": "light",
+      "background": "rgb(237, 240, 244)",
+      "controls": [
+        {
+          "height": 44,
+          "name": "SELECT",
+          "width": 144
+        },
+        {
+          "height": 44,
+          "name": "search",
+          "width": 316.5
+        },
+        {
+          "height": 44,
+          "name": "SELECT",
+          "width": 316.5
+        },
+        {
+          "height": 44,
+          "name": "button",
+          "width": 174.125
+        }
+      ],
+      "font": "\"Inter Variable\", Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+      "scrollWidth": 753,
+      "width": 768
+    },
+    {
+      "theme": "light",
+      "background": "rgb(237, 240, 244)",
+      "controls": [
+        {
+          "height": 44,
+          "name": "SELECT",
+          "width": 144
+        },
+        {
+          "height": 44,
+          "name": "search",
+          "width": 263.875
+        },
+        {
+          "height": 44,
+          "name": "SELECT",
+          "width": 263.875
+        },
+        {
+          "height": 44,
+          "name": "button",
+          "width": 174.125
+        }
+      ],
+      "font": "\"Inter Variable\", Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+      "scrollWidth": 1024,
+      "width": 1024
+    },
+    {
+      "theme": "light",
+      "background": "rgb(237, 240, 244)",
+      "controls": [
+        {
+          "height": 44,
+          "name": "SELECT",
+          "width": 144
+        },
+        {
+          "height": 44,
+          "name": "search",
+          "width": 304
+        },
+        {
+          "height": 44,
+          "name": "SELECT",
+          "width": 304
+        },
+        {
+          "height": 44,
+          "name": "button",
+          "width": 174.125
+        }
+      ],
+      "font": "\"Inter Variable\", Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+      "scrollWidth": 1440,
+      "width": 1440
+    },
+    {
+      "theme": "dark",
+      "background": "rgb(9, 10, 13)",
+      "controls": [
+        {
+          "height": 44,
+          "name": "SELECT",
+          "width": 144
+        },
+        {
+          "height": 44,
+          "name": "search",
+          "width": 265
+        },
+        {
+          "height": 44,
+          "name": "SELECT",
+          "width": 265
+        },
+        {
+          "height": 44,
+          "name": "button",
+          "width": 174.125
+        }
+      ],
+      "font": "\"Inter Variable\", Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+      "scrollWidth": 345,
+      "width": 360
+    },
+    {
+      "theme": "dark",
+      "background": "rgb(9, 10, 13)",
+      "controls": [
+        {
+          "height": 44,
+          "name": "SELECT",
+          "width": 144
+        },
+        {
+          "height": 44,
+          "name": "search",
+          "width": 280
+        },
+        {
+          "height": 44,
+          "name": "SELECT",
+          "width": 280
+        },
+        {
+          "height": 44,
+          "name": "button",
+          "width": 174.125
+        }
+      ],
+      "font": "\"Inter Variable\", Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+      "scrollWidth": 360,
+      "width": 375
+    },
+    {
+      "theme": "dark",
+      "background": "rgb(9, 10, 13)",
+      "controls": [
+        {
+          "height": 44,
+          "name": "SELECT",
+          "width": 144
+        },
+        {
+          "height": 44,
+          "name": "search",
+          "width": 316.5
+        },
+        {
+          "height": 44,
+          "name": "SELECT",
+          "width": 316.5
+        },
+        {
+          "height": 44,
+          "name": "button",
+          "width": 174.125
+        }
+      ],
+      "font": "\"Inter Variable\", Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+      "scrollWidth": 753,
+      "width": 768
+    },
+    {
+      "theme": "dark",
+      "background": "rgb(9, 10, 13)",
+      "controls": [
+        {
+          "height": 44,
+          "name": "SELECT",
+          "width": 144
+        },
+        {
+          "height": 44,
+          "name": "search",
+          "width": 263.875
+        },
+        {
+          "height": 44,
+          "name": "SELECT",
+          "width": 263.875
+        },
+        {
+          "height": 44,
+          "name": "button",
+          "width": 174.125
+        }
+      ],
+      "font": "\"Inter Variable\", Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+      "scrollWidth": 1024,
+      "width": 1024
+    },
+    {
+      "theme": "dark",
+      "background": "rgb(9, 10, 13)",
+      "controls": [
+        {
+          "height": 44,
+          "name": "SELECT",
+          "width": 144
+        },
+        {
+          "height": 44,
+          "name": "search",
+          "width": 304
+        },
+        {
+          "height": 44,
+          "name": "SELECT",
+          "width": 304
+        },
+        {
+          "height": 44,
+          "name": "button",
+          "width": 174.125
+        }
+      ],
+      "font": "\"Inter Variable\", Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+      "scrollWidth": 1440,
+      "width": 1440
+    }
+  ],
+  "contrast": [
+    {
+      "theme": "light",
+      "buttonTransition": "transform 0.15s cubic-bezier(0, 0, 0.2, 1)",
+      "checked": 27,
+      "failures": [],
+      "font": {
+        "check": true,
+        "size": 7,
+        "status": "loaded"
+      },
+      "minRatio": 6.6291103788384405
+    },
+    {
+      "theme": "dark",
+      "buttonTransition": "transform 0.15s cubic-bezier(0, 0, 0.2, 1)",
+      "checked": 27,
+      "failures": [],
+      "font": {
+        "check": true,
+        "size": 7,
+        "status": "loaded"
+      },
+      "minRatio": 8.266284811303493
+    }
+  ],
+  "consoleLogs": []
+}

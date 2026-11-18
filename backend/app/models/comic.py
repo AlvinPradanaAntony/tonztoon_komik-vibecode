@@ -19,10 +19,13 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
     text,
+    select, exists, true,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, foreign
 
 from app.database import Base
+from app.config import settings
+from app.admin.tables import editorial
 
 
 # ---- Many-to-Many association table: Comic <-> Genre ----
@@ -33,6 +36,15 @@ comic_genre = Table(
     Column("genre_id", Integer, ForeignKey("genres.id", ondelete="CASCADE"), primary_key=True),
     Index("ix_comic_genre_genre_id", "genre_id"),
 )
+
+effective_comic_genre=comic_genre
+if settings.ADMIN_CONSOLE_ENABLED:
+    selected_genres=func.jsonb_array_elements_text(editorial.c.overrides["genre_ids"]).table_valued("value").lateral("selected_genres")
+    manual=select(editorial.c.resource_id.label("comic_id"),selected_genres.c.value.cast(Integer).label("genre_id")).select_from(
+        editorial.join(selected_genres,true())).where(editorial.c.kind=="comics",editorial.c.overrides.has_key("genre_ids"))
+    original=select(comic_genre.c.comic_id,comic_genre.c.genre_id).where(~exists(select(1).where(
+        editorial.c.kind=="comics",editorial.c.resource_id==comic_genre.c.comic_id,editorial.c.overrides.has_key("genre_ids"))))
+    effective_comic_genre=original.union_all(manual).subquery("effective_comic_genre")
 
 
 class Genre(Base):
@@ -47,7 +59,10 @@ class Genre(Base):
     # Relationship
     comics: Mapped[list["Comic"]] = relationship(
         "Comic",
-        secondary=comic_genre,
+        secondary=effective_comic_genre,
+        primaryjoin=lambda:Genre.id==foreign(effective_comic_genre.c.genre_id),
+        secondaryjoin=lambda:Comic.id==foreign(effective_comic_genre.c.comic_id),
+        viewonly=settings.ADMIN_CONSOLE_ENABLED,
         back_populates="genres",
     )
 
@@ -134,15 +149,15 @@ class Comic(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    title: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
+    _source_title: Mapped[str] = mapped_column("title", String(500), nullable=False, index=True)
     slug: Mapped[str] = mapped_column(String(600), nullable=False, index=True)
-    alternative_titles: Mapped[str | None] = mapped_column(Text, nullable=True)
-    cover_image_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
-    author: Mapped[str | None] = mapped_column(String(300), nullable=True)
-    artist: Mapped[str | None] = mapped_column(String(300), nullable=True)
-    status: Mapped[str | None] = mapped_column(String(50), nullable=True)  # ongoing / completed / hiatus
-    type: Mapped[str | None] = mapped_column(String(50), nullable=True)    # manga / manhwa / manhua
-    synopsis: Mapped[str | None] = mapped_column(Text, nullable=True)
+    _source_alternative_titles: Mapped[str | None] = mapped_column("alternative_titles", Text, nullable=True)
+    _source_cover_image_url: Mapped[str | None] = mapped_column("cover_image_url", String(1000), nullable=True)
+    _source_author: Mapped[str | None] = mapped_column("author", String(300), nullable=True)
+    _source_artist: Mapped[str | None] = mapped_column("artist", String(300), nullable=True)
+    _source_status: Mapped[str | None] = mapped_column("status", String(50), nullable=True)
+    _source_type: Mapped[str | None] = mapped_column("type", String(50), nullable=True)
+    _source_synopsis: Mapped[str | None] = mapped_column("synopsis", Text, nullable=True)
     rating: Mapped[float | None] = mapped_column(Float, nullable=True)
     total_view: Mapped[int | None] = mapped_column(Integer, nullable=True)
     source_url: Mapped[str] = mapped_column(String(1000), nullable=False)
@@ -175,7 +190,10 @@ class Comic(Base):
     # Relationships
     genres: Mapped[list["Genre"]] = relationship(
         "Genre",
-        secondary=comic_genre,
+        secondary=effective_comic_genre,
+        primaryjoin=lambda:Comic.id==foreign(effective_comic_genre.c.comic_id),
+        secondaryjoin=lambda:Genre.id==foreign(effective_comic_genre.c.genre_id),
+        viewonly=settings.ADMIN_CONSOLE_ENABLED,
         back_populates="comics",
         lazy="selectin",
     )
@@ -189,3 +207,7 @@ class Comic(Base):
 
     def __repr__(self) -> str:
         return f"<Comic(id={self.id}, title='{self.title}', source='{self.source_name}')>"
+
+
+from app.admin.editorial import install_fields
+install_fields(Comic, "comics", ("title", "alternative_titles", "cover_image_url", "author", "artist", "status", "type", "synopsis"))

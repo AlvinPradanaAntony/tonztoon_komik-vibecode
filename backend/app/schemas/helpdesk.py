@@ -83,6 +83,7 @@ class HelpdeskSubmissionResponse(BaseModel):
     admin_note: str | None = None
     created_at: datetime
     updated_at: datetime
+    etag: str | None = None
 
 
 class HelpdeskSubmissionListResponse(BaseModel):

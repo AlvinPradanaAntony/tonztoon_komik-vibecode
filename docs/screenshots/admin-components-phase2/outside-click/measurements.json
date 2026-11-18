@@ -1,0 +1,252 @@
+{
+  "browser": "155.0.8059.85",
+  "results": [
+    {
+      "theme": "light",
+      "width": 1440,
+      "kind": "dialog",
+      "touch": false,
+      "exiting": {
+        "display": "grid",
+        "opacity": 0.224439,
+        "overlay": "auto",
+        "backdropOpacity": 0.224439
+      },
+      "passed": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "kind": "drawer",
+      "side": "start",
+      "touch": false,
+      "exiting": {
+        "display": "grid",
+        "opacity": 0.224439,
+        "overlay": "auto",
+        "backdropOpacity": 0.224439
+      },
+      "passed": true
+    },
+    {
+      "theme": "light",
+      "width": 1440,
+      "kind": "drawer",
+      "side": "end",
+      "touch": false,
+      "exiting": {
+        "display": "grid",
+        "opacity": 0.224439,
+        "overlay": "auto",
+        "backdropOpacity": 0.224439
+      },
+      "passed": true
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "kind": "dialog",
+      "touch": false,
+      "exiting": {
+        "display": "grid",
+        "opacity": 0.224439,
+        "overlay": "auto",
+        "backdropOpacity": 0.224439
+      },
+      "passed": true
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "kind": "drawer",
+      "side": "start",
+      "touch": false,
+      "exiting": {
+        "display": "grid",
+        "opacity": 0.224439,
+        "overlay": "auto",
+        "backdropOpacity": 0.224439
+      },
+      "passed": true
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "kind": "drawer",
+      "side": "end",
+      "touch": false,
+      "exiting": {
+        "display": "grid",
+        "opacity": 0.224439,
+        "overlay": "auto",
+        "backdropOpacity": 0.224439
+      },
+      "passed": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "kind": "dialog",
+      "touch": false,
+      "exiting": {
+        "display": "grid",
+        "opacity": 0.224439,
+        "overlay": "auto",
+        "backdropOpacity": 0.224439
+      },
+      "passed": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "kind": "drawer",
+      "side": "start",
+      "touch": false,
+      "exiting": {
+        "display": "grid",
+        "opacity": 0.224439,
+        "overlay": "auto",
+        "backdropOpacity": 0.224439
+      },
+      "passed": true
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "kind": "drawer",
+      "side": "end",
+      "touch": false,
+      "exiting": {
+        "display": "grid",
+        "opacity": 0.224439,
+        "overlay": "auto",
+        "backdropOpacity": 0.224439
+      },
+      "passed": true
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "kind": "dialog",
+      "touch": false,
+      "exiting": {
+        "display": "grid",
+        "opacity": 0.224439,
+        "overlay": "auto",
+        "backdropOpacity": 0.224439
+      },
+      "passed": true
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "kind": "drawer",
+      "side": "start",
+      "touch": false,
+      "exiting": {
+        "display": "grid",
+        "opacity": 0.224439,
+        "overlay": "auto",
+        "backdropOpacity": 0.224439
+      },
+      "passed": true
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "kind": "drawer",
+      "side": "end",
+      "touch": false,
+      "exiting": {
+        "display": "grid",
+        "opacity": 0.224439,
+        "overlay": "auto",
+        "backdropOpacity": 0.224439
+      },
+      "passed": true
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "kind": "dialog",
+      "touch": true,
+      "exiting": {
+        "display": "grid",
+        "opacity": 0.224439,
+        "overlay": "auto",
+        "backdropOpacity": 0.224439
+      },
+      "passed": true
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "kind": "drawer",
+      "side": "start",
+      "touch": true,
+      "exiting": {
+        "display": "grid",
+        "opacity": 0.224439,
+        "overlay": "auto",
+        "backdropOpacity": 0.224439
+      },
+      "passed": true
+    },
+    {
+      "theme": "light",
+      "width": 360,
+      "kind": "drawer",
+      "side": "end",
+      "touch": true,
+      "exiting": {
+        "display": "grid",
+        "opacity": 0.224439,
+        "overlay": "auto",
+        "backdropOpacity": 0.224439
+      },
+      "passed": true
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "kind": "dialog",
+      "touch": true,
+      "exiting": {
+        "display": "grid",
+        "opacity": 0.224439,
+        "overlay": "auto",
+        "backdropOpacity": 0.224439
+      },
+      "passed": true
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "kind": "drawer",
+      "side": "start",
+      "touch": true,
+      "exiting": {
+        "display": "grid",
+        "opacity": 0.224439,
+        "overlay": "auto",
+        "backdropOpacity": 0.224439
+      },
+      "passed": true
+    },
+    {
+      "theme": "dark",
+      "width": 360,
+      "kind": "drawer",
+      "side": "end",
+      "touch": true,
+      "exiting": {
+        "display": "grid",
+        "opacity": 0.224439,
+        "overlay": "auto",
+        "backdropOpacity": 0.224439
+      },
+      "passed": true
+    }
+  ],
+  "errors": []
+}

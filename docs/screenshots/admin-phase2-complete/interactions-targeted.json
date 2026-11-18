@@ -1,0 +1,53 @@
+{
+  "groups": [
+    {
+      "name": "Readonly ERD four diagrams, search, dictionary and relations",
+      "pass": true,
+      "console": []
+    }
+  ],
+  "checks": [
+    {
+      "name": "ERD JSONB and generated",
+      "pass": true
+    },
+    {
+      "name": "ERD diagram users",
+      "pass": true
+    },
+    {
+      "name": "ERD diagram monitoring",
+      "pass": true
+    },
+    {
+      "name": "ERD diagram admin",
+      "pass": true
+    },
+    {
+      "name": "ERD diagram catalog",
+      "pass": true
+    },
+    {
+      "name": "ERD readonly nodes",
+      "pass": true
+    },
+    {
+      "name": "ERD readonly keyboard instructions",
+      "pass": true
+    },
+    {
+      "name": "ERD Enter selects",
+      "pass": true
+    },
+    {
+      "name": "ERD Escape clears selection",
+      "pass": true
+    },
+    {
+      "name": "logical relation inspector",
+      "pass": true
+    }
+  ],
+  "failures": [],
+  "console": []
+}

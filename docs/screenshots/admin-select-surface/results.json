@@ -1,0 +1,20 @@
+{
+  "dark": {
+    "select": {
+      "bg": "rgba(0, 0, 0, 0)",
+      "height": 41.99652862548828,
+      "radius": "0px"
+    },
+    "theme": "dark",
+    "wrapper": {
+      "bg": "rgb(24, 27, 32)",
+      "height": 44.218753814697266
+    }
+  },
+  "light": {
+    "height": 44.218753814697266,
+    "select": "rgba(0, 0, 0, 0)",
+    "theme": "light",
+    "wrapper": "rgb(255, 255, 255)"
+  }
+}

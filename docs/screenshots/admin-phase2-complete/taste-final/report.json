@@ -1,0 +1,1388 @@
+{
+ "url": "http://127.0.0.1:3102/data/comics",
+ "at": "2026-10-30T10:03:21.719Z",
+ "allow": [],
+ "viewports": [
+  {
+   "width": 1440,
+   "height": 900,
+   "load": "load",
+   "screens": 2,
+   "filled": [
+    0.64,
+    0.5
+   ],
+   "motion": {
+    "elements": 17,
+    "css": 16,
+    "transitions": 1,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "page": {
+     "height": 1467,
+     "screens": 1.6,
+     "words": 246,
+     "img": 2,
+     "video": 0,
+     "canvas": 0,
+     "svg": 36,
+     "sections": 1,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Komik",
+     "words": 1,
+     "chars": 5,
+     "lines": 1,
+     "size": 32,
+     "vw": 2.2,
+     "font": "Inter Variable",
+     "weight": 600,
+     "tracking": -0.02,
+     "leading": 1.25,
+     "top": 125,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Komik",
+     "words": 1,
+     "lines": 1,
+     "size": 31.7,
+     "font": "Inter Variable"
+    },
+    "headings": [
+     {
+      "text": "Komik",
+      "words": 1,
+      "chars": 5,
+      "lines": 1,
+      "size": 31.7,
+      "vw": 2.2,
+      "font": "Inter Variable",
+      "weight": 600,
+      "tracking": -0.025,
+      "leading": 1.25,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.35,
+      "top": 125,
+      "tag": "h1",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 1,
+     "maxLines": 1,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": null,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Inter Variable",
+       "share": 1,
+       "mono": false
+      },
+      {
+       "family": "ui-monospace",
+       "share": 0,
+       "mono": false
+      }
+     ],
+     "familyCount": 2,
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      16,
+      18,
+      32
+     ],
+     "sizeCount": 7,
+     "notLoaded": [],
+     "body": {
+      "font": "Inter Variable",
+      "size": 12,
+      "leading": 1.67,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 10.3
+     },
+     "measureChars": 188,
+     "max": {
+      "size": 31.7,
+      "vw": 2.2,
+      "font": "Inter Variable",
+      "text": "Komik"
+     },
+     "monoShare": 0,
+     "monoProseShare": 0,
+     "monoFamilies": [
+      "ui-monospace"
+     ],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0.01,
+     "centerShare": 0.06,
+     "smallText": 19
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#090a0d",
+     "bodyBgHsl": {
+      "h": 225,
+      "s": 0.18,
+      "l": 0.04
+     },
+     "dark": true,
+     "sectionBgs": [
+      {
+       "color": "#101215",
+       "top": 16,
+       "hsl": {
+        "h": 216,
+        "s": 0.14,
+        "l": 0.07
+       }
+      },
+      {
+       "color": "#23272e",
+       "top": 257,
+       "hsl": {
+        "h": 218,
+        "s": 0.14,
+        "l": 0.16
+       }
+      },
+      {
+       "color": "#181b20",
+       "top": 341,
+       "hsl": {
+        "h": 218,
+        "s": 0.14,
+        "l": 0.11
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#b9c1ce",
+       "share": 0.59
+      },
+      {
+       "color": "#f1f3f5",
+       "share": 0.37
+      },
+      {
+       "color": "#68d391",
+       "share": 0.03
+      },
+      {
+       "color": "#101215",
+       "share": 0.01
+      }
+     ],
+     "button": {
+      "bg": "#23272e",
+      "hsl": {
+       "h": 218,
+       "s": 0.14,
+       "l": 0.16
+      },
+      "fg": "#f1f3f5"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 7,
+     "inHero": 4,
+     "radius": 8,
+     "height": 44,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Lewati ke konten",
+      "Katalog & chapter",
+      "Tambah komik",
+      "Reset filter"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 1,
+     "shadowOverlay": 0,
+     "shadowSamples": [
+      "div.min-h-dvh.min-w-0 → rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0"
+     ],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 2,
+     "hairlineSamples": [
+      "header.flex.min-h-20 1182px",
+      "footer.flex.flex-wrap 1182px"
+     ],
+     "outlinedBoxes": 1,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 3,
+     "boxRadius": 28,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [],
+    "nav": {
+     "links": 1,
+     "fixed": true,
+     "height": 900,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": [
+     "inter variable"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "pageH": 1467,
+    "margins": {
+     "left": 269,
+     "right": 45
+    },
+    "sections": [
+     {
+      "sel": "div.mb-5.grid",
+      "tag": "div",
+      "top": 361,
+      "height": 132,
+      "words": 7,
+      "media": 0,
+      "middle": 16,
+      "heading": null,
+      "left": 293,
+      "right": 69,
+      "textLeft": 293,
+      "textRight": 284,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "div.tt-data-table",
+      "tag": "div",
+      "top": 513,
+      "height": 728,
+      "words": 91,
+      "media": 0,
+      "middle": 180,
+      "heading": null,
+      "left": 293,
+      "right": 69,
+      "textLeft": 293,
+      "textRight": 138,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Komik",
+      "size": 32,
+      "top": 125,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 269,
+      "n": 2
+     },
+     {
+      "x": 289,
+      "n": 2
+     }
+    ],
+    "leftBlocks": 4,
+    "bodySize": 14,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0.07,
+    "voidBox": {
+     "x": 720,
+     "y": 240,
+     "w": 720,
+     "h": 120
+    }
+   },
+   "app": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "dark": true,
+    "ground": "#090a0d",
+    "sidebar": {
+     "w": 240,
+     "tag": "aside",
+     "links": 17,
+     "share": 0.17
+    },
+    "topbar": null,
+    "canvas": {
+     "left": 29,
+     "right": 57
+    },
+    "hero": {
+     "text": "Komik",
+     "words": 1,
+     "chars": 5,
+     "lines": 1,
+     "size": 32,
+     "vw": 2.2,
+     "font": "Inter Variable",
+     "weight": 600,
+     "tracking": -0.02,
+     "leading": 1.25,
+     "top": 125,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 1,
+     "firstScreen": 1,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 4,
+     "radii": [
+      [
+       24,
+       2
+      ],
+      [
+       28,
+       1
+      ],
+      [
+       20,
+       1
+      ]
+     ],
+     "heavyBorders": 0,
+     "borderSamples": [],
+     "heavyShadows": 0,
+     "softShadows": 0,
+     "shadowSamples": [],
+     "glass": 0
+    },
+    "chips": {
+     "count": 0,
+     "hues": 0,
+     "samples": []
+    },
+    "numbers": {
+     "cells": 8,
+     "leftAligned": 0,
+     "figures": 0,
+     "tabularShare": null,
+     "kpiMax": null
+    },
+    "rows": {
+     "count": 8,
+     "median": 69
+    },
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.35,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      16,
+      18,
+      32
+     ]
+    },
+    "title": {
+     "text": "Komik",
+     "size": 32,
+     "top": 125
+    },
+    "colourShare": 0
+   },
+   "consoleErrors": []
+  },
+  {
+   "width": 768,
+   "height": 1024,
+   "load": "load",
+   "screens": 2,
+   "filled": [
+    0.89,
+    0.78
+   ],
+   "motion": {
+    "elements": 6,
+    "css": 5,
+    "transitions": 1,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "page": {
+     "height": 1565,
+     "screens": 1.5,
+     "words": 210,
+     "img": 2,
+     "video": 0,
+     "canvas": 0,
+     "svg": 36,
+     "sections": 1,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 1,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Komik",
+     "words": 1,
+     "chars": 5,
+     "lines": 1,
+     "size": 26,
+     "vw": 3.3,
+     "font": "Inter Variable",
+     "weight": 600,
+     "tracking": -0.02,
+     "leading": 1.25,
+     "top": 108,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Komik",
+     "words": 1,
+     "lines": 1,
+     "size": 25.6,
+     "font": "Inter Variable"
+    },
+    "headings": [],
+    "headingSummary": {
+     "count": 0,
+     "maxLines": 0,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": null,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Inter Variable",
+       "share": 0.99,
+       "mono": false
+      },
+      {
+       "family": "ui-monospace",
+       "share": 0.01,
+       "mono": false
+      }
+     ],
+     "familyCount": 2,
+     "sizes": [
+      12,
+      13,
+      14,
+      16,
+      26
+     ],
+     "sizeCount": 5,
+     "notLoaded": [],
+     "body": {
+      "font": "Inter Variable",
+      "size": 12,
+      "leading": 1.67,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 10.3
+     },
+     "measureChars": 119,
+     "max": {
+      "size": 25.6,
+      "vw": 3.3,
+      "font": "Inter Variable",
+      "text": "Komik"
+     },
+     "monoShare": 0.01,
+     "monoProseShare": 0,
+     "monoFamilies": [
+      "ui-monospace"
+     ],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0,
+     "centerShare": 0.07,
+     "smallText": 15
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#090a0d",
+     "bodyBgHsl": {
+      "h": 225,
+      "s": 0.18,
+      "l": 0.04
+     },
+     "dark": true,
+     "sectionBgs": [
+      {
+       "color": "#101215",
+       "top": 0,
+       "hsl": {
+        "h": 216,
+        "s": 0.14,
+        "l": 0.07
+       }
+      },
+      {
+       "color": "#23272e",
+       "top": 232,
+       "hsl": {
+        "h": 218,
+        "s": 0.14,
+        "l": 0.16
+       }
+      },
+      {
+       "color": "#181b20",
+       "top": 316,
+       "hsl": {
+        "h": 218,
+        "s": 0.14,
+        "l": 0.11
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#b9c1ce",
+       "share": 0.55
+      },
+      {
+       "color": "#f1f3f5",
+       "share": 0.41
+      },
+      {
+       "color": "#68d391",
+       "share": 0.04
+      },
+      {
+       "color": "#101215",
+       "share": 0.01
+      }
+     ],
+     "button": {
+      "bg": "#23272e",
+      "hsl": {
+       "h": 218,
+       "s": 0.14,
+       "l": 0.16
+      },
+      "fg": "#f1f3f5"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 6,
+     "inHero": 3,
+     "radius": 8,
+     "height": 44,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Lewati ke konten",
+      "Tambah komik",
+      "Reset filter"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 2,
+     "hairlineSamples": [
+      "header.flex.min-h-20 768px",
+      "footer.flex.flex-wrap 768px"
+     ],
+     "outlinedBoxes": 0,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 2,
+     "boxRadius": 24,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [],
+    "nav": {
+     "links": 0,
+     "fixed": true,
+     "height": 0,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": [
+     "inter variable"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "pageH": 1565,
+    "margins": {
+     "left": 28,
+     "right": 28
+    },
+    "sections": [
+     {
+      "sel": "div.mb-5.grid",
+      "tag": "div",
+      "top": 336,
+      "height": 220,
+      "words": 7,
+      "media": 0,
+      "middle": 16,
+      "heading": null,
+      "left": 52,
+      "right": 52,
+      "textLeft": 52,
+      "textRight": 329,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "div.tt-data-table",
+      "tag": "div",
+      "top": 576,
+      "height": 780,
+      "words": 91,
+      "media": 0,
+      "middle": 8,
+      "heading": null,
+      "left": 52,
+      "right": 52,
+      "textLeft": 52,
+      "textRight": 52,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Komik",
+      "size": 26,
+      "top": 108,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 28,
+      "n": 2
+     },
+     {
+      "x": 48,
+      "n": 2
+     }
+    ],
+    "leftBlocks": 4,
+    "bodySize": 12,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "dark": true,
+    "ground": "#090a0d",
+    "sidebar": null,
+    "topbar": {
+     "h": 80
+    },
+    "canvas": {
+     "left": 28,
+     "right": -6
+    },
+    "hero": {
+     "text": "Komik",
+     "words": 1,
+     "chars": 5,
+     "lines": 1,
+     "size": 26,
+     "vw": 3.3,
+     "font": "Inter Variable",
+     "weight": 600,
+     "tracking": -0.02,
+     "leading": 1.25,
+     "top": 108,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 2,
+     "firstScreen": 1,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 3,
+     "radii": [
+      [
+       24,
+       2
+      ],
+      [
+       20,
+       1
+      ]
+     ],
+     "heavyBorders": 0,
+     "borderSamples": [],
+     "heavyShadows": 0,
+     "softShadows": 0,
+     "shadowSamples": [],
+     "glass": 0
+    },
+    "chips": {
+     "count": 0,
+     "hues": 0,
+     "samples": []
+    },
+    "numbers": {
+     "cells": 8,
+     "leftAligned": 0,
+     "figures": 0,
+     "tabularShare": null,
+     "kpiMax": null
+    },
+    "rows": {
+     "count": 8,
+     "median": 69
+    },
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.35,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      16,
+      18,
+      26
+     ]
+    },
+    "title": {
+     "text": "Komik",
+     "size": 26,
+     "top": 108
+    },
+    "colourShare": 0.002
+   },
+   "consoleErrors": []
+  },
+  {
+   "width": 390,
+   "height": 844,
+   "load": "load",
+   "screens": 3,
+   "filled": [
+    1,
+    0.63,
+    0.71
+   ],
+   "motion": {
+    "elements": 6,
+    "css": 5,
+    "transitions": 1,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "page": {
+     "height": 1917,
+     "screens": 2.3,
+     "words": 201,
+     "img": 2,
+     "video": 0,
+     "canvas": 0,
+     "svg": 36,
+     "sections": 1,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 1,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Komik",
+     "words": 1,
+     "chars": 5,
+     "lines": 1,
+     "size": 26,
+     "vw": 6.6,
+     "font": "Inter Variable",
+     "weight": 600,
+     "tracking": -0.02,
+     "leading": 1.25,
+     "top": 96,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Komik",
+     "words": 1,
+     "lines": 1,
+     "size": 25.6,
+     "font": "Inter Variable"
+    },
+    "headings": [
+     {
+      "text": "Komik",
+      "words": 1,
+      "chars": 5,
+      "lines": 1,
+      "size": 25.6,
+      "vw": 6.6,
+      "font": "Inter Variable",
+      "weight": 600,
+      "tracking": -0.025,
+      "leading": 1.25,
+      "upper": false,
+      "italic": false,
+      "mono": false,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.92,
+      "top": 96,
+      "tag": "h1",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 1,
+     "maxLines": 1,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": null,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Inter Variable",
+       "share": 0.99,
+       "mono": false
+      },
+      {
+       "family": "ui-monospace",
+       "share": 0.01,
+       "mono": false
+      }
+     ],
+     "familyCount": 2,
+     "sizes": [
+      12,
+      13,
+      14,
+      16,
+      26
+     ],
+     "sizeCount": 5,
+     "notLoaded": [],
+     "body": {
+      "font": "Inter Variable",
+      "size": 12,
+      "leading": 1.67,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 10.3
+     },
+     "measureChars": 60,
+     "max": {
+      "size": 25.6,
+      "vw": 6.6,
+      "font": "Inter Variable",
+      "text": "Komik"
+     },
+     "monoShare": 0.01,
+     "monoProseShare": 0,
+     "monoFamilies": [
+      "ui-monospace"
+     ],
+     "monoSamples": [],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0,
+     "centerShare": 0.08,
+     "smallText": 13
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#090a0d",
+     "bodyBgHsl": {
+      "h": 225,
+      "s": 0.18,
+      "l": 0.04
+     },
+     "dark": true,
+     "sectionBgs": [
+      {
+       "color": "#101215",
+       "top": 0,
+       "hsl": {
+        "h": 216,
+        "s": 0.14,
+        "l": 0.07
+       }
+      },
+      {
+       "color": "#23272e",
+       "top": 320,
+       "hsl": {
+        "h": 218,
+        "s": 0.14,
+        "l": 0.16
+       }
+      },
+      {
+       "color": "#181b20",
+       "top": 424,
+       "hsl": {
+        "h": 218,
+        "s": 0.14,
+        "l": 0.11
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#b9c1ce",
+       "share": 0.55
+      },
+      {
+       "color": "#f1f3f5",
+       "share": 0.4
+      },
+      {
+       "color": "#68d391",
+       "share": 0.04
+      },
+      {
+       "color": "#101215",
+       "share": 0.01
+      }
+     ],
+     "button": {
+      "bg": "#23272e",
+      "hsl": {
+       "h": 218,
+       "s": 0.14,
+       "l": 0.16
+      },
+      "fg": "#f1f3f5"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 6,
+     "inHero": 3,
+     "radius": 8,
+     "height": 44,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Lewati ke konten",
+      "Tambah komik",
+      "Reset filter"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 5,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 2,
+     "hairlineSamples": [
+      "header.flex.min-h-20 390px",
+      "footer.flex.flex-wrap 390px"
+     ],
+     "outlinedBoxes": 0,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 2,
+     "boxRadius": 24,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [],
+    "nav": {
+     "links": 0,
+     "fixed": true,
+     "height": 0,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": [
+     "inter variable"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "pageH": 1917,
+    "margins": {
+     "left": 16,
+     "right": 16
+    },
+    "sections": [
+     {
+      "sel": "div.mb-6.flex",
+      "tag": "div",
+      "top": 96,
+      "height": 140,
+      "words": 16,
+      "media": 0,
+      "middle": 0,
+      "heading": {
+       "text": "Komik",
+       "size": 26,
+       "tag": "h1"
+      },
+      "left": 16,
+      "right": 64,
+      "textLeft": 16,
+      "textRight": 64,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "section.card.min-w-0",
+      "tag": "section",
+      "top": 320,
+      "height": 1396,
+      "words": 74,
+      "media": 0,
+      "middle": 113,
+      "heading": {
+       "text": "Komik",
+       "size": 16,
+       "tag": "h2"
+      },
+      "left": 36,
+      "right": 0,
+      "textLeft": 36,
+      "textRight": 40,
+      "fullBleed": false,
+      "footer": true,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Komik",
+      "size": 26,
+      "top": 96,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 16,
+      "n": 2
+     },
+     {
+      "x": 36,
+      "n": 2
+     }
+    ],
+    "leftBlocks": 4,
+    "bodySize": 12,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "dark": true,
+    "ground": "#090a0d",
+    "sidebar": null,
+    "topbar": {
+     "h": 76
+    },
+    "canvas": {
+     "left": 16,
+     "right": -372
+    },
+    "hero": {
+     "text": "Komik",
+     "words": 1,
+     "chars": 5,
+     "lines": 1,
+     "size": 26,
+     "vw": 6.6,
+     "font": "Inter Variable",
+     "weight": 600,
+     "tracking": -0.02,
+     "leading": 1.25,
+     "top": 96,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 2,
+     "firstScreen": 1,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 3,
+     "radii": [
+      [
+       24,
+       2
+      ],
+      [
+       20,
+       1
+      ]
+     ],
+     "heavyBorders": 0,
+     "borderSamples": [],
+     "heavyShadows": 0,
+     "softShadows": 0,
+     "shadowSamples": [],
+     "glass": 0
+    },
+    "chips": {
+     "count": 0,
+     "hues": 0,
+     "samples": []
+    },
+    "numbers": {
+     "cells": 8,
+     "leftAligned": 0,
+     "figures": 0,
+     "tabularShare": null,
+     "kpiMax": null
+    },
+    "rows": {
+     "count": 8,
+     "median": 69
+    },
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.34,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      16,
+      18,
+      26
+     ]
+    },
+    "title": {
+     "text": "Komik",
+     "size": 26,
+     "top": 96
+    },
+    "colourShare": 0
+   },
+   "consoleErrors": []
+  }
+ ],
+ "findings": [],
+ "images": [
+  {
+   "viewport": "desktop",
+   "width": 1440,
+   "fold": "E:\\Projek\\projek_vibecode\\tonztoon_komik\\docs\\screenshots\\admin-phase2-complete\\taste-final\\desktop-fold.jpg",
+   "pages": [
+    "E:\\Projek\\projek_vibecode\\tonztoon_komik\\docs\\screenshots\\admin-phase2-complete\\taste-final\\desktop-page-01.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "tablet",
+   "width": 768,
+   "fold": "E:\\Projek\\projek_vibecode\\tonztoon_komik\\docs\\screenshots\\admin-phase2-complete\\taste-final\\tablet-fold.jpg",
+   "pages": [
+    "E:\\Projek\\projek_vibecode\\tonztoon_komik\\docs\\screenshots\\admin-phase2-complete\\taste-final\\tablet-page-01.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "mobile",
+   "width": 390,
+   "fold": "E:\\Projek\\projek_vibecode\\tonztoon_komik\\docs\\screenshots\\admin-phase2-complete\\taste-final\\mobile-fold.jpg",
+   "pages": [
+    "E:\\Projek\\projek_vibecode\\tonztoon_komik\\docs\\screenshots\\admin-phase2-complete\\taste-final\\mobile-page-01.jpg"
+   ],
+   "film": []
+  }
+ ]
+}

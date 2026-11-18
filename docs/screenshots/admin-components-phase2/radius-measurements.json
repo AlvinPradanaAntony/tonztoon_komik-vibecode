@@ -1,0 +1,142 @@
+[
+  {
+    "theme": "light",
+    "viewport": 1440,
+    "clientWidth": 1440,
+    "inner": {
+      "bottom": 682,
+      "height": 397,
+      "left": 112,
+      "right": 803.984375,
+      "top": 285,
+      "width": 691.984375,
+      "x": 112,
+      "y": 285
+    },
+    "innerRadius": "20px",
+    "inset": "4px",
+    "otherCardRadius": "16px",
+    "outer": {
+      "bottom": 686,
+      "height": 485,
+      "left": 108,
+      "right": 807.984375,
+      "top": 201,
+      "width": 699.984375,
+      "x": 108,
+      "y": 201
+    },
+    "outerRadius": "24px",
+    "scrollWidth": 1440,
+    "leftGap": 4,
+    "rightGap": 4,
+    "bottomGap": 4,
+    "cornerCenterDeltaX": 0,
+    "cornerCenterDeltaY": 0
+  },
+  {
+    "theme": "light",
+    "viewport": 360,
+    "clientWidth": 360,
+    "inner": {
+      "bottom": 940.703125,
+      "height": 525,
+      "left": 20,
+      "right": 340,
+      "top": 415.703125,
+      "width": 320,
+      "x": 20,
+      "y": 415.703125
+    },
+    "innerRadius": "20px",
+    "inset": "4px",
+    "otherCardRadius": "16px",
+    "outer": {
+      "bottom": 944.703125,
+      "height": 633,
+      "left": 16,
+      "right": 344,
+      "top": 311.703125,
+      "width": 328,
+      "x": 16,
+      "y": 311.703125
+    },
+    "outerRadius": "24px",
+    "scrollWidth": 360,
+    "leftGap": 4,
+    "rightGap": 4,
+    "bottomGap": 4,
+    "cornerCenterDeltaX": 0,
+    "cornerCenterDeltaY": 0
+  },
+  {
+    "theme": "dark",
+    "viewport": 1440,
+    "clientWidth": 1440,
+    "inner": {
+      "bottom": 682,
+      "height": 397,
+      "left": 112,
+      "right": 803.984375,
+      "top": 285,
+      "width": 691.984375,
+      "x": 112,
+      "y": 285
+    },
+    "innerRadius": "20px",
+    "inset": "4px",
+    "otherCardRadius": "16px",
+    "outer": {
+      "bottom": 686,
+      "height": 485,
+      "left": 108,
+      "right": 807.984375,
+      "top": 201,
+      "width": 699.984375,
+      "x": 108,
+      "y": 201
+    },
+    "outerRadius": "24px",
+    "scrollWidth": 1440,
+    "leftGap": 4,
+    "rightGap": 4,
+    "bottomGap": 4,
+    "cornerCenterDeltaX": 0,
+    "cornerCenterDeltaY": 0
+  },
+  {
+    "theme": "dark",
+    "viewport": 360,
+    "clientWidth": 360,
+    "inner": {
+      "bottom": 940.703125,
+      "height": 525,
+      "left": 20,
+      "right": 340,
+      "top": 415.703125,
+      "width": 320,
+      "x": 20,
+      "y": 415.703125
+    },
+    "innerRadius": "20px",
+    "inset": "4px",
+    "otherCardRadius": "16px",
+    "outer": {
+      "bottom": 944.703125,
+      "height": 633,
+      "left": 16,
+      "right": 344,
+      "top": 311.703125,
+      "width": 328,
+      "x": 16,
+      "y": 311.703125
+    },
+    "outerRadius": "24px",
+    "scrollWidth": 360,
+    "leftGap": 4,
+    "rightGap": 4,
+    "bottomGap": 4,
+    "cornerCenterDeltaX": 0,
+    "cornerCenterDeltaY": 0
+  }
+]
