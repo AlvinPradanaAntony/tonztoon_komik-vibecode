@@ -49,6 +49,18 @@ class ImageProxySecurityTests(unittest.IsolatedAsyncioTestCase):
             ),
             "https://cdn.voratoon.com/wp-content/img/I/Infinite_Mage/001/001.png",
         )
+        self.assertEqual(
+            validate_proxy_image_url(
+                "https://cdn.shinigami.gg/assets/cover/banner_1789725763295_hdk8hc.png"
+            ),
+            "https://cdn.shinigami.gg/assets/cover/banner_1789725763295_hdk8hc.png",
+        )
+
+    def test_shinigami_cdn_referer_header(self):
+        headers = get_proxy_headers(
+            "https://cdn.shinigami.gg/assets/cover/banner_1789725763295_hdk8hc.png"
+        )
+        self.assertEqual(headers.get("Referer"), "https://s1.shinigami.mx/")
 
     def test_voratoon_cdn_referer_header(self):
         headers = get_proxy_headers(

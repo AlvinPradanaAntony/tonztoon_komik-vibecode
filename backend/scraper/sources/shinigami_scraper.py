@@ -1,21 +1,23 @@
 """
 Tonztoon Komik — Shinigami Scraper
 
-Scraper untuk https://e.shinigami.asia/ dengan flow DB-backed seperti source lain.
+Scraper untuk https://s1.shinigami.mx/ dengan flow DB-backed seperti source lain.
 
 Catatan implementasi:
-- Situs memakai SPA/SvelteKit client-side routing.
-- Semua operasi utama memakai endpoint resmi `https://api.shngm.io/v1`.
+- Situs memakai SPA Vite/React client-side routing.
+- Semua operasi utama memakai endpoint resmi `https://api.shinigami.io/v1`.
 - Feed latest, katalog, detail manga, daftar chapter, dan chapter images
-  diambil dari API resmi tanpa parsing DOM.
+  diambil dari API JSON resmi tanpa parsing DOM, dengan fallback Scrapling AsyncFetcher.
 """
 
+import logging
 import re
 from datetime import datetime
 from typing import Any
 from urllib.parse import urljoin
 
 import httpx
+from scrapling.fetchers import AsyncFetcher
 
 from scraper.base_scraper import BaseComicScraper
 from scraper.sources.common import ScraperCommonMixin
@@ -28,12 +30,22 @@ from scraper.sources.shinigami_api import (
     build_shinigami_chapter_detail_url,
     build_shinigami_chapter_list_url,
     build_shinigami_chapter_url,
+    build_shinigami_manga_detail_url,
     build_shinigami_manga_list_url,
     build_shinigami_search_url,
+    build_shinigami_series_url,
     clean_shinigami_series_title,
+    parse_shinigami_has_next,
     parse_shinigami_iso_datetime,
     parse_shinigami_manga_list_payload,
+    parse_shinigami_next_cursor,
+    parse_shinigami_total_count,
+    pick_shinigami_cover_url,
 )
+
+logger = logging.getLogger("scraper.shinigami")
+
+_SCRAPLING_FALLBACK_STATUSES = frozenset({403, 429})
 
 
 class ShinigamiScraper(ScraperCommonMixin, BaseComicScraper):
@@ -47,18 +59,54 @@ class ShinigamiScraper(ScraperCommonMixin, BaseComicScraper):
     def _build_api_headers(self, referer_url: str | None = None) -> dict[str, str]:
         return build_shinigami_api_headers(referer_url)
 
+    async def _fetch_api_json_via_scrapling(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str],
+    ) -> dict[str, Any]:
+        response = await AsyncFetcher.get(
+            url,
+            headers=headers,
+            impersonate="chrome",
+            timeout=30,
+        )
+        if getattr(response, "status", 0) >= 400:
+            raise RuntimeError(
+                f"Scrapling HTTP {getattr(response, 'status', '?')} untuk {url}"
+            )
+        return response.json()
+
     async def _fetch_api_json(self, url: str, *, referer_url: str | None = None) -> dict[str, Any]:
         headers = self._build_api_headers(referer_url)
+        payload: dict[str, Any] | None = None
 
-        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-            response = await client.get(url, headers=headers)
-            response.raise_for_status()
-            payload = response.json()
+        try:
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                response = await client.get(url, headers=headers)
+                if response.status_code in _SCRAPLING_FALLBACK_STATUSES:
+                    logger.info(
+                        "Shinigami httpx status %s untuk %s; mencoba fallback Scrapling AsyncFetcher.",
+                        response.status_code,
+                        url,
+                    )
+                    payload = await self._fetch_api_json_via_scrapling(url, headers=headers)
+                else:
+                    response.raise_for_status()
+                    payload = response.json()
+        except httpx.HTTPError as exc:
+            logger.info(
+                "Shinigami httpx gagal untuk %s (%s); mencoba fallback Scrapling AsyncFetcher.",
+                url,
+                exc,
+            )
+            payload = await self._fetch_api_json_via_scrapling(url, headers=headers)
 
-        if payload.get("retcode") != 0:
+        if not isinstance(payload, dict) or payload.get("retcode") != 0:
+            message = payload.get("message") if isinstance(payload, dict) else None
             raise RuntimeError(
                 f"API Shinigami gagal untuk {url}: "
-                f"{payload.get('message') or 'unknown error'}"
+                f"{message or 'unknown error'}"
             )
 
         return payload
@@ -104,30 +152,31 @@ class ShinigamiScraper(ScraperCommonMixin, BaseComicScraper):
         return self._normalize_status(str(raw_status))
 
     async def _fetch_all_chapter_pages(self, manga_id: str, referer_url: str) -> list[dict[str, Any]]:
-        page = 1
-        total_pages = 1
+        cursor: str | None = None
+        seen_cursors: set[str] = set()
+        seen_chapter_ids: set[str] = set()
         chapters: list[dict[str, Any]] = []
 
-        while page <= total_pages:
+        while True:
             endpoint = build_shinigami_chapter_list_url(
                 manga_id,
-                page=page,
-                page_size=self.API_PAGE_SIZE,
+                limit=self.API_PAGE_SIZE,
+                cursor=cursor,
             )
             payload = await self._fetch_api_json(endpoint, referer_url=referer_url)
-            meta = payload.get("meta") or {}
-            total_pages = max(int(meta.get("total_page") or 1), 1)
 
             for item in payload.get("data") or []:
                 chapter_number = item.get("chapter_number")
                 chapter_id = clean_text(item.get("chapter_id"))
-                if chapter_number is None or not chapter_id:
+                if chapter_number is None or not chapter_id or chapter_id in seen_chapter_ids:
                     continue
 
-                title = self._build_chapter_title(chapter_number, item.get("chapter_title"))
                 chapter_url = build_shinigami_chapter_url(chapter_id)
                 if not chapter_url:
                     continue
+
+                seen_chapter_ids.add(chapter_id)
+                title = self._build_chapter_title(chapter_number, item.get("chapter_title"))
                 chapters.append(
                     self._build_chapter_payload(
                         chapter_number=float(chapter_number),
@@ -137,7 +186,13 @@ class ShinigamiScraper(ScraperCommonMixin, BaseComicScraper):
                     )
                 )
 
-            page += 1
+            has_next = parse_shinigami_has_next(payload)
+            next_cursor = parse_shinigami_next_cursor(payload)
+            if not has_next or not next_cursor or next_cursor in seen_cursors:
+                break
+
+            seen_cursors.add(next_cursor)
+            cursor = next_cursor
 
         chapters.sort(key=lambda item: item.get("chapter_number", 0), reverse=True)
         return chapters
@@ -147,6 +202,49 @@ class ShinigamiScraper(ScraperCommonMixin, BaseComicScraper):
 
     def _clean_series_title(self, raw_title: str | None) -> str:
         return clean_shinigami_series_title(raw_title)
+
+    def _extract_detail_fields(
+        self,
+        detail: dict[str, Any],
+        source_url: str,
+        *,
+        chapters: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        taxonomy = detail.get("taxonomy") or {}
+        genres = [item.get("name") for item in taxonomy.get("Genre", []) if item.get("name")]
+        author_values = [item.get("name") for item in taxonomy.get("Author", []) if item.get("name")]
+        artist_values = [item.get("name") for item in taxonomy.get("Artist", []) if item.get("name")]
+        format_values = [item.get("name") for item in taxonomy.get("Format", []) if item.get("name")]
+        type_values = [item.get("name") for item in taxonomy.get("Type", []) if item.get("name")]
+
+        comic_type = None
+        if format_values:
+            comic_type = self._parse_type_from_text(format_values[0])
+        if comic_type is None and type_values:
+            comic_type = self._parse_type_from_text(type_values[0])
+
+        extra: dict[str, Any] = {
+            "alternative_titles": clean_text(detail.get("alternative_title")) or None,
+            "cover_image_url": pick_shinigami_cover_url(detail),
+            "author": ", ".join(author_values) if author_values else None,
+            "artist": ", ".join(artist_values) if artist_values else None,
+            "status": self._map_status_value(detail.get("status")),
+            "type": comic_type,
+            "synopsis": clean_text(detail.get("description")) or None,
+            "rating": self._parse_rating(
+                str(detail.get("user_rate")) if detail.get("user_rate") is not None else None
+            ),
+            "total_view": int(detail["view_count"]) if detail.get("view_count") is not None else None,
+        }
+        if chapters is not None:
+            extra["genres"] = genres
+            extra["chapters"] = chapters
+
+        return self._build_comic_payload(
+            title=clean_text(detail.get("title")) or "",
+            source_url=source_url,
+            **extra,
+        )
 
     async def _fetch_search_page_via_api(
         self,
@@ -159,9 +257,7 @@ class ShinigamiScraper(ScraperCommonMixin, BaseComicScraper):
             build_shinigami_manga_list_url(page=page, query=query, sort=sort),
             referer_url=self._build_search_url(query),
         )
-        raw_items, total_pages = parse_shinigami_manga_list_payload(payload)
-        if page > total_pages:
-            return []
+        raw_items, _has_next = parse_shinigami_manga_list_payload(payload)
 
         results: list[dict[str, Any]] = []
         seen_urls: set[str] = set()
@@ -194,61 +290,37 @@ class ShinigamiScraper(ScraperCommonMixin, BaseComicScraper):
         return await self._fetch_search_page_via_api(page=page, query=query, sort=sort)
 
     async def get_latest_updates(self, page: int = 1) -> list[dict[str, Any]]:
-        """
-        Feed latest diambil dari endpoint resmi `manga/list`.
-        """
-        return await self._fetch_search_page(page=page)
+        """Feed latest diambil dari endpoint resmi `manga/list`."""
+        return await self._fetch_search_page(page=page, sort="latest")
 
     async def get_popular(self, page: int = 1) -> list[dict[str, Any]]:
-        """
-        Feed popular memakai ranking `rating` dari endpoint resmi `manga/list`.
-        """
-        return await self._fetch_search_page(page=page, sort="rating")
+        """Feed popular memakai ranking `popularity` dari endpoint resmi `manga/list`."""
+        return await self._fetch_search_page(page=page, sort="popularity")
+
+    async def search(self, query: str, page: int = 1) -> list[dict[str, Any]]:
+        """Cari komik berdasarkan judul melalui endpoint resmi `manga/list`."""
+        cleaned_query = clean_text(query)
+        if not cleaned_query:
+            return []
+        return await self._fetch_search_page(page=page, query=cleaned_query, sort="latest")
 
     async def get_comic_detail(self, url: str) -> dict[str, Any]:
         manga_id = self._extract_manga_id(url)
+        canonical_url = build_shinigami_series_url(manga_id) or url
         detail_payload = await self._fetch_api_json(
-            f"{self.API_BASE_URL}/manga/detail/{manga_id}",
-            referer_url=url,
+            build_shinigami_manga_detail_url(manga_id),
+            referer_url=canonical_url,
         )
         detail = detail_payload.get("data") or {}
         if not detail:
             raise RuntimeError(f"Tidak menemukan payload detail Shinigami untuk: {url}")
 
-        taxonomy = detail.get("taxonomy") or {}
-        genres = [item.get("name") for item in taxonomy.get("Genre", []) if item.get("name")]
-        author_values = [item.get("name") for item in taxonomy.get("Author", []) if item.get("name")]
-        artist_values = [item.get("name") for item in taxonomy.get("Artist", []) if item.get("name")]
-        format_values = [item.get("name") for item in taxonomy.get("Format", []) if item.get("name")]
-        type_values = [item.get("name") for item in taxonomy.get("Type", []) if item.get("name")]
-
-        comic_type = None
-        if format_values:
-            comic_type = self._parse_type_from_text(format_values[0])
-        if comic_type is None and type_values:
-            comic_type = self._parse_type_from_text(type_values[0])
-
-        chapters = await self._fetch_all_chapter_pages(manga_id, url)
-
         title = clean_text(detail.get("title"))
         if not title:
             raise RuntimeError(f"Tidak menemukan title pada payload detail Shinigami: {url}")
 
-        return self._build_comic_payload(
-            title=title,
-            source_url=url,
-            alternative_titles=clean_text(detail.get("alternative_title")) or None,
-            cover_image_url=clean_text(detail.get("cover_image_url")) or None,
-            author=", ".join(author_values) if author_values else None,
-            artist=", ".join(artist_values) if artist_values else None,
-            status=self._map_status_value(detail.get("status")),
-            type=comic_type,
-            synopsis=clean_text(detail.get("description")) or None,
-            rating=self._parse_rating(str(detail.get("user_rate")) if detail.get("user_rate") is not None else None),
-            total_view=int(detail["view_count"]) if detail.get("view_count") is not None else None,
-            genres=genres,
-            chapters=chapters,
-        )
+        chapters = await self._fetch_all_chapter_pages(manga_id, canonical_url)
+        return self._extract_detail_fields(detail, canonical_url, chapters=chapters)
 
     async def get_comic_metadata_patch(
         self,
@@ -258,40 +330,16 @@ class ShinigamiScraper(ScraperCommonMixin, BaseComicScraper):
     ) -> dict[str, Any]:
         requested_fields = set(fields or ())
         manga_id = self._extract_manga_id(url)
+        canonical_url = build_shinigami_series_url(manga_id) or url
         detail_payload = await self._fetch_api_json(
-            f"{self.API_BASE_URL}/manga/detail/{manga_id}",
-            referer_url=url,
+            build_shinigami_manga_detail_url(manga_id),
+            referer_url=canonical_url,
         )
         detail = detail_payload.get("data") or {}
         if not detail:
             return {}
 
-        taxonomy = detail.get("taxonomy") or {}
-        author_values = [item.get("name") for item in taxonomy.get("Author", []) if item.get("name")]
-        artist_values = [item.get("name") for item in taxonomy.get("Artist", []) if item.get("name")]
-        format_values = [item.get("name") for item in taxonomy.get("Format", []) if item.get("name")]
-        type_values = [item.get("name") for item in taxonomy.get("Type", []) if item.get("name")]
-
-        comic_type = None
-        if format_values:
-            comic_type = self._parse_type_from_text(format_values[0])
-        if comic_type is None and type_values:
-            comic_type = self._parse_type_from_text(type_values[0])
-        detail_patch = self._build_comic_payload(
-            title=clean_text(detail.get("title")) or "",
-            source_url=url,
-            alternative_titles=clean_text(detail.get("alternative_title")) or None,
-            cover_image_url=clean_text(detail.get("cover_image_url")) or None,
-            author=", ".join(author_values) if author_values else None,
-            artist=", ".join(artist_values) if artist_values else None,
-            status=self._map_status_value(detail.get("status")),
-            type=comic_type,
-            synopsis=clean_text(detail.get("description")) or None,
-            rating=self._parse_rating(
-                str(detail.get("user_rate")) if detail.get("user_rate") is not None else None
-            ),
-            total_view=int(detail["view_count"]) if detail.get("view_count") is not None else None,
-        )
+        detail_patch = self._extract_detail_fields(detail, canonical_url)
         return self._build_metadata_patch(detail_patch, fields=requested_fields)
 
     async def get_chapter_images(self, chapter_url: str) -> list[dict[str, Any]]:
@@ -323,17 +371,14 @@ class ShinigamiScraper(ScraperCommonMixin, BaseComicScraper):
         return await self._fetch_search_page(page=page)
 
     async def get_source_comic_count(self) -> int | None:
-        """Ambil total komik Shinigami dari metadata endpoint manga/list."""
-        payload = await self._fetch_api_json(
-            build_shinigami_manga_list_url(page=1),
-            referer_url=self._build_search_url(None),
-        )
-        meta = payload.get("meta") or {}
-        total = meta.get("total_record")
-        if total is None:
+        """Ambil perkiraan total komik Shinigami dari metadata/facet endpoint `manga/list`."""
+        try:
+            payload = await self._fetch_api_json(
+                build_shinigami_manga_list_url(page=1, page_size=1),
+                referer_url=self._build_search_url(None),
+            )
+        except Exception:
+            logger.warning("Gagal mengambil source_comic_count dari Shinigami", exc_info=True)
             return None
 
-        try:
-            return max(int(total), 0)
-        except (TypeError, ValueError):
-            return None
+        return parse_shinigami_total_count(payload)
