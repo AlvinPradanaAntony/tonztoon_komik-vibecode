@@ -1,8 +1,6 @@
 import unittest
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import httpx
+from unittest.mock import AsyncMock, patch
 
 from app.services.image_service import (
     get_proxy_headers,
@@ -327,32 +325,122 @@ class ShinigamiScraperFlowTests(unittest.IsolatedAsyncioTestCase):
                 ],
             )
 
-    async def test_fetch_api_json_falls_back_to_scrapling_on_403(self):
-        mock_httpx_resp = MagicMock()
-        mock_httpx_resp.status_code = 403
-
-        mock_client = AsyncMock()
-        mock_client.get = AsyncMock(return_value=mock_httpx_resp)
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-
-        scrapling_resp = SimpleNamespace(
+    async def test_fetch_api_json_uses_direct_scrapling_without_browser_on_success(self):
+        direct_resp = SimpleNamespace(
             status=200,
+            headers={"content-type": "application/json"},
+            body=b'{"retcode":0,"data":[]}',
             json=lambda: {"retcode": 0, "data": [], "meta": {"has_next": False}},
         )
 
         with (
-            patch("scraper.sources.shinigami_scraper.httpx.AsyncClient", return_value=mock_client),
             patch(
-                "scraper.sources.shinigami_scraper.AsyncFetcher.get",
-                new=AsyncMock(return_value=scrapling_resp),
-            ) as mock_scrapling_get,
+                "scraper.sources.shinigami_scraper.Fetcher.get",
+                return_value=direct_resp,
+            ) as direct_get,
+            patch.object(
+                self.scraper,
+                "_fetch_api_json_via_browser",
+                new=AsyncMock(),
+            ) as browser_fetch,
+        ):
+            result = await self.scraper._fetch_api_json(
+                "https://api.shinigami.io/v1/manga/list?offset=0&limit=1"
+            )
+
+        self.assertEqual(result["retcode"], 0)
+        direct_get.assert_called_once()
+        browser_fetch.assert_not_awaited()
+
+    async def test_fetch_api_json_falls_back_to_browser_on_403_cloudflare(self):
+        blocked_resp = SimpleNamespace(
+            status=403,
+            headers={
+                "content-type": "text/html; charset=UTF-8",
+                "cf-mitigated": "challenge",
+            },
+            body=b"<!doctype html><title>Just a moment...</title>",
+            json=lambda: {"retcode": -1},
+        )
+
+        with (
+            patch(
+                "scraper.sources.shinigami_scraper.Fetcher.get",
+                return_value=blocked_resp,
+            ) as direct_get,
+            patch.object(
+                self.scraper,
+                "_fetch_api_json_via_browser",
+                new=AsyncMock(return_value={"retcode": 0, "data": [], "meta": {"has_next": False}}),
+            ) as browser_fetch,
+        ):
+            result = await self.scraper._fetch_api_json(
+                "https://api.shinigami.io/v1/manga/list?offset=0&limit=1"
+            )
+
+        self.assertEqual(result["retcode"], 0)
+        direct_get.assert_called_once()
+        browser_fetch.assert_awaited_once()
+
+    async def test_fetch_api_json_falls_back_to_browser_on_5xx_or_timeout(self):
+        server_error_resp = SimpleNamespace(
+            status=520,
+            headers={"content-type": "text/plain"},
+            body=b"upstream error",
+            json=lambda: {},
+        )
+
+        with (
+            patch(
+                "scraper.sources.shinigami_scraper.Fetcher.get",
+                return_value=server_error_resp,
+            ),
+            patch.object(
+                self.scraper,
+                "_fetch_api_json_via_browser",
+                new=AsyncMock(return_value={"retcode": 0, "data": []}),
+            ) as browser_fetch,
         ):
             result = await self.scraper._fetch_api_json(
                 "https://api.shinigami.io/v1/manga/list?offset=0&limit=1"
             )
             self.assertEqual(result["retcode"], 0)
-            mock_scrapling_get.assert_awaited_once()
+            browser_fetch.assert_awaited_once()
+
+        with (
+            patch(
+                "scraper.sources.shinigami_scraper.Fetcher.get",
+                side_effect=TimeoutError("read timed out"),
+            ),
+            patch.object(
+                self.scraper,
+                "_fetch_api_json_via_browser",
+                new=AsyncMock(return_value={"retcode": 0, "data": []}),
+            ) as browser_fetch_timeout,
+        ):
+            result = await self.scraper._fetch_api_json(
+                "https://api.shinigami.io/v1/manga/list?offset=0&limit=1"
+            )
+            self.assertEqual(result["retcode"], 0)
+            browser_fetch_timeout.assert_awaited_once()
+
+    async def test_fetch_api_json_does_not_fallback_on_non_timeout_error(self):
+        with (
+            patch(
+                "scraper.sources.shinigami_scraper.Fetcher.get",
+                side_effect=ValueError("invalid url"),
+            ),
+            patch.object(
+                self.scraper,
+                "_fetch_api_json_via_browser",
+                new=AsyncMock(),
+            ) as browser_fetch,
+        ):
+            with self.assertRaises(RuntimeError):
+                await self.scraper._fetch_api_json(
+                    "https://api.shinigami.io/v1/manga/list?offset=0&limit=1"
+                )
+            browser_fetch.assert_not_awaited()
 
 
 if __name__ == "__main__":

@@ -5,19 +5,22 @@ Scraper untuk https://s1.shinigami.mx/ dengan flow DB-backed seperti source lain
 
 Catatan implementasi:
 - Situs memakai SPA Vite/React client-side routing.
-- Semua operasi utama memakai endpoint resmi `https://api.shinigami.io/v1`.
-- Feed latest, katalog, detail manga, daftar chapter, dan chapter images
-  diambil dari API JSON resmi tanpa parsing DOM, dengan fallback Scrapling AsyncFetcher.
+- Semua operasi utama memakai endpoint resmi `https://api.shinigami.io/v1` melalui
+  Scrapling `Fetcher` HTTP (TLS impersonation Chrome, tanpa parsing DOM).
+- Browser `AsyncStealthySession` dengan solver Cloudflare hanya dibuka sebagai
+  fallback ketika respons mendapat status proteksi/server (`403`/`429`/`5xx`),
+  transport timeout, atau body Cloudflare challenge (pola sama seperti `komiku_asia`).
 """
 
+import asyncio
 import logging
+import os
 import re
 from datetime import datetime
 from typing import Any
 from urllib.parse import urljoin
 
-import httpx
-from scrapling.fetchers import AsyncFetcher
+from scrapling.fetchers import AsyncStealthySession, Fetcher
 
 from scraper.base_scraper import BaseComicScraper
 from scraper.sources.common import ScraperCommonMixin
@@ -45,62 +48,190 @@ from scraper.sources.shinigami_api import (
 
 logger = logging.getLogger("scraper.shinigami")
 
-_SCRAPLING_FALLBACK_STATUSES = frozenset({403, 429})
-
 
 class ShinigamiScraper(ScraperCommonMixin, BaseComicScraper):
-    """Scraper implementation untuk Shinigami berbasis API resmi."""
+    """API-first scraper untuk Shinigami dengan direct Scrapling HTTP dan stealth fallback."""
 
     SOURCE_NAME = "shinigami"
     BASE_URL = SHINIGAMI_BASE_URL
     API_BASE_URL = SHINIGAMI_API_BASE_URL
     API_PAGE_SIZE = DEFAULT_CHAPTER_LIST_PAGE_SIZE
 
-    def _build_api_headers(self, referer_url: str | None = None) -> dict[str, str]:
-        return build_shinigami_api_headers(referer_url)
+    _shared_session: AsyncStealthySession | None = None
+    _SESSION_RESET_STATUSES = {403, 429}
+    _CLOUDFLARE_CHALLENGE_MARKERS = (
+        "just a moment",
+        "cf-mitigated",
+        "challenge-platform",
+        "cf-chl-",
+        "turnstile",
+        "checking your browser",
+        "performing security verification",
+        "enable javascript and cookies",
+    )
 
-    async def _fetch_api_json_via_scrapling(
-        self,
-        url: str,
-        *,
-        headers: dict[str, str],
-    ) -> dict[str, Any]:
-        response = await AsyncFetcher.get(
-            url,
-            headers=headers,
-            impersonate="chrome",
-            timeout=30,
+    @classmethod
+    def _env_bool(cls, name: str, default: bool = False) -> bool:
+        raw = os.getenv(name)
+        if raw is None:
+            return default
+        return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+    @classmethod
+    def _headless(cls) -> bool:
+        return cls._env_bool("SHINIGAMI_HEADLESS", False)
+
+    @classmethod
+    def _browser_extra_flags(cls) -> list[str]:
+        """Gunakan viewport realistis di CI; lokal tetap disembunyikan."""
+        if os.getenv("GITHUB_ACTIONS", "").lower() == "true":
+            return ["--window-size=1366,768"]
+        return ["--window-position=-32000,-32000", "--window-size=200,200"]
+
+    @classmethod
+    async def get_session(cls) -> AsyncStealthySession:
+        if cls._shared_session is None:
+            logger.info("Membuka AsyncStealthySession (Persistent) Shinigami baru...")
+            proxy = os.getenv("SHINIGAMI_PROXY")
+            if proxy:
+                proxy = proxy.strip()
+                masked_proxy = re.sub(r":[^:/@]+@", ":***@", proxy) if "@" in proxy else proxy
+                logger.info("Menggunakan proxy untuk stealth session Shinigami: %s", masked_proxy)
+            else:
+                proxy = None
+
+            cls._shared_session = AsyncStealthySession(
+                headless=cls._headless(),
+                real_chrome=True,
+                block_webrtc=True,
+                solve_cloudflare=True,
+                google_search=True,
+                timeout=120_000,
+                extra_flags=cls._browser_extra_flags(),
+                proxy=proxy,
+            )
+            await cls._shared_session.__aenter__()
+        return cls._shared_session
+
+    @classmethod
+    async def close_shared_session(cls) -> None:
+        """Tutup sesi persisten untuk mengosongkan resource browser."""
+        if cls._shared_session is not None:
+            logger.info("Menutup AsyncStealthySession Shinigami...")
+            session = cls._shared_session
+            cls._shared_session = None
+            try:
+                await session.__aexit__(None, None, None)
+            except Exception as exc:
+                logger.warning("Gagal menutup AsyncStealthySession Shinigami lama: %s", exc)
+
+    @classmethod
+    async def reset_shared_session(cls, reason: str) -> None:
+        """Paksa reset browser/session agar request berikutnya membuka identitas baru."""
+        logger.warning("Reset AsyncStealthySession Shinigami: %s", reason)
+        await cls.close_shared_session()
+        logger.warning(
+            "Retry berikutnya akan membuka browser/session baru dengan identitas lebih fresh."
         )
-        if getattr(response, "status", 0) >= 400:
-            raise RuntimeError(
-                f"Scrapling HTTP {getattr(response, 'status', '?')} untuk {url}"
-            )
-        return response.json()
 
-    async def _fetch_api_json(self, url: str, *, referer_url: str | None = None) -> dict[str, Any]:
-        headers = self._build_api_headers(referer_url)
-        payload: dict[str, Any] | None = None
+    @classmethod
+    def _is_timeout_exception(cls, exc: BaseException) -> bool:
+        """Kenali timeout tanpa menganggap semua exception sebagai anti-bot block."""
+        current: BaseException | None = exc
+        visited: set[int] = set()
+        timeout_names = {
+            "timeout",
+            "timeouterror",
+            "timeoutexception",
+            "connecttimeout",
+            "readtimeout",
+            "writetimeout",
+            "pooltimeout",
+        }
 
+        while current is not None and id(current) not in visited:
+            visited.add(id(current))
+            if isinstance(current, (TimeoutError, asyncio.TimeoutError)):
+                return True
+
+            exception_name = type(current).__name__.lower()
+            exception_module = type(current).__module__.lower()
+            if (
+                exception_name in timeout_names
+                and any(
+                    marker in exception_module
+                    for marker in ("httpx", "requests", "curl", "scrapling", "aiohttp")
+                )
+            ):
+                return True
+
+            current = current.__cause__ or current.__context__
+
+        return False
+
+    @classmethod
+    def _is_fallback_status(cls, status: Any) -> bool:
         try:
-            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-                response = await client.get(url, headers=headers)
-                if response.status_code in _SCRAPLING_FALLBACK_STATUSES:
-                    logger.info(
-                        "Shinigami httpx status %s untuk %s; mencoba fallback Scrapling AsyncFetcher.",
-                        response.status_code,
-                        url,
-                    )
-                    payload = await self._fetch_api_json_via_scrapling(url, headers=headers)
-                else:
-                    response.raise_for_status()
-                    payload = response.json()
-        except httpx.HTTPError as exc:
-            logger.info(
-                "Shinigami httpx gagal untuk %s (%s); mencoba fallback Scrapling AsyncFetcher.",
-                url,
-                exc,
+            status_code = int(status)
+        except (TypeError, ValueError):
+            return False
+        return status_code in cls._SESSION_RESET_STATUSES or 500 <= status_code <= 599
+
+    @classmethod
+    async def _raise_for_bad_response(cls, url: str, page) -> None:
+        """Naikkan error dan reset session bila status respons mengindikasikan block/proxy issue."""
+        status = getattr(page, "status", 0)
+        if status == 200:
+            return
+
+        if cls._is_fallback_status(status):
+            await cls.reset_shared_session(
+                f"status {status} saat fetch {url}"
             )
-            payload = await self._fetch_api_json_via_scrapling(url, headers=headers)
+
+        raise RuntimeError(
+            f"Gagal fetch API Shinigami: {url} "
+            f"(status={getattr(page, 'status', 'unknown')})"
+        )
+
+    async def close(self) -> None:
+        """Cleanup hook untuk pipeline utama/sync full library."""
+        await self.close_shared_session()
+
+    @classmethod
+    def _response_body_text(cls, page) -> str:
+        body = getattr(page, "body", b"")
+        if isinstance(body, bytes):
+            return body.decode("utf-8", errors="ignore")
+        return str(body or "")
+
+    @classmethod
+    def _needs_browser_fallback(cls, page) -> bool:
+        status = getattr(page, "status", 0)
+        if cls._is_fallback_status(status):
+            return True
+
+        headers = {
+            str(key).lower(): str(value).lower()
+            for key, value in (getattr(page, "headers", {}) or {}).items()
+        }
+        if headers.get("cf-mitigated") == "challenge":
+            return True
+
+        body = cls._response_body_text(page).lower()
+        if any(marker in body for marker in cls._CLOUDFLARE_CHALLENGE_MARKERS):
+            return True
+        return "cloudflare" in body and any(
+            marker in body
+            for marker in ("challenge", "captcha", "security verification")
+        )
+
+    @staticmethod
+    def _decode_api_json(url: str, page) -> dict[str, Any]:
+        try:
+            payload = page.json()
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError(f"Respons API Shinigami bukan JSON: {url}") from exc
 
         if not isinstance(payload, dict) or payload.get("retcode") != 0:
             message = payload.get("message") if isinstance(payload, dict) else None
@@ -108,8 +239,90 @@ class ShinigamiScraper(ScraperCommonMixin, BaseComicScraper):
                 f"API Shinigami gagal untuk {url}: "
                 f"{message or 'unknown error'}"
             )
-
         return payload
+
+    def _build_api_headers(self, referer_url: str | None = None) -> dict[str, str]:
+        return build_shinigami_api_headers(referer_url)
+
+    async def _fetch_api_json_via_browser(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+        timeout_ms: int = 120_000,
+    ) -> dict[str, Any]:
+        logger.info("Stealth API fallback (Cloudflare) Shinigami: %s", url)
+        try:
+            session = await self.get_session()
+            page = await asyncio.wait_for(
+                session.fetch(
+                    url,
+                    extra_headers=headers,
+                    timeout=timeout_ms,
+                    wait=0,
+                ),
+                timeout=120.0,
+            )
+        except asyncio.TimeoutError as exc:
+            await self.reset_shared_session(f"timeout API Shinigami: {url}")
+            raise RuntimeError(f"Gagal fetch API Shinigami karena timeout: {url}") from exc
+
+        await self._raise_for_bad_response(url, page)
+        return self._decode_api_json(url, page)
+
+    async def _fetch_api_json(
+        self,
+        url: str,
+        *,
+        referer_url: str | None = None,
+        timeout_seconds: int = 30,
+        timeout_ms: int = 120_000,
+    ) -> dict[str, Any]:
+        """Fetch API langsung via Scrapling Fetcher, fallback ke browser hanya saat proteksi/timeout."""
+        headers = self._build_api_headers(referer_url)
+        logger.debug("Direct API fetch Shinigami: %s", url)
+        try:
+            page = await asyncio.to_thread(
+                Fetcher.get,
+                url,
+                headers=headers,
+                impersonate="chrome",
+                stealthy_headers=True,
+                timeout=timeout_seconds,
+            )
+        except Exception as exc:
+            if not self._is_timeout_exception(exc):
+                logger.error(
+                    "Direct API fetch Shinigami gagal karena error non-timeout; "
+                    "browser fallback tidak dijalankan: %s",
+                    exc,
+                )
+                raise RuntimeError(
+                    f"Direct API fetch Shinigami gagal: {url}"
+                ) from exc
+            logger.warning(
+                "Direct API fetch Shinigami timeout; memakai browser fallback: %s",
+                exc,
+            )
+            return await self._fetch_api_json_via_browser(
+                url,
+                headers=headers,
+                timeout_ms=timeout_ms,
+            )
+
+        if self._needs_browser_fallback(page):
+            logger.warning(
+                "Direct API Shinigami mendapat challenge/status %s; memakai browser fallback.",
+                getattr(page, "status", "unknown"),
+            )
+            return await self._fetch_api_json_via_browser(
+                url,
+                headers=headers,
+                timeout_ms=timeout_ms,
+            )
+
+        await self._raise_for_bad_response(url, page)
+        return self._decode_api_json(url, page)
 
     def _extract_manga_id(self, url: str) -> str:
         match = re.search(r"/series/([0-9a-f-]+)", url, re.IGNORECASE)

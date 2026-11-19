@@ -90,6 +90,8 @@ REFERER_BY_HOST_SUFFIX = {
 SCRAPLING_IMAGE_FALLBACK_STATUSES = {
     # Komiku's CDN challenge is commonly returned as 403.
     "cdnkomiku.xyz": frozenset({403}),
+    # Shinigami CDN berada di belakang Cloudflare; fallback ke Scrapling jika 403.
+    "shinigami.gg": frozenset({403}),
     # Voratoon CDN paths return 403 or 404 to httpx/plain clients without browser TLS / session
     "voratoon.com": frozenset({403, 404}),
     "voratoon.id": frozenset({403, 404}),
