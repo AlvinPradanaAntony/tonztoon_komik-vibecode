@@ -44,7 +44,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: 🖥️ Install virtual display
-        if: github.event_name != 'workflow_dispatch' || github.event.inputs.source == '' || github.event.inputs.source == 'all' || github.event.inputs.source == 'komiku_asia'
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.source == '' || github.event.inputs.source == 'all' || github.event.inputs.source == 'komiku_asia' || github.event.inputs.source == 'shinigami'
         run: sudo apt-get update && sudo apt-get install -y xvfb
 
       - name: 🌐 Install Scrapling browser dependencies
@@ -63,6 +63,8 @@ jobs:
           SOURCE_FILTER: ${{ github.event.inputs.source || '' }}
           KOMIKU_ASIA_HEADLESS: "false"
           KOMIKU_ASIA_PROXY: ${{ secrets.KOMIKU_ASIA_PROXY }}
+          SHINIGAMI_HEADLESS: "false"
+          SHINIGAMI_PROXY: ${{ secrets.SHINIGAMI_PROXY }}
         run: |
           set +e
           {

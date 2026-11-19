@@ -62,7 +62,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: 🖥️ Install virtual display
-        if: github.event_name != 'workflow_dispatch' || github.event.inputs.source == '' || github.event.inputs.source == 'all' || github.event.inputs.source == 'komiku_asia'
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.source == '' || github.event.inputs.source == 'all' || github.event.inputs.source == 'komiku_asia' || github.event.inputs.source == 'shinigami'
         run: sudo apt-get update && sudo apt-get install -y xvfb
 
       - name: 🌐 Install Scrapling browser dependencies
@@ -88,6 +88,8 @@ jobs:
           SCRAPER_EARLY_STOP: ${{ github.event.inputs.early_stop || '' }}
           KOMIKU_ASIA_HEADLESS: "false"
           KOMIKU_ASIA_PROXY: ${{ secrets.KOMIKU_ASIA_PROXY }}
+          SHINIGAMI_HEADLESS: "false"
+          SHINIGAMI_PROXY: ${{ secrets.SHINIGAMI_PROXY }}
         run: |
           set +e
           {
@@ -99,7 +101,7 @@ jobs:
 
             if [ -n "${SCRAPER_SOURCE}" ] && [ "${SCRAPER_SOURCE}" != "all" ]; then
               args+=(--source "${SCRAPER_SOURCE}")
-              if [[ "${SCRAPER_SOURCE}" == "komiku" || "${SCRAPER_SOURCE}" == "voratoon" || "${SCRAPER_SOURCE}" == "shinigami" ]]; then
+              if [[ "${SCRAPER_SOURCE}" == "komiku" || "${SCRAPER_SOURCE}" == "voratoon" ]]; then
                 args+=(--no-anti-blocking)
               fi
             fi
@@ -120,24 +122,26 @@ jobs:
             printf ' %q' "${args[@]}"
             echo ""
 
-            if [ "${SCRAPER_SOURCE}" = "komiku_asia" ]; then
-              echo "Running komiku_asia through xvfb."
+            if [ "${SCRAPER_SOURCE}" = "komiku_asia" ] || [ "${SCRAPER_SOURCE}" = "shinigami" ]; then
+              echo "Running ${SCRAPER_SOURCE} through xvfb."
               xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.main "${args[@]}"
             elif [ -z "${SCRAPER_SOURCE}" ] || [ "${SCRAPER_SOURCE}" = "all" ]; then
-              echo "Running non-komiku_asia sources without xvfb."
-              for source in komiku voratoon shinigami; do
+              echo "Running non-xvfb sources without xvfb."
+              for source in komiku voratoon; do
                 echo "─── Source: ${source} ───"
                 python -m scraper.main --source "${source}" --no-anti-blocking "${args[@]}" || {
                   echo "::warning::Popular sync untuk source ${source} selesai dengan error."
                 }
               done
-              echo "─── Source: komiku_asia ───"
-              echo "Running komiku_asia through xvfb."
-              xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.main --source komiku_asia "${args[@]}" || {
-                echo "::warning::Popular sync untuk source komiku_asia selesai dengan error."
-              }
+              for source in shinigami komiku_asia; do
+                echo "─── Source: ${source} ───"
+                echo "Running ${source} through xvfb."
+                xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.main --source "${source}" "${args[@]}" || {
+                  echo "::warning::Popular sync untuk source ${source} selesai dengan error."
+                }
+              done
             else
-              echo "komiku_asia is not included; running without xvfb."
+              echo "xvfb source is not included; running without xvfb."
               python -m scraper.main "${args[@]}"
             fi
           } 2>&1 | tee popular-sync.log
