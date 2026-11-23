@@ -34,6 +34,10 @@ DEFAULT_USER_AGENT = (
 CLOUDFLARE_DOH_URL = "https://cloudflare-dns.com/dns-query"
 VORATOON_CO_FALLBACK_IPS: tuple[str, ...] = ("104.21.70.3", "172.67.217.41")
 
+DEFAULT_VORATOON_ACTION_ID = "40d392ef0c6a0577855f200d385b46a390fdfc0838"
+_CURRENT_ACTION_ID: str = DEFAULT_VORATOON_ACTION_ID
+_LAST_DISCOVERED_ACTION_TIME: float = 0.0
+
 _CURRENT_VORATOON_BASE_URL: str = DEFAULT_VORATOON_BASE_URL
 _LAST_DISCOVERED_TIME: float = 0.0
 _DNS_RESOLVER_CONFIGURED: bool = False
@@ -41,6 +45,128 @@ _RESOLVED_VORATOON_IPS: list[str] = list(VORATOON_CO_FALLBACK_IPS)
 
 _VORATOON_COOKIES: dict[str, str] = {}
 _LAST_SESSION_TIME: float = 0.0
+
+
+def get_voratoon_action_id() -> str:
+    """Ambil Server Action ID runApiCalls aktif saat ini."""
+    return _CURRENT_ACTION_ID
+
+
+def set_voratoon_action_id(action_id: str) -> None:
+    """Set Server Action ID runApiCalls."""
+    global _CURRENT_ACTION_ID
+    _CURRENT_ACTION_ID = action_id.strip()
+
+
+def discover_voratoon_action_id(timeout: float = 10.0, force: bool = False) -> str:
+    """
+    Auto-discover Next.js Server Action ID 'runApiCalls' langsung dari bundle script Voratoon.
+    Berguna jika Voratoon melakukan redeploy aplikasi dan ID Action berubah.
+    """
+    global _CURRENT_ACTION_ID, _LAST_DISCOVERED_ACTION_TIME
+    now = time.time()
+    if not force and _LAST_DISCOVERED_ACTION_TIME > 0 and (now - _LAST_DISCOVERED_ACTION_TIME) < 1800:
+        return _CURRENT_ACTION_ID
+
+    from scrapling.fetchers import Fetcher
+
+    base_url = get_voratoon_base_url()
+    try:
+        page = Fetcher.get(base_url, stealthy_headers=True, timeout=timeout)
+        scripts = page.css("script::attr(src)").getall()
+        for s in scripts:
+            if not s.endswith(".js"):
+                continue
+            script_url = f"{base_url}{s}" if s.startswith("/") else s
+            res = Fetcher.get(script_url, stealthy_headers=True, timeout=timeout)
+            text = res.body.decode("utf-8", errors="ignore")
+            match = re.search(
+                r'createServerReference\)?\s*\(\s*["\']([a-f0-9]+)["\'][^)]*["\']runApiCalls["\']',
+                text,
+            )
+            if match:
+                _CURRENT_ACTION_ID = match.group(1)
+                _LAST_DISCOVERED_ACTION_TIME = now
+                logger.info("Auto-discovered Voratoon runApiCalls action ID: %s", _CURRENT_ACTION_ID)
+                return _CURRENT_ACTION_ID
+    except Exception as exc:
+        logger.warning("Gagal auto-discover action ID Voratoon: %s", exc)
+    return _CURRENT_ACTION_ID
+
+
+def parse_rsc_envelope(text: str, base_url: str = DEFAULT_VORATOON_BASE_URL) -> dict[str, Any]:
+    """
+    Ekstraksi objek envelope JSON dari streaming response React Server Component (RSC).
+    Jika respon menandakan error HTTP (misal 404 series not found), akan membangkitkan
+    httpx.HTTPStatusError agar kompatibel dengan exception handling scraper.
+    """
+    import json
+
+    decoder = json.JSONDecoder()
+
+    # 1. Coba decode langsung dari payload call '[{"ok":'
+    pos = text.find('[{"ok":')
+    if pos != -1:
+        try:
+            data, _ = decoder.raw_decode(text, pos)
+            if isinstance(data, list) and data and isinstance(data[0], dict):
+                item = data[0]
+                if item.get("ok") is False or item.get("kind") == "http":
+                    status = item.get("status", 400)
+                    msg = item.get("message", "API Error")
+                    req = httpx.Request("POST", f"{base_url}/")
+                    resp = httpx.Response(status, request=req, content=text.encode())
+                    raise httpx.HTTPStatusError(
+                        f"API Voratoon HTTP {status}: {msg}",
+                        request=req,
+                        response=resp,
+                    )
+                if "envelope" in item:
+                    return item["envelope"]
+        except httpx.HTTPStatusError:
+            raise
+        except Exception:
+            pass
+
+    # 2. Fallback pencarian token RSC ':[' atau ':{'
+    matches = list(re.finditer(r'(?:^|[^0-9])\d+:([\[{])', text))
+    for m in matches:
+        start_idx = m.start(1)
+        try:
+            data, _ = decoder.raw_decode(text, start_idx)
+            if isinstance(data, list) and data and isinstance(data[0], dict):
+                item = data[0]
+                if item.get("ok") is False or item.get("kind") == "http":
+                    status = item.get("status", 400)
+                    msg = item.get("message", "API Error")
+                    req = httpx.Request("POST", f"{base_url}/")
+                    resp = httpx.Response(status, request=req, content=text.encode())
+                    raise httpx.HTTPStatusError(
+                        f"API Voratoon HTTP {status}: {msg}",
+                        request=req,
+                        response=resp,
+                    )
+                if "envelope" in item:
+                    return item["envelope"]
+            elif isinstance(data, dict):
+                if data.get("ok") is False or data.get("kind") == "http":
+                    status = data.get("status", 400)
+                    msg = data.get("message", "API Error")
+                    req = httpx.Request("POST", f"{base_url}/")
+                    resp = httpx.Response(status, request=req, content=text.encode())
+                    raise httpx.HTTPStatusError(
+                        f"API Voratoon HTTP {status}: {msg}",
+                        request=req,
+                        response=resp,
+                    )
+                if "envelope" in data:
+                    return data["envelope"]
+        except httpx.HTTPStatusError:
+            raise
+        except Exception:
+            continue
+
+    raise RuntimeError("Tidak dapat menemukan envelope valid dalam response RSC Voratoon")
 
 
 def ensure_voratoon_dns_configured() -> None:
@@ -252,33 +378,62 @@ async def fetch_voratoon_api_json(
     referer_url: str | None = None,
     timeout: float = 30.0,
 ) -> dict[str, Any]:
+    """
+    Mengambil data API Voratoon menggunakan Next.js Server Action (runApiCalls).
+    Mendukung URL kanonikal, relative path, serta kompatibel penuh dengan pemanggil lama.
+    """
+    import json
+    from urllib.parse import parse_qs, urlparse
     from scrapling.fetchers import Fetcher
 
     ensure_voratoon_dns_configured()
-    cookies = await asyncio.to_thread(ensure_voratoon_session, timeout=timeout)
-    headers = build_voratoon_api_headers(referer_url)
+    base_url = get_voratoon_base_url()
 
-    def do_request(req_cookies: dict[str, str]):
-        return Fetcher.get(
-            api_url,
+    parsed = urlparse(api_url)
+    path = parsed.path
+    if path.startswith("/api/proxy"):
+        path = path[len("/api/proxy"):]
+    if not path.startswith("/"):
+        path = f"/{path}"
+
+    query = {k: v[0] if len(v) == 1 else v for k, v in parse_qs(parsed.query).items()}
+
+    def do_action_call(action_id: str):
+        headers = {
+            "Next-Action": action_id,
+            "Accept": "text/x-component",
+            "Content-Type": "text/plain;charset=UTF-8",
+            "Referer": normalize_voratoon_web_url(referer_url),
+            "Origin": base_url,
+        }
+        call_spec = {
+            "path": path,
+            "method": "GET",
+            "query": query,
+            "token": None,
+        }
+        payload = json.dumps([[call_spec]])
+        return Fetcher.post(
+            f"{base_url}/",
             headers=headers,
-            cookies=req_cookies,
+            data=payload,
             stealthy_headers=True,
             timeout=timeout,
         )
 
-    res = await asyncio.to_thread(do_request, cookies)
+    action_id = get_voratoon_action_id()
+    res = await asyncio.to_thread(do_action_call, action_id)
     status = getattr(res, "status", 0)
 
-    # Jika session expired atau 403 proxy_session_required, refresh session dan retry 1 kali
-    if status == 403:
-        logger.info("Respon 403 diterima dari %s, mencoba refresh proxy session...", api_url)
-        new_cookies = await asyncio.to_thread(ensure_voratoon_session, timeout=timeout, force=True)
-        res = await asyncio.to_thread(do_request, new_cookies)
+    # Jika response bukan 200 (misal Action ID kadaluarsa atau 404/500), coba auto-discover dan retry sekali
+    if status != 200:
+        logger.info("Server action menghasilkan HTTP %s, mencoba refresh action ID...", status)
+        new_action_id = await asyncio.to_thread(discover_voratoon_action_id, timeout, True)
+        res = await asyncio.to_thread(do_action_call, new_action_id)
         status = getattr(res, "status", 0)
 
     if status != 200:
-        req = httpx.Request("GET", api_url, headers=headers)
+        req = httpx.Request("POST", f"{base_url}/")
         resp = httpx.Response(status, request=req, content=getattr(res, "body", b""))
         raise httpx.HTTPStatusError(
             f"API Voratoon HTTP {status} untuk {api_url}",
@@ -286,14 +441,9 @@ async def fetch_voratoon_api_json(
             response=resp,
         )
 
-    try:
-        data = res.json()
-    except Exception as exc:
-        raise RuntimeError(f"Gagal parse JSON dari API Voratoon: {api_url}") from exc
-
-    if data.get("status") not in (200, None):
-        raise RuntimeError(f"Gagal mengambil data API Voratoon: {api_url}")
-    return data
+    raw_body = getattr(res, "body", b"")
+    body_text = raw_body.decode("utf-8", errors="ignore") if isinstance(raw_body, bytes) else str(raw_body)
+    return parse_rsc_envelope(body_text, base_url=base_url)
 
 
 def extract_voratoon_series_slug(url: str) -> str:
@@ -373,7 +523,7 @@ def build_voratoon_series_index_params(
 
     cleaned_query = clean_text(query)
     if cleaned_query:
-        params["filter"] = f'title=like="{cleaned_query}",nativeTitle=like="{cleaned_query}"'
+        params["filter"] = f'title=like="{cleaned_query}"'
 
     return params
 
