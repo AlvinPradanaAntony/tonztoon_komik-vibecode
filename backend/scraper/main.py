@@ -961,6 +961,7 @@ async def process_comic(
                     slug=comic_detail["slug"],
                     title=comic_detail.get("title", ""),
                     cover_url=scraped_cover_url,
+                    source_url=comic_detail.get("source_url", ""),
                 )
                 if stored_url:
                     comic_detail["cover_image_url"] = stored_url

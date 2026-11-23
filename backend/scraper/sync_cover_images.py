@@ -526,6 +526,166 @@ async def try_download_voratoon_cover(
         return None
 
 
+async def try_download_scrapling(url: str) -> DownloadedImage | None:
+    """Download gambar via Scrapling Fetcher dengan TLS browser impersonation."""
+    try:
+        from scrapling.fetchers import Fetcher
+
+        headers = {
+            **get_proxy_headers(url),
+            "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+            "Sec-Fetch-Dest": "image",
+            "Sec-Fetch-Mode": "no-cors",
+            "Sec-Fetch-Site": "cross-site",
+        }
+
+        def _fetch():
+            return Fetcher.get(
+                url,
+                stealthy_headers=True,
+                headers=headers,
+                timeout=20_000,
+            )
+
+        response = await asyncio.to_thread(_fetch)
+        status = getattr(response, "status", None)
+        body = getattr(response, "body", b"")
+        if status == 200 and body:
+            content_type = "image/jpeg"
+            if hasattr(response, "headers") and response.headers:
+                content_type = response.headers.get("content-type") or "image/jpeg"
+            return DownloadedImage(
+                content=body,
+                content_type=content_type,
+                origin_url=url,
+            )
+    except Exception as exc:
+        logger.debug("Scrapling download gagal %s: %s", url, exc)
+    return None
+
+
+async def try_download_komiku_cover(
+    client: httpx.AsyncClient,
+    comic: CoverCandidate,
+    *,
+    max_width: int,
+) -> DownloadedImage | None:
+    """
+    Fallback untuk cover Komiku jika HTTP GET biasa gagal (misal 403 / Cloudflare).
+
+    1. Coba download via Scrapling Fetcher (stealth TLS impersonation).
+    2. Jika gagal, buka halaman detail via session browser KomikuScraper dan ekspor canvas ke WebP.
+    3. Jika masih gagal, fetch ulang detail halaman untuk mendapatkan cover URL terbaru.
+    """
+    if comic.source_name.strip().lower() != "komiku":
+        return None
+
+    # Langkah 1: Stealth Scrapling GET
+    scrapling_res = await try_download_scrapling(comic.cover_image_url)
+    if scrapling_res:
+        return scrapling_res
+
+    # Langkah 2: Browser canvas export
+    try:
+        from scraper.sources.komiku_scraper import KomikuScraper
+
+        session = await KomikuScraper.get_session()
+        target_url = comic.source_url or f"{KomikuScraper.BASE_URL}/manga/{comic.slug}"
+        async with session._page_generator(45_000, None, False) as page_info:
+            page = page_info.page
+            try:
+                first_response = await page.goto(
+                    target_url,
+                    referer=KomikuScraper.BASE_URL + "/",
+                )
+                if not first_response:
+                    return None
+
+                await session._wait_for_page_stability(page, True, False)
+                await session._cloudflare_solver(page)
+                await session._wait_for_page_stability(page, True, False)
+                await page.wait_for_timeout(800)
+
+                data_url = await page.evaluate(
+                    """
+                    async ({ imageUrl, maxWidth }) => {
+                        function loadImage(url) {
+                            return new Promise((resolve, reject) => {
+                                const img = new Image();
+                                img.decoding = "async";
+                                img.loading = "eager";
+                                img.onload = () => resolve(img);
+                                img.onerror = () => reject(new Error("image load failed"));
+                                img.src = url;
+                            });
+                        }
+
+                        let image = Array.from(document.images)
+                            .find((img) => img.currentSrc === imageUrl || img.src === imageUrl);
+                        if (!image || !image.complete || !image.naturalWidth) {
+                            image = document.querySelector(".ims img") || document.querySelector(".bgei img");
+                        }
+                        if (!image || !image.complete || !image.naturalWidth) {
+                            if (imageUrl) {
+                                image = await loadImage(imageUrl);
+                            }
+                        }
+                        if (!image || !image.naturalWidth) {
+                            return null;
+                        }
+
+                        const scale = Math.min(1, maxWidth / image.naturalWidth);
+                        const width = Math.max(1, Math.round(image.naturalWidth * scale));
+                        const height = Math.max(1, Math.round(image.naturalHeight * scale));
+                        const canvas = document.createElement("canvas");
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext("2d");
+                        ctx.drawImage(image, 0, 0, width, height);
+
+                        return canvas.toDataURL("image/webp", 0.82);
+                    }
+                    """,
+                    {"imageUrl": comic.cover_image_url, "maxWidth": max_width},
+                )
+            except Exception as exc:
+                page_info.mark_error()
+                logger.debug("Browser canvas fallback Komiku gagal %s: %s", comic.slug, exc)
+                data_url = None
+
+        if isinstance(data_url, str) and "," in data_url:
+            header, encoded = data_url.split(",", 1)
+            content_type = "image/webp" if "image/webp" in header else "image/png"
+            return DownloadedImage(
+                content=base64.b64decode(encoded),
+                content_type=content_type,
+                origin_url=comic.cover_image_url,
+            )
+    except Exception as exc:
+        logger.debug("Langkah browser canvas Komiku gagal %s: %s", comic.slug, exc)
+
+    # Langkah 3: Fetch fresh detail jika cover URL lama berubah/usang
+    try:
+        from scraper.sources.komiku_scraper import KomikuScraper
+
+        scraper = KomikuScraper()
+        try:
+            target_url = comic.source_url or f"{scraper.BASE_URL}/manga/{comic.slug}"
+            detail = await scraper.get_comic_detail(target_url)
+            fresh_cover = detail.get("cover_image_url")
+            if fresh_cover and fresh_cover != comic.cover_image_url:
+                downloaded = await try_download_http(client, fresh_cover)
+                if downloaded:
+                    return downloaded
+                return await try_download_scrapling(fresh_cover)
+        finally:
+            await scraper.close()
+    except Exception as exc:
+        logger.debug("Langkah fetch detail Komiku gagal %s: %s", comic.slug, exc)
+
+    return None
+
+
 async def download_cover(
     client: httpx.AsyncClient,
     comic: CoverCandidate,
@@ -536,8 +696,12 @@ async def download_cover(
     if downloaded:
         return downloaded
 
-    if comic.source_name.strip().lower() == "voratoon":
+    source_lower = comic.source_name.strip().lower()
+    if source_lower == "voratoon":
         return await try_download_voratoon_cover(client, comic)
+
+    if source_lower == "komiku":
+        return await try_download_komiku_cover(client, comic, max_width=max_width)
 
     return await try_download_komiku_asia_cover_via_browser(
         comic,
@@ -757,6 +921,7 @@ async def upload_comic_cover_to_storage(
     source_name: str,
     slug: str,
     cover_url: str,
+    source_url: str = "",
     title: str = "",
     bucket: str | None = None,
     max_bytes: int = DEFAULT_MAX_BYTES,
@@ -781,7 +946,7 @@ async def upload_comic_cover_to_storage(
         slug=slug,
         title=title or slug,
         cover_image_url=cover_url,
-        source_url="",
+        source_url=source_url,
     )
     object_path = build_storage_path(candidate)
     storage_url = build_public_storage_url(bucket_name, object_path)

@@ -105,6 +105,56 @@ class TestSyncCoverImages(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(res, expected_download)
                 mock_vo.assert_awaited_once_with(client, candidate)
 
+    async def test_download_cover_falls_back_to_komiku(self):
+        candidate = CoverCandidate(
+            id=1,
+            source_name="komiku",
+            slug="one-piece",
+            title="One Piece",
+            cover_image_url="https://cdnkomiku.xyz/cover.jpg",
+            source_url="https://komiku.org/manga/one-piece",
+        )
+        client = AsyncMock(spec=httpx.AsyncClient)
+
+        expected_download = DownloadedImage(
+            content=b"komiku-bytes",
+            content_type="image/jpeg",
+            origin_url="https://cdnkomiku.xyz/cover.jpg",
+        )
+
+        with patch("scraper.sync_cover_images.try_download_http", new_callable=AsyncMock) as mock_http:
+            mock_http.return_value = None
+            with patch("scraper.sync_cover_images.try_download_komiku_cover", new_callable=AsyncMock) as mock_km:
+                mock_km.return_value = expected_download
+                res = await download_cover(client, candidate, max_width=600)
+                self.assertEqual(res, expected_download)
+                mock_km.assert_awaited_once_with(client, candidate, max_width=600)
+
+    async def test_try_download_komiku_cover_via_scrapling(self):
+        from scraper.sync_cover_images import try_download_komiku_cover
+
+        candidate = CoverCandidate(
+            id=1,
+            source_name="komiku",
+            slug="one-piece",
+            title="One Piece",
+            cover_image_url="https://cdnkomiku.xyz/cover.jpg",
+            source_url="https://komiku.org/manga/one-piece",
+        )
+        client = AsyncMock(spec=httpx.AsyncClient)
+
+        expected = DownloadedImage(
+            content=b"scrapling-bytes",
+            content_type="image/jpeg",
+            origin_url="https://cdnkomiku.xyz/cover.jpg",
+        )
+
+        with patch("scraper.sync_cover_images.try_download_scrapling", new_callable=AsyncMock) as mock_scrapling:
+            mock_scrapling.return_value = expected
+            result = await try_download_komiku_cover(client, candidate, max_width=600)
+            self.assertEqual(result, expected)
+            mock_scrapling.assert_awaited_once_with("https://cdnkomiku.xyz/cover.jpg")
+
     async def test_upload_comic_cover_to_storage_success(self):
         with patch("scraper.sync_cover_images.settings") as mock_settings:
             mock_settings.SUPABASE_URL = "https://example.supabase.co"
@@ -185,6 +235,7 @@ class TestSyncCoverImages(unittest.IsolatedAsyncioTestCase):
                                     slug="solo-leveling",
                                     title="Solo Leveling",
                                     cover_url="https://cvr.voratoon.id/fresh_signed.webp",
+                                    source_url="https://voratoon.co/series/solo-leveling",
                                 )
                                 self.assertEqual(stats.total_comics, 1)
 
