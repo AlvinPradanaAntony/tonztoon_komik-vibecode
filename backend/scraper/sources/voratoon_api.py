@@ -372,16 +372,96 @@ def ensure_voratoon_session(timeout: float = 20.0, force: bool = False) -> dict[
     return dict(_VORATOON_COOKIES)
 
 
+_VORATOON_SESSION_RESET_STATUSES = {403, 429}
+_VORATOON_CLOUDFLARE_CHALLENGE_MARKERS = (
+    "just a moment",
+    "cf-mitigated",
+    "challenge-platform",
+    "cf-chl-",
+    "turnstile",
+    "checking your browser",
+    "performing security verification",
+    "enable javascript and cookies",
+)
+
+
+def is_voratoon_timeout_exception(exc: BaseException) -> bool:
+    """Kenali timeout tanpa menganggap semua exception sebagai anti-bot block."""
+    current: BaseException | None = exc
+    visited: set[int] = set()
+    timeout_names = {
+        "timeout",
+        "timeouterror",
+        "timeoutexception",
+        "connecttimeout",
+        "readtimeout",
+        "writetimeout",
+        "pooltimeout",
+    }
+
+    while current is not None and id(current) not in visited:
+        visited.add(id(current))
+        if isinstance(current, (TimeoutError, asyncio.TimeoutError)):
+            return True
+
+        exception_name = type(current).__name__.lower()
+        exception_module = type(current).__module__.lower()
+        if exception_name in timeout_names and any(
+            marker in exception_module
+            for marker in ("httpx", "requests", "curl", "scrapling", "aiohttp")
+        ):
+            return True
+
+        current = current.__cause__ or current.__context__
+
+    return False
+
+
+def is_voratoon_fallback_status(status: Any) -> bool:
+    try:
+        status_code = int(status)
+    except (TypeError, ValueError):
+        return False
+    return status_code in _VORATOON_SESSION_RESET_STATUSES or 500 <= status_code <= 599
+
+
+def needs_voratoon_browser_fallback(res: Any) -> bool:
+    status = getattr(res, "status", 0)
+    if is_voratoon_fallback_status(status):
+        return True
+
+    headers = {
+        str(k).lower(): str(v).lower()
+        for k, v in (getattr(res, "headers", {}) or {}).items()
+    }
+    if headers.get("cf-mitigated") == "challenge":
+        return True
+
+    body = getattr(res, "body", b"")
+    body_text = (
+        body.decode("utf-8", errors="ignore").lower()
+        if isinstance(body, bytes)
+        else str(body or "").lower()
+    )
+    if any(marker in body_text for marker in _VORATOON_CLOUDFLARE_CHALLENGE_MARKERS):
+        return True
+    return "cloudflare" in body_text and any(
+        marker in body_text
+        for marker in ("challenge", "captcha", "security verification")
+    )
+
+
 async def fetch_voratoon_api_json(
     api_url: str,
     *,
     referer_url: str | None = None,
     timeout: float = 30.0,
+    browser_fallback_handler: Any = None,
 ) -> dict[str, Any]:
     """
     Mengambil data API Voratoon menggunakan Next.js Server Action (runApiCalls).
     Mendukung Dual-Host (Kanonikal voratoon.co + Mirror Dinamis 13.voratoon.com dari voratoon.id),
-    auto-discovery Action ID, serta ekstraksi JSON murni tanpa DOM parsing.
+    auto-discovery Action ID, serta browser fallback (AsyncStealthySession) jika terkena Cloudflare WAF.
     """
     import json
     from urllib.parse import parse_qs, urlparse
@@ -429,6 +509,12 @@ async def fetch_voratoon_api_json(
     successful_host = primary_host
 
     for idx, host in enumerate(hosts_to_try):
+        call_spec = {
+            "path": path,
+            "method": "GET",
+            "query": query,
+            "token": None,
+        }
         try:
             res = await asyncio.to_thread(do_action_call, host, action_id)
             status = getattr(res, "status", 0)
@@ -447,16 +533,34 @@ async def fetch_voratoon_api_json(
                 body_text = raw_body.decode("utf-8", errors="ignore") if isinstance(raw_body, bytes) else str(raw_body)
                 return parse_rsc_envelope(body_text, base_url=host)
 
+            if browser_fallback_handler is not None and needs_voratoon_browser_fallback(res):
+                logger.warning(
+                    "Direct API Voratoon pada host %s mendapat proteksi/challenge (status %s); memanggil browser fallback...",
+                    host,
+                    status,
+                )
+                rsc_text = await browser_fallback_handler(host, action_id, call_spec)
+                return parse_rsc_envelope(rsc_text, base_url=host)
+
             last_res = res
             logger.warning("Host %s mengembalikan status HTTP %s", host, status)
         except Exception as exc:
             # Jika error adalah HTTPStatusError 404 dari payload resource not found, jangan fallback host
             if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 404:
                 raise
+            if browser_fallback_handler is not None and is_voratoon_timeout_exception(exc):
+                logger.warning(
+                    "Direct API fetch Voratoon pada host %s timeout; memanggil browser fallback: %s",
+                    host,
+                    exc,
+                )
+                rsc_text = await browser_fallback_handler(host, action_id, call_spec)
+                return parse_rsc_envelope(rsc_text, base_url=host)
+
             logger.warning("Kegagalan jaringan pada host %s: %s", host, exc)
             last_exception = exc
 
-        # Jika host utama gagal, coba auto-discover mirror dari voratoon.id
+        # Jika host utama gagal dan belum dicoba fallback mirror, coba auto-discover mirror dari voratoon.id
         if idx == 0 and len(hosts_to_try) == 1:
             try:
                 mirror = await asyncio.to_thread(discover_voratoon_base_url, timeout, True)

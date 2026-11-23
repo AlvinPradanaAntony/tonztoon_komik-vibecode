@@ -1,3 +1,4 @@
+import asyncio
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -26,6 +27,9 @@ from scraper.sources.voratoon_api import (
     extract_cover_from_src,
     extract_voratoon_chapter_identity,
     extract_voratoon_series_slug,
+    fetch_voratoon_api_json,
+    is_voratoon_timeout_exception,
+    needs_voratoon_browser_fallback,
     normalize_voratoon_web_url,
     parse_voratoon_iso_datetime,
 )
@@ -426,6 +430,67 @@ class VoratoonScraperFlowTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(patch_data["status"], "ongoing")
             self.assertEqual(patch_data["total_view"], 8800)
             self.assertEqual(patch_data["cover_image_url"], "https://cvr.voratoon.id/new-cover.webp")
+
+
+class VoratoonBrowserFallbackTests(unittest.IsolatedAsyncioTestCase):
+    def test_needs_browser_fallback_detection(self):
+        # HTTP Status 403 / 429
+        res_403 = MagicMock(status=403, headers={}, body=b"Forbidden")
+        self.assertTrue(needs_voratoon_browser_fallback(res_403))
+
+        res_429 = MagicMock(status=429, headers={}, body=b"Too Many Requests")
+        self.assertTrue(needs_voratoon_browser_fallback(res_429))
+
+        # Cloudflare header
+        res_cf_hdr = MagicMock(status=200, headers={"cf-mitigated": "challenge"}, body=b"ok")
+        self.assertTrue(needs_voratoon_browser_fallback(res_cf_hdr))
+
+        # Cloudflare challenge body markers
+        res_cf_body = MagicMock(
+            status=200,
+            headers={},
+            body=b"<html><title>Just a moment...</title><body>Checking your browser before accessing</body></html>",
+        )
+        self.assertTrue(needs_voratoon_browser_fallback(res_cf_body))
+
+        # Normal 200 without markers
+        res_ok = MagicMock(status=200, headers={}, body=b'1:[{"ok":true,"envelope":{"data":[]}}]')
+        self.assertFalse(needs_voratoon_browser_fallback(res_ok))
+
+    def test_is_timeout_exception(self):
+        self.assertTrue(is_voratoon_timeout_exception(TimeoutError("Timeout")))
+        self.assertTrue(is_voratoon_timeout_exception(asyncio.TimeoutError()))
+        self.assertTrue(is_voratoon_timeout_exception(httpx.ReadTimeout("Timeout")))
+        self.assertFalse(is_voratoon_timeout_exception(ValueError("Invalid argument")))
+
+    async def test_fetch_voratoon_api_json_triggers_browser_fallback_on_403(self):
+        mock_403_res = MagicMock(
+            status=403,
+            headers={"cf-mitigated": "challenge"},
+            body=b"<html><title>Just a moment...</title></html>",
+        )
+        fake_rsc_text = '1:[{"ok":true,"envelope":{"data":[{"id":1,"slug":"from-browser"}]}}]'
+        mock_browser_handler = AsyncMock(return_value=fake_rsc_text)
+
+        with patch("scrapling.fetchers.Fetcher.post", return_value=mock_403_res):
+            result = await fetch_voratoon_api_json(
+                "https://voratoon.co/api/proxy/series",
+                browser_fallback_handler=mock_browser_handler,
+            )
+            mock_browser_handler.assert_awaited_once()
+            self.assertEqual(result, {"data": [{"id": 1, "slug": "from-browser"}]})
+
+    async def test_fetch_voratoon_api_json_triggers_browser_fallback_on_timeout(self):
+        fake_rsc_text = '1:[{"ok":true,"envelope":{"data":[{"id":2,"slug":"from-timeout-fallback"}]}}]'
+        mock_browser_handler = AsyncMock(return_value=fake_rsc_text)
+
+        with patch("scrapling.fetchers.Fetcher.post", side_effect=httpx.ReadTimeout("Connection timed out")):
+            result = await fetch_voratoon_api_json(
+                "https://voratoon.co/api/proxy/series",
+                browser_fallback_handler=mock_browser_handler,
+            )
+            mock_browser_handler.assert_awaited_once()
+            self.assertEqual(result, {"data": [{"id": 2, "slug": "from-timeout-fallback"}]})
 
 
 if __name__ == "__main__":

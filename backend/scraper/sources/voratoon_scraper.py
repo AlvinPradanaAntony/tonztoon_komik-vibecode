@@ -10,11 +10,14 @@ dan performa scraping tinggi tanpa DOM parsing.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import os
 import re
 from typing import Any
 
 import httpx
+from scrapling.fetchers import AsyncStealthySession
 
 from scraper.base_scraper import BaseComicScraper
 from scraper.sources.common import ScraperCommonMixin
@@ -51,10 +54,186 @@ class _VoratoonBaseUrlDescriptor:
 
 
 class VoratoonScraper(ScraperCommonMixin, BaseComicScraper):
-    """Scraper implementation untuk Voratoon berbasis API-first."""
+    """Scraper implementation untuk Voratoon berbasis API-first dengan browser fallback."""
 
     SOURCE_NAME = "voratoon"
     BASE_URL = _VoratoonBaseUrlDescriptor()
+
+    _shared_session: AsyncStealthySession | None = None
+    _shared_page: Any = None
+    _SESSION_RESET_STATUSES = {403, 429}
+    _CLOUDFLARE_CHALLENGE_MARKERS = (
+        "just a moment",
+        "cf-mitigated",
+        "challenge-platform",
+        "cf-chl-",
+        "turnstile",
+        "checking your browser",
+        "performing security verification",
+        "enable javascript and cookies",
+    )
+
+    @classmethod
+    def _env_bool(cls, name: str, default: bool = False) -> bool:
+        raw = os.getenv(name)
+        if raw is None:
+            return default
+        return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+    @classmethod
+    def _headless(cls) -> bool:
+        return cls._env_bool("VORATOON_HEADLESS", False)
+
+    @classmethod
+    def _browser_extra_flags(cls) -> list[str]:
+        """Gunakan viewport realistis di CI; lokal tetap disembunyikan."""
+        if os.getenv("GITHUB_ACTIONS", "").lower() == "true":
+            return ["--window-size=1366,768"]
+        return ["--window-position=-32000,-32000", "--window-size=200,200"]
+
+    @classmethod
+    async def get_session(cls) -> AsyncStealthySession:
+        if cls._shared_session is None:
+            logger.info("Membuka AsyncStealthySession Voratoon (Persistent)...")
+            proxy = os.getenv("VORATOON_PROXY")
+            if proxy:
+                proxy = proxy.strip()
+                masked_proxy = re.sub(r":[^:/@]+@", ":***@", proxy) if "@" in proxy else proxy
+                logger.info("Menggunakan proxy untuk stealth session Voratoon: %s", masked_proxy)
+            else:
+                proxy = None
+
+            cls._shared_session = AsyncStealthySession(
+                headless=cls._headless(),
+                real_chrome=True,
+                block_webrtc=True,
+                solve_cloudflare=True,
+                google_search=True,
+                timeout=120_000,
+                extra_flags=cls._browser_extra_flags(),
+                proxy=proxy,
+            )
+            await cls._shared_session.__aenter__()
+        return cls._shared_session
+
+    @classmethod
+    async def close_shared_session(cls) -> None:
+        """Tutup tab browser dan sesi persisten untuk mengosongkan resource."""
+        if cls._shared_page is not None:
+            try:
+                if not cls._shared_page.is_closed():
+                    await cls._shared_page.close()
+            except Exception as exc:
+                logger.warning("Gagal menutup page browser Voratoon: %s", exc)
+            finally:
+                cls._shared_page = None
+
+        if cls._shared_session is not None:
+            logger.info("Menutup AsyncStealthySession Voratoon...")
+            session = cls._shared_session
+            cls._shared_session = None
+            try:
+                await session.__aexit__(None, None, None)
+            except Exception as exc:
+                logger.warning("Gagal menutup AsyncStealthySession Voratoon: %s", exc)
+
+    @classmethod
+    async def reset_shared_session(cls, reason: str) -> None:
+        """Paksa reset browser/session agar request berikutnya membuka identitas baru."""
+        logger.warning("Reset AsyncStealthySession Voratoon: %s", reason)
+        await cls.close_shared_session()
+        logger.warning(
+            "Retry berikutnya akan membuka browser/session baru dengan identitas lebih fresh."
+        )
+
+    @classmethod
+    async def _get_or_create_page(cls, host: str) -> Any:
+        session = await cls.get_session()
+        if cls._shared_page is not None and not cls._shared_page.is_closed():
+            return cls._shared_page
+
+        logger.info("Membuka browser tab baru Voratoon untuk host %s...", host)
+        page = await session.context.new_page()
+        try:
+            await page.goto(f"{host}/", timeout=60_000, wait_until="domcontentloaded")
+            page_content = await page.content()
+            if session._detect_cloudflare(page_content):
+                logger.info("Cloudflare Turnstile terdeteksi di browser Voratoon, memecahkan challenge...")
+                await session._cloudflare_solver(page)
+                await page.wait_for_load_state("domcontentloaded")
+            cls._shared_page = page
+            return page
+        except Exception as exc:
+            try:
+                await page.close()
+            except Exception:
+                pass
+            cls._shared_page = None
+            raise exc
+
+    @classmethod
+    async def _fetch_server_action_via_browser(
+        cls,
+        host: str,
+        action_id: str,
+        call_spec: dict[str, Any],
+        timeout_ms: int = 60_000,
+    ) -> str:
+        """Mengeksekusi Next.js Server Action dari dalam browser context yang telah terautentikasi WAF."""
+        logger.info("Stealth Server Action fallback (Cloudflare) Voratoon: path=%s", call_spec.get("path"))
+        page = await cls._get_or_create_page(host)
+        js_code = """
+        async ([actionId, callSpec]) => {
+            const resp = await window.fetch('/', {
+                method: 'POST',
+                headers: {
+                    'Next-Action': actionId,
+                    'Accept': 'text/x-component',
+                    'Content-Type': 'text/plain;charset=UTF-8'
+                },
+                body: JSON.stringify([[callSpec]])
+            });
+            const text = await resp.text();
+            return {
+                status: resp.status,
+                text: text
+            };
+        }
+        """
+        try:
+            res = await asyncio.wait_for(
+                page.evaluate(js_code, [action_id, call_spec]),
+                timeout=timeout_ms / 1000.0,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Error evaluasi JavaScript Server Action di browser: %s. Mencoba re-create page...",
+                exc,
+            )
+            if cls._shared_page is not None:
+                try:
+                    await cls._shared_page.close()
+                except Exception:
+                    pass
+                cls._shared_page = None
+            page = await cls._get_or_create_page(host)
+            res = await asyncio.wait_for(
+                page.evaluate(js_code, [action_id, call_spec]),
+                timeout=timeout_ms / 1000.0,
+            )
+
+        status = res.get("status", 0)
+        if status == 200:
+            return res.get("text", "")
+
+        if status in cls._SESSION_RESET_STATUSES or 500 <= status <= 599:
+            await cls.reset_shared_session(f"Browser Server Action Voratoon mengembalikan HTTP {status}")
+
+        raise RuntimeError(f"Browser Server Action Voratoon gagal dengan status HTTP {status}")
+
+    async def close(self) -> None:
+        """Cleanup hook untuk pipeline scraper/sync."""
+        await self.close_shared_session()
 
     def __init__(self):
         super().__init__()
@@ -68,13 +247,14 @@ class VoratoonScraper(ScraperCommonMixin, BaseComicScraper):
         api_url: str,
         *,
         referer_url: str | None = None,
-        timeout: float = 20.0,
+        timeout: float = 30.0,
     ) -> dict[str, Any]:
-        """Method pembantu API dengan session management."""
+        """Method pembantu API dengan session management dan browser fallback."""
         return await fetch_voratoon_api_json(
             api_url,
             referer_url=referer_url,
             timeout=timeout,
+            browser_fallback_handler=self._fetch_server_action_via_browser,
         )
 
     def _extract_series_slug(self, url: str) -> str:
