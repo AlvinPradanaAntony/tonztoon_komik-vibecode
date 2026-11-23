@@ -126,6 +126,10 @@ from scraper.sources.registry import (
     create_scraper,
     get_supported_source_names,
 )
+from scraper.sync_cover_images import (
+    is_storage_sync_configured,
+    upload_comic_cover_to_storage,
+)
 from scraper.time_utils import now_wib
 from scraper.utils import (
     CliLiveProgress,
@@ -936,6 +940,31 @@ async def process_comic(
             stats.total_errors += 1
             logger.warning(f"  ⚠️ {comic_label} Tidak ada title di detail, skip: {detail_url}")
             return
+
+        # Pastikan cover tersimpan di Object Storage jika kredensial storage tersedia
+        scraped_cover_url = comic_detail.get("cover_image_url")
+        if scraped_cover_url and is_storage_sync_configured():
+            existing_cover = (
+                await session.execute(
+                    select(Comic.cover_image_url).where(
+                        Comic.source_name == comic_detail["source_name"],
+                        Comic.slug == comic_detail["slug"],
+                    )
+                )
+            ).scalar_one_or_none()
+            from app.services.image_service import is_public_supabase_storage_url
+            if existing_cover and is_public_supabase_storage_url(existing_cover):
+                comic_detail["cover_image_url"] = existing_cover
+            else:
+                stored_url = await upload_comic_cover_to_storage(
+                    source_name=comic_detail["source_name"],
+                    slug=comic_detail["slug"],
+                    title=comic_detail.get("title", ""),
+                    cover_url=scraped_cover_url,
+                )
+                if stored_url:
+                    comic_detail["cover_image_url"] = stored_url
+                    logger.info("  🖼️ %s Cover tersimpan di Object Storage: %s", comic_label, stored_url)
 
         validated = ComicCreate(
             title=comic_detail["title"],

@@ -47,10 +47,14 @@ DOM Structure (verified April 2026):
   - #Baca_Komik img → chapter images
 """
 
+import asyncio
 import logging
+import os
 import re
 from datetime import datetime
 from typing import Any
+
+from scrapling.fetchers import AsyncStealthySession, Fetcher
 
 from scraper.base_scraper import BaseComicScraper
 from scraper.sources.common import ScraperCommonMixin
@@ -70,10 +74,248 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
     # Alternatif mirror
     MIRROR_URL = "https://01.komiku.asia"
 
-    def _fetch_page(self, url: str):
-        """Ambil halaman statis Komiku dengan Fetcher standar."""
+    _shared_session: AsyncStealthySession | None = None
+    _SESSION_RESET_STATUSES = {403, 429}
+    _CLOUDFLARE_CHALLENGE_MARKERS = (
+        "just a moment",
+        "cf-mitigated",
+        "challenge-platform",
+        "cf-chl-",
+        "turnstile",
+        "checking your browser",
+        "performing security verification",
+        "enable javascript and cookies",
+    )
+
+    @classmethod
+    def _env_bool(cls, name: str, default: bool = False) -> bool:
+        raw = os.getenv(name)
+        if raw is None:
+            return default
+        return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+    @classmethod
+    def _headless(cls) -> bool:
+        return cls._env_bool("KOMIKU_HEADLESS", False)
+
+    @classmethod
+    def _browser_extra_flags(cls) -> list[str]:
+        """Gunakan viewport realistis di CI; lokal tetap disembunyikan seperti konfigurasi lama."""
+        if os.getenv("GITHUB_ACTIONS", "").lower() == "true":
+            return ["--window-size=1366,768"]
+        return ["--window-position=-32000,-32000", "--window-size=200,200"]
+
+    @classmethod
+    async def get_session(cls) -> AsyncStealthySession:
+        if cls._shared_session is None:
+            logger.info("Membuka AsyncStealthySession (Persistent) Komiku baru...")
+            proxy = os.getenv("KOMIKU_PROXY") or os.getenv("KOMIKU_ASIA_PROXY")
+            if proxy:
+                proxy = proxy.strip()
+                masked_proxy = re.sub(r":[^:/@]+@", ":***@", proxy) if "@" in proxy else proxy
+                logger.info("Menggunakan proxy untuk stealth session Komiku: %s", masked_proxy)
+            else:
+                proxy = None
+
+            cls._shared_session = AsyncStealthySession(
+                headless=cls._headless(),
+                real_chrome=True,
+                block_webrtc=True,
+                solve_cloudflare=True,
+                google_search=True,
+                timeout=120_000,
+                extra_flags=cls._browser_extra_flags(),
+                proxy=proxy,
+            )
+            await cls._shared_session.__aenter__()
+        return cls._shared_session
+
+    @classmethod
+    async def close_shared_session(cls) -> None:
+        """Tutup sesi persisten untuk mengosongkan resource browser."""
+        if cls._shared_session is not None:
+            logger.info("Menutup AsyncStealthySession Komiku...")
+            session = cls._shared_session
+            cls._shared_session = None
+            try:
+                await session.__aexit__(None, None, None)
+            except Exception as exc:
+                logger.warning("Gagal menutup AsyncStealthySession Komiku lama: %s", exc)
+
+    @classmethod
+    async def reset_shared_session(cls, reason: str) -> None:
+        """Paksa reset browser/session agar request berikutnya membuka identitas baru."""
+        logger.warning("Reset AsyncStealthySession Komiku: %s", reason)
+        await cls.close_shared_session()
+        logger.warning(
+            "Retry berikutnya akan membuka browser/session baru dengan identitas lebih fresh."
+        )
+
+    async def close(self) -> None:
+        """Cleanup hook untuk pipeline utama/sync full library."""
+        await self.close_shared_session()
+
+    @classmethod
+    def _is_timeout_exception(cls, exc: BaseException) -> bool:
+        """Kenali timeout tanpa menganggap semua exception sebagai anti-bot block."""
+        current: BaseException | None = exc
+        visited: set[int] = set()
+        timeout_names = {
+            "timeout",
+            "timeouterror",
+            "timeoutexception",
+            "connecttimeout",
+            "readtimeout",
+            "writetimeout",
+            "pooltimeout",
+        }
+
+        while current is not None and id(current) not in visited:
+            visited.add(id(current))
+            if isinstance(current, (TimeoutError, asyncio.TimeoutError)):
+                return True
+
+            exception_name = type(current).__name__.lower()
+            exception_module = type(current).__module__.lower()
+            if (
+                exception_name in timeout_names
+                and any(
+                    marker in exception_module
+                    for marker in ("httpx", "requests", "curl", "scrapling", "aiohttp")
+                )
+            ):
+                return True
+
+            current = current.__cause__ or current.__context__
+
+        return False
+
+    @classmethod
+    def _is_fallback_status(cls, status: Any) -> bool:
+        try:
+            status_code = int(status)
+        except (TypeError, ValueError):
+            return False
+        return status_code in cls._SESSION_RESET_STATUSES or 500 <= status_code <= 599
+
+    @classmethod
+    async def _raise_for_bad_response(cls, url: str, page) -> None:
+        """Naikkan error dan reset session bila status respons mengindikasikan block/proxy issue."""
+        status = getattr(page, "status", 0)
+        if status == 200:
+            return
+
+        if cls._is_fallback_status(status):
+            await cls.reset_shared_session(
+                f"status {status} saat fetch {url}"
+            )
+
+        raise RuntimeError(
+            f"Gagal fetch halaman target: {url} "
+            f"(status={getattr(page, 'status', 'unknown')})"
+        )
+
+    @classmethod
+    def _response_body_text(cls, page) -> str:
+        body = getattr(page, "body", b"")
+        if isinstance(body, bytes):
+            return body.decode("utf-8", errors="ignore")
+        return str(body or "")
+
+    @classmethod
+    def _needs_browser_fallback(cls, page) -> bool:
+        status = getattr(page, "status", 0)
+        if cls._is_fallback_status(status):
+            return True
+
+        headers = {
+            str(key).lower(): str(value).lower()
+            for key, value in (getattr(page, "headers", {}) or {}).items()
+        }
+        if headers.get("cf-mitigated") == "challenge":
+            return True
+
+        body = cls._response_body_text(page).lower()
+        if any(marker in body for marker in cls._CLOUDFLARE_CHALLENGE_MARKERS):
+            return True
+        return "cloudflare" in body and any(
+            marker in body
+            for marker in ("challenge", "captcha", "security verification")
+        )
+
+    async def _fetch_page_via_browser(
+        self,
+        url: str,
+        *,
+        timeout_ms: int,
+    ):
+        logger.info("Stealth page fallback (Cloudflare) Komiku: %s", url)
+        try:
+            session = await self.get_session()
+            page = await asyncio.wait_for(
+                session.fetch(
+                    url,
+                    timeout=timeout_ms,
+                    wait=0,
+                ),
+                timeout=120.0,
+            )
+        except asyncio.TimeoutError as exc:
+            await self.reset_shared_session(
+                f"timeout page Komiku: {url}"
+            )
+            raise RuntimeError(f"Gagal fetch halaman Komiku karena timeout: {url}") from exc
+
+        await self._raise_for_bad_response(url, page)
+        return page
+
+    async def _fetch_page(
+        self,
+        url: str,
+        *,
+        timeout_ms: int = 120_000,
+    ):
+        """Ambil halaman Komiku dengan Scrapling Fetcher cepat, fallback ke browser saat 403/WAF/challenge."""
         logger.info("Fetch page: %s", url)
-        return self.fetcher.get(url)
+        try:
+            page = await asyncio.to_thread(
+                Fetcher.get,
+                url,
+                stealthy_headers=True,
+                timeout=timeout_ms,
+            )
+        except Exception as exc:
+            if not self._is_timeout_exception(exc):
+                logger.error(
+                    "Direct fetch Komiku gagal karena error non-timeout; "
+                    "browser fallback tidak dijalankan: %s",
+                    exc,
+                )
+                raise RuntimeError(
+                    f"Direct fetch Komiku gagal: {url}"
+                ) from exc
+            logger.warning(
+                "Direct fetch Komiku timeout; memakai browser fallback: %s",
+                exc,
+            )
+            return await self._fetch_page_via_browser(
+                url,
+                timeout_ms=timeout_ms,
+            )
+
+        if self._needs_browser_fallback(page):
+            logger.warning(
+                "Direct fetch Komiku mendapat challenge/status %s; "
+                "memakai browser fallback.",
+                getattr(page, "status", "unknown"),
+            )
+            return await self._fetch_page_via_browser(
+                url,
+                timeout_ms=timeout_ms,
+            )
+
+        await self._raise_for_bad_response(url, page)
+        return page
 
     def _parse_date(self, date_str: str) -> datetime | None:
         """Parse tanggal dari format DD/MM/YYYY."""
@@ -106,7 +348,7 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
         akurat dan lebih stabil untuk cron dibanding scraping potongan homepage.
         """
         url = self._build_latest_updates_url(page)
-        response = self._fetch_page(url)
+        response = await self._fetch_page(url)
         comic_entries = response.css("div.bge")
         logger.info("Found %s latest entries from canonical API", len(comic_entries))
         return self._parse_library_entries(comic_entries)
@@ -215,7 +457,7 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
         jadi lebih tepat dipakai daripada mencampur homepage dan `/pustaka/`.
         """
         url = self._build_popular_url(page)
-        response = self._fetch_page(url)
+        response = await self._fetch_page(url)
         comic_entries = response.css("div.bge")
         logger.info("Found %s popular entries from canonical API", len(comic_entries))
         return self._parse_library_entries(comic_entries)
@@ -310,7 +552,7 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
           - span[itemprop="name"] → chapter name
           - td.tanggalseries → release date (DD/MM/YYYY)
         """
-        response = self._fetch_page(url)
+        response = await self._fetch_page(url)
 
         # --- Title ---
         title = ""
@@ -537,7 +779,7 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
           ...
         </div>
         """
-        response = self._fetch_page(chapter_url)
+        response = await self._fetch_page(chapter_url)
 
         images = []
         img_elements = response.css("#Baca_Komik img")
@@ -617,7 +859,7 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
         else:
             url = f"{self.BASE_URL}/daftar-komik/"
             
-        response = self._fetch_page(url)
+        response = await self._fetch_page(url)
         comic_entries = response.css("article.manga-card")
         return self._parse_manga_card_entries(comic_entries, include_meta=True)
 
@@ -642,7 +884,7 @@ class KomikuScraper(ScraperCommonMixin, BaseComicScraper):
     async def get_source_comic_count(self) -> int | None:
         """Ambil total komik Komiku dari metadata `.page-info` katalog publik."""
         first_page_url = f"{self.BASE_URL}/daftar-komik/"
-        first_response = self._fetch_page(first_page_url)
+        first_response = await self._fetch_page(first_page_url)
         total_comics = self._extract_total_comics_from_listing(first_response)
         if total_comics is not None:
             return total_comics

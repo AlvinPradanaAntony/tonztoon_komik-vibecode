@@ -489,6 +489,43 @@ async def try_download_komiku_asia_cover_via_browser(
     )
 
 
+async def try_download_voratoon_cover(
+    client: httpx.AsyncClient,
+    comic: CoverCandidate,
+) -> DownloadedImage | None:
+    """
+    Fallback untuk cover Voratoon jika signed URL S3 lama sudah kedaluwarsa (403/expired).
+
+    Mengambil fresh signed URL dari API Voratoon menggunakan VoratoonScraper
+    (yang memiliki browser fallback otomatis jika terhalang Cloudflare),
+    lalu mendownload cover dari fresh URL tersebut.
+    """
+    if comic.source_name.strip().lower() != "voratoon":
+        return None
+
+    try:
+        from scraper.sources.voratoon_api import build_voratoon_series_detail_url
+        from scraper.sources.voratoon_scraper import VoratoonScraper
+
+        scraper = VoratoonScraper()
+        try:
+            endpoint = build_voratoon_series_detail_url(comic.slug, include_meta=True)
+            payload = await scraper._fetch_api_json(endpoint)
+            item = payload.get("data") or {}
+            series_meta = scraper._parse_series_item(item)
+            if not series_meta:
+                return None
+            fresh_cover = series_meta.get("cover_image_url")
+            if not fresh_cover or fresh_cover == comic.cover_image_url:
+                return None
+            return await try_download_http(client, fresh_cover)
+        finally:
+            await scraper.close()
+    except Exception as exc:
+        logger.debug("Fallback fresh Voratoon cover gagal untuk %s: %s", comic.slug, exc)
+        return None
+
+
 async def download_cover(
     client: httpx.AsyncClient,
     comic: CoverCandidate,
@@ -498,6 +535,9 @@ async def download_cover(
     downloaded = await try_download_http(client, comic.cover_image_url)
     if downloaded:
         return downloaded
+
+    if comic.source_name.strip().lower() == "voratoon":
+        return await try_download_voratoon_cover(client, comic)
 
     return await try_download_komiku_asia_cover_via_browser(
         comic,
@@ -701,6 +741,86 @@ async def process_comic(
     return True
 
 
+def is_storage_sync_configured(bucket: str | None = None) -> bool:
+    """Cek apakah kredensial Supabase Storage tersedia untuk sync cover."""
+    bucket_name = bucket or settings.SUPABASE_COVER_BUCKET
+    return bool(
+        settings.SUPABASE_URL
+        and settings.SUPABASE_SERVICE_ROLE_KEY
+        and bucket_name
+    )
+
+
+async def upload_comic_cover_to_storage(
+    client: httpx.AsyncClient | None = None,
+    *,
+    source_name: str,
+    slug: str,
+    cover_url: str,
+    title: str = "",
+    bucket: str | None = None,
+    max_bytes: int = DEFAULT_MAX_BYTES,
+    max_width: int = DEFAULT_MAX_WIDTH,
+    anti_blocking_enabled: bool = False,
+) -> str | None:
+    """
+    Download cover dari URL source, optimasi ke WebP, dan upload ke Supabase Storage.
+
+    Mengembalikan public URL Supabase Storage jika berhasil, atau None jika gagal / tidak terkonfigurasi.
+    """
+    bucket_name = bucket or settings.SUPABASE_COVER_BUCKET
+    if not is_storage_sync_configured(bucket_name):
+        return None
+
+    if not cover_url or is_storage_cover_url(cover_url, bucket_name):
+        return cover_url
+
+    candidate = CoverCandidate(
+        id=0,
+        source_name=source_name,
+        slug=slug,
+        title=title or slug,
+        cover_image_url=cover_url,
+        source_url="",
+    )
+    object_path = build_storage_path(candidate)
+    storage_url = build_public_storage_url(bucket_name, object_path)
+
+    async def _do_upload(http_client: httpx.AsyncClient) -> str | None:
+        downloaded = await download_cover(http_client, candidate, max_width=max_width)
+        if not downloaded:
+            logger.warning("  ⚠️ Gagal download cover untuk storage sync (%s): %s", slug, cover_url)
+            return None
+
+        optimized = optimize_cover_image(
+            downloaded.content,
+            max_bytes=max_bytes,
+            max_width=max_width,
+        )
+        await upload_cover(
+            http_client,
+            bucket=bucket_name,
+            object_path=object_path,
+            content=optimized,
+            anti_blocking_enabled=anti_blocking_enabled,
+        )
+        return storage_url
+
+    try:
+        if client is not None:
+            return await _do_upload(client)
+        async with httpx.AsyncClient(timeout=30.0) as temp_client:
+            return await _do_upload(temp_client)
+    except Exception as exc:
+        logger.warning(
+            "  ⚠️ Gagal upload cover ke storage (%s/%s): %s",
+            source_name,
+            slug,
+            exc,
+        )
+        return None
+
+
 async def run(args: argparse.Namespace) -> None:
     args.bucket = args.bucket or settings.SUPABASE_COVER_BUCKET
     require_supabase_storage_config(args.bucket)
@@ -881,6 +1001,12 @@ async def run(args: argparse.Namespace) -> None:
                 await delay_between_covers(args)
     finally:
         await KomikuAsiaScraper.close_shared_session()
+        try:
+            from scraper.sources.voratoon_scraper import VoratoonScraper
+
+            await VoratoonScraper.close_shared_session()
+        except Exception:
+            pass
 
     if _shutdown.requested:
         update_progress(checkpoint, state="interrupted", note="Dihentikan manual")

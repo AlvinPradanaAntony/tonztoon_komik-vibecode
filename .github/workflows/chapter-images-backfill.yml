@@ -131,7 +131,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: 🖥️ Install virtual display
-        if: github.event_name != 'workflow_dispatch' || github.event.inputs.source == '' || github.event.inputs.source == 'all' || github.event.inputs.source == 'komiku_asia' || github.event.inputs.source == 'shinigami'
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.source == '' || github.event.inputs.source == 'all' || github.event.inputs.source == 'komiku' || github.event.inputs.source == 'komiku_asia' || github.event.inputs.source == 'shinigami' || github.event.inputs.source == 'voratoon'
         run: sudo apt-get update && sudo apt-get install -y xvfb
 
       - name: 🌐 Install Scrapling browser dependencies
@@ -144,10 +144,14 @@ jobs:
           SELECTION_MODE: ${{ github.event.inputs.selection || 'random' }}
           BATCH_SIZE: ${{ github.event.inputs.batch_size || '10' }}
           LIMIT_COUNT: ${{ github.event.inputs.limit || '20' }}
+          KOMIKU_HEADLESS: "false"
+          KOMIKU_PROXY: ${{ secrets.KOMIKU_PROXY || secrets.KOMIKU_ASIA_PROXY }}
           KOMIKU_ASIA_HEADLESS: "false"
           KOMIKU_ASIA_PROXY: ${{ secrets.KOMIKU_ASIA_PROXY }}
           SHINIGAMI_HEADLESS: "false"
           SHINIGAMI_PROXY: ${{ secrets.SHINIGAMI_PROXY }}
+          VORATOON_HEADLESS: "false"
+          VORATOON_PROXY: ${{ secrets.VORATOON_PROXY }}
         run: |
           set -euo pipefail
 
@@ -157,15 +161,11 @@ jobs:
             CMD="${CMD} --source ${SOURCE_FILTER}"
           fi
           echo "Running: ${CMD}"
-          if [ "${SOURCE_FILTER}" = "komiku_asia" ] || [ "${SOURCE_FILTER}" = "shinigami" ]; then
+          if [ "${SOURCE_FILTER}" = "komiku" ] || [ "${SOURCE_FILTER}" = "komiku_asia" ] || [ "${SOURCE_FILTER}" = "shinigami" ] || [ "${SOURCE_FILTER}" = "voratoon" ]; then
             echo "Running ${SOURCE_FILTER} through xvfb."
             xvfb-run -a -s "-screen 0 1366x768x24" bash -lc "${CMD}"
           elif [ -z "${SOURCE_FILTER}" ] || [ "${SOURCE_FILTER}" = "all" ]; then
-            echo "Running non-xvfb sources without xvfb."
-            for source in komiku voratoon; do
-              bash -lc "${CMD} --source ${source}"
-            done
-            for source in shinigami komiku_asia; do
+            for source in shinigami komiku_asia komiku voratoon; do
               echo "Running ${source} through xvfb."
               xvfb-run -a -s "-screen 0 1366x768x24" bash -lc "${CMD} --source ${source}"
             done

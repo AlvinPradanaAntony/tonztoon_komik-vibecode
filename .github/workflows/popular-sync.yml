@@ -62,7 +62,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: 🖥️ Install virtual display
-        if: github.event_name != 'workflow_dispatch' || github.event.inputs.source == '' || github.event.inputs.source == 'all' || github.event.inputs.source == 'komiku_asia' || github.event.inputs.source == 'shinigami'
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.source == '' || github.event.inputs.source == 'all' || github.event.inputs.source == 'komiku' || github.event.inputs.source == 'komiku_asia' || github.event.inputs.source == 'shinigami' || github.event.inputs.source == 'voratoon'
         run: sudo apt-get update && sudo apt-get install -y xvfb
 
       - name: 🌐 Install Scrapling browser dependencies
@@ -80,16 +80,23 @@ jobs:
       - name: 🔥 Run popular sync
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_COVER_BUCKET: ${{ secrets.SUPABASE_COVER_BUCKET || 'thumbnail-comic' }}
           FCM_PROJECT_ID: ${{ secrets.FCM_PROJECT_ID }}
           FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
           POPULAR_PAGES: ${{ github.event.inputs.popular_pages || '10' }}
           SCRAPER_SOURCE: ${{ github.event.inputs.source || '' }}
           POPULAR_NO_EARLY_STOP: ${{ github.event.inputs.popular_no_early_stop || 'false' }}
           SCRAPER_EARLY_STOP: ${{ github.event.inputs.early_stop || '' }}
+          KOMIKU_HEADLESS: "false"
+          KOMIKU_PROXY: ${{ secrets.KOMIKU_PROXY || secrets.KOMIKU_ASIA_PROXY }}
           KOMIKU_ASIA_HEADLESS: "false"
           KOMIKU_ASIA_PROXY: ${{ secrets.KOMIKU_ASIA_PROXY }}
           SHINIGAMI_HEADLESS: "false"
           SHINIGAMI_PROXY: ${{ secrets.SHINIGAMI_PROXY }}
+          VORATOON_HEADLESS: "false"
+          VORATOON_PROXY: ${{ secrets.VORATOON_PROXY }}
         run: |
           set +e
           {
@@ -101,9 +108,6 @@ jobs:
 
             if [ -n "${SCRAPER_SOURCE}" ] && [ "${SCRAPER_SOURCE}" != "all" ]; then
               args+=(--source "${SCRAPER_SOURCE}")
-              if [[ "${SCRAPER_SOURCE}" == "komiku" || "${SCRAPER_SOURCE}" == "voratoon" ]]; then
-                args+=(--no-anti-blocking)
-              fi
             fi
 
             if [ "${POPULAR_NO_EARLY_STOP}" = "true" ]; then
@@ -122,18 +126,11 @@ jobs:
             printf ' %q' "${args[@]}"
             echo ""
 
-            if [ "${SCRAPER_SOURCE}" = "komiku_asia" ] || [ "${SCRAPER_SOURCE}" = "shinigami" ]; then
+            if [ "${SCRAPER_SOURCE}" = "komiku" ] || [ "${SCRAPER_SOURCE}" = "komiku_asia" ] || [ "${SCRAPER_SOURCE}" = "shinigami" ] || [ "${SCRAPER_SOURCE}" = "voratoon" ]; then
               echo "Running ${SCRAPER_SOURCE} through xvfb."
               xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.main "${args[@]}"
             elif [ -z "${SCRAPER_SOURCE}" ] || [ "${SCRAPER_SOURCE}" = "all" ]; then
-              echo "Running non-xvfb sources without xvfb."
-              for source in komiku voratoon; do
-                echo "─── Source: ${source} ───"
-                python -m scraper.main --source "${source}" --no-anti-blocking "${args[@]}" || {
-                  echo "::warning::Popular sync untuk source ${source} selesai dengan error."
-                }
-              done
-              for source in shinigami komiku_asia; do
+              for source in shinigami komiku_asia komiku voratoon; do
                 echo "─── Source: ${source} ───"
                 echo "Running ${source} through xvfb."
                 xvfb-run -a -s "-screen 0 1366x768x24" python -m scraper.main --source "${source}" "${args[@]}" || {

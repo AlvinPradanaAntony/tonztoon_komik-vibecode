@@ -44,7 +44,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: 🖥️ Install virtual display
-        if: github.event_name != 'workflow_dispatch' || github.event.inputs.source == '' || github.event.inputs.source == 'all' || github.event.inputs.source == 'komiku_asia' || github.event.inputs.source == 'shinigami'
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.source == '' || github.event.inputs.source == 'all' || github.event.inputs.source == 'komiku' || github.event.inputs.source == 'komiku_asia' || github.event.inputs.source == 'shinigami' || github.event.inputs.source == 'voratoon'
         run: sudo apt-get update && sudo apt-get install -y xvfb
 
       - name: 🌐 Install Scrapling browser dependencies
@@ -61,10 +61,14 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SOURCE_FILTER: ${{ github.event.inputs.source || '' }}
+          KOMIKU_HEADLESS: "false"
+          KOMIKU_PROXY: ${{ secrets.KOMIKU_PROXY || secrets.KOMIKU_ASIA_PROXY }}
           KOMIKU_ASIA_HEADLESS: "false"
           KOMIKU_ASIA_PROXY: ${{ secrets.KOMIKU_ASIA_PROXY }}
           SHINIGAMI_HEADLESS: "false"
           SHINIGAMI_PROXY: ${{ secrets.SHINIGAMI_PROXY }}
+          VORATOON_HEADLESS: "false"
+          VORATOON_PROXY: ${{ secrets.VORATOON_PROXY }}
         run: |
           set +e
           {
