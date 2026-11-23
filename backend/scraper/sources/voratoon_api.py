@@ -380,14 +380,15 @@ async def fetch_voratoon_api_json(
 ) -> dict[str, Any]:
     """
     Mengambil data API Voratoon menggunakan Next.js Server Action (runApiCalls).
-    Mendukung URL kanonikal, relative path, serta kompatibel penuh dengan pemanggil lama.
+    Mendukung Dual-Host (Kanonikal voratoon.co + Mirror Dinamis 13.voratoon.com dari voratoon.id),
+    auto-discovery Action ID, serta ekstraksi JSON murni tanpa DOM parsing.
     """
     import json
     from urllib.parse import parse_qs, urlparse
     from scrapling.fetchers import Fetcher
 
     ensure_voratoon_dns_configured()
-    base_url = get_voratoon_base_url()
+    primary_host = get_voratoon_base_url()
 
     parsed = urlparse(api_url)
     path = parsed.path
@@ -398,13 +399,13 @@ async def fetch_voratoon_api_json(
 
     query = {k: v[0] if len(v) == 1 else v for k, v in parse_qs(parsed.query).items()}
 
-    def do_action_call(action_id: str):
+    def do_action_call(host: str, action_id: str):
         headers = {
             "Next-Action": action_id,
             "Accept": "text/x-component",
             "Content-Type": "text/plain;charset=UTF-8",
             "Referer": normalize_voratoon_web_url(referer_url),
-            "Origin": base_url,
+            "Origin": host,
         }
         call_spec = {
             "path": path,
@@ -414,36 +415,71 @@ async def fetch_voratoon_api_json(
         }
         payload = json.dumps([[call_spec]])
         return Fetcher.post(
-            f"{base_url}/",
+            f"{host}/",
             headers=headers,
             data=payload,
             stealthy_headers=True,
             timeout=timeout,
         )
 
+    hosts_to_try = [primary_host]
     action_id = get_voratoon_action_id()
-    res = await asyncio.to_thread(do_action_call, action_id)
-    status = getattr(res, "status", 0)
+    last_exception: Exception | None = None
+    last_res = None
+    successful_host = primary_host
 
-    # Jika response bukan 200 (misal Action ID kadaluarsa atau 404/500), coba auto-discover dan retry sekali
-    if status != 200:
-        logger.info("Server action menghasilkan HTTP %s, mencoba refresh action ID...", status)
-        new_action_id = await asyncio.to_thread(discover_voratoon_action_id, timeout, True)
-        res = await asyncio.to_thread(do_action_call, new_action_id)
-        status = getattr(res, "status", 0)
+    for idx, host in enumerate(hosts_to_try):
+        try:
+            res = await asyncio.to_thread(do_action_call, host, action_id)
+            status = getattr(res, "status", 0)
 
-    if status != 200:
-        req = httpx.Request("POST", f"{base_url}/")
-        resp = httpx.Response(status, request=req, content=getattr(res, "body", b""))
+            # Jika Action ID kadaluarsa (misal status 404/500), coba auto-discover dan retry
+            if status in (404, 500):
+                logger.info("Host %s menghasilkan HTTP %s, mencoba refresh action ID...", host, status)
+                new_action_id = await asyncio.to_thread(discover_voratoon_action_id, timeout, True)
+                if new_action_id != action_id:
+                    action_id = new_action_id
+                    res = await asyncio.to_thread(do_action_call, host, action_id)
+                    status = getattr(res, "status", 0)
+
+            if status == 200:
+                raw_body = getattr(res, "body", b"")
+                body_text = raw_body.decode("utf-8", errors="ignore") if isinstance(raw_body, bytes) else str(raw_body)
+                return parse_rsc_envelope(body_text, base_url=host)
+
+            last_res = res
+            logger.warning("Host %s mengembalikan status HTTP %s", host, status)
+        except Exception as exc:
+            # Jika error adalah HTTPStatusError 404 dari payload resource not found, jangan fallback host
+            if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 404:
+                raise
+            logger.warning("Kegagalan jaringan pada host %s: %s", host, exc)
+            last_exception = exc
+
+        # Jika host utama gagal, coba auto-discover mirror dari voratoon.id
+        if idx == 0 and len(hosts_to_try) == 1:
+            try:
+                mirror = await asyncio.to_thread(discover_voratoon_base_url, timeout, True)
+                if mirror and mirror not in hosts_to_try:
+                    logger.info("Beralih ke mirror Voratoon aktif: %s", mirror)
+                    hosts_to_try.append(mirror)
+            except Exception as disc_exc:
+                logger.warning("Gagal auto-discover mirror fallback: %s", disc_exc)
+
+    if last_exception is not None:
+        raise last_exception
+
+    if last_res is not None:
+        status = getattr(last_res, "status", 0)
+        req = httpx.Request("POST", f"{primary_host}/")
+        resp = httpx.Response(status, request=req, content=getattr(last_res, "body", b""))
         raise httpx.HTTPStatusError(
             f"API Voratoon HTTP {status} untuk {api_url}",
             request=req,
             response=resp,
         )
 
-    raw_body = getattr(res, "body", b"")
-    body_text = raw_body.decode("utf-8", errors="ignore") if isinstance(raw_body, bytes) else str(raw_body)
-    return parse_rsc_envelope(body_text, base_url=base_url)
+    raise RuntimeError(f"Semua host Voratoon gagal merespon untuk {api_url}")
 
 
 def extract_voratoon_series_slug(url: str) -> str:
